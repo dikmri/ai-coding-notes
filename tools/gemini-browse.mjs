@@ -1,6 +1,7 @@
 // Gemini に手元の Chrome を操作させ、画面を直接確かめてもらう道具。Gemini の画面操作の仕組み（Computer Use）を使う。
 // Gemini が画面写真を見て「ここを押す」「この文字を打つ」と返し、この道具が Chrome で実行して、操作後の画面を返す。これを繰り返す。
 // 動ける範囲は、始めの URL と同じ場所（例: http://localhost:8769）だけ。そこから出る移動は断る。
+// ページが window.__aiPause(on) を持っていれば、Gemini が考えている間はそれで止め、操作をする直前に動かす（ゲームなど実時間で進むページのため）。
 //
 // 使い方（リポジトリの中で、手元のサーバーを動かしてから）:
 //   node tools/gemini-browse.mjs "<やること・確かめること>" --url <始めの URL> [--until セレクタ] [--steps 15] [--max-usd 0.6]
@@ -113,6 +114,8 @@ async function main() {
     await page.navigate(o.url);
     if (o.until && !(await page.waitFor(o.until))) throw new Error(`30 秒待っても「${o.until}」が出ませんでした`);
     await sleep(800);
+    const pause = (on) => page.evaluate(`window.__aiPause ? (window.__aiPause(${on}), true) : false`).catch(() => false);
+    await pause(true);
     let shot = await page.screenshot();
     writeFileSync(join(dir, 'step-00.png'), Buffer.from(shot, 'base64'));
     log('gemini.browse.start', { task: task.slice(0, 80), url: o.url, model: o.model, steps: o.steps }, 'start');
@@ -127,6 +130,7 @@ async function main() {
       const calls = (r.body.steps || []).filter((st) => st.type === 'function_call');
       if (!calls.length || last) { report = r.text; break; }
       const results = [];
+      await pause(false);
       for (const call of calls) {
         n++;
         const a = call.arguments || {};
@@ -145,6 +149,7 @@ async function main() {
         log('gemini.browse.action', { n, name: call.name, args: shown }, res.error ? 'error: ' + res.error : 'ok');
         results.push({ type: 'function_result', name: call.name, call_id: call.id, result: [{ type: 'text', text: JSON.stringify({ url, ...res }) }, { type: 'image', data: shot, mime_type: 'image/png' }] });
       }
+      await pause(true);
       input = results;
     }
   } finally { await page.close(); }

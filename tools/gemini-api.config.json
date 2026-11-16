@@ -1,7 +1,7 @@
 {
   "tier": "paid",
-  "budgetUsd": 20,
-  "dailyCapUsd": 3,
+  "budgetUsd": 50,
+  "dailyCapUsd": null,
   "thinking": "medium",
   "apiRevision": "2026-05-20",
   "models": {

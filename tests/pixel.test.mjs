@@ -46,3 +46,29 @@ test('SVG: 横に続く同じ色をまとめ、色ごとに path を1本にす�
     + '<path fill="#000" d="M0 0h2v1h-2z"/>'
     + '<path fill="#fff" d="M2 0h1v1h-1zM2 1h2v1h-2z"/></svg>');
 });
+
+test('検査: 縦長（w×h）の絵を受け付け、行の数は h、行の長さは w で見る', () => {
+  const rows = Array.from({ length: 3 }, () => 'kw');
+  assert.equal(P.validateArt(art(rows), { w: 2, h: 3 }).ok, true);
+  const bad = P.validateArt(art(['kw', 'kw']), { w: 2, h: 3 });
+  assert.equal(bad.ok, false);
+  assert.match(bad.errors.join(), /3 行/);
+});
+
+test('検査: 決めた色の表（allowed）があれば、その中の近い色にそろえる。色の数の上限も変えられる', () => {
+  const allowed = ['#241734', '#fffdf9', '#6bf2e3'];
+  const r = P.validateArt(art(['ab'], [{ key: 'a', color: '#25183a' }, { key: 'b', color: '#70f0e0' }]), { w: 2, h: 1, allowed });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.art.palette.map((p) => p.color), ['#241734', '#6bf2e3']);
+  assert.equal(r.snapped.length, 2);
+  const many = Array.from({ length: 16 }, (_, i) => ({ key: String.fromCharCode(65 + i), color: '#000000' }));
+  assert.equal(P.validateArt(art(['AB'], many), { w: 2, h: 1, maxColors: 15 }).ok, false);
+});
+
+test('色の書き方: 記号（` や "）で囲まれていても読む。使える色の一覧が空なら、そろえない', () => {
+  assert.equal(P.normalizeHex('`#141322`'), '#141322');
+  assert.equal(P.normalizeHex(' #a3f '), '#aa33ff'); // 前後の空白も取る
+  const r = P.validateArt(art(['k'], [{ key: 'k', color: '#123456' }]), { w: 1, h: 1, allowed: ['not-a-color'] });
+  assert.equal(r.ok, true);
+  assert.equal(r.art.palette[0].color, '#123456');
+});

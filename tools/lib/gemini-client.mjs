@@ -1,7 +1,7 @@
 // Gemini API を呼ぶ部分（キー・通信・ファイルの受け渡し・金額の記録・ログ）。tools/gemini-api.mjs と tools/gemini-pr.mjs が使う。
 // キーは環境変数 GEMINI_API_KEY から読む（無ければ Windows の利用者の環境変数の登録場所から読む）。キーは画面にもログにも出さない。
 // 金額の記録とログと結果は、作業用の別のチェックアウト（git worktree）から呼んでも、元のチェックアウトの1か所に集める。
-import { readFileSync, writeFileSync, mkdirSync, appendFileSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, appendFileSync, existsSync, statSync, rmdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import https from 'node:https';
 import { join, dirname, basename, resolve } from 'node:path';
@@ -94,6 +94,18 @@ export async function toPart(target) {
 export function loadLedger() {
   try { return JSON.parse(readFileSync(LEDGER, 'utf8')); } catch { return G.emptyLedger(CONFIG.budgetUsd); }
 }
+// 金額の記録を書くあいだの鍵。別の呼び出しと同時に書いて記録が消えないように、フォルダを作れた者だけが書く
+function withLedgerLock(fn) {
+  const lock = LEDGER + '.lock', until = Date.now() + 5000;
+  for (;;) {
+    try { mkdirSync(lock); break; } catch {
+      try { if (Date.now() - statSync(lock).mtimeMs > 10000) { rmdirSync(lock); continue; } } catch { /* 消えた */ }
+      if (Date.now() > until) break;
+      const t = Date.now() + 20; while (Date.now() < t) { /* 少し待つ */ }
+    }
+  }
+  try { return fn(); } finally { try { rmdirSync(lock); } catch { /* もう無い */ } }
+}
 export const stamp = () => new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 
 // 1回呼ぶ。有料なら先に予算の歯止めを通し、呼んだあと金額を記録して、依頼と返事を build/gemini/ に保存する
@@ -122,8 +134,7 @@ export async function interact(opt) {
   const usd = G.costOf(body.usage, opt.model, now);
   const entry = { ts: now, day, model: opt.model, tier, name: opt.name, targets: opt.targets || [], usage: body.usage, usd, sec: Math.round((Date.now() - t0) / 1000) };
   mkdirSync(dirname(LEDGER), { recursive: true });
-  const led = G.ledgerAdd(loadLedger(), entry);
-  writeFileSync(LEDGER, JSON.stringify(led, null, 2));
+  const led = withLedgerLock(() => { const l = G.ledgerAdd(loadLedger(), entry); writeFileSync(LEDGER, JSON.stringify(l, null, 2)); return l; });
   mkdirSync(OUT, { recursive: true });
   const base = `${stamp()}-${opt.name}`;
   if (opt.save === false) {
@@ -143,6 +154,6 @@ export function moneyLine(usd, led) {
   const day = G.localDay(new Date().toISOString());
   const u = usd == null ? '不明' : usd.toFixed(4) + ' ドル';
   return CONFIG.tier === 'paid'
-    ? `見積もり ${u} ・ 今日 ${G.spentOn(led, day).toFixed(2)} / ${CONFIG.dailyCapUsd} ドル ・ 残り ${G.remaining(led).toFixed(2)} / ${led.budgetUsd} ドル`
+    ? `見積もり ${u} ・ 今日 ${G.spentOn(led, day).toFixed(2)} ドル${CONFIG.dailyCapUsd != null ? ` / ${CONFIG.dailyCapUsd} ドル` : ''} ・ これまでの合計 ${led.spentUsd.toFixed(2)} ドル`
     : `見積もり ${u}（無料の枠。有料ならこの金額）`;
 }
