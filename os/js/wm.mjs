@@ -255,7 +255,11 @@ addEventListener('keydown', (e) => {
 
 // 次の起動で開き直すための記録
 let saveTimer = 0;
+// 撮影用の入口では窓の並びを保存しない（利用者の前回の窓を上書きしないため）
+let persist = true;
+export function setPersist(v) { persist = !!v; }
 export function saveSession() {
+  if (!persist) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     const data = [...wins.values()].sort((a, b) => a.el.style.zIndex - b.el.style.zIndex).map((w) => ({ app: w.app, args: w.args, rect: w.rect, max: w.max, min: w.min }));
