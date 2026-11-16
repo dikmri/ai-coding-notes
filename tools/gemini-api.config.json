@@ -1,0 +1,7 @@
+{
+  "model": "gemini-4-hydrogen",
+  "tier": "free",
+  "budgetUsd": 20,
+  "thinking": "medium",
+  "apiRevision": "2026-05-20"
+}
