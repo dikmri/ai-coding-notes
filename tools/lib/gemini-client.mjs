@@ -3,6 +3,7 @@
 // 金額の記録とログと結果は、作業用の別のチェックアウト（git worktree）から呼んでも、元のチェックアウトの1か所に集める。
 import { readFileSync, writeFileSync, mkdirSync, appendFileSync, existsSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import https from 'node:https';
 import { join, dirname, basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as G from './gemini-core.mjs';
@@ -39,11 +40,26 @@ function apiKey() {
   }
   throw new Error('GEMINI_API_KEY が見つかりません。環境変数に API キーを入れてください');
 }
+// Node の fetch は返事の最初を 300 秒しか待たない。深く考えるモデルはそれより長くかかるので、https で最大 20 分待つ
+const WAIT_MS = 20 * 60 * 1000;
+function request(url, { method = 'GET', headers = {}, body } = {}) {
+  return new Promise((res, rej) => {
+    const req = https.request(url, { method, headers }, (r) => {
+      const chunks = [];
+      r.on('data', (c) => chunks.push(c));
+      r.on('end', () => res({ status: r.statusCode, text: Buffer.concat(chunks).toString('utf8') }));
+      r.on('error', rej);
+    });
+    req.setTimeout(WAIT_MS, () => req.destroy(new Error(`${WAIT_MS / 60000} 分待っても返事がありませんでした`)));
+    req.on('error', rej);
+    if (body) req.write(body);
+    req.end();
+  });
+}
 export async function call(path, init = {}) {
-  const r = await fetch(BASE + path, { ...init, headers: { 'x-goog-api-key': apiKey(), ...(init.headers || {}) } });
-  const text = await r.text();
-  let body; try { body = JSON.parse(text); } catch { body = text; }
-  if (!r.ok) throw new Error(`HTTP ${r.status}: ${(typeof body === 'string' ? body : JSON.stringify(body.error || body)).slice(0, 400)}`);
+  const r = await request(BASE + path, { ...init, headers: { 'x-goog-api-key': apiKey(), ...(init.headers || {}) } });
+  let body; try { body = JSON.parse(r.text); } catch { body = r.text; }
+  if (r.status < 200 || r.status >= 300) throw new Error(`HTTP ${r.status}: ${(typeof body === 'string' ? body : JSON.stringify(body.error || body)).slice(0, 400)}`);
   return { r, body };
 }
 // 大きいファイルは API のファイルの受け渡しの仕組みで送り、使える状態（ACTIVE）になるまで待つ
