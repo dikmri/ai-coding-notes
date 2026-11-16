@@ -442,12 +442,24 @@ canvas, img, video { display: block; max-width: 100%; }
 
   /* ================= 詳細ダイアログ ================= */
   const dlg = $('#detail');
-  const dFrame = $('#dFrame');
+  let dFrame = $('#dFrame');
   const ed = $('#dEd');
   const hlEl = $('#dHl');
   const consoleEl = $('#dConsole');
   dFrame.setAttribute('allow', ALLOW);
   dFrame.setAttribute('allowfullscreen', '');
+  // 同じ iframe の srcdoc を書き換えると、そのたびにブラウザの履歴が1件増える。すると × で閉じたときの
+  // history.back() が自分の積んだ #e= ではなく iframe の中を1つ戻すだけになり、前の項目の履歴が残ってしまう。
+  // 作ったばかりの iframe の最初の読み込みは履歴に残らないので、見本を出すたびに iframe ごと差し替える
+  function freshFrame(doc, sandbox) {
+    const f = dFrame.cloneNode(false);
+    f.removeAttribute('srcdoc');
+    if (sandbox) f.setAttribute('sandbox', sandbox);
+    if (doc != null) f.srcdoc = doc;
+    dFrame.replaceWith(f);
+    dFrame = f;
+    return f;
+  }
 
   function consoleLine(level, text) {
     const div = document.createElement('div');
@@ -462,6 +474,7 @@ canvas, img, video { display: block; max-width: 100%; }
   function openEntry(id, { push = true } = {}) {
     const e = D.byId.get(id);
     if (!e) return;
+    const wasOpen = dlg.open;
     state.current = e;
     const c = catOf(e.c);
     dlg.style.setProperty('--h', c.hue);
@@ -496,7 +509,10 @@ canvas, img, video { display: block; max-width: 100%; }
     if (push) {
       const p = hashParams();
       p.set('e', e.id);
-      setUrl('pushState', { dk: 'entry' }, '#' + p.toString());
+      // 履歴を積むのは「一覧から開いたとき」だけ。開いたまま別の項目へ移るときは置き換えるので、
+      // × を1回押せば必ず一覧へ戻れる。共有ページ（claude.ai の枠の中）では枠の外の履歴を動かさないよう積まない
+      const stack = !wasOpen && !SHARED;
+      setUrl(stack ? 'pushState' : 'replaceState', stack ? { dk: 'entry' } : history.state, '#' + p.toString());
     }
     log('entry.open', { id: e.id, no: e.no, push }, 'ok');
   }
@@ -506,15 +522,16 @@ canvas, img, video { display: block; max-width: 100%; }
     if (e.src.css.length > 40) return 'css';
     return 'html';
   }
+  let closedAt = 0; // × で閉じて history.back() した時刻。戻った先で別の項目を開き直さないために使う
   function closeDetail() { if (dlg.open) dlg.close(); }
   dlg.addEventListener('close', () => {
     log('entry.close', { id: state.current && state.current.id }, 'ok');
     frames.delete(dFrame.contentWindow);
-    dFrame.srcdoc = '';
+    freshFrame(null);
     const p = hashParams();
     if (state.skipBack) state.skipBack = false;
     else if (p.has('e')) {
-      if (history.state && history.state.dk === 'entry') history.back();
+      if (history.state && history.state.dk === 'entry') { closedAt = performance.now(); history.back(); }
       else { p.delete('e'); setUrl('replaceState', null, p.toString() ? '#' + p.toString() : location.pathname + location.search); }
     }
     requestAnimationFrame(pump);
@@ -540,10 +557,10 @@ canvas, img, video { display: block; max-width: 100%; }
     const e = state.current;
     const c = getCode();
     const { doc, jsLine } = buildDoc(e, { mode: 'detail', html: c.html, css: c.css, js: c.js });
-    dFrame.setAttribute('sandbox', sandboxFor(e));
     consoleEl.replaceChildren();
-    frames.set(dFrame.contentWindow, { entry: e, mode: 'detail', jsLine });
-    dFrame.srcdoc = doc;
+    frames.delete(dFrame.contentWindow);
+    const f = freshFrame(doc, sandboxFor(e));
+    frames.set(f.contentWindow, { entry: e, mode: 'detail', jsLine });
     log('demo.run', { id: e.id, edited: state.edits.has(e.id) }, 'ok');
   }
   $('#dRun').addEventListener('click', run);
@@ -878,7 +895,14 @@ canvas, img, video { display: block; max-width: 100%; }
       if (v === 'test' && p.get('only') && !$('#testStart').disabled) runSelfTest(p.get('only').split(',').map((s) => s.trim()).filter(Boolean));
     }
     const id = p.get('e');
-    if (id && D.byId.has(id)) {
+    const justClosed = performance.now() - closedAt < 1000;
+    closedAt = 0; // 「閉じた直後」の扱いは、閉じて1つ戻った最初の1回だけ
+    if (id && D.byId.has(id) && !dlg.open && justClosed) {
+      // × で閉じて1つ戻った先が、前に積まれた別の項目だった（直す前の版で積まれた履歴など）。開き直さずに印だけ消す
+      p.delete('e');
+      setUrl('replaceState', null, p.toString() ? '#' + p.toString() : location.pathname + location.search);
+      log('entry.stale', { id }, 'skipped');
+    } else if (id && D.byId.has(id)) {
       if (!dlg.open || !state.current || state.current.id !== id) openEntry(id, { push: false });
     } else if (dlg.open) {
       state.skipBack = true;

@@ -274,7 +274,9 @@ dialog::backdrop { overflow: hidden; overscroll-behavior: contain; background: #
 .d-titles .seal { align-self: center; }
 .d-lv { font-size: 12px; color: var(--ink-2); }
 .d-actions { display: flex; gap: 6px; flex: none; }
-.d-actions .close { font-size: 20px; padding: 0 .6em; }
+/* × は文字だと書体によって中心からずれるので、線2本の SVG を丸いボタンの真ん中に置く */
+button.close { display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; flex: none; }
+button.close svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 2; stroke-linecap: round; fill: none; }
 .d-desc { margin: 6px 22px 12px; color: var(--ink-2); max-width: 70em; }
 .d-body { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 14px; padding: 0 22px; min-height: 520px; flex: 1; }
 .d-stage, .d-code { display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; background: var(--card); }

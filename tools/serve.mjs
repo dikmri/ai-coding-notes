@@ -3,14 +3,15 @@
 // ・プロジェクトのファイルをそのまま配信する
 // ・画面から送られた操作ログを logs/app.log に1行ずつ追記する
 import { createServer } from 'node:http';
-import { readFile, appendFile, mkdir, stat } from 'node:fs/promises';
+import { readFile, writeFile, appendFile, mkdir, stat } from 'node:fs/promises';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const LOG_DIR = join(ROOT, 'logs');
 const LOG_FILE = join(LOG_DIR, 'app.log');
-const PORT = Number(process.env.PORT || 8765);
+const PORT = Number(process.argv[2] || process.env.PORT || 8765);
+const SHOT_DIR = join(ROOT, 'build', 'shots');
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml',
@@ -27,6 +28,20 @@ createServer(async (req, res) => {
       let body = '';
       for await (const chunk of req) { body += chunk; if (body.length > 1e6) break; }
       await appendFile(LOG_FILE, body.endsWith('\n') ? body : body + '\n');
+      res.writeHead(204).end();
+      return;
+    }
+    // 確認用: 画面の canvas を画像（data URL）で受け取り、build/shots/<name>.png|jpg に保存する
+    if (req.method === 'POST' && url.pathname === '/__shot') {
+      const name = (url.searchParams.get('name') || 'shot').replace(/[^a-z0-9-]/gi, '').slice(0, 60) || 'shot';
+      let body = '';
+      for await (const chunk of req) { body += chunk; if (body.length > 12e6) break; }
+      const m = /^data:image\/(png|jpeg);base64,(.+)$/s.exec(body);
+      if (!m) { res.writeHead(400).end(); return; }
+      await mkdir(SHOT_DIR, { recursive: true });
+      const out = join(SHOT_DIR, `${name}.${m[1] === 'jpeg' ? 'jpg' : 'png'}`);
+      await writeFile(out, Buffer.from(m[2], 'base64'));
+      serverLog(`server.shot args={"name":${JSON.stringify(name)}} result=ok`);
       res.writeHead(204).end();
       return;
     }
