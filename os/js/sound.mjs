@@ -183,7 +183,7 @@ const SOUNDS = {
   beep: (t) => tone(1000, t, 0.16, { type: 'square', vol: 0.06 }),
   crt: (t) => noise(t, 0.35, { vol: 0.08, type: 'bandpass', f0: 1500 }),
   // 起動の音を飛ばしたときと、設定の「起動音」で鳴らす4音
-  startup: (t) => jingle(t),
+  startup: (t) => jingle(t, outs()),
   shutdown,
 };
 export function play(name, arg) {

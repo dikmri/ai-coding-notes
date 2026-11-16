@@ -27,8 +27,8 @@ export async function launch(os, args = {}, rect = {}) {
           <fieldset style="margin-top:11px"><legend>初期状態に戻す</legend><p>仮想ドライブのファイルを全部消して、最初の見本だけの状態に戻します。元には戻せません。</p>
           <div class="button-row" style="justify-content:flex-start"><button type="button" data-wipe>全部消す(<u>D</u>)...</button></div></fieldset></div>
         <div class="tab-page" hidden><div class="msgbox-body" style="padding:6px 0"><img src="icons/logo.svg" alt="" width="48" height="48" style="image-rendering:pixelated"><div class="col" style="gap:6px">
-          <b style="font-weight:400">Future OS 98.7 ・ 出来る！エディション</b>
-          <span>見た目は90年代のパソコン、中身は気の利いた Web の OS です。</span>
+          <b style="font-weight:400">FUTURE OS // ARCADIA-91（出来る！エディション）</b>
+          <span>1991年に作られ、計画の凍結で消えた幻のリゾート端末、という設定のブラウザの中の OS です。</span>
           <span>ライブラリを使わず、HTML・CSS・JavaScript だけで作っています。</span>
           <span data-ua></span><a href="../" target="_blank" rel="noopener">図鑑「出来る！HTML/CSS/JavaScript」</a></div></div></div>
       </div>
@@ -73,7 +73,7 @@ export async function launch(os, args = {}, rect = {}) {
     q('[data-count]').textContent = `ファイル ${files} 個、合計 ${fs.human(bytes)}（フォルダ ${keys.length - files} 個）`;
     q('[data-meter]').style.width = u.quota ? Math.max(1, (u.usage / u.quota) * 100) + '%' : '1%';
   }
-  q('[data-ua]').textContent = `動いている所: ${navigator.userAgentData?.brands?.map((b) => b.brand).filter((b) => !/Not/.test(b)).join(' / ') || navigator.userAgent.split(') ').pop()}`;
+  q('[data-ua]').textContent = `ブラウザ: ${navigator.userAgentData?.brands?.map((b) => b.brand).filter((b) => !/Not/.test(b)).join(' / ') || navigator.userAgent.split(') ').pop()}`;
   sync(); usage();
   if (typeof args.tab === 'number') { const t = win.body.querySelectorAll('.tab')[args.tab]; if (t) w95.selectTab(t); }
   return win;
