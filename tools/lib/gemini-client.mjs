@@ -124,6 +124,7 @@ export async function interact(opt) {
   const slim = JSON.parse(JSON.stringify(body, (k, v) => (k === 'data' && typeof v === 'string' && v.length > 200 ? `(${v.length} 文字の base64)` : v)));
   writeFileSync(join(OUT, base + '.json'), JSON.stringify({ request: { model: opt.model, text: opt.text, targets: opt.targets || [] }, response: slim }, null, 2));
   log('gemini.api.response', { model: opt.model, name: opt.name, file: `build/gemini/${base}.json`, sec: entry.sec, tokens: body.usage?.total_tokens }, { usd, tier });
+  if (body.status === 'incomplete') throw new Error(`返事が途中で切れました（出力の上限。考える過程 ${body.usage?.total_thought_tokens ?? '-'} トークン）。考える深さを下げるか、渡す量を減らしてください。保存: build/gemini/${base}.json`);
   return { body, text: G.extractText(body), usd, led, base, entry };
 }
 // 金額の1行（PR のコメントや画面の表示に使う）

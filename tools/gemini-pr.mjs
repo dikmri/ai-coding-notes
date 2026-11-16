@@ -106,7 +106,12 @@ async function ideas(args) {
   const o = opts(args, ['count', 'area'], ['shot']);
   const count = +(o.count || 3), area = o.area || 'os';
   const known = ghJson(['issue', 'list', '--state', 'all', '--label', 'gemini-idea', '--limit', '60', '--json', 'number,title,state']);
-  const src = sourceDump(area === 'os' ? ['os/js', 'os/css'] : ['js', 'css'], /\.(m?js|css|html)$/).out + (area === 'os' ? `\n--- os/index.html ---\n${readFileSync(join(ROOT, 'os/index.html'), 'utf8')}` : `\n--- index.html ---\n${readFileSync(join(ROOT, 'index.html'), 'utf8')}`);
+  // 全部のソースを渡すと 12 万トークンを超え、考える過程で出力の上限に届く。ファイルの一覧と、骨組みのファイルの中身だけを渡す
+  const tree = sourceDump(area === 'os' ? ['os'] : ['js', 'css'], /\.(m?js|css|html|svg)$/, 0).files;
+  const core = area === 'os'
+    ? ['os/index.html', 'os/css/future.css', ...readdirSync(join(ROOT, 'os/js')).filter((f) => f.endsWith('.mjs')).map((f) => 'os/js/' + f)]
+    : ['index.html', 'js/app.js', 'css/site.css'];
+  const src = `ファイルの一覧（大きさ）:\n${tree.map((f) => `${f}（${statSync(join(ROOT, f)).size} バイト）`).join('\n')}\n` + core.map((f) => `\n--- ${f} ---\n${readFileSync(join(ROOT, f), 'utf8')}`).join('');
   const text = `${ROLE('案出しとデザイン')}
 作者の目指すものに近づくための改善案を、${count} 件出してください。対象は ${area === 'os' ? 'Future OS（os/ 以下）' : '図鑑サイト（index.html・js・css）'} です。
 - 今あるものとの重なりを避けてください。下の「これまでの案」と同じものは出さないでください。
@@ -119,7 +124,7 @@ ${known.map((i) => `#${i.number} ${i.state} ${i.title}`).join('\n') || 'なし'}
 
 ===== 今のソース =====
 ${src}`;
-  const r = await interact({ model: CONFIG.models.ideas, text, targets: o.shot, thinking: 'high', responseFormat: { type: 'text', mime_type: 'application/json', schema: IDEAS_SCHEMA }, name: 'ideas' });
+  const r = await interact({ model: CONFIG.models.ideas, text, targets: o.shot, thinking: CONFIG.thinking, responseFormat: { type: 'text', mime_type: 'application/json', schema: IDEAS_SCHEMA }, name: 'ideas' });
   const j = G.parseJson(r.text);
   if (!j || !Array.isArray(j.ideas)) throw new Error('案を読めませんでした: ' + r.text.slice(0, 300));
   if (!o.dry) ensureLabels();
@@ -207,7 +212,7 @@ ${diff.slice(0, 400_000)}
 
 ===== 変わったファイルの全体 =====
 ${full}`;
-  const r = await interact({ model: CONFIG.models.review, text, targets: [...o.shot, ...o.media], thinking: 'high', responseFormat: { type: 'text', mime_type: 'application/json', schema: REVIEW_SCHEMA }, name: `review-pr${n}-r${round}` });
+  const r = await interact({ model: CONFIG.models.review, text, targets: [...o.shot, ...o.media], thinking: CONFIG.thinking, responseFormat: { type: 'text', mime_type: 'application/json', schema: REVIEW_SCHEMA }, name: `review-pr${n}-r${round}` });
   const j = G.parseJson(r.text);
   if (!j || !j.verdict) throw new Error('レビューを読めませんでした: ' + r.text.slice(0, 300));
   const body = `<!-- gemini-review round=${round} verdict=${j.verdict} -->
