@@ -7,7 +7,7 @@ export const WIN16 = ['#000000', '#800000', '#008000', '#808000', '#000080', '#8
   '#808080', '#ff0000', '#00ff00', '#ffff00', '#0000ff', '#ff00ff', '#00ffff', '#ffffff'];
 
 export function normalizeHex(c) {
-  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(c).trim());
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(c).replace(/[`'"s]/g, ''));
   if (!m) return null;
   const h = m[1].length === 3 ? [...m[1]].map((x) => x + x).join('') : m[1];
   return '#' + h.toLowerCase();
@@ -24,8 +24,13 @@ export function nearest(hex, palette) {
   return best;
 }
 
-// 絵を確かめる。size を渡すと、行の数と各行の長さがそれに合うかを見る。win16 なら16色以外を近い色にそろえる
-export function validateArt(art, { size = null, win16 = false } = {}) {
+// 絵を確かめる。size（正方形）か w と h を渡すと、行の数と各行の長さがそれに合うかを見る。
+// win16 なら Windows の16色に、allowed（色の表）を渡せばその中の近い色にそろえる。maxColors は色の数の上限
+export function validateArt(art, { size = null, w = null, h = null, win16 = false, allowed = null, maxColors = 16 } = {}) {
+  const W = w ?? size, H = h ?? size;
+  // 使える色の一覧が読めない（空になる）ときは、色をそろえない（空の一覧から選ぶと色を失うため）
+  let table = allowed ? allowed.map(normalizeHex).filter(Boolean) : win16 ? WIN16 : null;
+  if (table && !table.length) table = null;
   const errors = [], snapped = [];
   const rows = Array.isArray(art?.rows) ? art.rows.map((r) => Array.from(String(r))) : [];
   const palette = [];
@@ -35,14 +40,14 @@ export function validateArt(art, { size = null, win16 = false } = {}) {
     if (key.length !== 1 || key[0] === '.') { errors.push(`色の表の記号「${p.key}」は1文字で、「.」以外にしてください`); continue; }
     if (!color) { errors.push(`色の表の「${p.key}」の色「${p.color}」を読めません`); continue; }
     let c = color;
-    if (win16 && !WIN16.includes(c)) { c = nearest(c, WIN16); snapped.push({ key: key[0], from: color, to: c }); }
+    if (table && !table.includes(c)) { c = nearest(c, table); snapped.push({ key: key[0], from: color, to: c }); }
     palette.push({ key: key[0], color: c });
   }
-  if (palette.length > 16) errors.push(`色が ${palette.length} 色あります。16色までにしてください`);
+  if (palette.length > maxColors) errors.push(`色が ${palette.length} 色あります。${maxColors}色までにしてください`);
   if (!rows.length) errors.push('行がありません');
-  if (size && rows.length !== size) errors.push(`行の数が ${rows.length} です。${size} 行にしてください`);
+  if (H && rows.length !== H) errors.push(`行の数が ${rows.length} です。${H} 行にしてください`);
   const keys = new Set(palette.map((p) => p.key));
-  const width = size || (rows[0] ? rows[0].length : 0);
+  const width = W || (rows[0] ? rows[0].length : 0);
   rows.forEach((r, i) => {
     if (r.length !== width) errors.push(`${i + 1} 行目の長さが ${r.length} です。${width} 文字にしてください`);
     const bad = [...new Set(r.filter((ch) => ch !== '.' && !keys.has(ch)))];

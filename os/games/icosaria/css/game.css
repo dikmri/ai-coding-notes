@@ -1,0 +1,52 @@
+/* 蒼海と白柱のイコサリア。画面は canvas、メニューは <dialog>。色は ARCADIA-91 に合わせる */
+:root {
+  --ink: #141322; --deep: #232238; --panel: #2d2a4a; --line: #dce0ed; --paper: #f7f9fc;
+  --aqua: #64d6ca; --pink: #f299a9; --gold: #ffe478; --blue: #63a4ff; --red: #ff5277;
+  --font: "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", "Yu Gothic UI", "Meiryo", sans-serif;
+  color-scheme: dark;
+}
+html, body { margin: 0; height: 100%; background: #0b0a16; overflow: hidden; }
+body { font: 14px/1.6 var(--font); color: var(--paper); }
+.stage { position: fixed; inset: 0; display: grid; place-items: center; }
+#screen { display: block; image-rendering: pixelated; image-rendering: crisp-edges; background: #000; outline: none; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* メニュー（調律盤・店） */
+.menu {
+  width: min(760px, 94vw); max-height: 88vh; padding: 0; color: var(--paper);
+  background: linear-gradient(180deg, #2b2848, #1d1b33); border: 3px solid var(--line); border-radius: 10px;
+  box-shadow: 0 0 0 3px var(--ink), 8px 8px 0 3px rgb(0 0 0 / 0.5);
+}
+.menu::backdrop { background: rgb(11 10 22 / 0.55); }
+.menu-inner { display: flex; flex-direction: column; max-height: 88vh; }
+.menu-head { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 2px solid #535075; background: linear-gradient(90deg, #4a3b6e, #7d5687 60%, #bd6e92); }
+.menu-head h2 { margin: 0; font-size: 18px; letter-spacing: .1em; text-shadow: 2px 2px 0 var(--ink); }
+.menu-tabs { display: flex; gap: 6px; margin-left: 8px; }
+.menu button { font: 700 14px/1 var(--font); color: var(--ink); background: linear-gradient(180deg, #fff, #dce0ed); border: 2px solid var(--ink); border-radius: 999px; padding: 6px 14px; cursor: pointer; box-shadow: 2px 2px 0 var(--ink); }
+.menu button:active { translate: 1px 1px; box-shadow: 1px 1px 0 var(--ink); }
+.menu button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.menu button[aria-selected="true"] { background: linear-gradient(180deg, #b2f2e8, var(--aqua)); }
+.menu button:disabled { opacity: .45; cursor: default; }
+.menu-close { margin-left: auto; }
+.menu-body { overflow: auto; padding: 12px 14px 16px; }
+.menu-body[hidden] { display: none; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 640px) { .cols { grid-template-columns: 1fr; } }
+.box { background: rgb(20 19 34 / 0.55); border: 2px solid #535075; border-radius: 8px; padding: 10px; }
+.box h3 { margin: 0 0 6px; font-size: 14px; color: var(--gold); letter-spacing: .08em; }
+.slots, .bag { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.item { display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 6px; background: rgb(255 255 255 / 0.04); border: 1px solid transparent; }
+.item:hover, .item:focus-within { border-color: var(--aqua); }
+.item img, .item canvas { width: 32px; height: 32px; image-rendering: pixelated; }
+.item .nm { font-weight: 700; }
+.item .af { font-size: 12px; color: #c7cbe0; }
+.item .af b { color: var(--aqua); font-weight: 700; }
+.item .diff-up { color: #7ee08a; } .item .diff-down { color: #ff8a8a; }
+.r-common { color: #e8eef2; } .r-azure { color: #5bc8f5; } .r-sunset { color: #ff8fa3; } .r-icosa { color: #ffd166; }
+.tree { display: grid; gap: 8px; }
+.skill { display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: center; padding: 8px; border-radius: 6px; background: rgb(255 255 255 / 0.04); }
+.skill .desc { font-size: 12px; color: #c7cbe0; }
+.stat-table { width: 100%; border-collapse: collapse; }
+.stat-table th, .stat-table td { text-align: left; padding: 4px 6px; border-bottom: 1px solid #373654; }
+.stat-table td { font-variant-numeric: tabular-nums; }
+.hint { font-size: 12px; color: #b5b4cc; margin: 8px 0 0; }

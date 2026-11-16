@@ -17,6 +17,7 @@ export const APPS = {
   synth: { name: 'SID 風シンセ', icon: 'icons/synth.svg' },
   viewer: { name: '画像と音のビューア', icon: 'icons/viewer.svg' },
   settings: { name: '設定', icon: 'icons/settings.svg' },
+  icosaria: { name: '蒼海と白柱のイコサリア', icon: 'icons/icosaria.svg' },
 };
 
 /* ---------- 設定 ---------- */
@@ -151,6 +152,7 @@ const SYS = [
   { key: 'app:modeler', name: 'ローポリ モデラー', icon: APPS.modeler.icon, open: () => launch('modeler') },
   { key: 'app:synth', name: 'SID 風シンセ', icon: APPS.synth.icon, open: () => launch('synth') },
   { key: 'app:settings', name: '設定', icon: APPS.settings.icon, open: () => launch('settings') },
+  { key: 'app:icosaria', name: 'イコサリア', icon: APPS.icosaria.icon, open: () => launch('icosaria') },
 ];
 let deskItems = [], pos = {};
 try { pos = JSON.parse(localStorage.getItem('fos-icons') || '{}'); } catch { pos = {}; }

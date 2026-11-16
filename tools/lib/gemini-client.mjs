@@ -143,6 +143,6 @@ export function moneyLine(usd, led) {
   const day = G.localDay(new Date().toISOString());
   const u = usd == null ? '不明' : usd.toFixed(4) + ' ドル';
   return CONFIG.tier === 'paid'
-    ? `見積もり ${u} ・ 今日 ${G.spentOn(led, day).toFixed(2)} / ${CONFIG.dailyCapUsd} ドル ・ 残り ${G.remaining(led).toFixed(2)} / ${led.budgetUsd} ドル`
+    ? `見積もり ${u} ・ 今日 ${G.spentOn(led, day).toFixed(2)} ドル${CONFIG.dailyCapUsd != null ? ` / ${CONFIG.dailyCapUsd} ドル` : ''} ・ これまでの合計 ${led.spentUsd.toFixed(2)} ドル`
     : `見積もり ${u}（無料の枠。有料ならこの金額）`;
 }

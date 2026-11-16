@@ -5,6 +5,8 @@
 //   node tools/gemini-api.mjs image "作りたい画像の説明" [参考の画像 ...] [--out os/img/x.jpg] [--aspect 1:1] [--size 1K] [--name 保存名]
 //   node tools/gemini-api.mjs pixel "描きたい絵の説明" [参考の画像 ...] [--size 16] [--out os/icons/x.svg] [--free] [--rounds 2] [--name 保存名]
 //       … Gemini 自身が1マスずつの色の並びを考え、道具が SVG にする（ドット絵・アイコン向け。透明と16色の決まりを守れる）
+//   node tools/gemini-api.mjs sprite "説明" --id 名前 --w 16 --h 24 --frames down-0,down-1 --data ゲームのデータ.json [--palette-file 色.json] [--max-colors 15] [--rounds 1] [参考の画像 ...]
+//       … 同じ色の組で何コマかをまとめて描かせ、ゲームのデータ（JSON の sprites[名前]）に書き込む。見本は build/gemini/sprites/
 //   node tools/gemini-api.mjs models [名前の一部]   … このキーで使えるモデル（料金はかからない）
 //   node tools/gemini-api.mjs spend                 … 使った金額の集計
 // 結果: build/gemini/<日時>-<名前>.md・.json・画像。金額の記録: runtime/gemini-spend.json。呼んだ記録: logs/gemini.log
@@ -91,7 +93,7 @@ async function previewPng(svg, size, file) {
     + '<img class="big" src="' + src + '"><div class="col">' + tile('#008080') + tile('#c0c0c0') + tile('#ffffff') + '</div>';
   const htmlFile = file.replace(/\.png$/, '.html');
   writeFileSync(htmlFile, html);
-  const page = await openBrowser({ width: size * scale + size * 3 + 120, height: Math.max(size * scale, size * 6 + 120) + 32, profile: join(ROOT, 'runtime/shot-profile') });
+  const page = await openBrowser({ width: size * scale + size * 3 + 120, height: Math.max(size * scale, size * 6 + 120) + 32, profile: join(ROOT, 'runtime/preview-profile') });
   try {
     await page.navigate(pathToFileURL(htmlFile).href);
     await new Promise((r) => setTimeout(r, 300));
@@ -151,6 +153,99 @@ async function pixel(args) {
     + '\n--- ' + moneyLine(total, led));
 }
 
+// ---- コマのまとまり（歩き・攻撃・タイルなど）を、同じ色の組で描かせてゲームのデータに書き込む ----
+const SPRITE_SCHEMA = {
+  type: 'object',
+  properties: {
+    note: { type: 'string', description: '何をどう描いたか、何を直したか（日本語で1〜2文）' },
+    done: { type: 'boolean', description: '見本を見て直すところが無ければ true' },
+    palette: { type: 'array', items: { type: 'object', properties: { key: { type: 'string' }, color: { type: 'string' } }, required: ['key', 'color'] } },
+    frames: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, rows: { type: 'array', items: { type: 'string' } } }, required: ['name', 'rows'] } },
+  },
+  required: ['note', 'done', 'palette', 'frames'],
+};
+function checkSheet(j, { w, h, names, allowed, maxColors }) {
+  const errors = [];
+  let palette = null, snapped = [];
+  const frames = {};
+  const got = new Map((Array.isArray(j.frames) ? j.frames : []).map((f) => [f.name, f.rows]));
+  for (const n of names) {
+    if (!got.has(n)) { errors.push('コマ「' + n + '」がありません'); continue; }
+    const v = P.validateArt({ palette: j.palette, rows: got.get(n) }, { w, h, allowed, maxColors });
+    v.errors.forEach((e) => errors.push(n + ': ' + e));
+    palette = v.art.palette; snapped = v.snapped; frames[n] = v.art.rows;
+  }
+  return { ok: errors.length === 0, errors, palette, snapped, frames };
+}
+async function previewSheet(sheet, file) {
+  const scale = Math.max(3, Math.floor(160 / sheet.h));
+  const html = '<!doctype html><meta charset="utf-8"><style>body{margin:0;background:#fff}</style><canvas id="c"></canvas><script>'
+    + 'const s=' + JSON.stringify(sheet) + ',k=' + scale + ',n=Object.keys(s.frames).length,c=document.getElementById("c"),g=c.getContext("2d");'
+    + 'c.width=(s.w*k+12)*n+12;c.height=s.h*k*2+36;'
+    + 'const col={};for(const p of s.palette)col[p.key]=p.color;'
+    + 'Object.entries(s.frames).forEach(([name,rows],i)=>{const x0=12+i*(s.w*k+12);'
+    + 'for(let y=0;y<s.h;y++)for(let x=0;x<s.w;x++){g.fillStyle=((x+y)&1)?"#ddd":"#f6f6f6";g.fillRect(x0+x*k,12+y*k,k,k);const ch=rows[y][x];if(ch!=="."){g.fillStyle=col[ch];g.fillRect(x0+x*k,12+y*k,k,k);}}'
+    + 'g.fillStyle="#e8dcc0";g.fillRect(x0,24+s.h*k,s.w*k,s.h*k);'
+    + 'for(let y=0;y<s.h;y++)for(let x=0;x<s.w;x++){const ch=rows[y][x];if(ch!=="."){g.fillStyle=col[ch];g.fillRect(x0+x*k,24+s.h*k+y*k,k,k);}}'
+    + 'g.fillStyle="#333";g.font="11px sans-serif";g.fillText(name,x0,10);});</script>';
+  const htmlFile = file.replace(/\.png$/, '.html');
+  writeFileSync(htmlFile, html);
+  const n = Object.keys(sheet.frames).length;
+  const page = await openBrowser({ width: Math.min(1900, (sheet.w * scale + 12) * n + 24), height: sheet.h * scale * 2 + 48, profile: join(ROOT, 'runtime/preview-profile') });
+  try { await page.navigate(pathToFileURL(htmlFile).href); await new Promise((r) => setTimeout(r, 300)); writeFileSync(file, Buffer.from(await page.screenshot(), 'base64')); } finally { await page.close(); }
+}
+async function sprite(args) {
+  const o = parseArgs(args, ['model', 'id', 'w', 'h', 'frames', 'data', 'palette-file', 'max-colors', 'rounds']);
+  const [prompt, ...refs] = o.rest;
+  if (!prompt || !o.id || !o.w || !o.h || !o.frames || !o.data) throw new Error('説明、--id、--w、--h、--frames、--data を書いてください');
+  const w = +o.w, h = +o.h, names = o.frames.split(',').map((x) => x.trim()).filter(Boolean);
+  const maxColors = +(o['max-colors'] || 15), rounds = +(o.rounds ?? 1), model = o.model || CONFIG.models.pixel || CONFIG.models.default;
+  let allowed = null;
+  if (o['palette-file']) { const pf = JSON.parse(readFileSync(resolve(o['palette-file']), 'utf8')); allowed = (Array.isArray(pf) ? pf : pf.palette).map((c) => (typeof c === 'string' ? c : c.hex)); }
+  const rules = w + '×' + h + ' マスのドット絵を ' + names.length + ' コマ、同じ色の表（palette）で描いてください。コマの名前は ' + names.join('、') + ' です。\n'
+    + '- 各コマの rows はちょうど ' + h + ' 行で、各行はちょうど ' + w + ' 文字にしてください。「.」は透明です。\n'
+    + '- 色の表の記号は1文字（英数字）。色は #rrggbb で、透明を除いて ' + maxColors + ' 色まで' + (allowed ? '。なるべく次の色の中から選んでください: ' + allowed.join(' ') : '') + '。\n'
+    + '- 1990年代前半の16ビットの家庭用ゲーム機の見下ろし型アクション RPG の、新しく描いたドット絵にしてください（既存のゲームのキャラクターをまねない）。輪郭は濃い色の1マスの線、光は左上から。\n'
+    + '- コマどうしで形と大きさをそろえ、動きの差だけを変えてください（歩きなら足と腕、攻撃なら腕と武器）。';
+  let input = rules + '\n\n描くもの: ' + prompt, targets = refs, sheet = null, total = 0, led = null, note = '', reviewed = false, snapped = [];
+  const dir = join(OUT, 'sprites');
+  mkdirSync(dir, { recursive: true });
+  const base = join(dir, o.id);
+  for (let round = 0; round <= rounds + 1; round++) {
+    const r = await interact({ model, text: input, targets, thinking: CONFIG.thinking, responseFormat: { type: 'text', mime_type: 'application/json', schema: SPRITE_SCHEMA }, name: 'sprite-' + o.id + '-r' + round });
+    total += r.usd || 0; led = r.led;
+    const j = G.parseJson(r.text);
+    if (!j) throw new Error('絵を読めませんでした: ' + r.text.slice(0, 200));
+    note = j.note || '';
+    const v = checkSheet(j, { w, h, names, allowed, maxColors });
+    if (!v.ok) {
+      log('gemini.sprite.invalid', { id: o.id, round }, v.errors.slice(0, 4).join(' / '));
+      if (round === rounds + 1) throw new Error('決まりに合う絵になりませんでした: ' + v.errors.slice(0, 4).join(' / '));
+      input = rules + '\n\n描くもの: ' + prompt + '\n\n前の答えは次の点が決まりに合いませんでした。直した全体を返してください。\n- ' + v.errors.slice(0, 20).join('\n- ') + '\n\n前の答え:\n' + JSON.stringify(j);
+      targets = refs;
+      continue;
+    }
+    sheet = { w, h, palette: v.palette, frames: v.frames }; snapped = v.snapped;
+    if (reviewed && j.done) break;
+    if (round >= rounds) break;
+    const png = base + '-r' + round + '.png';
+    await previewSheet(sheet, png);
+    input = rules + '\n\n描くもの: ' + prompt + '\n\n付けた画像は、あなたが描いたコマの見本です（上: 拡大、下: 砂の色の地に置いたもの）。説明どおりか、コマどうしで形がそろっているか、動きが分かるかを見てください。直すところがあれば直した全体を返し、無ければ同じものを done: true で返してください。\n\n今の絵:\n' + JSON.stringify({ palette: sheet.palette, frames: names.map((n) => ({ name: n, rows: sheet.frames[n] })) });
+    targets = [png];
+    reviewed = true;
+  }
+  await previewSheet(sheet, base + '.png');
+  const dataFile = resolve(o.data);
+  let data = { sprites: {} };
+  try { data = JSON.parse(readFileSync(dataFile, 'utf8')); } catch { /* 新しく作る */ }
+  data.sprites = data.sprites || {};
+  data.sprites[o.id] = sheet;
+  mkdirSync(dirname(dataFile), { recursive: true });
+  writeFileSync(dataFile, JSON.stringify(data));
+  log('gemini.sprite', { id: o.id, w, h, frames: names.length, model }, { usd: total, colors: sheet.palette.length, snapped: snapped.length });
+  console.log(note + '\n保存: ' + o.data + ' の sprites["' + o.id + '"] ・ 見本 ' + base + '.png\n--- ' + moneyLine(total, led));
+}
+
 async function models(filter) {
   const { body } = await call('/v1beta/models?pageSize=1000');
   const re = filter ? new RegExp(filter, 'i') : null;
@@ -164,7 +259,7 @@ function spend() {
   const led = loadLedger(), by = {};
   const day = G.localDay(new Date().toISOString());
   for (const e of led.entries) { const k = `${e.model}（${e.tier}）`; by[k] = by[k] || { n: 0, usd: 0, tokens: 0 }; by[k].n++; by[k].usd += e.usd || 0; by[k].tokens += e.usage?.total_tokens || 0; }
-  console.log(`予算 ${led.budgetUsd} ドル ・ 有料で使った額 ${led.spentUsd.toFixed(4)} ドル ・ 残り ${G.remaining(led).toFixed(4)} ドル ・ 今日（${day}）の分 ${G.spentOn(led, day).toFixed(4)} / ${CONFIG.dailyCapUsd} ドル`);
+  console.log(`予算 ${led.budgetUsd} ドル ・ 有料で使った額 ${led.spentUsd.toFixed(4)} ドル ・ 残り ${G.remaining(led).toFixed(4)} ドル ・ 今日（${day}）の分 ${G.spentOn(led, day).toFixed(4)} ドル${CONFIG.dailyCapUsd != null ? ` / 上限 ${CONFIG.dailyCapUsd} ドル` : '（1日の上限なし）'}`);
   console.log(`無料の枠で使った分を有料に直すと ${led.freeEquivalentUsd.toFixed(4)} ドル`);
   for (const [k, v] of Object.entries(by)) console.log(`- ${k}: ${v.n} 回 ・ ${v.tokens.toLocaleString('ja-JP')} トークン ・ ${v.usd.toFixed(4)} ドル`);
 }
@@ -174,6 +269,7 @@ try {
   if (cmd === 'ask') await ask(rest);
   else if (cmd === 'image') await image(rest);
   else if (cmd === 'pixel') await pixel(rest);
+  else if (cmd === 'sprite') await sprite(rest);
   else if (cmd === 'models') await models(rest[0]);
   else if (cmd === 'spend') spend();
   else { console.error('使い方: node tools/gemini-api.mjs ask "質問" [ファイル や URL ...] / image "説明" [--out パス] / models / spend'); process.exit(1); }
