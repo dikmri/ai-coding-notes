@@ -98,16 +98,22 @@ export const stamp = () => new Date().toISOString().replace(/[:.]/g, '-').slice(
 
 // 1回呼ぶ。有料なら先に予算の歯止めを通し、呼んだあと金額を記録して、依頼と返事を build/gemini/ に保存する
 // opt: { model, text, targets: [ファイル や URL], thinking, responseFormat, name }
+//   画面操作などで使うときは input（組み立て済みの入力）・tools・previous（前の会話の id）・store・save（false なら依頼と返事を保存しない）も渡せる
 export async function interact(opt) {
   const t0 = Date.now();
   const tier = CONFIG.tier, day = G.localDay(new Date().toISOString());
   const chk = G.budgetCheck(loadLedger(), { tier, dailyCapUsd: CONFIG.dailyCapUsd, day });
   if (!chk.ok) { log('gemini.api.blocked', { model: opt.model, name: opt.name }, chk.reason); throw new Error('呼びませんでした: ' + chk.reason); }
-  const parts = [];
-  for (const t of opt.targets || []) parts.push(await toPart(t));
-  const extra = parts.filter((p) => p.kind === 'text-file').map((p) => p.text).join('');
-  const input = G.buildInput(opt.text + extra, parts.filter((p) => p.kind !== 'text-file'));
-  const req = { model: opt.model, input, store: false };
+  let input = opt.input;
+  if (!input) {
+    const parts = [];
+    for (const t of opt.targets || []) parts.push(await toPart(t));
+    const extra = parts.filter((p) => p.kind === 'text-file').map((p) => p.text).join('');
+    input = G.buildInput(opt.text + extra, parts.filter((p) => p.kind !== 'text-file'));
+  }
+  const req = { model: opt.model, input, store: !!opt.store };
+  if (opt.previous) req.previous_interaction_id = opt.previous;
+  if (opt.tools) req.tools = opt.tools;
   if (opt.thinking) req.generation_config = { thinking_level: opt.thinking };
   if (opt.responseFormat) req.response_format = opt.responseFormat;
   log('gemini.api.request', { model: opt.model, name: opt.name, targets: opt.targets || [], thinking: opt.thinking || null }, 'start');
@@ -120,6 +126,11 @@ export async function interact(opt) {
   writeFileSync(LEDGER, JSON.stringify(led, null, 2));
   mkdirSync(OUT, { recursive: true });
   const base = `${stamp()}-${opt.name}`;
+  if (opt.save === false) {
+    log('gemini.api.response', { model: opt.model, name: opt.name, sec: entry.sec, tokens: body.usage?.total_tokens }, { usd, tier });
+    if (body.status === 'incomplete') throw new Error('返事が途中で切れました（出力の上限）');
+    return { body, text: G.extractText(body), usd, led, base, entry };
+  }
   // 画像のデータは JSON に残さない（大きいため）。画像は呼び出し側が別に保存する
   const slim = JSON.parse(JSON.stringify(body, (k, v) => (k === 'data' && typeof v === 'string' && v.length > 200 ? `(${v.length} 文字の base64)` : v)));
   writeFileSync(join(OUT, base + '.json'), JSON.stringify({ request: { model: opt.model, text: opt.text, targets: opt.targets || [] }, response: slim }, null, 2));

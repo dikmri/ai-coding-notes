@@ -1,7 +1,7 @@
 {
   "tier": "paid",
   "budgetUsd": 20,
-  "dailyCapUsd": 2,
+  "dailyCapUsd": 3,
   "thinking": "medium",
   "apiRevision": "2026-05-20",
   "models": {
@@ -9,7 +9,9 @@
     "review": "gemini-4-argon",
     "ideas": "gemini-4-carbon",
     "japanese": "gemini-4-argon",
-    "image": "gemini-nano-banana-2.1"
+    "image": "gemini-nano-banana-2.1",
+    "pixel": "gemini-4-argon",
+    "browse": "gemini-4-argon"
   },
   "brief": "../myWiki/articles/future-os.md"
 }
