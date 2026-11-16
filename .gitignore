@@ -1,0 +1,6 @@
+# 手元でだけ使うもの（公開しない）
+logs/
+build/
+runtime/
+.claude/
+node_modules/

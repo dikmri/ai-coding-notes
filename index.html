@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>出来る！HTML/CSS/JavaScript</title>
+<meta name="description" content="ライブラリもフレームワークも使わず、素の HTML・CSS・JavaScript だけで出来ることを集めた図鑑。すべての見本がその場で動き、コードを書き換えられます。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='46' font-size='40' text-anchor='middle' fill='%23fff' font-family='serif' font-weight='700'%3E%E5%87%BA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/site.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="#" aria-label="出来る！HTML/CSS/JavaScript 表紙へ">
+    <span class="brand-mark">出来る<em>！</em></span>
+    <span class="brand-sub">HTML<i>/</i>CSS<i>/</i>JavaScript</span>
+  </a>
+  <form class="search" role="search" id="searchForm">
+    <label for="q" class="vh">図鑑を検索</label>
+    <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+    <input id="q" type="search" autocomplete="off" enterkeyhint="search" spellcheck="false"
+      placeholder="さくら / sakura / tag:canvas / 音を鳴らしたい">
+    <kbd class="search-kbd" aria-hidden="true">/</kbd>
+    <button type="button" class="icon-btn" id="voiceBtn" aria-label="声で検索" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+    </button>
+    <button type="button" class="icon-btn" popovertarget="searchHelp" aria-label="検索の書き方">?</button>
+  </form>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="#" data-nav="book">図鑑</a>
+    <a href="#v=pipe" data-nav="pipe">パイプ工房</a>
+    <a href="#v=index" data-nav="index">索引</a>
+    <button type="button" id="randomBtn" title="ショートカット: R">でたらめに開く</button>
+    <button type="button" id="flipBtn" class="primary" title="ショートカット: P">パラパラめくる</button>
+  </nav>
+</header>
+
+<div id="searchHelp" popover class="help-pop">
+  <h2>検索の書き方</h2>
+  <p>思いついた言葉を、ひらがな・カタカナ・ローマ字・英語のどれで打っても探せます。少し間違っても近いものを拾います。</p>
+  <table>
+    <tbody>
+      <tr><th><code>桜 カメラ</code></th><td>空白で区切ると「両方を含む」</td></tr>
+      <tr><th><code>canvas|svg</code></th><td>| で区切ると「どちらか」</td></tr>
+      <tr><th><code>-ゲーム</code></th><td>先頭に - で「除く」</td></tr>
+      <tr><th><code>"完全 一致"</code></th><td>引用符で囲むとその並びのまま</td></tr>
+      <tr><th><code>tag:粒子</code></th><td>タグで絞る</td></tr>
+      <tr><th><code>cat:音</code></th><td>分類で絞る</td></tr>
+      <tr><th><code>api:WebAudio</code></th><td>使っている技術で絞る</td></tr>
+      <tr><th><code>code:requestAnimationFrame</code></th><td>コードの中身を探す</td></tr>
+      <tr><th><code>lv:1</code></th><td>難しさ（1〜3）</td></tr>
+      <tr><th><code>is:fav</code> <code>is:seen</code> <code>is:new</code></th><td>お気に入り／見た／まだ見ていない</td></tr>
+      <tr><th><code>音を鳴らしたい</code></th><td>文章で書くと単語に分けて探し直す</td></tr>
+    </tbody>
+  </table>
+  <h3>キー操作</h3>
+  <ul class="keys">
+    <li><kbd>/</kbd> または <kbd>Ctrl</kbd>+<kbd>K</kbd> 検索欄へ</li>
+    <li><kbd>R</kbd> でたらめに開く</li>
+    <li><kbd>P</kbd> パラパラめくる</li>
+    <li><kbd>←</kbd><kbd>→</kbd> 詳細で前後の項目へ</li>
+    <li><kbd>Ctrl</kbd>+<kbd>Enter</kbd> 書き換えたコードを実行</li>
+  </ul>
+  <button type="button" popovertarget="searchHelp" popovertargetaction="hide">閉じる</button>
+</div>
+
+<main id="main">
+  <!-- 図鑑 -->
+  <section id="view-book" class="view" aria-labelledby="heroTitle">
+    <div class="hero">
+      <div class="hero-text">
+        <p class="kicker">ライブラリなし ・ フレームワークなし ・ ビルドなし</p>
+        <h1 id="heroTitle">出来る<em>！</em><small>HTML / CSS / JavaScript</small></h1>
+        <p class="lead">ブラウザに最初から入っている道具だけで、どこまで出来るのか。小さな見本を一冊の図鑑にまとめました。どの見本もその場で動き、コードを書き換えるとすぐに結果が変わります。</p>
+        <p class="trend-note" id="trendNote" hidden></p>
+        <p class="shared-note" id="sharedNote" hidden>この共有ページでは、カメラ・マイク・位置情報・通知・印刷・ファイルの保存を使う見本が、ブラウザの安全のための制限で動きません。公開版 <a href="https://dikmri.github.io/dekiru-html/" target="_blank" rel="noopener">https://dikmri.github.io/dekiru-html/</a> では、すべて動きます。</p>
+        <dl class="stats">
+          <div><dt>収録項目</dt><dd id="statEntries">0</dd></div>
+          <div><dt>パイプ部品</dt><dd id="statUnits">0</dd></div>
+          <div><dt>使ったライブラリ</dt><dd>0</dd></div>
+        </dl>
+      </div>
+      <div class="hero-art">
+        <canvas id="heroCanvas" aria-hidden="true"></canvas>
+        <button type="button" class="hero-pause" id="heroPause">動きを止める</button>
+        <p class="hero-cap">この文字の粒も、素の Canvas で描いています。</p>
+      </div>
+    </div>
+
+    <div class="toolbar" id="toolbar">
+      <div class="chips" id="catChips" role="group" aria-label="分類で絞り込む"></div>
+      <div class="tools">
+        <label>並び
+          <select id="sortSel">
+            <option value="auto">おすすめ順</option>
+            <option value="no">番号順</option>
+            <option value="kana">五十音順</option>
+            <option value="random">でたらめ</option>
+          </select>
+        </label>
+        <label>難しさ
+          <select id="lvSel">
+            <option value="">すべて</option>
+            <option value="1">やさしい</option>
+            <option value="2">ふつう</option>
+            <option value="3">歯ごたえあり</option>
+          </select>
+        </label>
+        <label class="switch"><input type="checkbox" id="liveChk" role="switch"> 動くプレビュー</label>
+        <output id="countOut" aria-live="polite"></output>
+      </div>
+      <p id="searchNote" class="note" hidden></p>
+      <div id="pipeHits" class="pipe-hits" hidden></div>
+    </div>
+
+    <ol class="grid" id="grid" aria-label="項目の一覧"></ol>
+    <div class="empty" id="emptyMsg" hidden>
+      <p>見つかりませんでした。</p>
+      <p>言葉を短くするか、ひらがなで打ってみてください。<button type="button" class="linkish" id="clearSearch">検索をやめる</button></p>
+    </div>
+  </section>
+
+  <!-- 索引 -->
+  <section id="view-index" class="view" hidden aria-labelledby="indexTitle">
+    <header class="view-head">
+      <h1 id="indexTitle">索引</h1>
+      <p>五十音・分類・使っている技術・タグの4通りで引けます。</p>
+      <nav class="index-nav" aria-label="索引の種類">
+        <a href="#ix-kana">五十音</a><a href="#ix-cat">分類</a><a href="#ix-api">技術</a><a href="#ix-tag">タグ</a>
+      </nav>
+    </header>
+    <div id="indexBody"></div>
+  </section>
+
+  <!-- パイプ工房 -->
+  <section id="view-pipe" class="view" hidden aria-labelledby="pipeTitle">
+    <header class="view-head">
+      <h1 id="pipeTitle">パイプ工房</h1>
+      <p>小さな部品を <code>|</code> でつなぐと、前の部品の結果が次の部品の材料になります。シェルのパイプと同じ考え方です。部品は全部、素の JavaScript で書いてあります。</p>
+    </header>
+    <form class="pipe-cmd" id="pipeForm">
+      <label for="pipeIn" class="vh">パイプ</label>
+      <span class="prompt" aria-hidden="true">$</span>
+      <input id="pipeIn" autocomplete="off" spellcheck="false" enterkeyhint="go" value="sample jugemu | chars | freq | head 12 | bar">
+      <button type="submit" class="primary">実行</button>
+      <button type="button" id="pipeStop">止める</button>
+      <button type="button" id="pipeShare">リンクをコピー</button>
+    </form>
+    <div class="pipe-main">
+      <div class="pipe-result">
+        <div class="pipe-output" id="pipeOutput" aria-live="polite"></div>
+        <ol class="stages" id="pipeStages" aria-label="各段の結果"></ol>
+      </div>
+      <aside class="pipe-side">
+        <h2>レシピ</h2>
+        <ul class="recipes" id="recipes"></ul>
+        <h2>部品辞典</h2>
+        <label for="unitFilter" class="vh">部品を探す</label>
+        <input type="search" id="unitFilter" placeholder="部品を探す（例: 画像, 文字, gray）">
+        <div id="unitList" class="unit-list"></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- 自己診断（隠し） -->
+  <section id="view-test" class="view" hidden aria-labelledby="testTitle">
+    <header class="view-head">
+      <h1 id="testTitle">自己診断</h1>
+      <p>全項目を順に実行し、エラーが出ないかを確かめます。カメラ・マイクなど許可が必要な項目は飛ばします。</p>
+      <button type="button" id="testStart" class="primary">診断を始める</button>
+    </header>
+    <p id="testSummary" aria-live="polite"></p>
+    <div id="testStage" class="test-stage"></div>
+    <ol id="testList" class="test-list"></ol>
+  </section>
+</main>
+
+<nav class="thumbindex" id="thumbIndex" aria-label="五十音の爪（五十音順で該当する項目へ飛ぶ）"></nav>
+
+<footer class="colophon">
+  <p><strong>出来る！HTML/CSS/JavaScript</strong> ・ この図鑑そのものも、ライブラリを使わずに書いています。</p>
+  <p><a href="#v=test">自己診断</a> ・ <button type="button" class="linkish" popovertarget="searchHelp">検索とキー操作</button></p>
+</footer>
+
+<!-- 項目の詳細 -->
+<dialog id="detail" class="detail" closedby="any" aria-labelledby="dTitle">
+  <div class="d-wrap">
+    <header class="d-head">
+      <div class="d-titles">
+        <span class="d-no" id="dNo"></span>
+        <h2 id="dTitle" tabindex="-1"></h2>
+        <span class="d-yomi" id="dYomi"></span>
+        <span class="seal" id="dSeal"></span>
+        <span class="d-lv" id="dLv"></span>
+      </div>
+      <div class="d-actions">
+        <button type="button" id="dPrev" aria-label="前の項目" title="前の項目（←）">←</button>
+        <button type="button" id="dNext" aria-label="次の項目" title="次の項目（→）">→</button>
+        <button type="button" id="dFav" aria-pressed="false">お気に入り</button>
+        <button type="button" id="dClose" class="close" aria-label="閉じる">×</button>
+      </div>
+    </header>
+    <p class="d-desc" id="dDesc"></p>
+    <div class="d-body">
+      <section class="d-stage" aria-label="実演">
+        <div class="bar">
+          <strong>実演</strong>
+          <div class="seg" role="group" aria-label="表示する幅">
+            <button type="button" data-w="100%" aria-pressed="true">全幅</button>
+            <button type="button" data-w="768px" aria-pressed="false">タブレット</button>
+            <button type="button" data-w="375px" aria-pressed="false">スマホ</button>
+          </div>
+          <span class="spacer"></span>
+          <button type="button" id="dRerun">もう一度</button>
+          <button type="button" id="dPop">別タブで開く</button>
+        </div>
+        <div class="stage-frame" id="dStageFrame"><iframe id="dFrame" title="実演"></iframe></div>
+        <div class="console" id="dConsole" aria-live="polite" aria-label="コンソール出力"></div>
+      </section>
+      <section class="d-code" aria-label="コード">
+        <div class="tabs" role="tablist" aria-label="コードの種類" id="dTabs">
+          <button type="button" role="tab" data-tab="html" aria-selected="true">HTML</button>
+          <button type="button" role="tab" data-tab="css" aria-selected="false">CSS</button>
+          <button type="button" role="tab" data-tab="js" aria-selected="false">JavaScript</button>
+          <button type="button" role="tab" data-tab="base" aria-selected="false" title="全項目に共通の下地 CSS">下地</button>
+        </div>
+        <div class="editor" role="tabpanel" id="dEditor">
+          <pre aria-hidden="true"><code id="dHl"></code></pre>
+          <textarea id="dEd" spellcheck="false" wrap="off" autocapitalize="off" autocomplete="off" aria-label="コード（書き換えられます）"></textarea>
+        </div>
+        <div class="bar">
+          <label class="switch"><input type="checkbox" id="dAuto" checked role="switch"> 書き換えたら自動で実行</label>
+          <span class="spacer"></span>
+          <button type="button" id="dRun" class="primary" title="Ctrl+Enter">実行</button>
+          <button type="button" id="dReset">元に戻す</button>
+          <button type="button" id="dCopy">コピー</button>
+          <button type="button" id="dSave">HTMLで保存</button>
+          <button type="button" id="dLink">リンク</button>
+        </div>
+      </section>
+    </div>
+    <section class="d-more">
+      <div class="d-point" id="dPointBox">
+        <h3>ここがミソ</h3>
+        <p id="dPoint"></p>
+        <p id="dPipe"></p>
+        <div id="dSrcBox" hidden>
+          <h3>再現した日と出典</h3>
+          <p id="dDate"></p>
+          <ul class="d-src" id="dSrc"></ul>
+        </div>
+      </div>
+      <div>
+        <h3>使っている技術</h3>
+        <ul class="d-apis" id="dApis"></ul>
+        <h3>タグ</h3>
+        <ul class="d-tags" id="dTags"></ul>
+      </div>
+      <div class="d-rel">
+        <h3>つながる項目</h3>
+        <ul class="mini-list" id="dRelated"></ul>
+      </div>
+    </section>
+  </div>
+</dialog>
+
+<!-- パラパラめくり -->
+<dialog id="flip" class="flip" aria-labelledby="flipTitle">
+  <div class="flip-book" id="flipBook"></div>
+  <div class="flip-bar">
+    <div class="flip-cap"><span class="d-no" id="flipNo"></span> <strong id="flipTitle"></strong> <span id="flipYomi" class="d-yomi"></span></div>
+    <span class="spacer"></span>
+    <button type="button" id="flipPrev" aria-label="前のページ">←</button>
+    <button type="button" id="flipPlay">一時停止</button>
+    <button type="button" id="flipNext" aria-label="次のページ">→</button>
+    <label>速さ
+      <select id="flipSpeed"><option value="2500">はやい</option><option value="4500" selected>ふつう</option><option value="8000">ゆっくり</option></select>
+    </label>
+    <button type="button" id="flipOpen">このページを開く</button>
+    <button type="button" id="flipClose" class="close" aria-label="閉じる">×</button>
+  </div>
+</dialog>
+
+<!-- 部品のコード -->
+<dialog id="unitDlg" class="unit-dlg" closedby="any" aria-labelledby="unitTitle">
+  <h2 id="unitTitle"></h2>
+  <p id="unitDesc"></p>
+  <pre class="codeblock"><code id="unitCode"></code></pre>
+  <form method="dialog"><button type="button" id="unitAdd" class="primary">パイプの末尾に足す</button> <button>閉じる</button></form>
+</dialog>
+
+<div id="toast" class="toast" popover="manual" role="status"></div>
+
+<script src="js/logger.js"></script>
+<script src="js/search.js"></script>
+<script src="js/highlight.js"></script>
+<script src="js/pipe-core.js"></script>
+<script src="js/registry.js"></script>
+<script src="entries/shape.js"></script>
+<script src="entries/anim.js"></script>
+<script src="entries/effect.js"></script>
+<script src="entries/3d.js"></script>
+<script src="entries/canvas.js"></script>
+<script src="entries/particle.js"></script>
+<script src="entries/pixel.js"></script>
+<script src="entries/text.js"></script>
+<script src="entries/svg.js"></script>
+<script src="entries/ui.js"></script>
+<script src="entries/form.js"></script>
+<script src="entries/layout.js"></script>
+<script src="entries/scroll.js"></script>
+<script src="entries/sound.js"></script>
+<script src="entries/media.js"></script>
+<script src="entries/game.js"></script>
+<script src="entries/math.js"></script>
+<script src="entries/data.js"></script>
+<script src="entries/util.js"></script>
+<script src="entries/api.js"></script>
+<script src="entries/trend.js"></script>
+<script src="entries/3d-more.js"></script>
+<script src="entries/combo.js"></script>
+<script src="entries/app.js"></script>
+<script src="entries/more.js"></script>
+<script src="js/pipe-units.js"></script>
+<script src="js/pipe-ui.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
