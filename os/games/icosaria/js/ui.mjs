@@ -5,35 +5,41 @@ import { xpToNext } from './core/stats.mjs';
 
 const FONT = '"Hiragino Kaku Gothic ProN", "BIZ UDPGothic", "Yu Gothic UI", "Meiryo", sans-serif';
 const now = () => performance.now();
+const CHAR_MS = 22; // 会話の文字が1文字出るまでの時間
 
 export function makeUi({ gfx, audio, canvas }) {
   let world = null, dialog = null, after = null;
   const toasts = [];
   const say = document.getElementById('say');
-  const menu = document.getElementById('menu'), shop = document.getElementById('shop');
+  const menu = document.getElementById('menu'), shop = document.getElementById('shop'), forge = document.getElementById('forge');
   const api = {
     attach(w) { world = w; },
-    blocking: () => !!dialog || menu.open || shop.open,
+    blocking: () => !!dialog || menu.open || shop.open || forge.open,
     announce(text) { say.textContent = text; },
     toast(text) { toasts.push({ text, t: now() }); if (toasts.length > 5) toasts.shift(); api.announce(text); },
     say(lines, then) { dialog = { lines, i: 0, t: now() }; after = then || null; api.announce(lines.map((l) => (l.speaker ? l.speaker + '「' + l.line + '」' : l.line)).join(' ')); },
     // 会話を進める（攻撃か調べるのキー）
+    closedAt: 0,
     advance(input) {
       if (!dialog) return false;
+      // Esc（メニューのキー）で会話を最後まで飛ばす
+      if (input.take('menu')) { dialog = null; api.closedAt = now(); input.clear(); audio.sfx('menu_cancel'); if (after) { const f = after; after = null; f(); } return true; }
       if (input.take('interact') || input.take('attack')) {
-        const l = dialog.lines[dialog.i], shown = Math.floor((now() - dialog.t) / 35);
+        const l = dialog.lines[dialog.i], shown = Math.floor((now() - dialog.t) / CHAR_MS);
         if (shown < l.line.length) dialog.t = -1e9;
-        else { dialog.i++; dialog.t = now(); audio.sfx('menu_move'); if (dialog.i >= dialog.lines.length) { dialog = null; input.clear(); if (after) { const f = after; after = null; f(); } } }
+        else { dialog.i++; dialog.t = now(); audio.sfx('menu_move'); if (dialog.i >= dialog.lines.length) { dialog = null; api.closedAt = now(); input.clear(); if (after) { const f = after; after = null; f(); } } }
       }
       input.clear();
       return true;
     },
     openMenu() { buildMenu('gear'); audio.sfx('menu_ok'); menu.showModal(); },
     openShop() { buildShop(); audio.sfx('menu_ok'); shop.showModal(); },
+    openForge() { buildForge(); audio.sfx('menu_ok'); forge.showModal(); },
     draw,
   };
   menu.addEventListener('close', () => { menu.returnValue = ''; world && world.store(); });
   shop.addEventListener('close', () => { shop.returnValue = ''; world && world.store(); });
+  forge.addEventListener('close', () => { forge.returnValue = ''; world && world.store(); });
   menu.querySelector('.menu-tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) { audio.sfx('menu_move'); buildMenu(b.dataset.tab); } });
 
   // ---- メニューの中身 ----
@@ -145,6 +151,29 @@ export function makeUi({ gfx, audio, canvas }) {
     sell.append(ul);
     const cols = document.createElement('div'); cols.className = 'cols'; cols.append(top, sell); body.append(cols);
   }
+  function buildForge() {
+    const s = world.save, body = document.getElementById('forgeBody');
+    body.textContent = '';
+    const head = document.createElement('p');
+    head.innerHTML = `プリズム片 <b>${s.prism}</b> 個 ・ 水晶粉 <b>${s.dust || 0}</b> 個。鍛え直すと、その武具の屈折銘の値が1段階ごとに10%上がる（最大 +5）。`;
+    const cols = document.createElement('div'); cols.className = 'cols';
+    const up = document.createElement('div'); up.className = 'box'; up.innerHTML = '<h3>鍛え直す</h3>';
+    const ul = document.createElement('ul'); ul.className = 'bag';
+    for (const it of s.items) {
+      const plus = it.plus || 0, c = world.forgeCost(plus);
+      ul.append(itemRow(it, [[plus >= 5 ? '最大' : `鍛える（${c.prism}・粉${c.dust}）`, () => { world.upgrade(it.uid); buildForge(); }, plus >= 5 || s.prism < c.prism || (s.dust || 0) < c.dust]]));
+    }
+    up.append(ul);
+    const br = document.createElement('div'); br.className = 'box'; br.innerHTML = '<h3>砕いて水晶粉にする</h3>';
+    const ul2 = document.createElement('ul'); ul2.className = 'bag';
+    for (const it of s.items) {
+      if (Object.values(s.equip).includes(it.uid)) continue;
+      ul2.append(itemRow(it, [[`砕く（粉${world.dustValue(it)}）`, () => { world.dismantle(it.uid); buildForge(); }]]));
+    }
+    if (!ul2.children.length) ul2.innerHTML = '<li class="hint">砕ける武具はない（装備中の物は砕けない）。</li>';
+    br.append(ul2);
+    cols.append(up, br); body.append(head, cols);
+  }
   function buildShopKeep(msg) { buildShop(); const p = document.querySelector('#shopBody .hint'); if (p) p.innerHTML = msg; }
   const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
@@ -215,11 +244,12 @@ export function makeUi({ gfx, audio, canvas }) {
     toasts.forEach((m, i) => { g.globalAlpha = Math.min(1, (3600 - (t - m.t)) / 500); text(g, m.text, 6 * u, (33 + i * 8) * u, 4.5 * u, '#dce0ed', 'left', false); g.globalAlpha = 1; });
     // 会話の窓
     if (dialog) {
-      const l = dialog.lines[dialog.i], shown = Math.max(0, Math.floor((t - dialog.t) / 35));
+      const l = dialog.lines[dialog.i], shown = Math.max(0, Math.floor((t - dialog.t) / CHAR_MS));
       panel(g, 20 * u, (VIEW_H - 50) * u, (VIEW_W - 40) * u, 44 * u, u);
       if (l.speaker) text(g, l.speaker, 26 * u, (VIEW_H - 48) * u, 5.5 * u, '#ffc4b8');
       text(g, l.line.slice(0, shown), 26 * u, (VIEW_H - 39) * u, 6.5 * u, '#f7f9fc', 'left', false);
       if (shown >= l.line.length && Math.floor(t / 400) % 2) text(g, '▼', (VIEW_W - 26) * u, (VIEW_H - 14) * u, 5 * u, '#ffe478', 'center');
+      text(g, 'Enter 次へ ・ Esc 飛ばす', (VIEW_W - 24) * u, (VIEW_H - 48) * u, 3.8 * u, '#b5b4cc', 'right', false);
     }
     // 気絶
     if (p.state === 'dead') { g.fillStyle = 'rgba(20,19,34,0.5)'; g.fillRect(0, 0, W, H); text(g, '気を失った……', W / 2, H / 2 - 6 * u, 9 * u, '#ffc4b8', 'center'); }

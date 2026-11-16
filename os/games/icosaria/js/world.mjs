@@ -13,6 +13,8 @@ const DIRS = { down: [0, 1], up: [0, -1], left: [-1, 0], right: [1, 0] };
 const EXIT_PAIR = { village: { '>': ['beach', '<'] }, beach: { '<': ['village', '>'], '^': ['dungeon', 'v'] }, dungeon: { v: ['beach', '^'] } };
 const ELEM_NAME = { tide: '潮', gale: '烈風', mirage: '陽炎', thunder: '白雷', starfrost: '星氷' };
 const SELL = { common: 6, azure: 18, sunset: 48, icosa: 120 };
+const DUST = { common: 1, azure: 3, sunset: 8, icosa: 20 };
+export const forgeCost = (plus) => ({ prism: 30 * (plus + 1), dust: 2 * (plus + 1) });
 const now = () => performance.now();
 
 export function makeWorld({ gfx, audio, data, maps, ui }) {
@@ -37,7 +39,8 @@ export function makeWorld({ gfx, audio, data, maps, ui }) {
   function hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch { return false; } }
 
   // ---- 能力 ----
-  const equipped = () => Object.values(save.equip).filter(Boolean).map((uid) => save.items.find((i) => i.uid === uid)).filter(Boolean);
+  const equipped = () => Object.values(save.equip).filter(Boolean).map((uid) => save.items.find((i) => i.uid === uid)).filter(Boolean)
+    .map((it) => (it.plus ? { ...it, affixes: it.affixes.map((a) => ({ ...a, v: Math.round(a.v * (1 + 0.1 * it.plus)) })) } : it));
   const passiveBonus = () => {
     const b = {};
     const r = (id) => save.skills[id] || 0, sk = (id) => G.skills[id];
@@ -69,6 +72,16 @@ export function makeWorld({ gfx, audio, data, maps, ui }) {
       const t = map.tileAt(x, y);
       if (t === 'switch') a.switches.push({ tx: x, ty: y, on: false });
       if (t === 'gate') a.gates.push({ tx: x, ty: y });
+    }
+    // 木や柱など、歩けない飾りのタイルの下地は、周りの床の色にする（浜のヤシの下が芝の色にならないように）
+    a.ground = new Map();
+    const DECOR = new Set(['palm_tree', 'pillar', 'pillar_broken', 'fountain', 'obelisk', 'chest', 'gate']);
+    for (let y = 0; y < map.h; y++) for (let x = 0; x < map.w; x++) {
+      if (!DECOR.has(map.tileAt(x, y))) continue;
+      const count = {};
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) { const t = map.tileAt(x + dx, y + dy); if (t && !DECOR.has(t) && !map.solidAt(x + dx, y + dy)) count[t] = (count[t] || 0) + 1; }
+      const best = Object.entries(count).sort((q, r) => r[1] - q[1])[0];
+      if (best) a.ground.set(x + ',' + y, best[0]);
     }
     // 格子扉: 前に開けていれば最初から開いている
     if (save.flags.gate) openGates(a, true);
@@ -220,7 +233,7 @@ export function makeWorld({ gfx, audio, data, maps, ui }) {
     fullHeal(); player.state = 'idle'; player.iframe = now() + 1500;
     if (sp.area !== area.id) { loadArea(sp.area); }
     if (sp.x != null) { player.x = sp.x; player.y = sp.y; }
-    toast('双色の泉で目を覚ました');
+    toast(sp.area === 'village' ? '双色の泉で目を覚ました。東（右）の石門から白砂の浜へ戻れる' : '共鳴石柱のそばで目を覚ました');
   }
 
   // ---- スキル ----
@@ -277,7 +290,8 @@ export function makeWorld({ gfx, audio, data, maps, ui }) {
 
     // 行動
     if (input.take('menu')) { input.clear(); ui.openMenu(); return; }
-    if (input.take('interact')) interact();
+    // 会話を閉じた直後は、話しかけを受け付けない（Enter の押しすぎで同じ人にまた話しかけないように）
+    if (input.take('interact') && t - (ui.closedAt || 0) > 350) interact();
     if (input.take('potion')) usePotion();
     if (input.take('dash') && player.dashCd < t && player.state !== 'dash') {
       const [ax, ay] = input.axis(), [dx, dy] = ax || ay ? [ax, ay] : DIRS[player.dir];
@@ -410,6 +424,7 @@ export function makeWorld({ gfx, audio, data, maps, ui }) {
     const line = lines[n.line % lines.length]; n.line++;
     audio.sfx('talk');
     if (/コハク/.test(n.d.name)) { ui.say([{ speaker: n.d.name, line }], () => ui.openShop()); return; }
+    if (/ガルガン/.test(n.d.name)) { ui.say([{ speaker: n.d.name, line }], () => ui.openForge()); return; }
     if (/ミオ/.test(n.d.name) && save.flags.boss && !save.flags.toldLoop) {
       save.flags.toldLoop = true;
       ui.say([{ speaker: n.d.name, line: '輝石が一面、回ったわ。世界の波長が強くなってる。' }, { speaker: n.d.name, line: '遺跡の魔物も強くなるけれど、宿る屈折銘も輝くはず。' }, { speaker: n.d.name, line: `今は第${save.face}面。もう一度、回廊へ行ってみて。` }]);
@@ -567,7 +582,9 @@ export function makeWorld({ gfx, audio, data, maps, ui }) {
       let tile = area.map.tileAt(tx, ty);
       if (!tile) continue;
       if (tile === 'switch_floor') tile = 'checker_black';
-      g.fillStyle = GROUND[tile] || '#535075'; g.fillRect(tx * T, ty * T, T, T);
+      const under = area.ground.get(tx + ',' + ty);
+      if (under) { const uf = tileFrame(under, t + (tx + ty) * 37, false); g.fillStyle = GROUND[under] || '#535075'; g.fillRect(tx * T, ty * T, T, T); if (uf && gfx.has(uf[0], uf[1])) g.drawImage(gfx.get(uf[0], uf[1]), tx * T, ty * T); }
+      else { g.fillStyle = GROUND[tile] || '#535075'; g.fillRect(tx * T, ty * T, T, T); }
       const st = tile === 'switch' ? area.switches.find((s) => s.tx === tx && s.ty === ty)?.on : tile === 'chest' ? !!save.flags.chests[area.id + ':' + tx + ',' + ty] : false;
       const fr = tileFrame(tile, t + (tx + ty) * 37, st);
       if (fr && gfx.has(fr[0], fr[1])) g.drawImage(gfx.get(fr[0], fr[1]), tx * T, ty * T);
@@ -676,7 +693,7 @@ export function makeWorld({ gfx, audio, data, maps, ui }) {
   }
 
   // ---- 外から使うもの ----
-  const itemName = (it) => it.unique || it.base;
+  const itemName = (it) => (it.unique || it.base) + (it.plus ? ' +' + it.plus : '');
   const affixText = (a) => (affixDef[a.id] ? affixDef[a.id].text.replace('{v}', a.v) : `${a.stat} +${a.v}`);
   return {
     get save() { return save; }, get stats() { restat(); return stats; }, get player() { return player; }, get area() { return area; }, get boss() { return boss && boss.alive ? boss : null; },
@@ -709,6 +726,7 @@ export function makeWorld({ gfx, audio, data, maps, ui }) {
       return null;
     },
     update, draw, store, restat, useSkill,
+    jump(id) { loadArea(id); },
     setPaused(v) { paused = v; },
     // 装備とスキルの操作（メニューから）
     equip(uid) { const it = save.items.find((i) => i.uid === uid); if (!it) return; save.equip[it.slot] = uid; restat(); player.hp = Math.min(player.hp, stats.hp); audio.sfx('menu_ok'); store(); log('rpg.equip', { slot: it.slot, rarity: it.rarity }, 'ok'); },
@@ -733,6 +751,22 @@ export function makeWorld({ gfx, audio, data, maps, ui }) {
     },
     setSlot(i, id) { save.slots = save.slots.map((x) => (x === id ? null : x)); save.slots[i] = id; audio.sfx('menu_ok'); store(); },
     sellValue: (it) => Math.round(SELL[it.rarity] * (1 + it.ilvl * 0.1)),
+    dustValue: (it) => DUST[it.rarity],
+    // 工房: 砕いて水晶粉にする / 鍛え直して屈折銘の値を上げる
+    dismantle(uid) {
+      if (Object.values(save.equip).includes(uid)) return 0;
+      const it = save.items.find((i) => i.uid === uid); if (!it) return 0;
+      save.dust = (save.dust || 0) + DUST[it.rarity]; save.items = save.items.filter((i) => i.uid !== uid);
+      audio.sfx('enemy_die'); store(); log('rpg.forge', { act: 'dismantle', rarity: it.rarity }, 'ok'); return DUST[it.rarity];
+    },
+    upgrade(uid) {
+      const it = save.items.find((i) => i.uid === uid); if (!it) return false;
+      const plus = it.plus || 0, c = forgeCost(plus);
+      if (plus >= 5 || save.prism < c.prism || (save.dust || 0) < c.dust) { audio.sfx('menu_cancel'); return false; }
+      save.prism -= c.prism; save.dust -= c.dust; it.plus = plus + 1; restat(); audio.sfx('levelup'); store();
+      log('rpg.forge', { act: 'upgrade', rarity: it.rarity, plus: it.plus }, 'ok'); return true;
+    },
+    forgeCost,
     elementName: (e) => ELEM_NAME[e] || e,
   };
 }

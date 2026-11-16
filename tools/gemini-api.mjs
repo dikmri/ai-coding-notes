@@ -196,7 +196,9 @@ async function previewSheet(sheet, file) {
 }
 async function sprite(args) {
   const o = parseArgs(args, ['model', 'id', 'w', 'h', 'frames', 'data', 'palette-file', 'max-colors', 'rounds']);
-  const [prompt, ...refs] = o.rest;
+  // --review: 描いてある絵（データの sprites[id]）の見本を見せて、見直しだけをさせる
+  const reviewOnly = o.rest.includes('--review');
+  const [prompt, ...refs] = o.rest.filter((x) => x !== '--review');
   if (!prompt || !o.id || !o.w || !o.h || !o.frames || !o.data) throw new Error('説明、--id、--w、--h、--frames、--data を書いてください');
   const w = +o.w, h = +o.h, names = o.frames.split(',').map((x) => x.trim()).filter(Boolean);
   const maxColors = +(o['max-colors'] || 15), rounds = +(o.rounds ?? 1), model = o.model || CONFIG.models.pixel || CONFIG.models.default;
@@ -211,7 +213,18 @@ async function sprite(args) {
   const dir = join(OUT, 'sprites');
   mkdirSync(dir, { recursive: true });
   const base = join(dir, o.id);
-  for (let round = 0; round <= rounds + 1; round++) {
+  let first = 0;
+  if (reviewOnly) {
+    const old = JSON.parse(readFileSync(resolve(o.data), 'utf8')).sprites?.[o.id];
+    if (!old) throw new Error('見直す絵がデータにありません: ' + o.id);
+    sheet = old;
+    const png = base + '-review.png';
+    await previewSheet(sheet, png);
+    const ask = '付けた画像は、いまの絵の見本です（上: 拡大、下: 砂の色の地に置いたもの）。説明どおりか、コマどうしで形がそろっているか、動きが分かるか、輪郭と光の向きが決まりどおりかを見てください。直すところがあれば直した全体を返し、無ければ同じものを done: true で返してください。';
+    input = [rules, '描くもの: ' + prompt, ask, '今の絵:\n' + JSON.stringify({ palette: sheet.palette, frames: names.map((n) => ({ name: n, rows: sheet.frames[n] })) })].join('\n\n');
+    targets = [png]; reviewed = true; first = 1;
+  }
+  for (let round = first; round <= rounds + 1; round++) {
     const r = await interact({ model, text: input, targets, thinking: CONFIG.thinking, responseFormat: { type: 'text', mime_type: 'application/json', schema: SPRITE_SCHEMA }, name: 'sprite-' + o.id + '-r' + round });
     total += r.usd || 0; led = r.led;
     const j = G.parseJson(r.text);

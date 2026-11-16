@@ -89,8 +89,9 @@ function drawTitleText(g, s, t) {
 }
 
 // ---- 毎コマ ----
-let last = performance.now(), acc = 0;
+let last = performance.now(), acc = 0, paused = false;
 function frame(t) {
+  if (paused) { requestAnimationFrame(frame); return; }
   const dt = Math.min(0.05, (t - last) / 1000); last = t;
   input.poll();
   if (scene === 'title') {
@@ -103,7 +104,10 @@ function frame(t) {
       const pick = items[choice];
       scene = 'game';
       const opening = pick === 'つづきから' ? world.continueGame() : world.newGame();
-      if (opening && opening.length) ui.say(opening.map((o) => ({ speaker: o.speaker, line: o.line })), () => ui.toast('東の石門から白砂の浜へ。Tab で調律盤（装備と煌刻術）'));
+      // 確かめるとき: ?debug=1&area=beach で、その場所から始める
+      const dbgArea = /debug/.test(location.search) && new URLSearchParams(location.search).get('area');
+      if (dbgArea && pick === 'はじめから') { world.jump(dbgArea); input.clear(); }
+      else if (opening && opening.length) ui.say(opening.map((o) => ({ speaker: o.speaker, line: o.line })), () => ui.toast('東の石門から白砂の浜へ。Tab で調律盤（装備と煌刻術）'));
       input.clear();
     }
     input.clear();
@@ -124,5 +128,7 @@ function blit() {
   sg.drawImage(low, 0, 0, screen.width, screen.height);
 }
 if (/debug/.test(location.search)) window.__icosaria = { world, audio, ui };
+// 試し遊びの道具（tools/gemini-browse.mjs）が、AI が考えている間だけゲームを止めるための入口
+window.__aiPause = (on) => { paused = !!on; if (!on) last = performance.now(); };
 addEventListener('error', (e) => log('rpg.error', { msg: String(e.message).slice(0, 200) }, 'error'));
 requestAnimationFrame(frame);
