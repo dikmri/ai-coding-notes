@@ -61,6 +61,13 @@ export function parseCombo(keys) {
 }
 // Gemini の座標（0〜999）を画素にする
 export const toPixel = (v, size) => Math.min(size - 1, Math.max(0, Math.round((Number(v) / 1000) * size)));
+// Gemini はドラッグの出発点と行き先を、いろいろな名前で送ってくる（2026-11-17 に記録で確かめた）。[sx, sy, ex, ey] にそろえる
+export function dragArgs(a) {
+  const pick = (...keys) => { for (const k of keys) if (a[k] != null && Number.isFinite(+a[k])) return +a[k]; return null; };
+  const r = [pick('start_x', 'from_x', 'x', 'source_x'), pick('start_y', 'from_y', 'y', 'source_y'),
+    pick('end_x', 'destination_x', 'target_x', 'drop_x', 'to_x'), pick('end_y', 'destination_y', 'target_y', 'drop_y', 'to_y')];
+  return r.includes(null) ? null : r;
+}
 export function sameOrigin(base, url) {
   try { return new URL(url).origin === new URL(base).origin; } catch { return false; }
 }

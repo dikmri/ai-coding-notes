@@ -31,3 +31,15 @@ test('移動してよい URL: 始めの URL と同じ場所（scheme・ホスト
   assert.equal(sameOrigin('http://localhost:8769/os/', 'https://example.com/'), false);
   assert.equal(sameOrigin('http://localhost:8769/os/', 'これは URL ではない'), false);
 });
+
+test('ドラッグの引数: 出発点と行き先の言い換え（x・from_x・destination_x・target_x・drop_x・to_x）を読む。足りなければ null', () => {
+  const imp = (a) => import('../tools/lib/cdp.mjs').then((m) => m.dragArgs(a));
+  return Promise.all([
+    imp({ start_x: 1, start_y: 2, end_x: 3, end_y: 4 }).then((r) => assert.deepEqual(r, [1, 2, 3, 4])),
+    imp({ x: 1, y: 2, destination_x: 3, destination_y: 4 }).then((r) => assert.deepEqual(r, [1, 2, 3, 4])),
+    imp({ from_x: 1, from_y: 2, to_x: 3, to_y: 4 }).then((r) => assert.deepEqual(r, [1, 2, 3, 4])),
+    imp({ x: 1, y: 2, target_x: 3, target_y: 4 }).then((r) => assert.deepEqual(r, [1, 2, 3, 4])),
+    imp({ x: 1, y: 2, drop_x: 0, drop_y: 4 }).then((r) => assert.deepEqual(r, [1, 2, 0, 4])),
+    imp({ x: 1, y: 2 }).then((r) => assert.equal(r, null)),
+  ]);
+});

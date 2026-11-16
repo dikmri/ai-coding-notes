@@ -192,7 +192,8 @@
   background-position: right 24px center, right 8px center, right 0 center;
   background-repeat: no-repeat;
 }
-.arcadia select:is([size], [multiple]) option:checked { background: var(--fos-aqua) linear-gradient(var(--fos-aqua), var(--fos-aqua)); color: var(--fos-ink); font-weight: 700; }
+/* フォーカスがあると Chrome は選んだ項目の文字を白にするので、白い文字で読める青を地にする（Gemini の操作の確認で見つけた） */
+.arcadia select:is([size], [multiple]) option:checked { background: var(--fos-cobalt) linear-gradient(var(--fos-cobalt), var(--fos-cobalt)); color: #fff; font-weight: 700; }
 
 /* チェックボックスとラジオボタン（標準の部品のまま、見た目だけを変える） */
 .arcadia :is(input[type="checkbox"], input[type="radio"]) {
