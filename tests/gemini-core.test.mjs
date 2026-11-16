@@ -64,3 +64,46 @@ test('使った金額の記録: 無料の枠は予算から引かず、有料だ
   assert.ok(near(led.freeEquivalentUsd, 0.5));
   assert.ok(near(G.remaining(led), 18.75));
 });
+
+test('料金: 画像を作るモデル（Nano Banana 2.1）は出力の単価が高い', () => {
+  assert.deepEqual(G.priceFor('gemini-nano-banana-2.1', '2026-11-17'), { input: 1.5, output: 30, cache: 0.15 });
+  // 1K の画像1枚は出力 1120 トークン前後 → 約 0.0336 ドル
+  assert.ok(near(G.costOf({ total_input_tokens: 0, total_output_tokens: 1120 }, 'gemini-nano-banana-2.1', '2026-11-17'), 0.0336, 1e-6));
+});
+
+test('画像の取り出し: model_output の画像だけを、MIME つきで返す', () => {
+  const res = { steps: [
+    { type: 'thought' },
+    { type: 'model_output', content: [{ type: 'text', text: 'できました' }, { type: 'image', data: 'iVBO', mime_type: 'image/png' }] },
+    { type: 'model_output', content: [{ type: 'image', data: '/9j/' }] },
+  ] };
+  assert.deepEqual(G.extractImages(res), [{ data: 'iVBO', mime: 'image/png' }, { data: '/9j/', mime: 'image/jpeg' }]);
+  assert.deepEqual(G.extractImages({}), []);
+});
+
+test('JSON の取り出し: 囲みの記号があっても中身を読む。読めなければ null', () => {
+  assert.deepEqual(G.parseJson('{"verdict":"approve"}'), { verdict: 'approve' });
+  assert.deepEqual(G.parseJson('```json\n{"a":[1,2]}\n```'), { a: [1, 2] });
+  assert.equal(G.parseJson('JSON ではない'), null);
+});
+
+test('予算の歯止め: 残りが無いか、その日の上限を超えたら呼ばない', () => {
+  let led = G.emptyLedger(20);
+  led = G.ledgerAdd(led, { ts: '2026-11-17T01:00:00Z', day: '2026-11-17', tier: 'paid', usd: 1.5 });
+  led = G.ledgerAdd(led, { ts: '2026-11-16T01:00:00Z', day: '2026-11-16', tier: 'paid', usd: 9 });
+  led = G.ledgerAdd(led, { ts: '2026-11-17T02:00:00Z', day: '2026-11-17', tier: 'free', usd: 5 });
+  assert.ok(near(G.spentOn(led, '2026-11-17'), 1.5));
+  assert.deepEqual(G.budgetCheck(led, { tier: 'paid', dailyCapUsd: 2, day: '2026-11-17' }), { ok: true });
+  assert.equal(G.budgetCheck(led, { tier: 'paid', dailyCapUsd: 1.5, day: '2026-11-17' }).ok, false);
+  const used = G.ledgerAdd(led, { day: '2026-11-18', tier: 'paid', usd: 9.5 });
+  const r = G.budgetCheck(used, { tier: 'paid', dailyCapUsd: 50, day: '2026-11-18' });
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /予算/);
+  // 無料の枠は歯止めの対象にしない
+  assert.deepEqual(G.budgetCheck(used, { tier: 'free', dailyCapUsd: 0, day: '2026-11-18' }), { ok: true });
+});
+
+test('日付: 記録の日付は日本時間で数える', () => {
+  assert.equal(G.localDay('2026-11-16T20:07:30Z', 540), '2026-11-17');
+  assert.equal(G.localDay('2026-11-16T14:59:59Z', 540), '2026-11-16');
+});

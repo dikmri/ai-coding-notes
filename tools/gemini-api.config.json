@@ -1,7 +1,15 @@
 {
-  "model": "gemini-4-hydrogen",
-  "tier": "free",
+  "tier": "paid",
   "budgetUsd": 20,
+  "dailyCapUsd": 2,
   "thinking": "medium",
-  "apiRevision": "2026-05-20"
+  "apiRevision": "2026-05-20",
+  "models": {
+    "default": "gemini-4-argon",
+    "review": "gemini-4-argon",
+    "ideas": "gemini-4-carbon",
+    "japanese": "gemini-4-argon",
+    "image": "gemini-nano-banana-2.1"
+  },
+  "brief": "../myWiki/articles/future-os.md"
 }

@@ -8,6 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, appendFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { MAIN } from './lib/gemini-client.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CANDIDATES = [
@@ -27,7 +28,8 @@ for (let i = 0; i < rest.length; i++) {
   else if (rest[i] === '--dark') opt.dark = true;
   else if (rest[i] === '--wait') opt.wait = +rest[++i];
 }
-const log = (result) => { mkdirSync(join(ROOT, 'logs'), { recursive: true }); appendFileSync(join(ROOT, 'logs/gemini.log'), `${new Date().toISOString()} shot.take args=${JSON.stringify({ url, name, ...opt })} result=${result}\n`); };
+// ログは、作業用の別のチェックアウトから撮っても元のチェックアウトの logs/gemini.log に集める
+const log = (result) => { mkdirSync(join(MAIN, 'logs'), { recursive: true }); appendFileSync(join(MAIN, 'logs/gemini.log'), `${new Date().toISOString()} shot.take args=${JSON.stringify({ url, name, ...opt })} result=${result}\n`); };
 if (!url || !name || !/^[\w-]+$/.test(name)) { console.error('使い方: node tools/shoot.mjs <URL> <名前（英数字と - だけ）> [--size 1280x800] [--dark] [--wait 2500]'); process.exit(1); }
 if (!browser) { log('error: Chrome も Edge も見つかりません'); console.error('Chrome も Edge も見つかりません。CHROME_PATH で場所を教えてください'); process.exit(1); }
 const out = join(ROOT, 'build/shots', `${name}.png`);
