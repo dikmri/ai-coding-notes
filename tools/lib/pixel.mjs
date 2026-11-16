@@ -7,7 +7,7 @@ export const WIN16 = ['#000000', '#800000', '#008000', '#808000', '#000080', '#8
   '#808080', '#ff0000', '#00ff00', '#ffff00', '#0000ff', '#ff00ff', '#00ffff', '#ffffff'];
 
 export function normalizeHex(c) {
-  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(c).replace(/[`'"s]/g, ''));
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(c).replace(/[`'"\s]/g, ''));
   if (!m) return null;
   const h = m[1].length === 3 ? [...m[1]].map((x) => x + x).join('') : m[1];
   return '#' + h.toLowerCase();

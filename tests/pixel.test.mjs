@@ -67,6 +67,7 @@ test('検査: 決めた色の表（allowed）があれば、その中の近い�
 
 test('色の書き方: 記号（` や "）で囲まれていても読む。使える色の一覧が空なら、そろえない', () => {
   assert.equal(P.normalizeHex('`#141322`'), '#141322');
+  assert.equal(P.normalizeHex(' #a3f '), '#aa33ff'); // 前後の空白も取る
   const r = P.validateArt(art(['k'], [{ key: 'k', color: '#123456' }]), { w: 1, h: 1, allowed: ['not-a-color'] });
   assert.equal(r.ok, true);
   assert.equal(r.art.palette[0].color, '#123456');

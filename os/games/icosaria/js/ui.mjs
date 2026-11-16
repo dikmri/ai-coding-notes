@@ -222,9 +222,10 @@ export function makeUi({ gfx, audio, canvas }) {
     // 上の中央: 場所の名前、またはボスの生命波
     const b = world.boss;
     if (b) {
-      panel(g, 70 * u, 4 * u, 180 * u, 14 * u, u);
-      text(g, b.d.name, 160 * u, 4.5 * u, 4.5 * u, '#ffc4b8', 'center');
-      bar(g, 74 * u, 11 * u, 172 * u, 4 * u, b.hp / b.maxhp, b.phase === 2 ? '#a33b6c' : '#ff5277');
+      // 左上の状態枠（x 4〜96）と重ならないよう、x 102 から右端の手前まで
+      panel(g, 102 * u, 4 * u, 154 * u, 14 * u, u);
+      text(g, b.d.name, 179 * u, 4.5 * u, 4.5 * u, '#ffc4b8', 'center');
+      bar(g, 106 * u, 11 * u, 146 * u, 4 * u, b.hp / b.maxhp, b.phase === 2 ? '#a33b6c' : '#ff5277');
     } else if (world.banner && t < world.banner.until) {
       g.globalAlpha = Math.min(1, (world.banner.until - t) / 600);
       text(g, world.banner.text, W / 2, 10 * u, 8 * u, '#f7f9fc', 'center'); g.globalAlpha = 1;

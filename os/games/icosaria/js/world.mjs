@@ -41,6 +41,8 @@ export function makeWorld({ gfx, audio, data, maps, ui }) {
   // ---- 能力 ----
   const equipped = () => Object.values(save.equip).filter(Boolean).map((uid) => save.items.find((i) => i.uid === uid)).filter(Boolean)
     .map((it) => (it.plus ? { ...it, affixes: it.affixes.map((a) => ({ ...a, v: Math.round(a.v * (1 + 0.1 * it.plus)) })) } : it));
+  // 常時スキルの値。覚えていなければ 0、覚えていれば base + per_rank × (段階 - 1)
+  const passiveV = (id) => { const r = save.skills[id] || 0, k = G.skills[id]; return r && k ? k.base + k.per_rank * (r - 1) : 0; };
   const passiveBonus = () => {
     const b = {};
     const r = (id) => save.skills[id] || 0, sk = (id) => G.skills[id];
@@ -153,7 +155,8 @@ export function makeWorld({ gfx, audio, data, maps, ui }) {
   // ---- 勇者が与えるダメージ ----
   function hitEnemy(e, { mult = 1, phys = 1, res = 0, elem = null, knock = 4, from = player, chain = true, src = 'atk' }) {
     if (!e.alive) return;
-    const crit = rng.chance(stats.crit / 100);
+    const critPct = stats.crit + (now() - (player.dashAt || -1e9) < 2000 ? passiveV('sk_whitecap_vigor') : 0);
+    const crit = rng.chance(critPct / 100);
     let m = mult;
     if (elem === 'thunder' && e.wet > now()) m *= 1.25;
     if (e.kind === 'boss' && e.state === 'stunned') m *= 1.35;
@@ -173,7 +176,12 @@ export function makeWorld({ gfx, audio, data, maps, ui }) {
     }
     if (elem === 'starfrost') { e.marks++; if (e.marks >= 3) { e.marks = 0; e.frozen = now() + 1200; e.shatter = true; } }
     if (crit && stats.proc_chain) { const near = liveEnemies().find((o) => o !== e && dist(o, e) < 48); if (near) { fx.push({ kind: 'bolt', x1: e.x, y1: e.y - 8, x2: near.x, y2: near.y - 8, t: now() }); hitEnemy(near, { mult: stats.proc_chain / 100, phys, res, knock: 0, from: e, chain: false }); } }
-    if (src === 'atk') player.mp = Math.min(stats.mp, player.mp + 2);
+    if (src === 'atk') player.mp = Math.min(stats.mp, player.mp + 2 + (passiveV('sk_flowing_edge') ? 1 : 0));
+    // 残光の屈折: 煌刻術が当たると、ときどき追いかける光弾が 1 発出る（光弾からは出ない）
+    if (src === 'skill' && e.hp > 0 && rng.chance(passiveV('sk_mirage_echo') / 100)) {
+      const a = angleTo({ x: player.x, y: player.y - 10 }, e);
+      area.shots.push({ from: 'player', x: player.x, y: player.y - 10, vx: Math.cos(a) * 120, vy: Math.sin(a) * 120, life: now() + 1200, r: 4, mult: 0.65, elem: 'mirage', color: '#d9b8ff', hit: new Set(), homing: e, echo: true });
+    }
     if (e.hp <= 0) kill(e);
   }
   const liveEnemies = () => area.enemies.filter((e) => e.alive).concat(boss && boss.alive ? [boss] : []);
@@ -186,7 +194,7 @@ export function makeWorld({ gfx, audio, data, maps, ui }) {
     gainXp(xp);
     if (stats.hp_on_kill) player.hp = Math.min(stats.hp, player.hp + stats.hp_on_kill);
     // ドロップ: プリズム片、ときどき装備と潮雫
-    const p = Math.round(rng.int(2, 6) * (1 + (save.face - 1) * 0.3) * (e.kind === 'boss' ? 12 : 1));
+    const p = Math.round(rng.int(2, 6) * (1 + (save.face - 1) * 0.3) * (e.kind === 'boss' ? 12 : 1) * (1 + passiveV('sk_icosa_grace') / 100));
     area.pickups.push({ kind: 'prism', x: e.x + rng.range(-6, 6), y: e.y + rng.range(-4, 4), amount: p, t: now() });
     if (rng.chance(0.12)) area.pickups.push({ kind: 'potion', x: e.x + rng.range(-8, 8), y: e.y + rng.range(-4, 6), t: now() });
     const dropChance = e.kind === 'boss' ? 1 : e.elite ? 0.6 : e.kind === 'sentinel' ? 0.28 : 0.16;
@@ -195,7 +203,7 @@ export function makeWorld({ gfx, audio, data, maps, ui }) {
     log('rpg.kill', { kind: e.kind, xp, elite: !!e.elite }, 'ok');
   }
   function dropItem(x, y, opt = {}) {
-    const it = rollItem(rng, G.loot, { ilvl: save.level + (save.face - 1) * 3, face: save.face, luck: 0, ...opt });
+    const it = rollItem(rng, G.loot, { ilvl: save.level + (save.face - 1) * 3, face: save.face, luck: passiveV('sk_icosa_grace'), ...opt });
     area.pickups.push({ kind: 'item', x: x + rng.range(-6, 6), y: y + rng.range(-2, 6), item: it, t: now() });
     log('rpg.drop', { rarity: it.rarity, slot: it.slot, affixes: it.affixes.length }, 'ok');
   }
@@ -295,7 +303,7 @@ export function makeWorld({ gfx, audio, data, maps, ui }) {
     if (input.take('potion')) usePotion();
     if (input.take('dash') && player.dashCd < t && player.state !== 'dash') {
       const [ax, ay] = input.axis(), [dx, dy] = ax || ay ? [ax, ay] : DIRS[player.dir];
-      player.state = 'dash'; player.t = t + 180; player.iframe = t + 180; player.dashCd = t + 900; player.dashV = [dx * 35 / 0.18, dy * 35 / 0.18]; player.onDash = null;
+      player.state = 'dash'; player.t = t + 180; player.iframe = t + 180; player.dashCd = t + 900; player.dashAt = t; player.dashV = [dx * 35 / 0.18, dy * 35 / 0.18]; player.onDash = null;
       audio.sfx('dash'); fx.push({ kind: 'after', x: player.x, y: player.y, dir: player.dir, t, life: 240 });
       if (stats.proc_step_flare) area.hazards.push({ kind: 'flare', from: 'player', x: player.x, y: player.y - 4, r: 22, t, fire: t, until: t + 1500, mult: stats.proc_step_flare / 100, tick: 0 });
     }
@@ -539,12 +547,13 @@ export function makeWorld({ gfx, audio, data, maps, ui }) {
   // ---- 弾と危ない場所 ----
   function updateShots(dt, t) {
     for (const s of area.shots) {
+      if (s.homing && s.homing.alive) { const a = Math.atan2(s.homing.y - 8 - s.y, s.homing.x - s.x), sp = Math.hypot(s.vx, s.vy); s.vx += (Math.cos(a) * sp - s.vx) * Math.min(1, 6 * dt); s.vy += (Math.sin(a) * sp - s.vy) * Math.min(1, 6 * dt); }
       s.x += s.vx * dt; s.y += s.vy * dt;
       if (t > s.life || area.map.solidAt(Math.floor(s.x / T), Math.floor((s.y + 6) / T))) { s.dead = true; continue; }
       if (s.from === 'enemy') { if (Math.hypot(s.x - player.x, s.y - (player.y - 10)) < s.r + 6) { hurtPlayer(s.dmg, s); s.dead = true; } }
       else for (const e of liveEnemies()) {
         if (s.hit.has(e)) continue;
-        if (Math.hypot(s.x - e.x, s.y - (e.y - 8)) < s.r + (e.kind === 'boss' ? 18 : 7)) { s.hit.add(e); hitEnemy(e, { mult: s.mult, phys: 0.3, res: 1, elem: s.elem, knock: 3, from: s, src: 'skill' }); if (!s.pierce) { s.dead = true; break; } }
+        if (Math.hypot(s.x - e.x, s.y - (e.y - 8)) < s.r + (e.kind === 'boss' ? 18 : 7)) { s.hit.add(e); hitEnemy(e, { mult: s.mult, phys: 0.3, res: 1, elem: s.elem, knock: 3, from: s, src: s.echo ? 'echo' : 'skill' }); if (!s.pierce) { s.dead = true; break; } }
       }
     }
     area.shots = area.shots.filter((s) => !s.dead);
