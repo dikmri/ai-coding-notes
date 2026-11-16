@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Future OS</title>
+<meta name="description" content="見た目は90年代のパソコン、中身は気の利いた Web の OS。ライブラリなしの HTML・CSS・JavaScript だけで作っています。">
+<link rel="icon" href="icons/logo.svg">
+<link rel="stylesheet" href="css/95.css">
+<link rel="stylesheet" href="css/future.css">
+</head>
+<body class="w95 fos">
+<div id="power" class="power" role="dialog" aria-labelledby="powerTitle">
+  <div class="power-box">
+    <div class="power-logo" aria-hidden="true"><img src="icons/logo.svg" alt="" width="64" height="64"></div>
+    <h1 id="powerTitle">FUTURE OS</h1>
+    <p class="power-ver">98.7 ・ 出来る！エディション</p>
+    <button type="button" id="powerBtn" class="power-btn" autofocus><span class="power-sym" aria-hidden="true"></span>電源を入れる</button>
+    <p class="power-note">押すと起動の音が鳴ります。起動の演出は Esc か画面を押すと飛ばせます。</p>
+    <p class="power-note"><a href="../">← 図鑑「出来る！HTML/CSS/JavaScript」へ戻る</a></p>
+  </div>
+</div>
+<canvas id="boot" class="boot" hidden></canvas>
+<main id="desk" class="desk" hidden aria-label="デスクトップ">
+  <canvas id="wall" class="wall" aria-hidden="true"></canvas>
+  <ul id="icons" class="desk-icons" role="listbox" aria-label="デスクトップのアイコン" aria-multiselectable="true" tabindex="0"></ul>
+  <div id="wins" class="wins"></div>
+  <div id="snap" class="snap" hidden></div>
+  <div id="zoom" class="zoom-rect" hidden></div>
+</main>
+<div id="taskbar" class="taskbar" hidden>
+  <button type="button" id="startBtn" class="start-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="start"><img src="icons/logo.svg" alt="" width="16" height="16"><b>スタート</b></button>
+  <div id="tasks" class="tasks" role="toolbar" aria-label="開いている窓"></div>
+  <div class="tray">
+    <button type="button" id="volBtn" class="tray-btn" title="音量" aria-haspopup="dialog"><img id="volIcon" src="icons/synth.svg" alt="音量" width="16" height="16"></button>
+    <span id="clock" class="clock" title=""></span>
+  </div>
+</div>
+<div id="volPop" class="vol-pop window" hidden role="dialog" aria-label="音量">
+  <div class="vol-body">
+    <label for="volRange">音量:</label>
+    <input type="range" id="volRange" min="0" max="100" orient="vertical" aria-orientation="vertical">
+    <label><input type="checkbox" id="volMute"> 消音(<u>M</u>)</label>
+  </div>
+</div>
+<nav id="start" class="start-menu" hidden aria-label="スタート メニュー">
+  <div class="start-band" aria-hidden="true"><span><b>Future</b>OS 98.7</span></div>
+  <div class="start-main">
+    <div class="start-search"><label for="startQ">検索(<u>S</u>):</label><input type="text" id="startQ" autocomplete="off" spellcheck="false"></div>
+    <ul id="startList" class="start-list" role="menu"></ul>
+  </div>
+</nav>
+<div id="off" class="off" hidden>
+  <p class="off-msg">コンピュータの電源を切ってもかまいません。</p>
+  <button type="button" id="rebootBtn" class="power-btn">もう一度起動する</button>
+  <p class="power-note"><a href="../">図鑑「出来る！HTML/CSS/JavaScript」へ戻る</a></p>
+</div>
+<script src="../js/logger.js"></script>
+<script src="js/95.js"></script>
+<script type="module" src="js/main.mjs"></script>
+</body>
+</html>

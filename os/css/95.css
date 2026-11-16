@@ -1,0 +1,1420 @@
+/*
+ * 95.css  Windows 95/98 風 GUI のスタイルシート（95slop スキル同梱）
+ *
+ * 使い方
+ *   <html lang="ja"> <body class="w95">          日本語 UI（MS UI Gothic 9pt）
+ *   <html lang="en"> <body class="w95">          英語 UI（MS Sans Serif 8pt 相当）
+ *   <body class="w95 w95-era95">                 95 の見た目（単色のタイトルバー、常に立体のツールバー）
+ *
+ * 値の根拠は references/tokens.md、部品の書き方は references/controls.md を見る。
+ * 構成は unslop（Damir Sokolovsky, CC BY 4.0）を参考にした 95slop の一部。
+ */
+
+/* ===== 1. 変数 ===== */
+
+.w95 {
+  /* システムカラー（配色「Windows スタンダード」） */
+  --ButtonFace: #c0c0c0;
+  --ButtonHighlight: #ffffff;
+  --ButtonLight: #dfdfdf;
+  --ButtonShadow: #808080;
+  --ButtonDkShadow: #000000;
+  --ButtonText: #000000;
+  --GrayText: #808080;
+  --Window: #ffffff;
+  --WindowText: #000000;
+  --WindowFrame: #000000;
+  --Highlight: #000080;
+  --HighlightText: #ffffff;
+  --ActiveCaption: #000080;
+  --GradientActiveCaption: #1084d0;
+  --CaptionText: #ffffff;
+  --InactiveCaption: #808080;
+  --GradientInactiveCaption: #b5b5b5;
+  --InactiveCaptionText: #c0c0c0;
+  --Menu: #c0c0c0;
+  --MenuText: #000000;
+  --InfoBackground: #ffffe1;
+  --InfoText: #000000;
+  --AppWorkspace: #808080;
+  --Desktop: #008080;
+  --HotTrack: #0000ff;
+
+  /* 立体枠。先に書いた線が上に描かれるので、下と右を先に書く */
+  --bevel-window: inset -1px -1px var(--ButtonDkShadow), inset 1px 1px var(--ButtonLight), inset -2px -2px var(--ButtonShadow), inset 2px 2px var(--ButtonHighlight);
+  --bevel-button: inset -1px -1px var(--ButtonDkShadow), inset 1px 1px var(--ButtonHighlight), inset -2px -2px var(--ButtonShadow), inset 2px 2px var(--ButtonLight);
+  --bevel-button-sunken: inset -1px -1px var(--ButtonHighlight), inset 1px 1px var(--ButtonDkShadow), inset -2px -2px var(--ButtonLight), inset 2px 2px var(--ButtonShadow);
+  --bevel-field: inset -1px -1px var(--ButtonHighlight), inset 1px 1px var(--ButtonShadow), inset -2px -2px var(--ButtonLight), inset 2px 2px var(--ButtonDkShadow);
+  --bevel-status: inset -1px -1px var(--ButtonHighlight), inset 1px 1px var(--ButtonShadow);
+  --bevel-thin-raised: inset -1px -1px var(--ButtonShadow), inset 1px 1px var(--ButtonHighlight);
+  --bevel-etched: inset -1px -1px var(--ButtonHighlight), inset 1px 1px var(--ButtonShadow), inset -2px -2px var(--ButtonShadow), inset 2px 2px var(--ButtonHighlight);
+  --bevel-default: inset 0 0 0 1px var(--WindowFrame), inset -2px -2px var(--ButtonDkShadow), inset 2px 2px var(--ButtonHighlight), inset -3px -3px var(--ButtonShadow), inset 3px 3px var(--ButtonLight);
+  --bevel-pressed: inset 0 0 0 1px var(--WindowFrame), inset 0 0 0 2px var(--ButtonShadow);
+
+  /* スクロールする欄は枠を border-image で描く（box-shadow だとスクロールバーが枠に重なる） */
+  --bi-field: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='5' height='5' shape-rendering='crispEdges'><path fill='%23808080' d='M0 0h4v1H1v3H0z'/><path fill='%23fff' d='M4 0h1v5H0V4h4z'/><path d='M1 1h2v1H2v1H1z'/><path fill='%23dfdfdf' d='M3 1h1v3H1V3h2z'/></svg>") 2;
+  --bi-etched: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='5' height='5' shape-rendering='crispEdges'><path fill='%23808080' d='M0 0h4v1H1v3H0zM3 1h1v3H1V3h2z'/><path fill='%23fff' d='M4 0h1v5H0V4h4zM1 1h2v1H2v1H1z'/></svg>") 2;
+
+  /* 記号 */
+  --g-dither: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='2' height='2' shape-rendering='crispEdges'><path fill='%23c0c0c0' d='M0 0h2v2H0z'/><path fill='%23fff' d='M0 0h1v1H0zM1 1h1v1H1z'/></svg>");
+  --g-check: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='7' height='7' shape-rendering='crispEdges'><path d='M6 0h1v3H6zM5 1h1v3H5zM4 2h1v3H4zM3 3h1v3H3zM2 4h1v3H2zM1 3h1v3H1zM0 2h1v3H0z'/></svg>");
+  --g-check-gray: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='7' height='7' shape-rendering='crispEdges'><path fill='%23808080' d='M6 0h1v3H6zM5 1h1v3H5zM4 2h1v3H4zM3 3h1v3H3zM2 4h1v3H2zM1 3h1v3H1zM0 2h1v3H0z'/></svg>");
+  --g-bullet: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='6' height='6' shape-rendering='crispEdges'><path d='M1 0h4v1H1zM0 1h6v4H0zM1 5h4v1H1z'/></svg>");
+  --g-down: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='7' height='4' shape-rendering='crispEdges'><path d='M0 0h7v1H0zM1 1h5v1H1zM2 2h3v1H2zM3 3h1v1H3z'/></svg>");
+  --g-up: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='7' height='4' shape-rendering='crispEdges'><path d='M3 0h1v1H3zM2 1h3v1H2zM1 2h5v1H1zM0 3h7v1H0z'/></svg>");
+  --g-right: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='4' height='7' shape-rendering='crispEdges'><path d='M0 0h1v7H0zM1 1h1v5H1zM2 2h1v3H2zM3 3h1v1H3z'/></svg>");
+  --g-left: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='4' height='7' shape-rendering='crispEdges'><path d='M3 0h1v7H3zM2 1h1v5H2zM1 2h1v3H1zM0 3h1v1H0z'/></svg>");
+  --g-up-small: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='5' height='3' shape-rendering='crispEdges'><path d='M2 0h1v1H2zM1 1h3v1H1zM0 2h5v1H0z'/></svg>");
+  --g-down-small: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='5' height='3' shape-rendering='crispEdges'><path d='M0 0h5v1H0zM1 1h3v1H1zM2 2h1v1H2z'/></svg>");
+  --g-close: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='14' shape-rendering='crispEdges'><path d='M4 3h2v1H4zM10 3h2v1h-2zM5 4h2v1H5zM9 4h2v1H9zM6 5h4v1H6zM7 6h2v1H7zM6 7h4v1H6zM5 8h2v1H5zM9 8h2v1H9zM4 9h2v1H4zM10 9h2v1h-2z'/></svg>");
+  --g-min: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='14' shape-rendering='crispEdges'><path d='M4 9h6v2H4z'/></svg>");
+  --g-max: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='14' shape-rendering='crispEdges'><path fill-rule='evenodd' d='M3 2h9v9H3zM4 4h7v6H4z'/></svg>");
+  --g-restore: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='14' shape-rendering='crispEdges'><path d='M5 2h6v2H5zM10 4h1v4h-1zM5 4h1v1H5zM9 7h1v1H9z'/><path fill-rule='evenodd' d='M3 5h6v6H3zM4 7h4v3H4z'/></svg>");
+  --g-help: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='14' shape-rendering='crispEdges'><path d='M6 2h4v1H6zM5 3h2v2H5zM9 3h2v3H9zM8 5h2v2H8zM7 6h2v2H7zM7 9h2v2H7z'/></svg>");
+  --g-radio: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' shape-rendering='crispEdges'><path fill='%23fff' d='M4 2h4v1H4zM3 3h6v1H3zM2 4h8v4H2zM3 8h6v1H3zM4 9h4v1H4z'/><path fill='%23808080' d='M4 0h4v1H4zM2 1h2v1H2zM8 1h2v1H8zM1 2h1v2H1zM0 4h1v4H0zM1 8h1v2H1z'/><path d='M4 1h4v1H4zM2 2h2v1H2zM8 2h2v1H8zM2 3h1v1H2zM1 4h1v4H1zM2 8h1v1H2z'/><path fill='%23fff' d='M10 2h1v2h-1zM11 4h1v4h-1zM10 8h1v2h-1zM2 10h2v1H2zM8 10h2v1H8zM4 11h4v1H4z'/><path fill='%23dfdfdf' d='M9 3h1v1H9zM10 4h1v4h-1zM9 8h1v1H9zM2 9h2v1H2zM8 9h2v1H8zM4 10h4v1H4z'/></svg>");
+  --g-radio-gray: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' shape-rendering='crispEdges'><path fill='%23c0c0c0' d='M4 2h4v1H4zM3 3h6v1H3zM2 4h8v4H2zM3 8h6v1H3zM4 9h4v1H4z'/><path fill='%23808080' d='M4 0h4v1H4zM2 1h2v1H2zM8 1h2v1H8zM1 2h1v2H1zM0 4h1v4H0zM1 8h1v2H1z'/><path d='M4 1h4v1H4zM2 2h2v1H2zM8 2h2v1H8zM2 3h1v1H2zM1 4h1v4H1zM2 8h1v1H2z'/><path fill='%23fff' d='M10 2h1v2h-1zM11 4h1v4h-1zM10 8h1v2h-1zM2 10h2v1H2zM8 10h2v1H8zM4 11h4v1H4z'/><path fill='%23dfdfdf' d='M9 3h1v1H9zM10 4h1v4h-1zM9 8h1v1H9zM2 9h2v1H2zM8 9h2v1H8zM4 10h4v1H4z'/></svg>");
+  --g-dot: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' shape-rendering='crispEdges'><path d='M5 4h2v1H5zM4 5h4v2H4zM5 7h2v1H5z'/></svg>");
+  --g-dot-gray: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' shape-rendering='crispEdges'><path fill='%23808080' d='M5 4h2v1H5zM4 5h4v2H4zM5 7h2v1H5z'/></svg>");
+  --g-plus: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='9' height='9' shape-rendering='crispEdges'><path fill='%23808080' d='M0 0h9v9H0z'/><path fill='%23fff' d='M1 1h7v7H1z'/><path d='M2 4h5v1H2zM4 2h1v5H4z'/></svg>");
+  --g-minus: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='9' height='9' shape-rendering='crispEdges'><path fill='%23808080' d='M0 0h9v9H0z'/><path fill='%23fff' d='M1 1h7v7H1z'/><path d='M2 4h5v1H2z'/></svg>");
+  --g-grip: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' shape-rendering='crispEdges'><path fill='%23fff' d='M11.5 0H12V.5L.5 12H0v-.5zM12 3.5v1L4.5 12h-1zM12 7.5v1L8.5 12h-1z'/><path fill='%23808080' d='M12 .5v2L2.5 12h-2zM12 4.5v2L6.5 12h-2zM12 8.5v2L10.5 12h-2z'/></svg>");
+  --g-combo: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='19' shape-rendering='crispEdges'><path fill='%23c0c0c0' d='M0 0h16v19H0z'/><path fill='%23fff' d='M0 0h15v1H1v17H0z'/><path fill='%23dfdfdf' d='M1 1h13v1H2v15H1z'/><path fill='%23808080' d='M14 1h1v17H1v-1h13z'/><path d='M15 0h1v19H0v-1h15zM4 8h7v1H4zM5 9h5v1H5zM6 10h3v1H6zM7 11h1v1H7z'/></svg>");
+
+  /* 文字と寸法（英語: MS Sans Serif 8pt 相当） */
+  --font-ui: "MS Sans Serif", "Microsoft Sans Serif", Tahoma, "MS UI Gothic", Arial, sans-serif;
+  --font-size: 11px;
+  --line-h: 13px;
+  --control-h: 23px;  /* 14 DLU */
+  --button-w: 75px;   /* 50 DLU */
+  --row-h: 16px;      /* 10 DLU */
+  --item-h: 17px;     /* メニュー項目、一覧の行 */
+
+  /* 余白（DLU からの換算。references/tokens.md の表） */
+  --sp-min: 3px;      /* 2 DLU */
+  --sp-label: 5px;    /* 3 DLU */
+  --sp: 6px;          /* 4 DLU 横 */
+  --sp-v: 7px;        /* 4 DLU 縦 */
+  --sp-l: 11px;       /* 7 DLU */
+  --sp-group-x: 14px; /* 9 DLU */
+  --sp-group-top: 18px; /* 11 DLU */
+}
+
+/* 日本語: MS UI Gothic 9pt */
+.w95:lang(ja) {
+  --font-ui: "MS UI Gothic", "MS PGothic", "Osaka", "Hiragino Kaku Gothic ProN", sans-serif;
+  --font-size: 12px;
+  --line-h: 12px;
+  --control-h: 21px;
+  --row-h: 15px;
+  --sp-v: 6px;
+  --sp-group-top: 17px;
+  --g-combo: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='17' shape-rendering='crispEdges'><path fill='%23c0c0c0' d='M0 0h16v17H0z'/><path fill='%23fff' d='M0 0h15v1H1v15H0z'/><path fill='%23dfdfdf' d='M1 1h13v1H2v13H1z'/><path fill='%23808080' d='M14 1h1v15H1v-1h13z'/><path d='M15 0h1v17H0v-1h15zM4 7h7v1H4zM5 8h5v1H5zM6 9h3v1H6zM7 10h1v1H7z'/></svg>");
+}
+
+/* 95 の見た目 */
+.w95.w95-era95 {
+  --GradientActiveCaption: var(--ActiveCaption);
+  --GradientInactiveCaption: var(--InactiveCaption);
+}
+
+/* ===== 2. 土台 ===== */
+
+.w95,
+.w95 *,
+.w95 *::before,
+.w95 *::after {
+  box-sizing: border-box;
+}
+
+.w95 {
+  margin: 0;
+  font: var(--font-size) / var(--line-h) var(--font-ui);
+  color: var(--ButtonText);
+  background: var(--ButtonFace);
+  cursor: default;
+  user-select: none;
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+}
+
+/* 動きと角丸を持たない */
+.w95 *,
+.w95 *::before,
+.w95 *::after {
+  transition: none;
+  animation: none;
+  border-radius: 0;
+}
+
+.w95 ::selection {
+  background: var(--Highlight);
+  color: var(--HighlightText);
+}
+
+.w95 :where(button, input, select, textarea, optgroup) {
+  font: inherit;
+  color: inherit;
+  margin: 0;
+}
+
+.w95 :where(h1, h2, h3, h4, h5, h6) {
+  font-size: inherit;
+  font-weight: bold;
+  margin: 0;
+}
+
+.w95 :where(p) {
+  margin: 0 0 var(--sp-l);
+}
+
+.w95 :where(p:last-child) {
+  margin-bottom: 0;
+}
+
+.w95 :where(u) {
+  text-decoration: underline;
+}
+
+.w95 a {
+  color: var(--HotTrack);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.w95 :where(img.icon, .icon) {
+  image-rendering: pixelated;
+  flex: none;
+}
+
+.w95 .selectable {
+  user-select: text;
+  cursor: text;
+}
+
+/* ===== 3. 窓 ===== */
+
+.w95 .window {
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--ButtonFace);
+  color: var(--ButtonText);
+  box-shadow: var(--bevel-window);
+  min-width: 0;
+  min-height: 0;
+}
+
+.w95 .window.dialog,
+.w95 dialog.window {
+  padding: 3px;
+}
+
+.w95 dialog.window {
+  border: 0;
+  margin: auto;
+  max-width: none;
+  max-height: none;
+  overflow: visible;
+}
+
+.w95 dialog.window:not([open]) {
+  display: none;
+}
+
+.w95 dialog.window::backdrop {
+  background: transparent;
+}
+
+/* 最大化した窓は縁を持たない */
+.w95 .window.maximized {
+  padding: 0;
+  box-shadow: none;
+}
+
+.w95 .title-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 18px;
+  margin-bottom: 1px;
+  padding: 0 2px;
+  background: linear-gradient(90deg, var(--ActiveCaption), var(--GradientActiveCaption));
+  color: var(--CaptionText);
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.w95 .window.inactive > .title-bar {
+  background: linear-gradient(90deg, var(--InactiveCaption), var(--GradientInactiveCaption));
+  color: var(--InactiveCaptionText);
+}
+
+.w95 .title-bar-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-right: 3px;
+  image-rendering: pixelated;
+}
+
+.w95 .title-bar-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.w95 .title-bar-controls {
+  flex: none;
+  display: flex;
+}
+
+.w95 .title-bar-controls button {
+  width: 16px;
+  min-width: 0;
+  height: 14px;
+  padding: 0;
+  background: var(--ButtonFace) no-repeat 0 0;
+  box-shadow: var(--bevel-button);
+  outline: 0;
+}
+
+.w95 .title-bar-controls button.min { background-image: var(--g-min); }
+.w95 .title-bar-controls button.max { background-image: var(--g-max); }
+.w95 .title-bar-controls button.restore { background-image: var(--g-restore); }
+.w95 .title-bar-controls button.help { background-image: var(--g-help); }
+.w95 .title-bar-controls button.close { background-image: var(--g-close); margin-left: 2px; }
+
+.w95 .title-bar-controls button:active:not(:disabled) {
+  box-shadow: var(--bevel-button-sunken);
+  background-position: 1px 1px;
+  padding: 0;
+}
+
+.w95 .title-bar-controls button:focus {
+  box-shadow: var(--bevel-button);
+  outline: 0;
+}
+
+.w95 .title-bar-controls button:disabled {
+  background-image: none;
+}
+
+.w95 .title-bar-controls button:disabled::after {
+  content: "";
+  display: block;
+  width: 16px;
+  height: 14px;
+  background: var(--GrayText);
+  -webkit-mask: var(--g-close) no-repeat 0 0;
+  mask: var(--g-close) no-repeat 0 0;
+  filter: drop-shadow(1px 1px 0 var(--ButtonHighlight));
+}
+
+/* 窓の中身 */
+.w95 .window-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.w95 .dialog > .window-body,
+.w95 dialog.window > .window-body,
+.w95 .dialog-body {
+  padding: var(--sp-l);
+}
+
+.w95 .workspace {
+  background: var(--AppWorkspace);
+}
+
+.w95.desktop,
+.w95 .desktop {
+  background: var(--Desktop);
+}
+
+/* 固定の大きさの窓を、地の中央に置く: <body class="w95 desktop centered"> */
+.w95.centered {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  overflow: auto;
+}
+
+/* ===== 4. メニュー ===== */
+
+.w95 .menu-bar {
+  flex: none;
+  display: flex;
+  height: 18px;
+  margin-bottom: 1px;
+  background: var(--Menu);
+  color: var(--MenuText);
+}
+
+.w95 .menu-title {
+  position: relative;
+  height: 18px;
+  padding: 0 6px;
+  line-height: 18px;
+  white-space: nowrap;
+  outline: 0;
+}
+
+.w95 .menu-title.open,
+.w95 .menu-title.active {
+  background: var(--Highlight);
+  color: var(--HighlightText);
+}
+
+.w95 .menu-title[aria-disabled="true"] {
+  color: var(--GrayText);
+  text-shadow: 1px 1px 0 var(--ButtonHighlight);
+}
+
+.w95 .menu {
+  display: none;
+  position: absolute;
+  z-index: 1000;
+  left: 0;
+  top: 100%;
+  grid-template-columns: 18px auto auto 16px;
+  padding: 3px;
+  background: var(--Menu);
+  color: var(--MenuText);
+  box-shadow: var(--bevel-window);
+  font-weight: normal;
+  line-height: var(--line-h);
+  text-shadow: none;
+}
+
+.w95 .menu-title.open > .menu,
+.w95 .menu-item.open > .menu,
+.w95 .menu.context.open {
+  display: grid;
+}
+
+.w95 .menu.context {
+  position: fixed;
+}
+
+.w95 .menu-item {
+  position: relative;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  height: var(--item-h);
+  white-space: nowrap;
+}
+
+.w95 .menu-item > .label {
+  grid-column: 2;
+  padding-right: 8px;
+}
+
+.w95 .menu-item > .shortcut {
+  grid-column: 3;
+  padding-left: 12px;
+}
+
+.w95 .menu-item.default > .label {
+  font-weight: bold;
+}
+
+.w95 .menu-item:hover,
+.w95 .menu-item.active,
+.w95 .menu-item.open {
+  background: var(--Highlight);
+  color: var(--HighlightText);
+}
+
+/* 記号は文字色に合わせて描く */
+.w95 .menu-item.checked::before,
+.w95 .menu-item.radio.checked::before,
+.w95 .menu-item.has-submenu::after {
+  content: "";
+  background: currentColor;
+  -webkit-mask: no-repeat center;
+  mask: no-repeat center;
+}
+
+.w95 .menu-item.checked::before {
+  grid-column: 1;
+  grid-row: 1;
+  width: 18px;
+  height: 7px;
+  -webkit-mask-image: var(--g-check);
+  mask-image: var(--g-check);
+}
+
+.w95 .menu-item.radio.checked::before {
+  height: 6px;
+  -webkit-mask-image: var(--g-bullet);
+  mask-image: var(--g-bullet);
+}
+
+.w95 .menu-item.has-submenu::after {
+  grid-column: 4;
+  grid-row: 1;
+  width: 16px;
+  height: 7px;
+  -webkit-mask-image: var(--g-right);
+  mask-image: var(--g-right);
+}
+
+.w95 .menu-item > .menu {
+  left: calc(100% - 3px);
+  top: -3px;
+}
+
+.w95 .menu-item[aria-disabled="true"] {
+  color: var(--GrayText);
+  text-shadow: 1px 1px 0 var(--ButtonHighlight);
+}
+
+.w95 .menu-item[aria-disabled="true"]:hover,
+.w95 .menu-item[aria-disabled="true"].active {
+  color: var(--GrayText);
+  text-shadow: none;
+}
+
+.w95 .menu-separator {
+  grid-column: 1 / -1;
+  height: 9px;
+  background:
+    linear-gradient(var(--ButtonShadow), var(--ButtonShadow)) 1px 3px / calc(100% - 2px) 1px no-repeat,
+    linear-gradient(var(--ButtonHighlight), var(--ButtonHighlight)) 1px 4px / calc(100% - 2px) 1px no-repeat;
+}
+
+/* ===== 5. ツールバー ===== */
+
+.w95 .toolbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 3px 2px 1px;
+  box-shadow: inset 0 1px var(--ButtonShadow), inset 0 2px var(--ButtonHighlight);
+}
+
+.w95 .toolbar button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 23px;
+  min-width: 0;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: 0;
+}
+
+.w95 .toolbar button.labeled {
+  width: auto;
+  padding: 0 4px;
+}
+
+.w95 .toolbar button:hover:not(:disabled) {
+  box-shadow: var(--bevel-thin-raised);
+}
+
+.w95 .toolbar button:active:not(:disabled),
+.w95 .toolbar button.pressed,
+.w95 .toolbar button[aria-pressed="true"] {
+  box-shadow: var(--bevel-status);
+  padding: 2px 0 0 2px;
+}
+
+.w95 .toolbar button.labeled:active:not(:disabled),
+.w95 .toolbar button.labeled.pressed,
+.w95 .toolbar button.labeled[aria-pressed="true"] {
+  padding: 2px 3px 0 5px;
+}
+
+.w95 .toolbar button[aria-pressed="true"] {
+  background: var(--g-dither);
+}
+
+.w95 .toolbar button[aria-pressed="true"]:hover {
+  background: var(--ButtonFace);
+}
+
+.w95 .toolbar button:focus {
+  outline: 0;
+}
+
+.w95 .toolbar button:focus-visible {
+  outline: 1px dotted var(--WindowFrame);
+  outline-offset: -3px;
+}
+
+/* 使えないボタンの画像は、暗い線だけを #808080 で残す。
+   明暗を 2 値にしてから暗い側を #AAAAAA に上げ、面の色 #C0C0C0 に掛け合わせる */
+.w95 .toolbar button:disabled img,
+.w95 .toolbar button:disabled svg {
+  filter: grayscale(1) contrast(100) invert(1) brightness(0.333) invert(1);
+  mix-blend-mode: multiply;
+}
+
+.w95 .toolbar img,
+.w95 .toolbar svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  image-rendering: pixelated;
+}
+
+.w95 .toolbar .sep {
+  flex: none;
+  width: 2px;
+  height: 18px;
+  margin: 0 3px;
+  box-shadow: inset 1px 0 var(--ButtonShadow), inset -1px 0 var(--ButtonHighlight);
+}
+
+.w95 .toolbar .grip {
+  flex: none;
+  width: 3px;
+  height: 18px;
+  margin: 0 3px 0 2px;
+  box-shadow: var(--bevel-thin-raised);
+}
+
+.w95.w95-era95 .toolbar button {
+  width: 24px;
+  box-shadow: var(--bevel-button);
+}
+
+.w95.w95-era95 .toolbar button:active:not(:disabled),
+.w95.w95-era95 .toolbar button[aria-pressed="true"] {
+  box-shadow: var(--bevel-button-sunken);
+}
+
+.w95.w95-era95 .toolbar .sep {
+  width: 8px;
+  margin: 0;
+  box-shadow: none;
+}
+
+/* ===== 6. 押しボタン ===== */
+
+.w95 button,
+.w95 .button,
+.w95 input[type="button"],
+.w95 input[type="submit"],
+.w95 input[type="reset"] {
+  display: inline-block;
+  min-width: var(--button-w);
+  height: var(--control-h);
+  padding: 0 8px;
+  border: 0;
+  background: var(--ButtonFace);
+  color: var(--ButtonText);
+  box-shadow: var(--bevel-button);
+  text-align: center;
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+  outline: 0;
+  appearance: none;
+}
+
+.w95 button.compact {
+  min-width: 0;
+}
+
+.w95 button.default,
+.w95 button:focus,
+.w95 input[type="button"]:focus,
+.w95 input[type="submit"]:focus,
+.w95 input[type="reset"]:focus {
+  box-shadow: var(--bevel-default);
+}
+
+.w95 button:focus,
+.w95 input[type="button"]:focus,
+.w95 input[type="submit"]:focus,
+.w95 input[type="reset"]:focus {
+  outline: 1px dotted var(--WindowFrame);
+  outline-offset: -4px;
+}
+
+/* 別の押しボタンがフォーカスを持つ間、既定の黒枠はそちらへ移る。
+   タブ、ツールバー、タイトルバー、スピンのボタンでは移らない */
+.w95 :where(.window, form):has(button:focus:not(.tab):not(.toolbar *):not(.title-bar-controls *):not(.spin-buttons *)) button.default:not(:focus) {
+  box-shadow: var(--bevel-button);
+}
+
+.w95 button:active:not(:disabled),
+.w95 button.pressed,
+.w95 input[type="button"]:active:not(:disabled),
+.w95 input[type="submit"]:active:not(:disabled),
+.w95 input[type="reset"]:active:not(:disabled) {
+  box-shadow: var(--bevel-pressed);
+  padding: 2px 7px 0 9px;
+}
+
+.w95 button:disabled,
+.w95 input[type="button"]:disabled,
+.w95 input[type="submit"]:disabled,
+.w95 input[type="reset"]:disabled {
+  color: var(--GrayText);
+  text-shadow: 1px 1px 0 var(--ButtonHighlight);
+}
+
+/* ===== 7. 入力欄 ===== */
+
+.w95 input:where(:not([type="checkbox"], [type="radio"], [type="range"], [type="button"], [type="submit"], [type="reset"], [type="file"], [type="color"], [type="image"], [type="hidden"])),
+.w95 textarea {
+  height: var(--control-h);
+  padding: 3px 4px;
+  border: 0;
+  background: var(--Window);
+  color: var(--WindowText);
+  box-shadow: var(--bevel-field);
+  outline: 0;
+  cursor: text;
+  user-select: text;
+  appearance: none;
+  caret-color: var(--WindowText);
+}
+
+.w95 textarea {
+  height: auto;
+  padding: 1px 2px;
+  border: 2px solid transparent;
+  border-image: var(--bi-field);
+  box-shadow: none;
+  resize: none;
+  line-height: var(--line-h);
+  vertical-align: top;
+}
+
+.w95 input:where(:not([type="checkbox"], [type="radio"], [type="range"])):disabled,
+.w95 input:where(:not([type="checkbox"], [type="radio"], [type="range"], [type="button"], [type="submit"], [type="reset"]))[readonly],
+.w95 textarea:disabled,
+.w95 textarea[readonly] {
+  background: var(--ButtonFace);
+}
+
+.w95 input:where(:not([type="button"], [type="submit"], [type="reset"])):disabled,
+.w95 textarea:disabled {
+  color: var(--GrayText);
+}
+
+.w95 ::placeholder {
+  color: var(--GrayText);
+  opacity: 1;
+}
+
+.w95 input::-webkit-inner-spin-button,
+.w95 input::-webkit-outer-spin-button,
+.w95 input::-webkit-search-cancel-button,
+.w95 input::-webkit-search-decoration {
+  appearance: none;
+  display: none;
+}
+
+/* 汎用のへこんだ欄（文書領域、一覧の入れ物） */
+.w95 .field {
+  border: 2px solid transparent;
+  border-image: var(--bi-field);
+  background: var(--Window);
+  color: var(--WindowText);
+  overflow: auto;
+  min-width: 0;
+  min-height: 0;
+  outline: 0;
+}
+
+.w95 .raised { box-shadow: var(--bevel-window); padding: 2px; }
+.w95 .sunken { box-shadow: var(--bevel-field); padding: 2px; }
+.w95 .status { box-shadow: var(--bevel-status); padding: 1px; }
+
+/* ===== 8. コンボボックス、リストボックス ===== */
+
+.w95 select {
+  height: var(--control-h);
+  padding: 0 20px 0 4px;
+  border: 0;
+  background: var(--Window) var(--g-combo) no-repeat right 2px top 2px;
+  color: var(--WindowText);
+  box-shadow: var(--bevel-field);
+  outline: 0;
+  appearance: none;
+  cursor: default;
+}
+
+.w95 select:focus {
+  outline: 0;
+}
+
+.w95 select:disabled {
+  background-color: var(--ButtonFace);
+  color: var(--GrayText);
+}
+
+.w95 select[size]:not([size="1"]),
+.w95 select[multiple] {
+  height: auto;
+  padding: 0;
+  border: 2px solid transparent;
+  border-image: var(--bi-field);
+  background: var(--Window);
+  box-shadow: none;
+  overflow-y: auto;
+}
+
+.w95 select option {
+  padding: 0 3px;
+  min-height: var(--line-h);
+  background: var(--Window);
+  color: var(--WindowText);
+}
+
+.w95 select option:checked {
+  background: var(--Highlight) linear-gradient(var(--Highlight), var(--Highlight));
+  color: var(--HighlightText);
+}
+
+/* ===== 9. チェックボックス、ラジオボタン ===== */
+
+.w95 input[type="checkbox"],
+.w95 input[type="radio"] {
+  flex: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  border: 0;
+  background: var(--Window) no-repeat center;
+  box-shadow: var(--bevel-field);
+  outline: 0;
+  vertical-align: -2px;
+}
+
+.w95 input[type="checkbox"]:checked {
+  background-image: var(--g-check);
+}
+
+.w95 input[type="checkbox"]:indeterminate {
+  background-image: var(--g-check-gray), var(--g-dither);
+  background-repeat: no-repeat, repeat;
+  background-position: center, 0 0;
+}
+
+.w95 input[type="checkbox"]:active:not(:disabled),
+.w95 input[type="checkbox"]:disabled {
+  background-color: var(--ButtonFace);
+}
+
+.w95 input[type="checkbox"]:disabled:checked {
+  background-image: var(--g-check-gray);
+}
+
+.w95 input[type="radio"] {
+  width: 12px;
+  height: 12px;
+  background: var(--g-radio) no-repeat 0 0;
+  box-shadow: none;
+}
+
+.w95 input[type="radio"]:checked {
+  background-image: var(--g-dot), var(--g-radio);
+}
+
+.w95 input[type="radio"]:active:not(:disabled),
+.w95 input[type="radio"]:disabled {
+  background-image: var(--g-radio-gray);
+}
+
+.w95 input[type="radio"]:active:checked:not(:disabled) {
+  background-image: var(--g-dot), var(--g-radio-gray);
+}
+
+.w95 input[type="radio"]:disabled:checked {
+  background-image: var(--g-dot-gray), var(--g-radio-gray);
+}
+
+/* ラベルは <label><input type="checkbox"> 文字</label> の形で書く。
+   四角と文字の間は、余白 3px と空白 1 文字で約 6px になる */
+.w95 label:has(> input[type="checkbox"], > input[type="radio"]) {
+  display: inline-block;
+  min-height: var(--row-h);
+  line-height: var(--row-h);
+  white-space: nowrap;
+}
+
+.w95 label > input[type="checkbox"],
+.w95 label > input[type="radio"] {
+  margin-right: 3px;
+  vertical-align: -2px;
+}
+
+.w95 label:has(> input[type="checkbox"]:focus, > input[type="radio"]:focus) {
+  outline: 1px dotted var(--WindowFrame);
+  outline-offset: 0;
+}
+
+.w95 label:has(> input:disabled),
+.w95 label.disabled {
+  color: var(--GrayText);
+  text-shadow: 1px 1px 0 var(--ButtonHighlight);
+}
+
+/* ===== 10. グループボックス、区切り線 ===== */
+
+.w95 fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: calc(var(--sp-group-top) - var(--line-h) / 2 - 2px) calc(var(--sp-group-x) - 2px) calc(var(--sp-l) - 2px);
+  border: 2px solid transparent;
+  border-image: var(--bi-etched);
+}
+
+.w95 legend {
+  margin-left: -5px;
+  padding: 0 2px;
+  line-height: var(--line-h);
+}
+
+.w95 hr,
+.w95 .etched-line {
+  height: 2px;
+  margin: var(--sp-l) 0;
+  border: 0;
+  background: none;
+  box-shadow: inset 0 1px var(--ButtonShadow), inset 0 -1px var(--ButtonHighlight);
+}
+
+/* ===== 11. タブ ===== */
+
+.w95 .tabs {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.w95 .tab-list {
+  flex: none;
+  display: flex;
+  position: relative;
+  z-index: 1;
+  padding: 0 2px;
+}
+
+.w95 .tab-list > .tab {
+  position: relative;
+  min-width: 0;
+  height: 20px;
+  margin: 2px 0 0;
+  padding: 0 6px;
+  background: var(--ButtonFace);
+  box-shadow: inset -1px 0 var(--ButtonDkShadow), inset 1px 1px var(--ButtonHighlight), inset -2px 0 var(--ButtonShadow), inset 2px 2px var(--ButtonLight);
+  clip-path: polygon(0 2px, 2px 0, calc(100% - 2px) 0, 100% 2px, 100% 100%, 0 100%);
+  outline: 0;
+}
+
+.w95 .tab-list > .tab[aria-selected="true"] {
+  z-index: 2;
+  height: 24px;
+  margin: 0 -2px -2px;
+  padding: 0 8px 2px;
+}
+
+.w95 .tab-list > .tab:active:not(:disabled) {
+  padding: 0 6px;
+}
+
+.w95 .tab-list > .tab[aria-selected="true"]:active {
+  padding: 0 8px 2px;
+}
+
+.w95 .tab-list > .tab:focus {
+  outline: 1px dotted var(--WindowFrame);
+  outline-offset: -5px;
+}
+
+/* 全部のページの高さをそろえるには、.tab-page に height を指定する */
+.w95 .tab-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--sp-l);
+  background: var(--ButtonFace);
+  box-shadow: var(--bevel-window);
+}
+
+.w95 .tab-page[hidden] {
+  display: none;
+}
+
+/* ===== 12. 一覧、表、ツリー ===== */
+
+.w95 .list {
+  margin: 0;
+  padding: 1px;
+  border: 2px solid transparent;
+  border-image: var(--bi-field);
+  background: var(--Window);
+  color: var(--WindowText);
+  list-style: none;
+  overflow: auto;
+  outline: 0;
+}
+
+.w95 .list > * {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-height: var(--row-h);
+  padding: 0 3px;
+  white-space: nowrap;
+}
+
+.w95 .list > .selected,
+.w95 .list > [aria-selected="true"],
+.w95 table.details tr.selected > td,
+.w95 table.details tr[aria-selected="true"] > td,
+.w95 .tree .selected {
+  background: var(--ButtonFace);
+  color: var(--ButtonText);
+}
+
+.w95 .list:focus > .selected,
+.w95 .list:focus > [aria-selected="true"],
+.w95 .list:focus-within > .selected,
+.w95 table.details:focus tr.selected > td,
+.w95 table.details:focus tr[aria-selected="true"] > td,
+.w95 .field:focus table.details tr.selected > td,
+.w95 .field:focus table.details tr[aria-selected="true"] > td,
+.w95 .tree:focus .selected,
+.w95 .tree:focus-within .selected {
+  background: var(--Highlight);
+  color: var(--HighlightText);
+}
+
+.w95 .list:focus > .selected,
+.w95 .list:focus > [aria-selected="true"] {
+  outline: 1px dotted #ffff7f;
+  outline-offset: -1px;
+}
+
+.w95 table.details {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  outline: 0;
+}
+
+.w95 table.details th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 18px;
+  padding: 0 6px;
+  background: var(--ButtonFace);
+  color: var(--ButtonText);
+  box-shadow: var(--bevel-button);
+  font-weight: normal;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.w95 table.details td {
+  height: var(--item-h);
+  padding: 0 6px;
+  white-space: nowrap;
+}
+
+.w95 table.details td.num,
+.w95 table.details th.num {
+  text-align: right;
+}
+
+.w95 ul.tree {
+  margin: 0;
+  padding: 2px 2px 2px 18px;
+  border: 2px solid transparent;
+  border-image: var(--bi-field);
+  background: var(--Window);
+  color: var(--WindowText);
+  list-style: none;
+  overflow: auto;
+  outline: 0;
+}
+
+.w95 ul.tree ul {
+  margin: 0 0 0 8px;
+  padding: 0 0 0 11px;
+  border-left: 1px dotted var(--ButtonShadow);
+  list-style: none;
+}
+
+.w95 ul.tree li {
+  position: relative;
+  white-space: nowrap;
+}
+
+.w95 ul.tree li > :where(span, a),
+.w95 ul.tree summary {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-height: var(--item-h);
+}
+
+.w95 ul.tree .label {
+  padding: 1px 2px;
+}
+
+.w95 ul.tree ul > li::before {
+  content: "";
+  position: absolute;
+  left: -11px;
+  top: 8px;
+  width: 9px;
+  border-top: 1px dotted var(--ButtonShadow);
+}
+
+.w95 ul.tree ul > li:last-child::after {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 9px;
+  bottom: 0;
+  width: 1px;
+  background: var(--Window);
+}
+
+.w95 ul.tree summary {
+  list-style: none;
+  outline: 0;
+}
+
+.w95 ul.tree summary::-webkit-details-marker {
+  display: none;
+}
+
+.w95 ul.tree summary::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  left: -16px;
+  top: 4px;
+  width: 9px;
+  height: 9px;
+  background: var(--g-plus);
+}
+
+.w95 ul.tree details[open] > summary::before {
+  background: var(--g-minus);
+}
+
+/* ===== 13. 進行状況バー、スライダ、スピン ===== */
+
+.w95 progress,
+.w95 .progress {
+  display: inline-block;
+  appearance: none;
+  width: 160px;
+  height: 16px;
+  padding: 2px;
+  border: 0;
+  background: var(--ButtonFace);
+  box-shadow: var(--bevel-status);
+  vertical-align: middle;
+}
+
+.w95 progress::-webkit-progress-bar {
+  background: transparent;
+}
+
+.w95 progress::-webkit-progress-value,
+.w95 .progress > * {
+  height: 100%;
+  background: linear-gradient(90deg, var(--Highlight) 8px, transparent 8px) 0 0 / 10px 100% repeat-x;
+}
+
+.w95 progress::-moz-progress-bar {
+  background: linear-gradient(90deg, var(--Highlight) 8px, transparent 8px) 0 0 / 10px 100% repeat-x;
+}
+
+.w95 input[type="range"] {
+  appearance: none;
+  height: 25px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: 0;
+}
+
+.w95 input[type="range"]:focus {
+  outline: 1px dotted var(--WindowFrame);
+}
+
+.w95 input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  box-shadow: var(--bevel-field);
+}
+
+.w95 input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 11px;
+  height: 21px;
+  margin-top: -9px;
+  background: var(--ButtonFace);
+  box-shadow: var(--bevel-button);
+}
+
+.w95 input[type="range"]::-moz-range-track {
+  height: 4px;
+  box-shadow: var(--bevel-field);
+}
+
+.w95 input[type="range"]::-moz-range-thumb {
+  width: 11px;
+  height: 21px;
+  border: 0;
+  background: var(--ButtonFace);
+  box-shadow: var(--bevel-button);
+}
+
+.w95 .spin {
+  display: inline-flex;
+  height: var(--control-h);
+  padding: 2px;
+  background: var(--Window);
+  box-shadow: var(--bevel-field);
+  vertical-align: middle;
+}
+
+.w95 .spin > input {
+  flex: 1;
+  width: 40px;
+  min-width: 0;
+  height: 100%;
+  padding: 1px 2px;
+  box-shadow: none;
+  background: transparent;
+}
+
+.w95 .spin > .spin-buttons {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  width: 16px;
+}
+
+.w95 .spin > .spin-buttons > button {
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  background: var(--ButtonFace) var(--g-up-small) no-repeat center;
+  box-shadow: var(--bevel-button);
+  outline: 0;
+}
+
+.w95 .spin > .spin-buttons > button:last-child {
+  background-image: var(--g-down-small);
+}
+
+.w95 .spin > .spin-buttons > button:active:not(:disabled) {
+  box-shadow: var(--bevel-button-sunken);
+  background-position: calc(50% + 1px) calc(50% + 1px);
+  padding: 0;
+}
+
+.w95 .spin:has(> input:disabled) {
+  background: var(--ButtonFace);
+}
+
+.w95 .spin > .spin-buttons > button:disabled {
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='6' height='4' shape-rendering='crispEdges'><path fill='%23fff' d='M3 1h1v1H3zM2 2h3v1H2zM1 3h5v1H1z'/><path fill='%23808080' d='M2 0h1v1H2zM1 1h3v1H1zM0 2h5v1H0z'/></svg>");
+}
+
+.w95 .spin > .spin-buttons > button:disabled:last-child {
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='6' height='4' shape-rendering='crispEdges'><path fill='%23fff' d='M1 1h5v1H1zM2 2h3v1H2zM3 3h1v1H3z'/><path fill='%23808080' d='M0 0h5v1H0zM1 1h3v1H1zM2 2h1v1H2z'/></svg>");
+}
+
+/* ===== 14. ステータスバー、ツールチップ ===== */
+
+.w95 .status-bar {
+  flex: none;
+  display: flex;
+  gap: 2px;
+  height: 20px;
+  padding-top: 2px;
+  position: relative;
+}
+
+.w95 .status-bar > .status-field {
+  flex: none;
+  height: 18px;
+  padding: 0 3px;
+  line-height: 18px;
+  box-shadow: var(--bevel-status);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.w95 .status-bar > .status-field:first-child,
+.w95 .status-bar > .status-field.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.w95 .status-bar > .size-grip,
+.w95 .size-grip {
+  flex: none;
+  align-self: flex-end;
+  width: 12px;
+  height: 12px;
+  margin-left: 2px;
+  background: var(--g-grip) no-repeat;
+  cursor: nwse-resize;
+}
+
+.w95 .tooltip {
+  position: fixed;
+  z-index: 3000;
+  padding: 2px 3px;
+  border: 1px solid var(--WindowFrame);
+  background: var(--InfoBackground);
+  color: var(--InfoText);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ===== 15. ダイアログの配置 ===== */
+
+.w95 .button-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp);
+  margin-top: var(--sp-l);
+}
+
+.w95 .button-row.center {
+  justify-content: center;
+}
+
+.w95 .button-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-v);
+}
+
+.w95 .row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp);
+}
+
+.w95 .col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-v);
+}
+
+.w95 .grow {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ラベルと入力欄を並べる表。1 列目がラベル */
+.w95 .form {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--sp-v) var(--sp-label);
+}
+
+.w95 .msgbox-body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-l);
+  padding: var(--sp-l);
+  min-width: 220px;
+  max-width: 420px;
+}
+
+.w95 .msgbox-body > img,
+.w95 .msgbox-body > svg {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+}
+
+.w95 .msgbox-text {
+  align-self: center;
+  white-space: pre-wrap;
+  line-height: calc(var(--line-h) + 1px);
+}
+
+/* ===== 16. スクロールバー（Chromium、WebKit） ===== */
+
+:is(html:has(.w95), .w95, .w95 *)::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+:is(html:has(.w95), .w95, .w95 *)::-webkit-scrollbar-track {
+  background: var(--g-dither, #dfdfdf);
+}
+
+:is(html:has(.w95), .w95, .w95 *)::-webkit-scrollbar-thumb {
+  background: #c0c0c0;
+  box-shadow: inset -1px -1px #000, inset 1px 1px #dfdfdf, inset -2px -2px #808080, inset 2px 2px #fff;
+}
+
+:is(html:has(.w95), .w95, .w95 *)::-webkit-scrollbar-corner {
+  background: #c0c0c0;
+}
+
+:is(html:has(.w95), .w95, .w95 *)::-webkit-scrollbar-button {
+  display: block;
+  width: 16px;
+  height: 16px;
+  background: #c0c0c0 no-repeat center;
+  box-shadow: inset -1px -1px #000, inset 1px 1px #dfdfdf, inset -2px -2px #808080, inset 2px 2px #fff;
+}
+
+:is(html:has(.w95), .w95, .w95 *)::-webkit-scrollbar-button:vertical:start:increment,
+:is(html:has(.w95), .w95, .w95 *)::-webkit-scrollbar-button:vertical:end:decrement,
+:is(html:has(.w95), .w95, .w95 *)::-webkit-scrollbar-button:horizontal:start:increment,
+:is(html:has(.w95), .w95, .w95 *)::-webkit-scrollbar-button:horizontal:end:decrement {
+  display: none;
+}
+
+:is(html:has(.w95), .w95, .w95 *)::-webkit-scrollbar-button:vertical:decrement {
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='7' height='4' shape-rendering='crispEdges'><path d='M3 0h1v1H3zM2 1h3v1H2zM1 2h5v1H1zM0 3h7v1H0z'/></svg>");
+}
+
+:is(html:has(.w95), .w95, .w95 *)::-webkit-scrollbar-button:vertical:increment {
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='7' height='4' shape-rendering='crispEdges'><path d='M0 0h7v1H0zM1 1h5v1H1zM2 2h3v1H2zM3 3h1v1H3z'/></svg>");
+}
+
+:is(html:has(.w95), .w95, .w95 *)::-webkit-scrollbar-button:horizontal:decrement {
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='4' height='7' shape-rendering='crispEdges'><path d='M3 0h1v7H3zM2 1h1v5H2zM1 2h1v3H1zM0 3h1v1H0z'/></svg>");
+}
+
+:is(html:has(.w95), .w95, .w95 *)::-webkit-scrollbar-button:horizontal:increment {
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='4' height='7' shape-rendering='crispEdges'><path d='M0 0h1v7H0zM1 1h1v5H1zM2 2h1v3H2zM3 3h1v1H3z'/></svg>");
+}
+
+:is(html:has(.w95), .w95, .w95 *)::-webkit-scrollbar-button:active {
+  box-shadow: inset 0 0 0 1px #808080;
+  background-position: calc(50% + 1px) calc(50% + 1px);
+}

@@ -1,0 +1,206 @@
+/* Future OS の見た目。窓と部品は 95.css（skill 95slop）に任せ、ここには
+   ・電源の画面、起動の演出、壁紙（依頼どおりレトロフューチャーにする所）
+   ・デスクトップ、タスクバー、スタートメニュー（当時の形）
+   ・各アプリの作業域
+   だけを書く。窓の中には動き・角丸・影を足さない。 */
+
+html, body { height: 100%; }
+body.fos { overflow: hidden; background: #000; user-select: none; -webkit-user-select: none; }
+.fos input, .fos textarea, .fos [contenteditable] { user-select: text; -webkit-user-select: text; }
+.fos [hidden] { display: none !important; }
+
+/* ===== 電源の画面（レトロフューチャー） ===== */
+.power, .off {
+  position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; text-align: center; z-index: 50;
+  background: radial-gradient(ellipse at 50% 120%, #ff2bd6 0%, #5b1a8a 30%, #160a3a 60%, #05030f 100%);
+  color: #e8e0ff;
+}
+.power::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 38%; pointer-events: none;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 59px, #ff4fd8aa 59px 61px),
+    repeating-linear-gradient(0deg, transparent 0 29px, #ff4fd8aa 29px 31px);
+  transform: perspective(300px) rotateX(60deg); transform-origin: 50% 100%;
+  mask-image: linear-gradient(transparent, #000 60%);
+}
+.power-box { position: relative; z-index: 1; display: grid; justify-items: center; gap: 10px; }
+.power-logo img { image-rendering: pixelated; filter: drop-shadow(0 0 12px #ff4fd8); }
+.power h1, .off h1 {
+  margin: 0; font: italic 900 clamp(40px, 9vw, 92px)/1 "Arial Black", "Helvetica Neue", Arial, sans-serif; letter-spacing: .04em;
+  background: linear-gradient(#fff 0%, #9ad7ff 45%, #1b2a6b 50%, #ffb36b 55%, #fff 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  -webkit-text-stroke: 1px #ffffff55; filter: drop-shadow(0 4px 0 #2a0c4f);
+}
+.power-ver { margin: 0; font: 700 14px/1.4 var(--font-ui); letter-spacing: .3em; color: #ffd36e; }
+.fos .power-btn {
+  display: inline-flex; align-items: center; gap: 10px; min-width: 200px; min-height: 44px; padding: 0 18px; font-size: 16px; font-weight: 700;
+  color: #000; background: var(--ButtonFace); box-shadow: var(--bevel-button); border: 0;
+}
+.fos .power-btn:active { box-shadow: var(--bevel-pressed); }
+.power-sym { width: 18px; height: 18px; border: 3px solid #008000; border-top-color: transparent; border-radius: 50%; position: relative; }
+.power-sym::after { content: ''; position: absolute; left: 3px; top: -6px; width: 3px; height: 9px; background: #008000; }
+.power-note { margin: 0; font-size: 12px; color: #c9bde8; }
+.power-note a { color: #9ad7ff; }
+.off { background: #000; }
+.off-msg { margin: 0; color: #ff8a00; font: 700 clamp(20px, 3vw, 30px)/1.5 var(--font-ui); }
+
+/* ===== 起動の演出 ===== */
+.boot { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 60; background: #000; cursor: none; }
+
+/* ===== デスクトップ ===== */
+.desk { position: fixed; inset: 0 0 28px 0; overflow: hidden; background: var(--Desktop); }
+.wall { position: absolute; inset: 0; width: 100%; height: 100%; }
+.desk-icons {
+  position: absolute; inset: 0; margin: 0; padding: 0; list-style: none; outline: none;
+}
+.desk-icon {
+  position: absolute; width: 75px; display: grid; justify-items: center; gap: 3px; padding: 2px 0; color: #fff; text-align: center;
+}
+.desk-icon img { width: 32px; height: 32px; image-rendering: pixelated; }
+.desk-icon span { max-width: 73px; padding: 1px 2px; line-height: 13px; word-break: break-all; text-shadow: 1px 1px 0 #000; }
+.desk-icon.selected img { filter: brightness(.55) sepia(1) hue-rotate(190deg) saturate(6); }
+.desk-icon.selected span { background: var(--Highlight); color: var(--HighlightText); text-shadow: none; }
+.desk-icons:focus .desk-icon.focus span { outline: 1px dotted #fff; outline-offset: 0; }
+.desk-icon.cut img { opacity: .5; }
+.desk-icon.dragging { opacity: .6; }
+.desk-icon input { width: 73px; font: inherit; text-align: center; }
+.desk.drop-ok::after { content: ''; position: absolute; inset: 0; outline: 3px dotted #fff; outline-offset: -6px; pointer-events: none; }
+
+/* 窓の層。窓はここへ絶対配置する */
+.wins { position: absolute; inset: 0; pointer-events: none; }
+.wins > .window { position: absolute; pointer-events: auto; }
+.wins > .window.maximized { left: 0 !important; top: 0 !important; width: 100% !important; height: 100% !important; }
+.wins > .window > .title-bar { touch-action: none; }
+.window .rz { position: absolute; z-index: 2; }
+.window .rz.n, .window .rz.s { left: 6px; right: 6px; height: 5px; cursor: ns-resize; }
+.window .rz.e, .window .rz.w { top: 6px; bottom: 6px; width: 5px; cursor: ew-resize; }
+.window .rz.n { top: -2px; } .window .rz.s { bottom: -2px; } .window .rz.e { right: -2px; } .window .rz.w { left: -2px; }
+.window .rz.ne, .window .rz.nw, .window .rz.se, .window .rz.sw { width: 10px; height: 10px; }
+.window .rz.ne { top: -2px; right: -2px; cursor: nesw-resize; } .window .rz.sw { bottom: -2px; left: -2px; cursor: nesw-resize; }
+.window .rz.nw { top: -2px; left: -2px; cursor: nwse-resize; } .window .rz.se { bottom: -2px; right: -2px; cursor: nwse-resize; }
+.window.maximized .rz { display: none; }
+.wins > .window .app-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.fos-dragging, .fos-dragging * { cursor: default !important; }
+
+/* 寄せる先の点線、最小化の枠（当時の窓の縮む動き） */
+.snap, .zoom-rect { position: absolute; z-index: 9000; pointer-events: none; border: 3px solid #fff; mix-blend-mode: difference; }
+.snap { border-style: dotted; }
+
+/* ===== タスクバー ===== */
+.taskbar {
+  position: fixed; left: 0; right: 0; bottom: 0; height: 28px; z-index: 9500; display: flex; align-items: center; gap: 3px; padding: 2px 2px;
+  background: var(--ButtonFace); box-shadow: inset 0 1px var(--ButtonLight), inset 0 2px var(--ButtonHighlight);
+}
+.start-btn { display: inline-flex; align-items: center; gap: 4px; min-width: 0; height: 22px; padding: 0 5px; font-weight: 700; }
+.start-btn img { image-rendering: pixelated; }
+.start-btn[aria-expanded="true"] { box-shadow: var(--bevel-pressed); }
+.tasks { flex: 1; min-width: 0; display: flex; gap: 3px; overflow: hidden; }
+.task-btn { min-width: 0; width: 160px; flex: 0 1 160px; height: 22px; display: inline-flex; align-items: center; gap: 4px; padding: 0 4px; justify-content: flex-start; overflow: hidden; }
+.task-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-btn img { flex: none; image-rendering: pixelated; }
+.task-btn.active { box-shadow: var(--bevel-pressed); font-weight: 700; background: repeating-conic-gradient(var(--ButtonHighlight) 0 25%, var(--ButtonFace) 0 50%) 0 0 / 2px 2px; }
+.tray { display: flex; align-items: center; gap: 2px; height: 22px; padding: 0 6px 0 3px; box-shadow: var(--bevel-status); }
+.tray-btn { min-width: 0; width: 20px; height: 18px; padding: 0; border: 0; box-shadow: none; background: transparent; display: grid; place-items: center; }
+.tray-btn img { image-rendering: pixelated; }
+.clock { min-width: 44px; text-align: center; }
+.vol-pop { position: fixed; right: 4px; bottom: 30px; z-index: 9600; width: 90px; }
+.vol-body { display: grid; justify-items: center; gap: 6px; padding: 8px 6px; }
+.vol-body input[type=range] { writing-mode: vertical-lr; direction: rtl; height: 100px; width: 22px; }
+
+/* ===== スタートメニュー ===== */
+.start-menu {
+  position: fixed; left: 2px; bottom: 28px; z-index: 9600; display: flex; min-width: 250px; max-height: calc(100vh - 40px);
+  padding: 3px; background: var(--Menu); box-shadow: var(--bevel-window);
+}
+.start-band {
+  width: 24px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 6px;
+  background: linear-gradient(0deg, #ff2bd6, #5b1a8a 45%, #000080);
+}
+.start-band span { writing-mode: vertical-rl; transform: rotate(180deg); color: #fff; font: 700 18px/1 "Arial Black", Arial, sans-serif; letter-spacing: .05em; }
+.start-band b { color: #ffd36e; margin-bottom: 4px; }
+.start-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.start-search { display: flex; align-items: center; gap: 6px; padding: 4px 6px 6px; }
+.start-search input { flex: 1; min-width: 0; }
+.start-list { list-style: none; margin: 0; padding: 0; overflow: auto; }
+.start-list li { position: relative; }
+.start-item { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 22px 0 6px; white-space: nowrap; }
+.start-item img { width: 24px; height: 24px; image-rendering: pixelated; }
+.start-item.small { height: 22px; } .start-item.small img { width: 16px; height: 16px; }
+.start-item.active { background: var(--Highlight); color: var(--HighlightText); }
+.start-item.sub::after { content: ''; position: absolute; right: 8px; width: 4px; height: 7px; background: var(--g-right) no-repeat; }
+.start-item.active.sub::after { filter: invert(1); }
+.start-sep { height: 2px; margin: 3px 2px; box-shadow: var(--bevel-etched); }
+.start-sub { position: fixed; z-index: 9700; min-width: 190px; padding: 3px; list-style: none; margin: 0; background: var(--Menu); box-shadow: var(--bevel-window); max-height: 70vh; overflow: auto; }
+.start-empty { padding: 4px 8px; color: var(--GrayText); }
+
+/* ===== 共通: 作業域の部品 ===== */
+.fos .app-body .toolbar input[type=color] { width: 22px; height: 20px; padding: 0; }
+.fos .pane-row { flex: 1; min-height: 0; display: flex; gap: 3px; }
+.fos .addr { display: flex; align-items: center; gap: 6px; padding: 2px 3px 3px; }
+.fos .addr input { flex: 1; min-width: 0; }
+.fos .scroll { overflow: auto; }
+
+/* ファイル マネージャ */
+.app-filer .tree-pane { width: 170px; flex: none; overflow: auto; }
+.app-filer .list-pane { flex: 1; min-width: 0; overflow: auto; }
+.app-filer table.details { width: 100%; }
+.app-filer table.details td, .app-filer table.details th { white-space: nowrap; }
+.app-filer .icons-view { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 4px; padding: 4px; }
+.app-filer .icons-view .ico { width: 75px; display: grid; justify-items: center; gap: 2px; padding: 2px; text-align: center; word-break: break-all; }
+.app-filer .icons-view .ico img { width: 32px; height: 32px; image-rendering: pixelated; }
+.app-filer .icons-view .ico.selected span { background: var(--Highlight); color: var(--HighlightText); }
+.app-filer tr.cut td, .app-filer .ico.cut { opacity: .5; }
+.app-filer .list-pane.drop-ok { outline: 2px dotted var(--Highlight); outline-offset: -3px; }
+.app-filer td img.icon, .tree img.icon { vertical-align: -3px; margin-right: 4px; }
+
+/* メモ帳 */
+.app-notepad textarea { flex: 1; min-height: 0; resize: none; font: 14px/1.5 "MS Gothic", "Osaka-Mono", ui-monospace, monospace; border-radius: 0; }
+.app-notepad textarea.nowrap { white-space: pre; overflow-wrap: normal; overflow-x: scroll; }
+
+/* 画像と音の表示 */
+.app-viewer .view-area { flex: 1; min-height: 0; overflow: auto; display: grid; place-items: center; background: var(--AppWorkspace); }
+.app-viewer .view-area img { max-width: none; image-rendering: auto; background: repeating-conic-gradient(#fff 0 25%, #ddd 0 50%) 0 0 / 16px 16px; }
+.app-viewer .view-area.fit img { max-width: 100%; max-height: 100%; }
+.app-viewer .view-area audio { width: min(460px, 90%); } /* 枠が広くても再生の欄がつぶれないよう、幅を決める */
+
+/* ローポリ モデラー */
+.app-modeler .view-wrap { flex: 1; min-height: 0; display: flex; gap: 3px; }
+.app-modeler canvas.view { flex: 1; min-width: 0; width: 100%; height: 100%; display: block; background: #2b2b3a; touch-action: none; }
+.app-modeler .side { width: 150px; flex: none; display: flex; flex-direction: column; gap: 6px; padding: 4px; overflow: auto; }
+.app-modeler .palette { display: grid; grid-template-columns: repeat(8, 16px); gap: 1px; }
+.app-modeler .palette button { min-width: 0; width: 16px; height: 16px; padding: 0; border: 0; box-shadow: var(--bevel-field); }
+.app-modeler .palette button[aria-pressed="true"] { outline: 2px solid #000; outline-offset: -2px; }
+.app-modeler .objlist { height: 110px; }
+
+/* SID 風シンセ */
+.app-synth .synth-top { display: flex; gap: 6px; padding: 4px; align-items: stretch; }
+.app-synth .lcd { flex: 1; min-width: 0; height: 74px; background: #1e2a8c; box-shadow: var(--bevel-field); display: block; width: 100%; }
+.app-synth .voices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 0 4px; }
+.app-synth fieldset { margin: 0; min-width: 0; }
+.app-synth .knobs { display: grid; grid-template-columns: auto 1fr 44px; gap: 2px 4px; align-items: center; }
+.app-synth .knobs input[type=range] { width: 100%; min-width: 0; }
+.app-synth .knobs output { text-align: right; font-variant-numeric: tabular-nums; }
+.app-synth .waves { display: flex; flex-wrap: wrap; gap: 0 6px; }
+.app-synth .filter-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 4px; align-items: center; }
+.app-synth .seq-wrap { flex: 1; min-height: 0; overflow: auto; margin: 0 4px; }
+.app-synth table.seq { border-collapse: collapse; font: 13px/1 "MS Gothic", ui-monospace, monospace; background: #fff; }
+.app-synth table.seq td, .app-synth table.seq th { padding: 2px 4px; border-right: 1px solid #c0c0c0; text-align: center; min-width: 32px; height: 20px; }
+.app-synth table.seq th { background: var(--ButtonFace); font-weight: 400; position: sticky; left: 0; }
+.app-synth table.seq td.beat { background: #f0f0f0; }
+/* 今いるセル: 表にフォーカスがある時は青、無い時は灰色（Windows の選択の見せ方と同じ） */
+.app-synth table.seq td.cur { outline: 2px solid #808080; outline-offset: -2px; }
+.app-synth table.seq td.cur:focus { outline-color: var(--Highlight); }
+.app-synth table.seq td.play { background: #ffff80; }
+.app-synth .seq-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 4px; }
+
+/* 設定 */
+.app-settings .tab-page { height: 260px; overflow: auto; }
+.app-settings .wall-list { height: 120px; }
+.app-settings .preview { width: 160px; height: 100px; box-shadow: var(--bevel-field); display: block; }
+.fos .meter { height: 16px; box-shadow: var(--bevel-status); background: #fff; position: relative; }
+.fos .meter > i { position: absolute; left: 1px; top: 1px; bottom: 1px; background: var(--Highlight); }
+
+/* ファイルの開く・保存のダイアログ */
+.file-dlg { width: 430px; }
+.file-dlg .fd-list { height: 190px; }
+.file-dlg .fd-row { display: grid; grid-template-columns: 110px 1fr; gap: 6px; align-items: center; margin-top: 6px; }
