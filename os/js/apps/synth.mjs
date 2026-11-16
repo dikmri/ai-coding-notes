@@ -114,7 +114,7 @@ export async function launch(os, args = {}, rect = {}) {
   const patAt = (p) => (p ? (clipLoop ? loopPat : song.order[p.order]) : null); // 再生中のパターンの名前
   const undo = [], redo = [];
   const win = wm.open({
-    app: 'synth', icon: 'icons/synth.svg', className: 'app-synth', w: 820, h: 580, ...rect, args: path ? { path } : {},
+    app: 'synth', icon: 'icons/synth.svg', className: 'app-synth', w: 900, h: 700, ...rect, args: path ? { path } : {},
     render(w) {
       w.body.innerHTML = MENU + `
       <div class="synth-top">

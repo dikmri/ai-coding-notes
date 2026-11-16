@@ -8,7 +8,7 @@ export async function launch(os, args = {}, rect = {}) {
   const cur = os.getSettings();
   let draft = { ...cur };
   const win = wm.open({
-    app: 'settings', icon: 'icons/settings.svg', className: 'dialog app-settings', title: '設定', w: 420, h: 312, resizable: false, ...rect, args: {},
+    app: 'settings', icon: 'icons/settings.svg', className: 'dialog app-settings', title: '設定', w: 460, h: 430, resizable: false, ...rect, args: {},
     render(w) {
       w.body.innerHTML = `<div class="window-body"><div class="tabs">
         <div class="tab-list" role="tablist"><button type="button" class="tab" aria-selected="true">画面</button><button type="button" class="tab">音</button><button type="button" class="tab">ドライブ</button><button type="button" class="tab">バージョン情報</button></div>

@@ -6,17 +6,21 @@
 <title>Future OS</title>
 <meta name="description" content="見た目は90年代のパソコン、中身は気の利いた Web の OS。ライブラリなしの HTML・CSS・JavaScript だけで作っています。">
 <link rel="icon" href="icons/logo.svg">
-<link rel="stylesheet" href="css/95.css">
+<!-- 95.css は部品の位置決めに使い、見た目は arcadia.css が上書きする。層に入れて、arcadia.css が必ず優先されるようにする -->
+<style>@import url("css/95.css") layer(w95);</style>
 <link rel="stylesheet" href="css/future.css">
+<link rel="stylesheet" href="css/arcadia.css">
 </head>
-<body class="w95 fos">
+<body class="w95 fos arcadia">
 <div id="power" class="power" role="dialog" aria-labelledby="powerTitle">
   <div class="power-box">
-    <div class="power-logo" aria-hidden="true"><img src="icons/logo.svg" alt="" width="64" height="64"></div>
-    <h1 id="powerTitle">FUTURE OS</h1>
-    <p class="power-ver">98.7 ・ 出来る！エディション</p>
-    <button type="button" id="powerBtn" class="power-btn" autofocus><span class="power-sym" aria-hidden="true"></span>電源を入れる</button>
-    <p class="power-note">押すと起動の音が鳴ります。起動の演出は Esc か画面を押すと飛ばせます。</p>
+    <p class="power-rom">ARCADIA DEVELOPMENT ORG. // TERMINAL ROM 1991</p>
+    <h1 id="powerTitle" class="power-title">FUTURE OS</h1>
+    <button type="button" id="powerBtn" class="power-disk" autofocus aria-describedby="powerNote">
+      <svg class="power-crystal" viewBox="-1.1 -1.1 2.2 2.2" aria-hidden="true"><path d="M0-1 .87-.5V.5L0 1-.87.5V-.5ZM0-.42.36.21-.36.21ZM0-.42-.87-.5M0-.42 0-1M0-.42.87-.5M.36.21.87-.5M.36.21.87.5M.36.21 0 1M-.36.21 0 1M-.36.21-.87.5M-.36.21-.87-.5"/></svg>
+      <span class="power-label">電源を入れる</span>
+    </button>
+    <p id="powerNote" class="power-note">押すと音が鳴ります。起動の演出は Esc か画面を押すと飛ばせます。</p>
     <p class="power-note"><a href="../">← 図鑑「出来る！HTML/CSS/JavaScript」へ戻る</a></p>
   </div>
 </div>
@@ -29,10 +33,10 @@
   <div id="zoom" class="zoom-rect" hidden></div>
 </main>
 <div id="taskbar" class="taskbar" hidden>
-  <button type="button" id="startBtn" class="start-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="start"><img src="icons/logo.svg" alt="" width="16" height="16"><b>スタート</b></button>
+  <button type="button" id="startBtn" class="start-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="start" aria-label="アプリと検索" title="アプリと検索"><img src="icons/logo.svg" alt="" width="32" height="32"></button>
   <div id="tasks" class="tasks" role="toolbar" aria-label="開いている窓"></div>
   <div class="tray">
-    <button type="button" id="volBtn" class="tray-btn" title="音量" aria-haspopup="dialog"><img id="volIcon" src="icons/synth.svg" alt="音量" width="16" height="16"></button>
+    <button type="button" id="volBtn" class="tray-btn" title="音量" aria-haspopup="dialog"><img id="volIcon" src="icons/speaker.svg" alt="音量" width="20" height="20"></button>
     <span id="clock" class="clock" title=""></span>
   </div>
 </div>
@@ -43,11 +47,14 @@
     <label><input type="checkbox" id="volMute"> 消音(<u>M</u>)</label>
   </div>
 </div>
-<nav id="start" class="start-menu" hidden aria-label="スタート メニュー">
-  <div class="start-band" aria-hidden="true"><span><b>Future</b>OS 98.7</span></div>
-  <div class="start-main">
-    <div class="start-search"><label for="startQ">検索(<u>S</u>):</label><input type="text" id="startQ" autocomplete="off" spellcheck="false"></div>
-    <ul id="startList" class="start-list" role="menu"></ul>
+<nav id="start" class="start-menu" hidden aria-label="アプリと検索">
+  <div class="start-head" aria-hidden="true"><span class="rainbow-title">ARCADIA GATE</span></div>
+  <div class="start-body">
+    <div class="start-band" aria-hidden="true"></div>
+    <div class="start-main">
+      <div class="start-search"><label for="startQ">検索(<u>S</u>):</label><input type="text" id="startQ" autocomplete="off" spellcheck="false" placeholder="アプリや文書をさがす"></div>
+      <ul id="startList" class="start-list" role="menu"></ul>
+    </div>
   </div>
 </nav>
 <div id="off" class="off" hidden>

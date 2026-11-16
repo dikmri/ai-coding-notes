@@ -1,0 +1,475 @@
+/* FUTURE OS // ARCADIA-91 の見た目（2026-11-17 に作り直し）。
+   設計は Gemini 4 Carbon（build/gemini/design-spec.json、MyWiki の future-os.md）。
+   1991年の架空のリゾート端末の世界観に、90年代の CD-ROM ソフトのタイトル画面の作り（網点、ふっくらしたボタン、虹色の題字）を混ぜる。
+   95.css は index.html で cascade layer（w95）に入れて読み込んでいる。この中の決まりは、セレクタの強さに関係なく 95.css より優先される。
+   動き（窓の移動、メニューの開き方）は 95.js と wm.mjs のまま使い、ここでは見た目だけを決める。
+   作業面（メモ帳の本文、一覧、入力欄）には網点や派手な色を入れない。 */
+
+.arcadia {
+  --fos-ink: #241734;
+  --fos-ink-muted: #6e5d85;
+  --fos-paper: #fffdf9;
+  --fos-marble: #f4eef8;
+  --fos-marble-hi: #ffffff;
+  --fos-marble-lo: #cbbce0;
+  --fos-cream: #fff6e3;
+  --fos-cream-lo: #e6d2b5;
+  --fos-aqua: #6bf2e3;
+  --fos-aqua-lo: #3ba89c;
+  --fos-lavender: #cfaeff;
+  --fos-sunset: #ff8ec7;
+  --fos-rose: #ff5c97;
+  --fos-apricot: #ffd37a;
+  --fos-cobalt: #4b5fe8;
+  --fos-shadow: rgb(45 27 70 / 0.82);
+  --fos-void: #140c24;
+  --fos-font: "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", "Yu Gothic UI", "Meiryo", sans-serif;
+  --fos-mono: "BIZ UDGothic", "MS Gothic", "Osaka-Mono", ui-monospace, monospace;
+  /* 4×4 の網点（白と黒を薄く）。帯やタイトルにだけ重ねる */
+  --fos-dither: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='4' height='4' shape-rendering='crispEdges'><path fill='%23fff' fill-opacity='.35' d='M0 0h1v1H0zM2 2h1v1H2z'/><path fill='%23241734' fill-opacity='.14' d='M2 0h1v1H2zM0 2h1v1H0zM1 3h1v1H1zM3 1h1v1H3z'/></svg>");
+  --fos-rainbow: linear-gradient(90deg, var(--fos-aqua) 0%, var(--fos-lavender) 52%, var(--fos-sunset) 100%);
+
+  /* 95.css の変数も合わせておく（この層の外に残る決まりが、同じ色で描かれるように） */
+  --ButtonFace: var(--fos-marble);
+  --ButtonHighlight: #fff;
+  --ButtonLight: #fff;
+  --ButtonShadow: var(--fos-marble-lo);
+  --ButtonDkShadow: var(--fos-ink);
+  --ButtonText: var(--fos-ink);
+  --GrayText: #8e7fa3;
+  --Window: var(--fos-paper);
+  --WindowText: var(--fos-ink);
+  --WindowFrame: var(--fos-ink);
+  --Highlight: var(--fos-aqua);
+  --HighlightText: var(--fos-ink);
+  --Menu: var(--fos-paper);
+  --MenuText: var(--fos-ink);
+  --InfoBackground: var(--fos-cream);
+  --InfoText: var(--fos-ink);
+  --AppWorkspace: var(--fos-marble);
+  --Desktop: var(--fos-void);
+  --HotTrack: var(--fos-cobalt);
+  --font-ui: var(--fos-font);
+  --font-size: 13px;
+  --line-h: 1.5;
+  --scroll-thumb: var(--fos-lavender);
+  --scroll-track: #eae0f5;
+
+  color: var(--fos-ink);
+  letter-spacing: 0.03em;
+}
+
+/* ===== 窓 ===== */
+.arcadia .window:not(.vol-pop) {
+  display: flex; flex-direction: column; gap: 6px; padding: 6px;
+  background: var(--fos-marble);
+  border: 2px solid var(--fos-ink); border-radius: 12px;
+  box-shadow: inset 2px 2px 0 var(--fos-marble-hi), inset -2px -2px 0 var(--fos-marble-lo), 6px 6px 0 var(--fos-shadow);
+}
+/* 開くときに少し弾む（@starting-style）。動きを減らす設定のときは薄く出るだけ */
+@media (prefers-reduced-motion: no-preference) {
+  .arcadia .window:not(.vol-pop) {
+    transition: scale 160ms cubic-bezier(0.22, 1.28, 0.36, 1), translate 160ms cubic-bezier(0.22, 1.28, 0.36, 1), opacity 120ms ease-out;
+  }
+  @starting-style {
+    .arcadia .window:not(.vol-pop) { scale: 0.92; translate: 0 8px; opacity: 0; }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .arcadia .window:not(.vol-pop) { transition: opacity 100ms linear; }
+  @starting-style {
+    .arcadia .window:not(.vol-pop) { opacity: 0; }
+  }
+}
+.arcadia .window.inactive:not(.vol-pop) { box-shadow: inset 2px 2px 0 var(--fos-marble-hi), inset -2px -2px 0 var(--fos-marble-lo), 3px 3px 0 rgb(45 27 70 / 0.35); }
+.arcadia .window.maximized { border-radius: 0; box-shadow: none; border-width: 0 0 0 2px; }
+
+.arcadia .window > .title-bar {
+  flex: none; height: 32px; margin: 0; padding: 0 4px 0 6px; gap: 6px;
+  border: 2px solid var(--fos-ink); border-radius: 8px;
+  background: var(--fos-dither) 0 0 / 4px 4px, var(--fos-rainbow);
+  color: var(--fos-ink);
+}
+.arcadia .window.inactive > .title-bar { background: var(--fos-dither) 0 0 / 4px 4px, linear-gradient(90deg, #e5dff0, #d6cee6); }
+.arcadia .title-bar-icon { width: 20px; height: 20px; image-rendering: auto; }
+.arcadia .title-bar-text {
+  font: 700 13px/1 var(--fos-font); letter-spacing: 0.04em; color: var(--fos-ink);
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.8);
+}
+.arcadia .window.inactive .title-bar-text { color: var(--fos-ink-muted); }
+.arcadia .title-bar-controls { display: flex; gap: 4px; }
+.arcadia .title-bar-controls button {
+  width: 22px; height: 22px; min-width: 0; min-height: 0; padding: 0; margin: 0;
+  border: 1.5px solid var(--fos-ink); border-radius: 5px;
+  background-color: var(--fos-cream); background-repeat: no-repeat; background-position: center;
+  box-shadow: inset 1px 1px 0 #fff, 1px 1px 0 var(--fos-ink);
+}
+.arcadia .title-bar-controls button.min { background-color: var(--fos-aqua); }
+.arcadia .title-bar-controls button:is(.max, .restore) { background-color: var(--fos-lavender); }
+.arcadia .title-bar-controls button.close { background-color: var(--fos-sunset); }
+.arcadia .title-bar-controls button:hover { filter: brightness(1.1); }
+.arcadia .title-bar-controls button.close:hover { background-color: var(--fos-rose); filter: none; }
+.arcadia .title-bar-controls button:active:not(:disabled) { translate: 1px 1px; box-shadow: none; }
+.arcadia .title-bar-controls button:focus-visible { outline: 2px solid var(--fos-ink); outline-offset: 1px; }
+
+.arcadia .window :is(.app-body, .window-body) {
+  border: 2px solid var(--fos-ink); border-radius: 6px; background: var(--fos-paper);
+}
+.arcadia .app-body > :first-child { border-top-left-radius: 4px; border-top-right-radius: 4px; }
+.arcadia .app-body > :last-child { border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; }
+
+/* ===== メニュー ===== */
+.arcadia .menu-bar {
+  min-height: 26px; padding: 2px 6px; gap: 2px; align-items: center;
+  background: var(--fos-marble); border-bottom: 1.5px solid var(--fos-marble-lo);
+}
+.arcadia .menu-title { padding: 2px 10px; border: 1px solid transparent; border-radius: 999px; font-size: 12.5px; color: var(--fos-ink); }
+.arcadia .menu-title:hover, .arcadia .menu-title.open, .arcadia .menu-title.active { background: var(--fos-aqua); border-color: var(--fos-ink); color: var(--fos-ink); }
+.arcadia .menu {
+  padding: 4px; background: var(--fos-paper); color: var(--fos-ink);
+  border: 2px solid var(--fos-ink); border-radius: 8px; box-shadow: 4px 4px 0 var(--fos-shadow);
+}
+.arcadia .menu-item { min-height: 26px; padding: 0 12px; border-radius: 5px; align-items: center; color: var(--fos-ink); }
+.arcadia .menu-item:hover, .arcadia .menu-item.active, .arcadia .menu-item.open { background: linear-gradient(90deg, var(--fos-aqua), var(--fos-lavender)); color: var(--fos-ink); }
+.arcadia .menu-item.disabled, .arcadia .menu-item[aria-disabled="true"] { color: #a799ba; background: none; }
+.arcadia .menu-separator, .arcadia .menu-sep {
+  height: 2px; margin: 4px 6px; box-shadow: none; border: 0;
+  background: repeating-linear-gradient(90deg, var(--fos-marble-lo) 0 4px, transparent 4px 8px);
+}
+
+/* ===== 道具の帯・状態の帯 ===== */
+.arcadia .toolbar {
+  min-height: 36px; padding: 4px 8px; gap: 6px; align-items: center;
+  background: linear-gradient(180deg, #faf6ff 0%, #eae0f5 100%); border-bottom: 1.5px solid var(--fos-marble-lo);
+}
+.arcadia .toolbar button {
+  min-width: 28px; height: 28px; padding: 0 4px; border-radius: 7px;
+  border: 1.5px solid var(--fos-ink); background: var(--fos-paper);
+  box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #d8c9eb, 2px 2px 0 var(--fos-ink);
+}
+.arcadia .toolbar button img { image-rendering: auto; }
+.arcadia .toolbar button:hover:not(:disabled) { background: var(--fos-cream); }
+.arcadia .toolbar button:is(:active, .active, [aria-pressed="true"]):not(:disabled) { background: var(--fos-aqua); box-shadow: inset 2px 2px 0 var(--fos-aqua-lo); translate: 1px 1px; }
+@media (prefers-reduced-motion: no-preference) {
+  .arcadia .toolbar button:hover:not(:disabled, :active) { translate: -1px -1px; box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #d8c9eb, 3px 3px 0 var(--fos-ink); }
+}
+.arcadia .status-bar { min-height: 24px; padding: 2px 6px; gap: 6px; background: #eae0f5; border-top: 1.5px solid var(--fos-marble-lo); font-size: 11.5px; }
+.arcadia .status-field {
+  padding: 0 8px; color: var(--fos-ink); background: #f9f6fc;
+  border: 1px solid #b5a3ce; border-radius: 4px; box-shadow: inset 1px 1px 0 rgb(36 23 52 / 0.12);
+}
+
+/* ===== 押しボタン（CD-ROM のタイトル画面のような、ふっくらしたカプセル） ===== */
+.arcadia button:where(:not(.title-bar-controls button, .toolbar button, .tab, .desk-icon, .task-btn, .start-btn, .tray-btn, .palette button)) {
+  min-height: 30px; min-width: 72px; padding: 0 16px;
+  font: 700 12.5px/1 var(--fos-font); letter-spacing: 0.04em; color: var(--fos-ink);
+  border: 2px solid var(--fos-ink); border-radius: 999px;
+  background: linear-gradient(180deg, #fff 0%, var(--fos-cream) 35%, var(--fos-cream-lo) 100%);
+  box-shadow: inset 0 2px 0 #fff, inset 0 -2px 0 #ccafa0, 3px 3px 0 var(--fos-ink);
+}
+.arcadia button.default { background: linear-gradient(180deg, #fff7c2 0%, var(--fos-apricot) 45%, #ff9ecf 100%); }
+.arcadia button.default::before { content: "◆"; margin-right: 6px; font-size: 9px; color: var(--fos-ink); }
+.arcadia button:where(:not(.title-bar-controls button, .toolbar button, .tab, .desk-icon, .task-btn, .start-btn, .tray-btn, .palette button)):hover:not(:disabled) { filter: brightness(1.04); }
+.arcadia button:where(:not(.title-bar-controls button, .toolbar button, .tab, .desk-icon, .task-btn, .start-btn, .tray-btn, .palette button)):active:not(:disabled) { translate: 2px 2px; box-shadow: inset 0 2px 0 #fff, inset 0 -2px 0 #ccafa0, 1px 1px 0 var(--fos-ink); }
+@media (prefers-reduced-motion: no-preference) {
+  .arcadia button:where(:not(.title-bar-controls button, .toolbar button, .tab, .desk-icon, .task-btn, .start-btn, .tray-btn, .palette button)):hover:not(:disabled, :active) { translate: -1px -1px; box-shadow: inset 0 2px 0 #fff, inset 0 -2px 0 #ccafa0, 4px 4px 0 var(--fos-ink); }
+}
+.arcadia button:disabled { background: #e5e0ec; border-color: #8e7fa3; color: #8e7fa3; box-shadow: none; }
+.arcadia button:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+
+/* ===== 入力欄（作業面は無地） ===== */
+.arcadia :is(input:where(:not([type="checkbox"], [type="radio"], [type="range"], [type="button"], [type="submit"], [type="reset"], [type="file"], [type="color"], [type="hidden"])), textarea, select) {
+  min-height: 26px; padding: 3px 8px; font: 13px/1.5 var(--fos-font); color: var(--fos-ink);
+  background-color: var(--fos-paper); border: 2px solid var(--fos-ink); border-radius: 6px;
+  box-shadow: inset 2px 2px 0 rgb(45 27 70 / 0.14);
+}
+.arcadia :is(input, textarea, select):focus-visible { outline: none; border-color: var(--fos-cobalt); box-shadow: 0 0 0 3px rgb(107 242 227 / 0.55), inset 1px 1px 0 rgb(45 27 70 / 0.1); }
+.arcadia :is(input, textarea, select):disabled { background-color: #f0ebf5; color: #8e7fa3; }
+.arcadia select:not([size], [multiple]) {
+  appearance: none; padding-right: 32px;
+  background-image: linear-gradient(var(--fos-ink), var(--fos-ink)), url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='9' height='5'><path fill='%23241734' d='M0 0h9L4.5 5z'/></svg>"), linear-gradient(var(--fos-lavender), var(--fos-lavender));
+  background-size: 1.5px 100%, 9px 5px, 24px 100%;
+  background-position: right 24px center, right 8px center, right 0 center;
+  background-repeat: no-repeat;
+}
+.arcadia select:is([size], [multiple]) option:checked { background: var(--fos-aqua) linear-gradient(var(--fos-aqua), var(--fos-aqua)); color: var(--fos-ink); font-weight: 700; }
+
+/* チェックボックスとラジオボタン（標準の部品のまま、見た目だけを変える） */
+.arcadia :is(input[type="checkbox"], input[type="radio"]) {
+  appearance: none; display: inline-grid; place-content: center; flex: none;
+  inline-size: 18px; block-size: 18px; margin: 0 4px 0 0; vertical-align: -4px;
+  background: var(--fos-paper); border: 2px solid var(--fos-ink);
+  box-shadow: inset 1px 1px 0 rgb(0 0 0 / 0.12), 1px 1px 0 var(--fos-ink);
+}
+.arcadia input[type="checkbox"] { border-radius: 4px; }
+.arcadia input[type="radio"] { border-radius: 50%; }
+.arcadia :is(input[type="checkbox"], input[type="radio"])::before { content: ""; scale: 0; }
+.arcadia input[type="checkbox"]::before {
+  inline-size: 11px; block-size: 11px; background-color: var(--fos-ink);
+  mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>") no-repeat center / contain;
+}
+.arcadia input[type="radio"]::before { inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--fos-rose); box-shadow: 0 0 0 1px var(--fos-ink); }
+.arcadia :is(input[type="checkbox"], input[type="radio"]):checked { background: var(--fos-aqua); }
+.arcadia :is(input[type="checkbox"], input[type="radio"]):checked::before { scale: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .arcadia :is(input[type="checkbox"], input[type="radio"])::before { transition: scale 120ms ease; }
+}
+.arcadia :is(input[type="checkbox"], input[type="radio"]):focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+.arcadia :is(input[type="checkbox"], input[type="radio"]):disabled { opacity: 0.5; }
+@media (forced-colors: active) {
+  .arcadia input[type="checkbox"]::before { background-color: CanvasText; }
+}
+
+/* スライダー: 溝はミントからピンク、つまみは八角形の水晶 */
+.arcadia input[type="range"] {
+  --track: 8px; --thumb-w: 18px; --thumb-h: 22px;
+  appearance: none; min-height: 26px; margin: 0; padding: 0; border: 0; background: transparent;
+}
+.arcadia input[type="range"]::-webkit-slider-runnable-track {
+  block-size: var(--track); border: 1.5px solid var(--fos-ink); border-radius: 999px; background: linear-gradient(90deg, var(--fos-aqua), var(--fos-sunset));
+}
+.arcadia input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; inline-size: var(--thumb-w); block-size: var(--thumb-h);
+  margin-block-start: calc((var(--track) - 3px - var(--thumb-h)) / 2);
+  background: var(--fos-cream); border: 2px solid var(--fos-ink);
+  clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%);
+}
+.arcadia input[type="range"]::-moz-range-track {
+  block-size: var(--track); border: 1.5px solid var(--fos-ink); border-radius: 999px; background: linear-gradient(90deg, var(--fos-aqua), var(--fos-sunset));
+}
+.arcadia input[type="range"]::-moz-range-thumb {
+  inline-size: var(--thumb-w); block-size: var(--thumb-h); border-radius: 4px; background: var(--fos-cream); border: 2px solid var(--fos-ink);
+}
+.arcadia input[type="range"]:active::-webkit-slider-thumb { background: var(--fos-apricot); }
+.arcadia input[type="range"]:active::-moz-range-thumb { background: var(--fos-apricot); }
+.arcadia input[type="range"]:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 4px; }
+
+/* まとまりの枠とタブ */
+.arcadia fieldset { border: 2px solid #b5a3ce; border-radius: 10px; background: rgb(255 253 249 / 0.6); padding: 12px; box-shadow: none; }
+.arcadia legend {
+  padding: 2px 12px; font-weight: 700; font-size: 12px; background: var(--fos-cream);
+  border: 1.5px solid var(--fos-ink); border-radius: 999px; box-shadow: 2px 2px 0 var(--fos-ink);
+}
+.arcadia .tab-list { gap: 4px; border-bottom: 2px solid var(--fos-ink); box-shadow: none; }
+.arcadia .tab-list > .tab {
+  min-width: 0; padding: 5px 14px; border: 2px solid var(--fos-ink); border-bottom: 0; border-radius: 8px 8px 0 0;
+  background: #e5dff0; box-shadow: none; color: var(--fos-ink); font: 700 12.5px/1.2 var(--fos-font);
+}
+.arcadia .tab-list > .tab[aria-selected="true"] { background: var(--fos-paper); box-shadow: inset 0 3px 0 var(--fos-sunset); margin-bottom: -2px; padding-bottom: 7px; }
+.arcadia .tab-page { background: var(--fos-paper); border: 2px solid var(--fos-ink); border-top: 0; border-radius: 0 0 8px 8px; box-shadow: none; }
+
+/* 一覧（作業面は無地。選択は濃い文字のまま） */
+.arcadia :is(.list, .tree, table.details) { background: var(--fos-paper); color: var(--fos-ink); }
+.arcadia .list { border: 2px solid var(--fos-ink); border-radius: 6px; box-shadow: none; }
+.arcadia .list > * { min-height: 24px; padding: 0 8px; }
+.arcadia :is(.list > .selected, .list > [aria-selected="true"], table.details tr.selected td, .tree .selected) {
+  background: var(--fos-aqua); color: var(--fos-ink); font-weight: 700; box-shadow: inset 0 1px 0 var(--fos-ink), inset 0 -1px 0 var(--fos-ink);
+}
+.arcadia table.details th { background: var(--fos-marble); color: var(--fos-ink); border-bottom: 1.5px solid var(--fos-marble-lo); box-shadow: none; }
+
+/* スクロールバー（標準の指定。使えないブラウザには ::-webkit-scrollbar で代わりを描く） */
+.arcadia * { scrollbar-color: var(--scroll-thumb) var(--scroll-track); }
+@supports not (scrollbar-color: auto) {
+  .arcadia ::-webkit-scrollbar { width: 14px; height: 14px; }
+  .arcadia ::-webkit-scrollbar-track { background: var(--scroll-track); }
+  .arcadia ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, var(--fos-lavender), var(--fos-aqua)); border: 2px solid var(--fos-ink); border-radius: 7px; }
+}
+
+/* ===== デスクトップ ===== */
+/* 壁紙は画面全体に固定し、窓とアイコンの範囲は左のランチャーの幅だけ右へずらす */
+.arcadia .desk { inset: 0 0 0 88px; background: transparent; }
+.arcadia .wall { position: fixed; inset: 0; width: 100vw; height: 100vh; }
+.arcadia .desk-icon { width: 80px; padding: 6px 4px; gap: 4px; border: 2px solid transparent; border-radius: 8px; color: var(--fos-paper); }
+.arcadia .desk-icon img { width: 32px; height: 32px; image-rendering: pixelated; filter: drop-shadow(2px 2px 0 rgb(36 23 52 / 0.55)); }
+.arcadia .desk-icon span {
+  max-width: 76px; padding: 2px 7px; border-radius: 999px; line-height: 1.3; font-size: 11.5px; text-shadow: none;
+  background: rgb(36 23 52 / 0.78); color: var(--fos-paper);
+}
+.arcadia .desk-icon:hover span { box-shadow: 0 0 0 1.5px var(--fos-aqua); }
+.arcadia .desk-icon.selected { background: rgb(255 246 227 / 0.92); border-color: var(--fos-ink); box-shadow: 3px 3px 0 var(--fos-ink); }
+.arcadia .desk-icon.selected img { filter: drop-shadow(2px 2px 0 rgb(36 23 52 / 0.55)); }
+.arcadia .desk-icon.selected span { background: transparent; color: var(--fos-ink); }
+.arcadia .desk-icons:focus .desk-icon.focus span { outline: 2px dashed var(--fos-aqua); outline-offset: 1px; }
+.arcadia .zoom-rect {
+  mix-blend-mode: normal; border: 2px dashed var(--fos-paper); outline: 1px solid var(--fos-ink);
+  background: var(--fos-dither) 0 0 / 4px 4px, rgb(107 242 227 / 0.25);
+}
+.arcadia .snap {
+  mix-blend-mode: normal; border: 3px solid var(--fos-aqua); border-radius: 14px;
+  background: linear-gradient(135deg, rgb(107 242 227 / 0.3), rgb(255 142 199 / 0.3)); box-shadow: 0 0 20px rgb(107 242 227 / 0.5);
+}
+
+/* ===== 左のランチャー（トーテム・ドック）。元のタスクバーを縦の大理石の柱にする ===== */
+.arcadia .taskbar {
+  left: 12px; right: auto; top: 14px; bottom: 14px; width: 64px; height: auto;
+  flex-direction: column; align-items: center; gap: 8px; padding: 22px 0 10px;
+  background: linear-gradient(90deg, #fff 0%, var(--fos-marble) 65%, #d9cbeb 100%);
+  border: 2px solid var(--fos-ink); border-radius: 32px; box-shadow: 5px 5px 0 var(--fos-shadow);
+}
+/* 柱の上下の水晶の飾り */
+.arcadia .taskbar::before, .arcadia .taskbar::after {
+  content: ""; position: absolute; left: 50%; width: 18px; height: 14px; translate: -50% 0; pointer-events: none;
+  border: 2px solid var(--fos-ink);
+}
+.arcadia .taskbar::before { top: -9px; background: var(--fos-aqua); clip-path: polygon(50% 0, 100% 100%, 0 100%); border: 0; box-shadow: none; }
+.arcadia .taskbar::after { bottom: -9px; background: var(--fos-sunset); clip-path: polygon(0 0, 100% 0, 50% 100%); border: 0; }
+.arcadia .start-btn {
+  width: 48px; height: 48px; min-width: 0; padding: 0; flex: none; display: grid; place-items: center;
+  border: 2px solid var(--fos-ink); border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff 0 18%, var(--fos-lavender) 60%, #a98be0 100%);
+  box-shadow: inset 0 2px 0 #fff, 3px 3px 0 var(--fos-ink);
+}
+.arcadia .start-btn img { width: 32px; height: 32px; image-rendering: pixelated; }
+.arcadia .start-btn:hover { filter: brightness(1.06); }
+.arcadia .start-btn:active, .arcadia .start-btn[aria-expanded="true"] { translate: 2px 2px; box-shadow: inset 0 2px 0 #fff, 1px 1px 0 var(--fos-ink); background: radial-gradient(circle at 35% 30%, #fff 0 18%, var(--fos-aqua) 60%, var(--fos-aqua-lo) 100%); }
+.arcadia .start-btn:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 3px; }
+.arcadia .tasks { flex: 1; width: 100%; flex-direction: column; align-items: center; gap: 8px; padding: 6px 0; overflow: hidden auto; scrollbar-width: none; }
+.arcadia .task-btn {
+  position: relative; flex: none; width: 46px; height: 46px; min-width: 0; padding: 0; display: grid; place-items: center;
+  border: 2px solid var(--fos-ink); border-radius: 12px;
+  background: linear-gradient(180deg, #fff, var(--fos-cream)); box-shadow: inset 0 2px 0 #fff, 2px 2px 0 var(--fos-ink);
+}
+.arcadia .task-btn span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.arcadia .task-btn img { width: 32px; height: 32px; image-rendering: pixelated; }
+/* 開いている窓の印（左の菱形のミントの宝石） */
+.arcadia .task-btn::before {
+  content: ""; position: absolute; left: -7px; top: 50%; width: 8px; height: 8px; translate: 0 -50%; rotate: 45deg;
+  background: var(--fos-aqua); border: 1.5px solid var(--fos-ink);
+}
+.arcadia .task-btn.active { background: linear-gradient(180deg, var(--fos-apricot), var(--fos-sunset)); translate: 1px 1px; box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.6), 1px 1px 0 var(--fos-ink); }
+.arcadia .task-btn:hover:not(.active) { filter: brightness(1.05); }
+.arcadia .task-btn:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+.arcadia .tray {
+  flex: none; flex-direction: column; gap: 6px; width: 52px; height: auto; padding: 8px 0 6px; box-shadow: none;
+  border-top: 2px dashed var(--fos-marble-lo);
+}
+.arcadia .tray-btn { width: 36px; height: 36px; border: 2px solid var(--fos-ink); border-radius: 50%; background: var(--fos-paper); box-shadow: 2px 2px 0 var(--fos-ink); }
+.arcadia .tray-btn img { width: 20px; height: 20px; image-rendering: auto; }
+.arcadia .tray-btn:active { translate: 1px 1px; box-shadow: none; }
+.arcadia .clock {
+  min-width: 0; width: 52px; padding: 4px 0; text-align: center; font: 700 13px/1.15 var(--fos-mono); letter-spacing: 0;
+  color: var(--fos-ink); background: var(--fos-cream); border: 1.5px solid var(--fos-ink); border-radius: 6px; box-shadow: inset 1px 1px 0 #fff;
+}
+.arcadia .vol-pop {
+  left: 86px; right: auto; bottom: 14px; width: 110px; padding: 6px;
+  background: var(--fos-marble); border: 2px solid var(--fos-ink); border-radius: 12px; box-shadow: 4px 4px 0 var(--fos-shadow);
+}
+
+/* ===== アルカディア・ゲート（元のスタートメニュー） ===== */
+.arcadia .start-menu {
+  left: 86px; top: 14px; bottom: auto; width: 440px; max-height: calc(100vh - 28px);
+  flex-direction: column; gap: 8px; padding: 8px;
+  background: var(--fos-marble); border: 2px solid var(--fos-ink); border-radius: 16px; box-shadow: 6px 6px 0 var(--fos-shadow);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .arcadia .start-menu { transition: opacity 140ms ease-out, translate 140ms cubic-bezier(0.22, 1.28, 0.36, 1); }
+  @starting-style { .arcadia .start-menu { opacity: 0; translate: -8px 0; } }
+}
+.arcadia .start-head {
+  padding: 6px 12px; border: 2px solid var(--fos-ink); border-radius: 10px;
+  background: var(--fos-dither) 0 0 / 4px 4px, linear-gradient(180deg, #2d1b46 0%, #5b3a8c 55%, #ff8ec7 100%);
+}
+.arcadia .rainbow-title {
+  font: 900 26px/1.1 "Arial Black", "Helvetica Neue", Arial, sans-serif; letter-spacing: 0.06em;
+  background: linear-gradient(90deg, #ff5c5c, #ffd37a 20%, #8ef56b 40%, #6bf2e3 60%, #9b8cff 80%, #ff8ec7);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(2px 2px 0 var(--fos-ink)) drop-shadow(1px 1px 0 var(--fos-ink));
+}
+.arcadia .start-body { display: flex; gap: 8px; min-height: 0; }
+.arcadia .start-band {
+  width: 110px; flex: none; padding: 0; border: 2px solid var(--fos-ink); border-radius: 10px;
+  background: var(--fos-dither) 0 0 / 4px 4px, url("../img/wall-celestial-atrium.jpg") 40% 50% / cover;
+}
+.arcadia .start-band span { display: none; }
+.arcadia .start-main { gap: 6px; }
+.arcadia .start-search { padding: 0; }
+.arcadia .start-search input { border-radius: 999px; padding-left: 12px; }
+.arcadia .start-list { display: grid; gap: 4px; padding: 2px 4px 4px 0; }
+.arcadia .start-item {
+  height: 40px; padding: 0 22px 0 8px; gap: 10px; border: 2px solid var(--fos-ink); border-radius: 999px;
+  background: linear-gradient(180deg, #fff 0%, var(--fos-cream) 40%, var(--fos-cream-lo) 100%); box-shadow: 2px 2px 0 var(--fos-ink);
+  font-weight: 700; color: var(--fos-ink);
+}
+.arcadia .start-item img { width: 32px; height: 32px; image-rendering: pixelated; }
+.arcadia .start-item.small { height: 30px; } .arcadia .start-item.small img { width: 20px; height: 20px; image-rendering: auto; }
+.arcadia .start-item.active { background: linear-gradient(90deg, var(--fos-aqua), var(--fos-lavender)); color: var(--fos-ink); }
+.arcadia .start-item.sub::after { filter: none; }
+.arcadia .start-sep { height: 2px; margin: 2px 8px; box-shadow: none; background: repeating-linear-gradient(90deg, var(--fos-marble-lo) 0 4px, transparent 4px 8px); }
+.arcadia .start-sub {
+  padding: 6px; background: var(--fos-marble); border: 2px solid var(--fos-ink); border-radius: 12px; box-shadow: 4px 4px 0 var(--fos-shadow);
+  display: grid; gap: 4px;
+}
+.arcadia .start-empty { color: var(--fos-ink-muted); }
+
+/* ===== アプリの作業域の細かいところ ===== */
+.arcadia img { image-rendering: auto; }
+.arcadia .app-filer .icons-view .ico img { image-rendering: pixelated; }
+.arcadia .app-filer .icons-view .ico.selected span { background: var(--fos-aqua); color: var(--fos-ink); border-radius: 4px; }
+.arcadia .app-notepad textarea { font: 14px/1.7 var(--fos-mono); padding: 12px 16px; border: 0; border-radius: 0; box-shadow: none; }
+.arcadia .app-viewer .view-area { background: repeating-conic-gradient(#f4eef8 0 25%, #e9e0f2 0 50%) 0 0 / 24px 24px; }
+.arcadia .app-modeler canvas.view { border: 2px solid var(--fos-ink); border-radius: 6px; }
+.arcadia .app-synth .lcd { border: 2px solid var(--fos-ink); border-radius: 8px; box-shadow: inset 0 0 0 2px #1b1146; }
+.arcadia .app-synth table.seq { font-family: var(--fos-mono); background: var(--fos-paper); }
+.arcadia .app-synth table.seq th { background: var(--fos-marble); }
+.arcadia .app-synth table.seq td.beat { background: #f6f0fb; }
+.arcadia .app-synth table.seq td.play { background: var(--fos-apricot); }
+.arcadia .app-synth table.seq td.cur:focus { outline-color: var(--fos-cobalt); }
+.arcadia .app-settings .preview { border: 2px solid var(--fos-ink); border-radius: 6px; box-shadow: none; }
+.arcadia .meter { height: 18px; border: 2px solid var(--fos-ink); border-radius: 999px; background: var(--fos-paper); box-shadow: none; overflow: hidden; }
+.arcadia .meter > i { left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, var(--fos-aqua), var(--fos-sunset)); }
+.arcadia .app-settings .tab-page { height: 280px; }
+.arcadia .window.dialog:not(.vol-pop) .window-body { padding: 12px; }
+.arcadia select:is([size], [multiple]) { padding: 4px; }
+.arcadia select:is([size], [multiple]) option { padding: 3px 8px; border-radius: 4px; line-height: 1.5; }
+
+/* ===== 電源を入れる前の画面 ===== */
+.arcadia .power, .arcadia .off {
+  background:
+    radial-gradient(ellipse at 50% 45%, rgb(91 58 140 / 0.55) 0%, rgb(20 12 36 / 0) 65%),
+    repeating-linear-gradient(0deg, rgb(255 255 255 / 0.035) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at 50% 50%, #241838 0%, var(--fos-void) 75%);
+  color: var(--fos-paper);
+}
+.arcadia .power::after { display: none; }
+.arcadia .power-box { gap: 14px; }
+.arcadia .power-rom { margin: 0; font: 700 13px/1.4 var(--fos-mono); letter-spacing: 0.12em; color: var(--fos-aqua); }
+.arcadia .power-title {
+  margin: 0; font: 900 clamp(44px, 9vw, 96px)/1 "Arial Black", "Helvetica Neue", Arial, sans-serif; letter-spacing: 0.04em;
+  background: var(--fos-dither) 0 0 / 4px 4px, linear-gradient(90deg, #ff6b6b, #ffd37a 22%, #6bdc7a 40%, #6bf2e3 58%, #b48cff 78%, #ff8ec7);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(4px 4px 0 var(--fos-ink)) drop-shadow(0 0 1px var(--fos-ink));
+}
+.arcadia .power-disk {
+  height: auto; width: auto;
+  display: grid; justify-items: center; gap: 10px; padding: 0; border: 0; background: none; box-shadow: none; min-width: 0; min-height: 0; color: var(--fos-ink);
+}
+.arcadia .power-crystal {
+  width: 132px; height: 132px; padding: 22px; border-radius: 50%; box-sizing: border-box;
+  fill: none; stroke: var(--fos-lavender); stroke-width: 0.045; stroke-linejoin: round;
+  background: radial-gradient(circle at 38% 32%, #fff 0 12%, #efe7f8 45%, #b9a6d6 100%);
+  border: 3px solid var(--fos-ink); box-shadow: 0 0 0 5px #cfc3e3, 0 0 0 8px var(--fos-ink), 6px 8px 0 8px rgb(0 0 0 / 0.35);
+}
+.arcadia .power-crystal path { stroke: #7c62b0; }
+.arcadia .power-disk:hover .power-crystal path, .arcadia .power-disk:focus-visible .power-crystal path { stroke: #18a99a; }
+@media (prefers-reduced-motion: no-preference) {
+  .arcadia .power-crystal path { animation: fos-pulse 2.4s ease-in-out infinite; }
+}
+@keyframes fos-pulse { 50% { stroke: var(--fos-aqua); } }
+.arcadia .power-label {
+  padding: 6px 18px; font: 700 14px/1.2 var(--fos-font); letter-spacing: 0.06em; color: var(--fos-ink);
+  border: 2px solid var(--fos-ink); border-radius: 999px; background: linear-gradient(180deg, #fff 0%, var(--fos-cream) 40%, var(--fos-cream-lo) 100%);
+  box-shadow: 3px 3px 0 var(--fos-ink);
+}
+.arcadia .power-disk:active .power-label { translate: 2px 2px; box-shadow: 1px 1px 0 var(--fos-ink); }
+.arcadia .power-disk:focus-visible { outline: 2px solid var(--fos-aqua); outline-offset: 6px; border-radius: 16px; }
+.arcadia .power-note { color: #d9cdee; }
+.arcadia .power-note a { color: var(--fos-aqua); }
+.arcadia .off-msg { color: var(--fos-apricot); }
+.arcadia .off .power-btn { min-width: 200px; }
+
+/* 起動の演出の絵は、終わったら薄くして消す（下にデスクトップが出ている） */
+.arcadia .boot { background: var(--fos-void); }
+.arcadia .boot.fading { opacity: 0; pointer-events: none; transition: opacity 450ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .arcadia .boot.fading { transition-duration: 120ms; }
+}
