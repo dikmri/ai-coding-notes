@@ -204,7 +204,7 @@ canvas, img, video { display: block; max-width: 100%; }
     li.innerHTML =
       `<a href="#e=${encodeURIComponent(e.id)}" data-open="${escA(e.id)}">` +
       `<div class="prev"><span class="ph" aria-hidden="true">${esc([...e.t][0])}${e.nt ? '<small>開くと起動します</small>' : ''}</span></div>` +
-      `<div class="body"><span class="no">No.${pad(e.no)}</span>${e.date ? `<span class="date">${esc(e.date)}</span>` : ''}<h3 class="hw"></h3><span class="yomi">${esc(e.y)}</span><p class="desc"></p>` +
+      `<div class="body"><span class="no">No.${pad(e.no)}</span>${e.date ? `<span class="date">${esc(e.date)}</span>` : ''}${e.size ? `<span class="date">${e.size >= 1024 ? e.size / 1024 + 'K' : e.size}バイト</span>` : ''}<h3 class="hw"></h3><span class="yomi">${esc(e.y)}</span><p class="desc"></p>` +
       `<span class="seal${/^[A-Za-z]/.test(c.seal) ? ' latin' : ''}" title="${escA(c.name)}">${esc(c.seal)}</span></div></a>` +
       `<button type="button" class="fav" aria-pressed="${state.favs.has(e.id)}" aria-label="${escA(e.t)}をお気に入りにする" data-fav="${escA(e.id)}">★</button>`;
     const card = { e, li, prev: $('.prev', li), hw: $('.hw', li), desc: $('.desc', li), favBtn: $('.fav', li), frame: null, leaveT: 0 };
@@ -495,7 +495,10 @@ canvas, img, video { display: block; max-width: 100%; }
     $('#dSrcBox').hidden = !e.date && !srcs.length;
     $('#dDate').textContent = e.date ? `${e.date}（${relDay(e.date)}）に再現` : '';
     $('#dSrc').innerHTML = srcs.map((s) => `<li><a href="${escA(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title || s.url)}</a></li>`).join('');
-    $('#dPointBox').hidden = !e.p && !e.pipe && $('#dSrcBox').hidden;
+    // メガデモ: 1ファイル全体のバイト数と上限
+    $('#dSizeBox').hidden = !e.size;
+    if (e.size) $('#dSize').textContent = `${D.utf8Bytes(D.miniHtml(e)).toLocaleString('ja-JP')} / ${e.size.toLocaleString('ja-JP')} バイト（html・css・js をつないだ1ファイル全体）`;
+    $('#dPointBox').hidden = !e.p && !e.pipe && $('#dSrcBox').hidden && $('#dSizeBox').hidden;
     $('#dApis').innerHTML = e.apis.map((a) => `<li><a href="#q=${encodeURIComponent('api:"' + a + '"')}">${esc(a)}</a></li>`).join('') || '<li>（なし）</li>';
     $('#dTags').innerHTML = e.tags.map((t) => `<li><a href="#q=${encodeURIComponent('tag:' + t)}">${esc(t)}</a></li>`).join('');
     renderRelated(e);
@@ -620,6 +623,8 @@ canvas, img, video { display: block; max-width: 100%; }
     log('code.reset', { id: state.current.id }, 'ok');
     toast('元のコードに戻しました');
   });
+  // メガデモの「そのまま開ける1ファイル」（数えたバイトそのもの）をコピーする
+  $('#dSizeCopy').addEventListener('click', () => { if (state.current && state.current.size) { copyText(D.miniHtml(state.current), `${state.current.size}バイト以内の1ファイル`); log('demo.copymini', { id: state.current.id }, 'ok'); } });
   $('#dCopy').addEventListener('click', () => {
     const c = getCode();
     copyText(state.tab === 'base' ? BASE_CSS : c[state.tab], { html: 'HTML', css: 'CSS', js: 'JavaScript', base: '下地CSS' }[state.tab]);

@@ -51,6 +51,11 @@ for (const e of entries) {
     if (!Array.isArray(e.refs) || !e.refs.length || !e.refs.every((s) => s && s.title && /^https?:\/\//.test(s.url))) errors.push(`${where}: refs に出典（title と url）を1つ以上`);
   }
   if (/<script[^>]+src=|<link[^>]+href=["']https?:|import\(\s*['"]https?:|from\s+['"]https?:/i.test(e.code)) errors.push(`${where}: 外部のファイルを読み込まない（ブラウザだけで作る）`);
+  // メガデモ: 1ファイル全体が決めた上限のバイト数に収まること
+  if (e.c === 'demo') {
+    if (![256, 1024, 4096].includes(e.size)) errors.push(`${where}: size は 256・1024・4096 のどれか`);
+    else { const n = D.utf8Bytes(D.miniHtml(e)); if (n > e.size) errors.push(`${where}: ${n} バイトで上限 ${e.size} を超えている`); }
+  }
 }
 
 console.log(`項目数: ${entries.length}`);

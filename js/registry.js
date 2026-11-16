@@ -28,12 +28,14 @@
     { id: 'util', name: '便利道具', seal: '道具', hue: 85 },
     { id: 'api', name: 'ブラウザの機能', seal: '機能', hue: 210 },
     { id: 'combo', name: '合わせ技の小品', seal: '合技', hue: 160 },
+    // 昔のデモシーンにならい、1ファイル全体を 256・1024・4096 バイト以内に収めた映像作品
+    { id: 'demo', name: 'メガデモ（容量制限）', seal: 'デモ', hue: 290 },
     { id: 'app', name: 'そのまま使えるアプリ', seal: '実用', hue: 15 },
   ];
 
   // コードから「使っている技術」を自動で拾う。索引の「技術別」に使う
   const API_RULES = [
-    [/getContext\(\s*['"]2d/, 'Canvas 2D'], [/getContext\(\s*['"]webgl/, 'WebGL'],
+    [/getContext\(?\s*['"`]2d/, 'Canvas 2D'], [/getContext\(?\s*['"`]webgl/, 'WebGL'],
     [/AudioContext/, 'Web Audio'], [/requestAnimationFrame/, 'requestAnimationFrame'],
     [/IntersectionObserver/, 'IntersectionObserver'], [/ResizeObserver/, 'ResizeObserver'],
     [/MutationObserver/, 'MutationObserver'], [/\.animate\(/, 'Web Animations'],
@@ -84,6 +86,17 @@
     const n = (s) => { const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d) / 864e5; };
     return Math.round(n(b) - n(a));
   }
+  // UTF-8 で書いたときのバイト数（TextEncoder の無い所でも使えるよう自分で数える）
+  function utf8Bytes(s) {
+    let n = 0;
+    for (const ch of String(s)) { const c = ch.codePointAt(0); n += c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4; }
+    return n;
+  }
+  // メガデモの容量を数える「そのまま開ける1ファイル」: HTML、あれば <style>、あれば <script> の順
+  function miniHtml(e) {
+    const h = src(e.html), c = src(e.css), j = src(e.js);
+    return h + (c ? `<style>${c}</style>` : '') + (j ? `<script>${j}</script>` : '');
+  }
   function src(v) {
     if (!v) return '';
     if (typeof v === 'function') {
@@ -99,7 +112,7 @@
     entries: [],
     byId: new Map(),
     problems: [],
-    src, dedent, daysBetween,
+    src, dedent, daysBetween, utf8Bytes, miniHtml,
     add(...list) {
       for (const e of list) {
         if (!e || !e.id) { D.problems.push({ e, msg: 'id がない' }); continue; }
