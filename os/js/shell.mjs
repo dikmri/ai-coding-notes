@@ -20,7 +20,7 @@ export const APPS = {
 };
 
 /* ---------- 設定 ---------- */
-const DEFAULTS = { wallpaper: 'dusk', skipBoot: false, volume: 0.6, mute: false, ui: true, keys: true };
+const DEFAULTS = { wallpaper: 'arcadia-lagoon', skipBoot: false, volume: 0.6, mute: false, ui: true, keys: true };
 let settings = { ...DEFAULTS };
 try { settings = { ...DEFAULTS, ...JSON.parse(localStorage.getItem('fos-settings') || '{}') }; } catch { /* 読めない */ }
 export const getSettings = () => ({ ...settings });

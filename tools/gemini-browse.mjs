@@ -12,7 +12,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { CONFIG, OUT, ROOT, interact, moneyLine, log, stamp } from './lib/gemini-client.mjs';
-import { openBrowser, toPixel, sameOrigin } from './lib/cdp.mjs';
+import { openBrowser, toPixel, sameOrigin, dragArgs } from './lib/cdp.mjs';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const args = process.argv.slice(2);
@@ -67,7 +67,13 @@ async function act(page, call, startUrl) {
     case 'move': await page.move(X(a.x), Y(a.y)); break;
     case 'mouse_down': await page.down(X(a.x ?? 0), Y(a.y ?? 0)); break;
     case 'mouse_up': await page.up(X(a.x ?? 0), Y(a.y ?? 0)); break;
-    case 'drag_and_drop': await page.drag(X(a.start_x), Y(a.start_y), X(a.end_x), Y(a.end_y)); break;
+    case 'drag':
+    case 'drag_and_drop': {
+      const d = dragArgs(a);
+      if (!d) return { error: 'drag_and_drop は start_x, start_y, end_x, end_y（0〜999）で指定してください' };
+      await page.drag(X(d[0]), Y(d[1]), X(d[2]), Y(d[3]));
+      break;
+    }
     case 'type':
       if (a.x != null && a.y != null) await page.click(X(a.x), Y(a.y));
       await page.typeText(String(a.text ?? ''));

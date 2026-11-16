@@ -102,7 +102,7 @@ export async function launch(os, args = {}, rect = {}) {
   if (!objects.length && !path) objects = [{ name: '立方体', mesh: M.paintFaces(M.cube(1), [0, 1, 2, 3, 4, 5], '#c0c0c0') }];
   let cv, x, list;
   const win = wm.open({
-    app: 'modeler', icon: 'icons/modeler.svg', className: 'app-modeler', w: 760, h: 520, ...rect, args: path ? { path } : {},
+    app: 'modeler', icon: 'icons/modeler.svg', className: 'app-modeler', w: 800, h: 560, ...rect, args: path ? { path } : {},
     render(w) {
       w.body.innerHTML = MENU + `<div class="view-wrap"><canvas class="view" tabindex="0" aria-label="3D の作業場所。右ドラッグか、何もない所の左ドラッグで視点を回し、ホイールで寄る"></canvas>
         <div class="side"><label>物体(<u>B</u>):</label><select size="6" class="objlist" aria-label="物体の一覧"></select>

@@ -32,7 +32,17 @@ async function info() {
 function wireSounds() {
   document.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
-    if (e.target.closest('button:not(:disabled), .menu-title, input[type=checkbox], input[type=radio], select, .tab')) sound.play('click');
+    if (e.target.closest('button:not(:disabled), .menu-title, select, .tab')) sound.play('click');
+  }, true);
+  // チェックを入れる・外す音と、スライダーの刻みの音（値が 5% 動くごとに1回）
+  document.addEventListener('change', (e) => { if (e.target.matches('input[type=checkbox], input[type=radio]')) sound.play(e.target.checked ? 'toggleOn' : 'toggleOff'); }, true);
+  const lastTick = new WeakMap();
+  document.addEventListener('input', (e) => {
+    const r = e.target;
+    if (!r.matches('input[type=range]')) return;
+    const min = +r.min || 0, max = +r.max || 100, v = (r.value - min) / (max - min || 1);
+    if (Math.abs(v - (lastTick.get(r) ?? -1)) < 0.05) return;
+    lastTick.set(r, v); sound.play('tick', v);
   }, true);
   document.addEventListener('w95:command', () => sound.play('menu'));
   document.addEventListener('w95:select', () => sound.play('select'));

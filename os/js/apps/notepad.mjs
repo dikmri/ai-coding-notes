@@ -51,7 +51,7 @@ export async function launch(os, args = {}, rect = {}) {
   const dirty = () => ta.value !== saved;
   let ta, st;
   const win = wm.open({
-    app: 'notepad', icon: 'icons/notepad.svg', className: 'app-notepad', w: 560, h: 400, ...rect, args: path ? { path } : { draftKey },
+    app: 'notepad', icon: 'icons/notepad.svg', className: 'app-notepad', w: 600, h: 430, ...rect, args: path ? { path } : { draftKey },
     render(w) {
       w.body.innerHTML = MENU + '<textarea spellcheck="false" aria-label="本文"></textarea><div class="status-bar"><div class="status-field">ヘルプを表示するには [F1] を押してください。</div><div class="status-field" style="width:110px" data-pos></div><div class="status-field" style="width:90px" data-count></div><div class="status-field" style="width:150px" data-saved></div><div class="size-grip"></div></div>';
       ta = w.body.querySelector('textarea'); st = w.body.querySelector('.status-bar');

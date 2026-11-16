@@ -71,7 +71,7 @@ export async function launch(os, args = {}, rect = {}) {
   const hist = [], fwdStack = [];
   if (!(await fs.exists(cur))) cur = '/';
   const win = wm.open({
-    app: 'filer', icon: cur === fs.TRASH ? 'icons/trash.svg' : 'icons/folder.svg', className: 'app-filer', w: 640, h: 420, ...rect, args: { path: cur },
+    app: 'filer', icon: cur === fs.TRASH ? 'icons/trash.svg' : 'icons/folder.svg', className: 'app-filer', w: 680, h: 450, ...rect, args: { path: cur },
     render(w) {
       w.body.innerHTML = MENU(cur === fs.TRASH) + `<div class="addr"><label for="addr${w.id}">場所(<u>D</u>):</label><input type="text" id="addr${w.id}" spellcheck="false" autocomplete="off"></div>
         <div class="pane-row"><ul class="tree field tree-pane" tabindex="0" aria-label="フォルダ"></ul><div class="field list-pane" tabindex="0" aria-label="一覧"></div></div>
