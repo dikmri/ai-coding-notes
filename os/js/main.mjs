@@ -5,9 +5,12 @@ import * as wm from './wm.mjs';
 import { runBoot, drawWallpaper } from './boot.mjs';
 import { seed } from './samples.mjs';
 import * as shell from './shell.mjs';
+import { parseShot } from './core/shot.mjs';
 
 const $ = (s) => document.querySelector(s);
 const log = (...a) => (window.dlog || (() => {}))(...a);
+// 撮影用の入口（?shot=...）。電源と起動の場面を飛ばし、指定の窓だけを開く。前回の窓は開かず、窓の並びも保存しない
+const shot = parseShot(location.search, Object.keys(shell.APPS));
 
 async function info() {
   const u = await fs.usage();
@@ -41,6 +44,7 @@ function wireSounds() {
 
 async function start() {
   $('#power').hidden = true;
+  if (shot) wm.setPersist(false);
   sound.unlock();
   const st = shell.getSettings();
   sound.configure({ volume: st.volume, mute: st.mute, ui: st.ui, keys: st.keys });
@@ -52,7 +56,8 @@ async function start() {
   const inf = await info();
   removeEventListener('keydown', pre, true);
   log('os.boot', { skip: st.skipBoot, early }, 'start');
-  if (!st.skipBoot && !early) await runBoot($('#boot'), inf);
+  if (shot) log('os.shot', { items: shot }, 'start');
+  else if (!st.skipBoot && !early) await runBoot($('#boot'), inf);
   else sound.play('startup');
   $('#desk').hidden = false; $('#taskbar').hidden = false;
   drawWallpaper($('#wall'), st.wallpaper);
@@ -61,18 +66,21 @@ async function start() {
   shell.initTaskbar();
   wireSounds();
   // 前回開いていた窓を、同じ場所・同じファイルで開き直す
-  for (const s of wm.loadSession()) {
+  for (const s of shot ? [] : wm.loadSession()) {
     const win = await shell.launch(s.app, s.args || {}, s.rect || {});
     if (!win) continue;
     if (s.rect) { Object.assign(win.el.style, { left: s.rect.x + 'px', top: s.rect.y + 'px', width: s.rect.w + 'px', height: s.rect.h + 'px' }); win.rect = { ...s.rect }; }
     if (s.max) wm.maximize(win, true);
     if (s.min) await wm.minimize(win);
   }
-  if (first) shell.openFile('/ドキュメント/はじめに.txt');
+  if (shot) { for (const it of shot) await (it.path ? shell.openFile(it.path, it.app || undefined) : shell.launch(it.app)); }
+  else if (first) shell.openFile('/ドキュメント/はじめに.txt');
   $('#icons').focus();
   log('os.boot', { first, windows: wm.list().length }, 'ok');
 }
 
-$('#powerBtn').addEventListener('click', () => start().catch((e) => { log('os.boot', {}, 'error: ' + e.message); alert('起動できませんでした: ' + e.message); }));
+const boot = () => start().catch((e) => { log('os.boot', {}, 'error: ' + e.message); alert('起動できませんでした: ' + e.message); });
+$('#powerBtn').addEventListener('click', boot);
+if (shot) boot();
 $('#rebootBtn').addEventListener('click', () => location.reload());
 addEventListener('keydown', (e) => { if (!$('#power').hidden && e.key === 'Enter' && document.activeElement !== $('#powerBtn')) $('#powerBtn').click(); });
