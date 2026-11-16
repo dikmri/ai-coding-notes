@@ -136,7 +136,7 @@ main { padding: 0 clamp(16px, 3vw, 32px) 80px; }
 .trend-note { margin: -8px 0 16px; padding: 8px 12px; max-width: 36em; font-size: 14px; border-left: 3px solid var(--shu); background: color-mix(in oklab, var(--shu) 8%, transparent); }
 .trend-note b { color: var(--shu); margin-right: .4em; }
 .trend-note a { font-weight: 700; }
-.card .date { display: inline-block; margin-left: 8px; font: 600 11px/1 var(--mono); color: var(--shu); }
+.card .date, .card .size { display: inline-block; margin-left: 8px; font: 600 11px/1 var(--mono); color: var(--shu); }
 .d-src { margin: 0; padding-left: 1.2em; font-size: 13px; } .d-src li { margin: 2px 0; word-break: break-all; }
 .shared-note { margin: -8px 0 20px; padding: 8px 12px; max-width: 36em; font-size: 13px; color: var(--ink-2); border-left: 3px solid var(--ai); background: color-mix(in oklab, var(--ai) 8%, transparent); }
 .stats { display: flex; gap: 28px; margin: 0; }

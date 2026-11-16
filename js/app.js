@@ -204,7 +204,7 @@ canvas, img, video { display: block; max-width: 100%; }
     li.innerHTML =
       `<a href="#e=${encodeURIComponent(e.id)}" data-open="${escA(e.id)}">` +
       `<div class="prev"><span class="ph" aria-hidden="true">${esc([...e.t][0])}${e.nt ? '<small>開くと起動します</small>' : ''}</span></div>` +
-      `<div class="body"><span class="no">No.${pad(e.no)}</span>${e.date ? `<span class="date">${esc(e.date)}</span>` : ''}${e.size ? `<span class="date">${e.size >= 1024 ? e.size / 1024 + 'K' : e.size}バイト</span>` : ''}<h3 class="hw"></h3><span class="yomi">${esc(e.y)}</span><p class="desc"></p>` +
+      `<div class="body"><span class="no">No.${pad(e.no)}</span>${e.date ? `<span class="date">${esc(e.date)}</span>` : ''}${e.size ? `<span class="size">${e.size.toLocaleString('ja-JP')}バイト</span>` : ''}<h3 class="hw"></h3><span class="yomi">${esc(e.y)}</span><p class="desc"></p>` +
       `<span class="seal${/^[A-Za-z]/.test(c.seal) ? ' latin' : ''}" title="${escA(c.name)}">${esc(c.seal)}</span></div></a>` +
       `<button type="button" class="fav" aria-pressed="${state.favs.has(e.id)}" aria-label="${escA(e.t)}をお気に入りにする" data-fav="${escA(e.id)}">★</button>`;
     const card = { e, li, prev: $('.prev', li), hw: $('.hw', li), desc: $('.desc', li), favBtn: $('.fav', li), frame: null, leaveT: 0 };
@@ -454,7 +454,7 @@ canvas, img, video { display: block; max-width: 100%; }
   function freshFrame(doc, sandbox) {
     const f = dFrame.cloneNode(false);
     f.removeAttribute('srcdoc');
-    if (sandbox) f.setAttribute('sandbox', sandbox);
+    if (sandbox) f.setAttribute('sandbox', sandbox); else f.removeAttribute('sandbox');
     if (doc != null) f.srcdoc = doc;
     dFrame.replaceWith(f);
     dFrame = f;
@@ -497,7 +497,7 @@ canvas, img, video { display: block; max-width: 100%; }
     $('#dSrc').innerHTML = srcs.map((s) => `<li><a href="${escA(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title || s.url)}</a></li>`).join('');
     // メガデモ: 1ファイル全体のバイト数と上限
     $('#dSizeBox').hidden = !e.size;
-    if (e.size) $('#dSize').textContent = `${D.utf8Bytes(D.miniHtml(e)).toLocaleString('ja-JP')} / ${e.size.toLocaleString('ja-JP')} バイト（html・css・js をつないだ1ファイル全体）`;
+    showSize();
     $('#dPointBox').hidden = !e.p && !e.pipe && $('#dSrcBox').hidden && $('#dSizeBox').hidden;
     $('#dApis').innerHTML = e.apis.map((a) => `<li><a href="#q=${encodeURIComponent('api:"' + a + '"')}">${esc(a)}</a></li>`).join('') || '<li>（なし）</li>';
     $('#dTags').innerHTML = e.tags.map((t) => `<li><a href="#q=${encodeURIComponent('tag:' + t)}">${esc(t)}</a></li>`).join('');
@@ -516,6 +516,7 @@ canvas, img, video { display: block; max-width: 100%; }
       // × を1回押せば必ず一覧へ戻れる。共有ページ（claude.ai の枠の中）では枠の外の履歴を動かさないよう積まない
       const stack = !wasOpen && !SHARED;
       setUrl(stack ? 'pushState' : 'replaceState', stack ? { dk: 'entry' } : history.state, '#' + p.toString());
+      if (stack) pushedEntry = true;
     }
     log('entry.open', { id: e.id, no: e.no, push }, 'ok');
   }
@@ -526,6 +527,16 @@ canvas, img, video { display: block; max-width: 100%; }
     return 'html';
   }
   let closedAt = null; // × で閉じて history.back() した時刻（閉じていなければ null）。戻った先で別の項目を開き直さないために使う
+  // このページの読み込みの中で、詳しい画面を開くときに履歴を積んだか。再読み込みのあとは history.state が残っていても積んでいないので、
+  // 閉じるときは戻らずに #e= を消すだけにする（戻ると、前の一覧のページを読み込み直してしまう）
+  let pushedEntry = false;
+  // メガデモの大きさ。書き換えたあとは、書き換えたコードで数え直す
+  function showSize() {
+    const e = state.current;
+    if (!e || !e.size) return;
+    const c = state.edits.get(e.id), n = D.utf8Bytes(D.miniHtml(c ? { html: c.html, css: c.css, js: c.js } : e));
+    $('#dSize').textContent = `${n.toLocaleString('ja-JP')} / ${e.size.toLocaleString('ja-JP')} バイト（html・css・js をつないだ1ファイル全体）` + (c ? (n > e.size ? ' ・ 書き換えたので上限を超えています' : ' ・ 書き換えたあとの大きさ') : '');
+  }
   function closeDetail() { if (dlg.open) dlg.close(); }
   dlg.addEventListener('close', () => {
     log('entry.close', { id: state.current && state.current.id }, 'ok');
@@ -534,7 +545,7 @@ canvas, img, video { display: block; max-width: 100%; }
     const p = hashParams();
     if (state.skipBack) state.skipBack = false;
     else if (p.has('e')) {
-      if (history.state && history.state.dk === 'entry') { closedAt = performance.now(); history.back(); }
+      if (pushedEntry && history.state && history.state.dk === 'entry') { pushedEntry = false; closedAt = performance.now(); history.back(); }
       else { p.delete('e'); setUrl('replaceState', null, p.toString() ? '#' + p.toString() : location.pathname + location.search); }
     }
     requestAnimationFrame(pump);
@@ -610,6 +621,7 @@ canvas, img, video { display: block; max-width: 100%; }
     state.edits.set(e.id, c);
     paintCode();
     paintDirty();
+    showSize();
     if ($('#dAuto').checked) { clearTimeout(runTimer); runTimer = setTimeout(run, 650); }
   });
   ed.addEventListener('scroll', () => { const pre = hlEl.parentElement; pre.scrollTop = ed.scrollTop; pre.scrollLeft = ed.scrollLeft; });
@@ -619,12 +631,19 @@ canvas, img, video { display: block; max-width: 100%; }
   $('#dReset').addEventListener('click', () => {
     state.edits.delete(state.current.id);
     showTab(state.tab);
+    showSize();
     run();
     log('code.reset', { id: state.current.id }, 'ok');
     toast('元のコードに戻しました');
   });
   // メガデモの「そのまま開ける1ファイル」（数えたバイトそのもの）をコピーする
-  $('#dSizeCopy').addEventListener('click', () => { if (state.current && state.current.size) { copyText(D.miniHtml(state.current), `${state.current.size}バイト以内の1ファイル`); log('demo.copymini', { id: state.current.id }, 'ok'); } });
+  $('#dSizeCopy').addEventListener('click', () => {
+    const e = state.current;
+    if (!e || !e.size) return;
+    const c = state.edits.get(e.id);
+    copyText(D.miniHtml(c ? { html: c.html, css: c.css, js: c.js } : e), c ? '書き換えたあとの1ファイル' : `${e.size.toLocaleString('ja-JP')}バイト以内の1ファイル`);
+    log('demo.copymini', { id: e.id, edited: !!c }, 'ok');
+  });
   $('#dCopy').addEventListener('click', () => {
     const c = getCode();
     copyText(state.tab === 'base' ? BASE_CSS : c[state.tab], { html: 'HTML', css: 'CSS', js: 'JavaScript', base: '下地CSS' }[state.tab]);
@@ -910,7 +929,9 @@ canvas, img, video { display: block; max-width: 100%; }
     } else if (id && D.byId.has(id)) {
       if (!dlg.open || !state.current || state.current.id !== id) openEntry(id, { push: false });
     } else if (dlg.open) {
+      // ブラウザの「戻る」で閉じた。積んだ履歴はもう使われたので、印を下ろす
       state.skipBack = true;
+      pushedEntry = false;
       dlg.close();
     }
   }
