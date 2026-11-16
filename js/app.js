@@ -525,7 +525,7 @@ canvas, img, video { display: block; max-width: 100%; }
     if (e.src.css.length > 40) return 'css';
     return 'html';
   }
-  let closedAt = 0; // × で閉じて history.back() した時刻。戻った先で別の項目を開き直さないために使う
+  let closedAt = null; // × で閉じて history.back() した時刻（閉じていなければ null）。戻った先で別の項目を開き直さないために使う
   function closeDetail() { if (dlg.open) dlg.close(); }
   dlg.addEventListener('close', () => {
     log('entry.close', { id: state.current && state.current.id }, 'ok');
@@ -900,8 +900,8 @@ canvas, img, video { display: block; max-width: 100%; }
       if (v === 'test' && p.get('only') && !$('#testStart').disabled) runSelfTest(p.get('only').split(',').map((s) => s.trim()).filter(Boolean));
     }
     const id = p.get('e');
-    const justClosed = performance.now() - closedAt < 1000;
-    closedAt = 0; // 「閉じた直後」の扱いは、閉じて1つ戻った最初の1回だけ
+    const justClosed = closedAt !== null && performance.now() - closedAt < 1000;
+    closedAt = null; // 「閉じた直後」の扱いは、閉じて1つ戻った最初の1回だけ
     if (id && D.byId.has(id) && !dlg.open && justClosed) {
       // × で閉じて1つ戻った先が、前に積まれた別の項目だった（直す前の版で積まれた履歴など）。開き直さずに印だけ消す
       p.delete('e');

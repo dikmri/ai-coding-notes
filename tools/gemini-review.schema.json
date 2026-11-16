@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "properties": {
+    "summary": { "type": "string", "description": "全体の評価を日本語で2〜4文" },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "severity": { "type": "string", "enum": ["高", "中", "低"] },
+          "category": { "type": "string", "description": "不具合・見た目・使いやすさ・アクセシビリティ・性能・安全・保守のどれか" },
+          "file": { "type": "string", "description": "対象のファイル（画面写真ならその画像のファイル名）" },
+          "line": { "type": "integer", "description": "行番号。分からなければ 0" },
+          "problem": { "type": "string", "description": "何が問題か。根拠となるコードや見た目の箇所を具体的に" },
+          "suggestion": { "type": "string", "description": "どう直すか" },
+          "confidence": { "type": "string", "enum": ["確か", "たぶん", "要確認"] }
+        },
+        "required": ["severity", "category", "file", "line", "problem", "suggestion", "confidence"]
+      }
+    }
+  },
+  "required": ["summary", "findings"]
+}
