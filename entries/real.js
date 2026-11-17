@@ -2195,8 +2195,8 @@ void main() {
   float jolt = exp(-fract(T / .55) * 18.) * .006 + exp(-fract(T / .55 - .18) * 18.) * .004;   // 線路の継ぎ目の揺れ
   p.y += jolt;
   float run = T * 1.;
-  // 駅（約 22 秒ごとに数秒）とトンネル（約 37 秒ごとに数秒）
-  float st = smoothstep(.0, .05, fract(T / 22.)) * smoothstep(.2, .15, fract(T / 22.));
+  // 駅（約 22 秒ごとに数秒。開いた直後に白くならないよう、11 秒ずらす）とトンネル（約 37 秒ごとに数秒）
+  float st = smoothstep(.0, .05, fract((T + 11.) / 22.)) * smoothstep(.2, .15, fract((T + 11.) / 22.));
   float tn = smoothstep(.55, .57, fract(T / 37.)) * smoothstep(.68, .66, fract(T / 37.));
   vec3 col = vec3(.008, .01, .02) + vec3(.02, .02, .03) * smoothstep(.1, -.3, p.y);
   // 遠い層: 高い建物と赤い航空障害灯（ゆっくり）
