@@ -100,7 +100,7 @@ export async function launch(os, args = {}, rect = {}) {
   /* ---------- 一覧 ---------- */
   function rebuildOrder() { order = shuffle ? L.shuffleOrder(list.length, index, Math.random) : [...list.keys()]; }
   function renderList() {
-    listEl.innerHTML = list.length ? list.map((p, i) => `<li role="option" data-i="${i}" aria-selected="${i === sel}" class="${i === index ? 'playing' : ''}${i === sel ? ' selected' : ''}"><span class="n">${i + 1}</span><span class="t">${esc(stem(p))}</span><span class="k">${extname(p).slice(1).toUpperCase()}</span></li>`).join('')
+    listEl.innerHTML = list.length ? list.map((p, i) => `<li role="option" data-i="${i}" aria-selected="${i === sel}" class="${i === index ? 'playing' : ''}${i === sel ? ' selected' : ''}"><span class="pl-num">${i + 1}</span><span class="pl-name">${esc(stem(p))}</span><span class="pl-kind">${extname(p).slice(1).toUpperCase()}</span></li>`).join('')
       : '<li class="pl-empty">曲がありません。「追加」か、ファイルをここへ落としてください。</li>';
     q('[data-count]').textContent = `${list.length} 曲`;
   }
@@ -249,7 +249,7 @@ export async function launch(os, args = {}, rect = {}) {
     const a = listEl.querySelector(`[data-i="${sel}"]`), b = listEl.querySelector(`[data-i="${r.to}"]`);
     const move = Object.hasOwn(Element.prototype, 'moveBefore') ? (n, ref) => listEl.moveBefore(n, ref) : (n, ref) => listEl.insertBefore(n, ref);
     if (dir < 0) move(a, b); else move(b, a);
-    [...listEl.querySelectorAll('li[data-i]')].forEach((li, k) => { li.dataset.i = k; li.querySelector('.n').textContent = k + 1; });
+    [...listEl.querySelectorAll('li[data-i]')].forEach((li, k) => { li.dataset.i = k; li.querySelector('.pl-num').textContent = k + 1; });
     sel = r.to; index = list.indexOf(playingPath); rebuildOrder(); persist(); markRows();
     say(`「${stem(list[sel])}」を ${sel + 1} 番目にしました。`);
   }

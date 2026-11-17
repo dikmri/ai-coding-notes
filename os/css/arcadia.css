@@ -686,7 +686,7 @@
 .arcadia .app-player .pl-small { min-height: 24px; padding: 0 8px; font: 12px/1 var(--fos-font); color: var(--fos-ink); background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 6px; }
 .arcadia .app-player .pl-list { flex: 1; min-height: 80px; margin: 0; padding: 2px; list-style: none; overflow: auto; }
 .arcadia .app-player .pl-list li[data-i] { display: grid; grid-template-columns: 2.4em 1fr auto; align-items: center; gap: 6px; }
-.arcadia .app-player .pl-list .n { color: var(--fos-ink-muted); text-align: right; font-family: var(--fos-mono); }
-.arcadia .app-player .pl-list .k { font-size: 11px; color: var(--fos-ink-muted); }
-.arcadia .app-player .pl-list li.playing .t::before { content: "▶ "; color: var(--fos-rose); }
+.arcadia .app-player .pl-list .pl-num { color: var(--fos-ink-muted); text-align: right; font-family: var(--fos-mono); }
+.arcadia .app-player .pl-list .pl-kind { font-size: 11px; color: var(--fos-ink-muted); }
+.arcadia .app-player .pl-list li.playing .pl-name::before { content: "▶ "; color: var(--fos-rose); }
 .arcadia .app-player .pl-empty { color: var(--fos-ink-muted); padding: 8px; }
