@@ -31,6 +31,7 @@ for (let i = 0; i < args.length; i++) {
   else if (a === '--name') o.name = args[++i];
   else if (a === '--pr') o.pr = args[++i];
   else if (a === '--no-injection-check') o.noGuard = true;
+  else if (a === '--fake-media') o.fakeMedia = true; // 作り物のマイクと、マイク・画面共有の許可の自動の承認（録音や画面キャプチャの確かめ）
   else if (task === null) task = a;
 }
 
@@ -108,7 +109,7 @@ async function main() {
   const [w, h] = o.size.split('x').map(Number);
   const dir = join(OUT, `browse-${stamp()}-${o.name}`);
   mkdirSync(dir, { recursive: true });
-  const page = await openBrowser({ width: w, height: h, profile: join(ROOT, 'runtime/browse-profile') });
+  const page = await openBrowser({ width: w, height: h, profile: join(ROOT, 'runtime/browse-profile'), fakeMedia: !!o.fakeMedia });
   const history = [];
   let total = 0, led = null, report = '', previous = null, n = 0;
   try {
