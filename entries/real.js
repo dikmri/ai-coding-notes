@@ -1159,7 +1159,7 @@ void main() {
   // 川床の平面を斜めに見下ろす
   float z = .55 / max(.06, .42 - p.y);
   vec2 g = vec2(p.x * z * 1.6, z * 1.4 - .3);
-  float s = psi(g), e = .01;
+  float s = psi(g) + (fbm(g * 1.8) - .5) * .06 + (noise(g * 7.) - .5) * .01, e = .01;   // ゆらぎでずらして、きれいすぎる形を崩す
   vec2 grad = vec2(psi(g + vec2(e, 0.)) - s, psi(g + vec2(0., e)) - s) / e;
   float speed = length(grad);                                   // 流線が詰まる所ほど速い
   // 絹の筋: 流線関数の値に沿った細かい縞を、流れの向きに引き伸ばす（長時間露光）
@@ -1174,7 +1174,7 @@ void main() {
   for (int i = 0; i < NR; i++) {
     vec3 r = ROCK(i);
     vec2 d = g - r.xy;
-    float dist = length(d * vec2(1., 1.3)) - r.z * (1. + (noise(vec2(atan(d.y, d.x) * 2., float(i))) - .5) * .25);
+    float dist = length(d * vec2(1., 1.3)) - r.z * (1. + (noise(vec2(atan(d.y, d.x) * 2., float(i))) - .5) * .4 + (noise(vec2(atan(d.y, d.x) * 7., float(i) + 3.)) - .5) * .12);
     float inside = smoothstep(.02, -.02, dist);
     // 丸い岩の陰: 上から見て、手前の上の面ほど明るく、苔が付く
     vec2 nn = d / r.z;
@@ -1257,20 +1257,20 @@ void main() {
   vec2 hp = p + vec2(noise(p * 6. + vec2(0, -T)) - .5, 0.) * .01 * smoothstep(.3, -.1, p.y);   // 陽炎
   float py = hp.y + .18;
   vec2 sp = vec2((hp.x - py * .2) / (.2 + py * .8), py * 1.2 - T * .05);
-  float plume = (fbm(sp * 1.6 + vec2(0., -T * .02)) * .75 + fbm(sp * 5. - T * .03) * .3) * smoothstep(1., .1, abs(sp.x)) * smoothstep(-.02, .08, py) + smoothstep(.6, .0, abs(sp.x)) * .25 * smoothstep(-.02, .1, py);
+  float plume = (fbm(sp * 1.6 + vec2(0., -T * .02)) * .7 + fbm(sp * 5. - T * .03) * .3 + fbm(sp * 13. + 7.) * .15) * smoothstep(1., .1, abs(sp.x + (fbm(vec2(py * 3., 2.)) - .5) * .6)) * smoothstep(-.02, .08, py) + smoothstep(.6, .0, abs(sp.x)) * .2 * smoothstep(-.02, .1, py);
   float dens = smoothstep(.3, .6, plume);
   vec3 smoke = mix(vec3(.012, .011, .013), vec3(.05, .045, .05), plume) + vec3(1., .28, .05) * exp(-py * 4.) * plume * plume * 1.2;
   col = mix(col, smoke, dens);
   // 火山弾: 大きな放物線をゆっくり描き、光の尾を引く
-  for (int i = 0; i < 24; i++) {
-    float fi = float(i), h1 = hash(vec2(fi, 4.)), h2 = hash(vec2(fi, 9.));
+  for (int i = 0; i < 16; i++) {
+    float fi = float(i), h1 = hash(vec2(fi, 4.)), h2 = hash(vec2(fi, 9.)), sz = .2 + 1.6 * pow(hash(vec2(fi, 13.)), 3.);
     float life = fract(T * (.07 + h1 * .05) + h2), t = life * 6.;
     vec2 v0 = vec2((h1 - .5) * .22, .32 + h2 * .18);
     vec2 bp = vec2(.02, -.2) + v0 * t + vec2(0., -.5 * .028 * t * t);
     vec2 vel = v0 + vec2(0., -.028 * t), pa = p - bp, v = vel * .06;
     float k = clamp(dot(pa, v) / dot(v, v), 0., 1.), d = length(pa - v * k) * R.y;
     float cool = 1. - life;
-    col += heat(cool) * exp(-d * d * .25) * cool * step(-.25, bp.y) * 1.5;
+    col += heat(cool) * exp(-d * d * .25 / sz) * cool * step(-.25, bp.y) * 1.2 * sz * step(.25, hash(vec2(fi, floor(T * (.07 + h1 * .05) + h2))));
   }
   // 溶岩の湖: 冷えた殻のすき間で光るマグマ
   if (lake > 0.) {
@@ -1348,7 +1348,7 @@ void main() {
     float h = hash(id + fk * 17.);
     if (h < .8 + fk * .015) continue;
     vec2 o = (vec2(hash(id + 3.), hash(id + 7.)) - .5) * .5 + vec2(sin(T * 1.3 + h * 20.) * .12, 0.);   // ひらひら横に揺れる
-    float rad = (.1 + focus * .16) * (.7 + .5 * hash(id + 5.));
+    float rad = min((.1 + focus * .16) * (.7 + .5 * hash(id + 5.)), .49 - max(abs(o.x), abs(o.y)));   // 格子の外にはみ出さない
     float d = length(f - o);
     float disc = smoothstep(rad, rad * (focus < .4 ? .55 : .15), d);
     float lit = .008 + cone(p) * 1.5 + exp(-length(p - LAMP) * 4.) * .4;
@@ -1449,10 +1449,11 @@ void main() {
       const w = Math.max(1, Math.round(innerWidth * q)), h = Math.max(1, Math.round(innerHeight * q));
       if (c.width !== w || c.height !== h) { c.width = w; c.height = h; gl.viewport(0, 0, w, h); }
       const ph = (now / 1000 / 30) % 1, x = ph * 2 - 1;
-      const d = Math.sign(x) * Math.pow(Math.abs(x), 3) * 0.35;           // 皆既の近くはゆっくり進む
+      const xx = Math.sign(x) * Math.max(0, Math.abs(x) - 0.2) / 0.8;   // 真ん中の 2 割（約 6 秒）は皆既のまま
+      const d = Math.sign(xx) * Math.pow(Math.abs(xx), 3) * 0.35;          // 皆既の近くはゆっくり進む
       const seen = Math.min(1, Math.max(0, (Math.abs(d) - 0.0035) / 0.05));   // 太陽の見えている割合のめやす
       const target = seen > 0 ? 0.02 + 0.03 * (1 - seen) : 1.6;
-      exp += (target - exp) * 0.04;
+      exp += (target - exp) * (target > exp ? 0.12 : 0.2);
       gl.uniform2f(uR, w, h); gl.uniform1f(uT, now / 1000); gl.uniform1f(uD, d); gl.uniform1f(uE, exp);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       requestAnimationFrame(draw);
@@ -1516,13 +1517,13 @@ void main() {
     col = dc * day * 1.6;
     // 夜の側: 海岸の近くに街の灯りが集まる。ときどき雷雲が光る
     float coast = exp(-abs(l - .535) * 40.);
-    float city = pow(noise3(m * 22.), 5.) * 4. * (.25 + coast * 2.5) + pow(noise3(m * 70.), 7.) * 3.;
-    col += vec3(1., .68, .32) * city * landm * (1. - day) * (1. - cl * .85) * .8;
+    float city = pow(noise3(m * 22.), 4.) * 5. * (.3 + coast * 2.5) + pow(noise3(m * 70.), 6.) * 4.;
+    col += vec3(1., .68, .32) * city * landm * (1. - day) * (1. - cl * .85) * 1.2;
     float bolt = step(.997, hash(floor(m.xz * 8.) + floor(T * 3.))) * cl * (1. - day);
     col += vec3(.7, .8, 1.) * bolt * 2.;
     // 縁に近いほど大気が重なり、青く白くかすむ
     float rim = pow(1. - max(dot(n, -rd), 0.), 4.);
-    col = mix(col, vec3(.35, .6, 1.) * smoothstep(-.2, .2, sd) * 1.2, rim * .8);
+    col = col * (1. - rim * .4 * day) + vec3(.35, .6, 1.) * smoothstep(-.2, .2, sd) * rim * .7;
   }
   // 大気の層: 縁ぎりぎりを通る視線ほど明るい。昼の側は青く、昼と夜の境目は赤く
   float alt = h - 1.;
@@ -1544,7 +1545,7 @@ void main() {
     gl.attachShader(pg, sh(gl.VERTEX_SHADER, '#version 300 es\nvoid main() { gl_Position = vec4(vec2(gl_VertexID & 1, gl_VertexID >> 1) * 4. - 1., 0, 1); }'));
     gl.attachShader(pg, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(pg); gl.useProgram(pg);
     const uR = gl.getUniformLocation(pg, 'R'), uT = gl.getUniformLocation(pg, 'T'), uS = gl.getUniformLocation(pg, 'S');
-    const q = window.THUMB ? 0.35 : 0.6;
+    const q = window.THUMB ? 0.4 : 0.9;
     (function draw(now) {
       const w = Math.max(1, Math.round(innerWidth * q)), h = Math.max(1, Math.round(innerHeight * q));
       if (c.width !== w || c.height !== h) { c.width = w; c.height = h; gl.viewport(0, 0, w, h); }
@@ -1596,16 +1597,19 @@ void main() {
   vec3 ro = vec3(T * .08, 1.9, T * .15);
   vec3 rd = normalize(vec3(p.x, p.y - .2, 1.3));
   vec3 col = sky(rd), haze = mix(vec3(.42, .5, .66), vec3(1.25, .8, .48), pow(max(dot(rd, SUN), 0.), 3.));
-  float t = .3, hitT = -1.; int kind = 0;
-  for (int i = 0; i < 90; i++) {
+  float t = .3 + hash(gl_FragCoord.xy) * .05, hitT = -1.; int kind = 0;
+  for (int i = 0; i < 140; i++) {
     vec3 q = ro + rd * t;
     float hm = mount(q.xz), hc = cloudTop(q.xz);
     if (q.y < hm) { kind = 1; hitT = t; break; }
     if (q.y < hc) { kind = 2; hitT = t; break; }
-    t += max(.02, min(q.y - hm, q.y - hc) * .5) + t * .004;
+    t += max(.012, min(q.y - hm, q.y - hc) * .35) + t * .0025;
     if (t > 45.) break;
   }
   if (kind > 0) {
+    float lo = max(.3, hitT - .05), hi = hitT;                // 当たった位置を二分法で詰め直す
+    for (int k = 0; k < 5; k++) { float m = (lo + hi) * .5; vec3 qm = ro + rd * m; if (qm.y < (kind == 1 ? mount(qm.xz) : cloudTop(qm.xz))) hi = m; else lo = m; }
+    hitT = hi;
     vec3 q = ro + rd * hitT; float e = .02 + hitT * .002;
     if (kind == 1) {
       // 山肌: ほぼ影。太陽を向いた尾根だけが少し光る
@@ -1630,7 +1634,7 @@ void main() {
     gl.attachShader(pg, sh(gl.VERTEX_SHADER, '#version 300 es\nvoid main() { gl_Position = vec4(vec2(gl_VertexID & 1, gl_VertexID >> 1) * 4. - 1., 0, 1); }'));
     gl.attachShader(pg, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(pg); gl.useProgram(pg);
     const uR = gl.getUniformLocation(pg, 'R'), uT = gl.getUniformLocation(pg, 'T');
-    const q = window.THUMB ? 0.3 : 0.5;
+    const q = window.THUMB ? 0.3 : 0.6;
     (function draw(now) {
       const w = Math.max(1, Math.round(innerWidth * q)), h = Math.max(1, Math.round(innerHeight * q));
       if (c.width !== w || c.height !== h) { c.width = w; c.height = h; gl.viewport(0, 0, w, h); }
@@ -1669,13 +1673,13 @@ float ribbon(vec2 p, float k) {
   if (y < 0.) return 0.;
   float tur = smoothstep(.12, .45, y);                   // 0: 層流 1: 乱流
   float x = .015 * sin(y * 7. + T * .9 + k) * tur
-          + (fbm(vec2(y * 2.2 - T * .22, k)) - .5) * .5 * tur * tur
+          + (fbm(vec2(y * (1.6 + fract(k * .29)), k * 3.1 - T * .22)) - .5) * .7 * tur * tur
           + (noise(vec2(y * 8. - T * .8, k + 5.)) - .5) * .1 * tur;
   float w = .003 + .022 * tur * (1. + y);               // 膜の幅（上へ行くほど少し広がる）
-  float tw = y * (5. + 7. * tur) + fbm(vec2(y * 4., k + T * .1)) * 14. + T * .6;   // 膜のねじれ（周期を乱す）
-  float pw = w * abs(cos(tw)) + .002 + w * .08;         // 見かけの幅
+  float tw = y * (4. + 9. * fract(k * .37) + 6. * tur) + fbm(vec2(y * 4., k + T * .1)) * 14. + T * (.4 + fract(k * .53));   // 膜のねじれ（筋ごとに周期を変える）
+  float pw = w * abs(cos(tw)) + .002 + w * .3;          // 見かけの幅
   float d = (p.x - x) / pw;
-  return exp(-d * d) * min(4., w / pw) * smoothstep(1.1, .3, y) * (1. - tur * .35);
+  return exp(-d * d) * min(1.8, w / pw) * smoothstep(1.1, .3, y) * (1. - tur * .35);
 }
 void main() {
   vec2 p = (gl_FragCoord.xy - .5 * R) / R.y;
@@ -1743,8 +1747,9 @@ vec3 light(vec2 p, vec3 w, vec3 c, float pw) {
   vec3 r = c * pw * (1. / (1. + d * d * 1.5) + exp(-d * .25) * .06);
   // 濡れた路面の映り込み: 地面の下に反転した位置で、縦にだけ長く伸ばす
   vec2 m = proj(vec3(w.x, -w.y, w.z));
-  vec2 q = (p - m) * R.y * vec2(z / 40., z / 900.);
-  float wob = noise(vec2(p.y * 140., w.x * 3.)) * .7 + .3;
+  float down = max(0., m.y - p.y);
+  vec2 q = (p - m) * R.y * vec2(z / 40. / (1. + down * 6.), z / 900.);   // 手前ほど横にも広がる
+  float wob = smoothstep(.3, .8, noise(vec2(p.y * 90., w.x * 3. + w.z))) * .8 + noise(vec2(p.x * 300., p.y * 40.)) * .3;   // 路面のでこぼこで途切れる
   r += c * pw * .35 * exp(-q.x * q.x * .5 - q.y * q.y * .08) * wob * step(p.y, m.y + .002);
   return r;
 }
@@ -1762,9 +1767,9 @@ void main() {
   }
   // 街灯（ナトリウム灯）の列
   for (int i = 0; i < 9; i++) {
-    float z = 12. + float(i) * 22.;
-    col += light(p, vec3(-1.8, 5.5, z), vec3(1., .55, .2), 2.2);
-    col += light(p, vec3(7., 5.5, z + 11.), vec3(1., .55, .2), 1.8);
+    float fi = float(i), z = 12. + fi * 22. + (hash(vec2(fi, 3.)) - .5) * 8.;
+    col += light(p, vec3(-1.8 - hash(vec2(fi, 5.)) * .6, 5.2 + hash(vec2(fi, 6.)) * .8, z), vec3(1., .5 + hash(vec2(fi, 9.)) * .12, .2), 1.4 + hash(vec2(fi, 7.)) * 1.5);
+    if (hash(vec2(fi, 8.)) > .25) col += light(p, vec3(7. + hash(vec2(fi, 4.)) * .5, 5.4, z + 9. + hash(vec2(fi, 2.)) * 6.), vec3(1., .58, .25), 1.2 + hash(vec2(fi, 1.)) * 1.2);
   }
   // 向こうから来る車。近づくほど明るく大きく、黒い車体の縁が街灯に光る
   vec3 hl = vec3(1., .96, .9);
@@ -1787,7 +1792,7 @@ void main() {
   col += vec3(.7, .72, .75) * rain * smoothstep(.02, .3, dot(col, vec3(.3))) * .6;
   // レンズの中の反射（ゴースト）: 明るいヘッドライトを画面の中心について反対側へ
   vec2 hs = proj(vec3(4.15, .65, Z));
-  col += vec3(.2, .9, .4) * smoothstep(.03, .02, length(p + hs * .6)) * near * .12 + vec3(.7, .3, 1.) * smoothstep(.05, .04, length(p + hs * 1.1)) * near * .08;
+  col += vec3(.2, .9, .4) * smoothstep(.03, .02, length(p + hs * .6)) * near * .04 + vec3(.7, .3, 1.) * smoothstep(.05, .04, length(p + hs * 1.1)) * near * .025;
   O = vec4(film(col), 1.);
 }`;
     const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
