@@ -13,7 +13,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { CONFIG, OUT, ROOT, interact, moneyLine, log, stamp } from './lib/gemini-client.mjs';
-import { openBrowser, toPixel, sameOrigin, dragArgs } from './lib/cdp.mjs';
+import { openBrowser, toPixel, sameOrigin, dragArgs, withModifiers } from './lib/cdp.mjs';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const args = process.argv.slice(2);
@@ -75,12 +75,13 @@ async function act(page, call, startUrl) {
       await page.drag(X(d[0]), Y(d[1]), X(d[2]), Y(d[3]));
       break;
     }
+    case 'type_text':
     case 'type':
       if (a.x != null && a.y != null) await page.click(X(a.x), Y(a.y));
       await page.typeText(String(a.text ?? ''));
       if (a.press_enter) await page.key('Enter');
       break;
-    case 'press_key': await page.key(a.key); break;
+    case 'press_key': await page.key(withModifiers(a.key, a.modifiers)); break;
     case 'key_down': await page.key(a.key, 'down'); break;
     case 'key_up': await page.key(a.key, 'up'); break;
     case 'hotkey': await page.key(a.keys); break;
