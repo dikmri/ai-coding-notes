@@ -28,6 +28,7 @@ export const APPS = {
   terminal: { name: '端末', icon: 'icons/terminal.svg' },
   monitor: { name: 'システム モニタ', icon: 'icons/monitor.svg' },
   calendar: { name: 'カレンダー', icon: 'icons/calendar.svg' },
+  recorder: { name: '音声レコーダー', icon: 'icons/recorder.svg' },
   capture: { name: '画面キャプチャ', icon: 'icons/capture.svg' },
 };
 
