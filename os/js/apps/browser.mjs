@@ -56,7 +56,12 @@ export async function launch(os, args = {}, rect = {}) {
   });
   const q = (s) => win.body.querySelector(s);
   const addr = q('[data-addr]'), pages = q('[data-pages]'), tabsEl = q('[data-tabs]');
-  function say(t) { let m = t; if (m === lastMsg) m += ' '; lastMsg = m; q('.status-field[data-status]').textContent = m; }
+  // 状態の文はタブごとに持ち、選んでいるタブの文だけを出す
+  function say(text, t = cur) {
+    if (t) t.status = text;
+    if (t && t !== cur) return;
+    let m = text; if (m === lastMsg) m += ' '; lastMsg = m; q('.status-field[data-status]').textContent = m;
+  }
   const modeText = { start: 'スタートページ', search: '百科事典の検索', wiki: '読む表示（百科事典）', read: '読む表示', direct: 'そのまま表示', relay: '手元の中継で表示', vfs: '仮想ドライブ', blocked: '外のタブで開く', error: '開けませんでした' };
 
   /* ---------- 保存（仮想ドライブの /ネット） ---------- */
@@ -84,6 +89,8 @@ export async function launch(os, args = {}, rect = {}) {
     cur = t;
     for (const x of tabs) x.panel.hidden = x !== t;
     drawTabs(); syncBar();
+    win.setTitle(`${t.title} - ウェブブラウザ`);
+    say(t.status || '', t);
   }
   function closeTab(t) {
     if (tabs.length === 1) { navigate(t, 'arcadia://start'); return; }
@@ -149,7 +156,7 @@ export async function launch(os, args = {}, rect = {}) {
     const t = cur; if (!t) return;
     const e = t.entries[t.index];
     if (document.activeElement !== addr) addr.value = e?.address || '';
-    q('[data-a="back"]').disabled = t.index <= 0;
+    q('[data-a="back"]').disabled = t.index <= 0 && !t.innerNav;
     q('[data-a="forward"]').disabled = t.index >= t.entries.length - 1;
     const marked = !!e && marks.some((m) => m.url === e.address);
     const mk = q('[data-a="mark"]'); mk.setAttribute('aria-pressed', String(marked)); mk.innerHTML = marked ? '印を外す(<u>K</u>)' : '印を付ける(<u>K</u>)';
@@ -158,7 +165,7 @@ export async function launch(os, args = {}, rect = {}) {
     q('[data-a="external"]').disabled = !(p && (p.kind === 'web' || p.kind === 'read' || p.kind === 'wiki'));
     q('[data-a="reader"]').disabled = !(p && (p.kind === 'web' || p.kind === 'wiki'));
     q('[data-a="stop"]').hidden = !t.loading; q('[data-a="reload"]').hidden = !!t.loading; q('[data-progress]').hidden = !t.loading;
-    q('[data-mode]').textContent = modeText[t.mode] || '';
+    q('[data-mode]').textContent = (modeText[t.mode] || '') + (t.innerNav ? '（中で移動）' : '');
   }
 
   /* ---------- 外のページ ---------- */
@@ -166,8 +173,16 @@ export async function launch(os, args = {}, rect = {}) {
     const f = document.createElement('iframe');
     f.className = 'bw-frame'; f.setAttribute('sandbox', sandbox); f.referrerPolicy = 'strict-origin-when-cross-origin';
     f.title = 'ページの中身';
-    f.addEventListener('load', () => { if (t.frame === f) loading(t, false); });
-    t.panel.replaceChildren(f); t.frame = f;
+    // 2回目からの読み込みは、ページの中での移動（相手のサイトの中の住所は、ブラウザの決まりで OS から見えない）
+    let loads = 0;
+    f.addEventListener('load', () => {
+      if (t.frame !== f) return;
+      if (++loads === 1) { loading(t, false); return; }
+      t.innerNav = loads - 1;
+      say('ページの中で移動しました。移動した先の住所は、ブラウザの決まりで OS からは見えません。「戻る」で最初に開いたページに戻ります。', t);
+      if (t === cur) syncBar();
+    });
+    t.panel.replaceChildren(f); t.frame = f; t.innerNav = 0;
     return f;
   }
   async function renderWeb(t, url, signal) {
@@ -175,16 +190,16 @@ export async function launch(os, args = {}, rect = {}) {
     if (prefs.external.includes(host)) { renderExternalNotice(t, url, true); return { mode: 'blocked', title: host }; }
     if (await relayAvailable()) {
       const info = await relayCall('probe', url, signal);
-      if (!info.blocked) { frame(t, DIRECT_SANDBOX).src = info.url; say(`${host} をそのまま表示しています。`); return { mode: 'direct', title: host }; }
+      if (!info.blocked) { frame(t, DIRECT_SANDBOX).src = info.url; say(`${host} をそのまま表示しています。ページの中で移動した先は、住所の欄に出ないことがあります。`, t); return { mode: 'direct', title: host }; }
       const page = await relayCall('page', info.url, signal);
       if (page.html == null) { renderExternalNotice(t, info.url, false, 'このページは HTML ではないため、中継で表示できません。'); return { mode: 'blocked', title: host }; }
       t.cache = { url: page.url, html: page.html };
       frame(t, ISOLATED_SANDBOX).srcdoc = B.relayDocument(page.html, page.url);
-      say(`${host} は窓の中での表示を断るため、手元の中継で表示しています。送信（POST）とログインはできません。`);
+      say(`${host} は窓の中での表示を断るため、手元の中継で表示しています。送信（POST）とログインはできません。`, t);
       return { mode: 'relay', title: host };
     }
     frame(t, DIRECT_SANDBOX).src = url;
-    say('表示されないときは、このサイトが窓の中での表示を断っています。「外のタブで開く」を押してください。');
+    say('表示されないときは、このサイトが窓の中での表示を断っています。「外のタブで開く」を押してください。ページの中で移動した先は、住所の欄に出ないことがあります。', t);
     return { mode: 'direct', title: host };
   }
   // 中継したページからの知らせ（リンクの押下、題名、送れないフォーム）。どのタブの iframe からかを source で確かめる
@@ -207,7 +222,7 @@ export async function launch(os, args = {}, rect = {}) {
   }
 
   /* ---------- 内部のページ ---------- */
-  function doc(t, html) { const d = document.createElement('div'); d.className = 'bw-doc'; d.innerHTML = html; t.panel.replaceChildren(d); t.frame = null; return d; }
+  function doc(t, html) { const d = document.createElement('div'); d.className = 'bw-doc'; d.innerHTML = html; t.panel.replaceChildren(d); t.frame = null; t.innerNav = 0; return d; }
   function renderStart(t) {
     relayAvailable().then((relay) => {
       if (t.entries[t.index]?.address !== 'arcadia://start') return;
@@ -221,6 +236,7 @@ export async function launch(os, args = {}, rect = {}) {
         <section class="bw-sec"><h3 class="bw-h3">このブラウザのつなぎ方</h3><p>${relay ? '手元のサーバーの中継が使えます。窓の中での表示を断るサイトも、中継して窓の中に出します。' : '公開版のため、手元の中継はありません。窓の中での表示を断るサイトは、「外のタブで開く(T)」で本物のブラウザに渡してください。'}百科事典（Wikipedia）は、どちらでも窓の中で読めます。</p></section>
       </div>`);
       d.querySelector('input[type=search]')?.focus();
+      say('スタートページです。言葉を入れて探すか、住所の欄に住所を入れてください。', t);
     });
   }
   async function renderSearch(t, qtext, signal) {
@@ -229,6 +245,7 @@ export async function launch(os, args = {}, rect = {}) {
     const r = await fetch(B.wikiSearchUrl(lang, qtext), { signal });
     if (!r.ok) throw new Error(`百科事典の検索が ${r.status} を返しました`);
     const items = (await r.json())?.query?.search || [];
+    say(`「${qtext}」の検索結果です（百科事典 ${items.length} 件）。`, t);
     const web = `https://duckduckgo.com/html/?q=${encodeURIComponent(qtext)}`;
     d.innerHTML = `<div class="bw-start"><h2 class="bw-h">「${esc(qtext)}」の検索</h2>
       <p><button type="button" class="flat bw-btn" data-web="${esc(web)}">ウェブ全体で探す（DuckDuckGo）</button></p>
@@ -243,7 +260,7 @@ export async function launch(os, args = {}, rect = {}) {
     const html = await r.text();
     const d = doc(t, `<article class="bw-read"><h1 class="bw-rtitle">${esc(title)}</h1><p class="bw-dim">出典: <a class="bw-link" href="#" data-go="${esc(B.wikiPageUrl(lang, title))}">${esc(lang)}.wikipedia.org</a>（CC BY-SA）</p><div data-body></div></article>`);
     sanitizeInto(d.querySelector('[data-body]'), html, B.wikiPageUrl(lang, title), (href) => B.wikiLink(href, lang));
-    say(`百科事典の「${title}」を読む表示で出しています。`);
+    say(`百科事典の「${title}」を読む表示で出しています。`, t);
   }
   async function renderRead(t, url, signal) {
     if (!(await relayAvailable())) throw new Error('この読む表示には手元の中継が要ります（公開版では使えません）');
@@ -254,20 +271,20 @@ export async function launch(os, args = {}, rect = {}) {
     const title = (parsed.title || B.hostOf(url)).trim();
     const d = doc(t, `<article class="bw-read"><h1 class="bw-rtitle">${esc(title)}</h1><p class="bw-dim">元のページ: <a class="bw-link" href="#" data-go="${esc(page.url)}">${esc(page.url)}</a></p><div data-body></div></article>`);
     sanitizeInto(d.querySelector('[data-body]'), main.innerHTML, page.url, () => null);
-    say('本文だけを読む表示で出しています。');
+    say('本文だけを読む表示で出しています。', t);
     return { title };
   }
   async function renderVfs(t, path) {
     const st = await fs.stat(path);
     if (!st || st.kind !== 'file') throw new Error(`「${path}」が仮想ドライブにありません`);
     frame(t, ISOLATED_SANDBOX).srcdoc = await fs.readText(path);
-    say(`仮想ドライブの「${path}」を開いています（OS の保存場所には触れない、隔てた表示です）。`);
+    say(`仮想ドライブの「${path}」を開いています（OS の保存場所には触れない、隔てた表示です）。`, t);
   }
   function renderError(t, p, message) {
     const url = p.url;
     doc(t, `<div class="bw-start"><h2 class="bw-h">ページを開けませんでした</h2><p>${esc(message)}。</p>
       ${url ? `<p>住所: ${esc(url)}</p><p><button type="button" class="flat bw-btn" data-ext="${esc(url)}">外のタブで開く</button> <button type="button" class="flat bw-btn" data-a="reload">もう一度試す</button></p>` : '<p><button type="button" class="flat bw-btn" data-a="reload">もう一度試す</button></p>'}</div>`);
-    say(`開けませんでした: ${message}`); sound.play('error');
+    say(`開けませんでした: ${message}`, t); sound.play('error');
   }
   function renderExternalNotice(t, url, remembered, why = '') {
     const host = B.hostOf(url);
@@ -330,7 +347,10 @@ export async function launch(os, args = {}, rect = {}) {
   const go = () => { const v = addr.value; if (v.trim()) navigate(cur, v); };
   const acts = {
     newtab: () => { newTab(); addr.focus(); },
-    back: () => { if (cur.index > 0) { cur.index--; navigate(cur, cur.entries[cur.index].address, { push: false }); } },
+    back: () => {
+      if (cur.innerNav) { navigate(cur, cur.entries[cur.index].address, { push: false }); return; } // ページの中で移動していたら、最初に開いたページへ
+      if (cur.index > 0) { cur.index--; navigate(cur, cur.entries[cur.index].address, { push: false }); }
+    },
     forward: () => { if (cur.index < cur.entries.length - 1) { cur.index++; navigate(cur, cur.entries[cur.index].address, { push: false }); } },
     reload: () => { const e = cur.entries[cur.index]; if (e) { cur.cache = null; navigate(cur, e.address, { push: false }); } },
     stop: () => { cur.ctrl?.abort(); if (cur.frame && cur.loading) cur.frame.src = 'about:blank'; loading(cur, false); say('読み込みを止めました。'); },
