@@ -110,7 +110,8 @@ export async function launch(os, args = {}, rect = {}) {
     const px = (ev) => [Math.max(0, Math.min(r.width, ev.clientX - r.left)), Math.max(0, Math.min(r.height, ev.clientY - r.top))];
     const [x0, y0] = px(e);
     const move = (ev) => {
-      if (handle && base) sel = K.resizeRect(base, handle, ev.clientX - start.x, ev.clientY - start.y, 8);
+      // つまみで変えた範囲も、プレビューの枠の内に収める（枠の外まで引いても、はみ出さない）
+      if (handle && base) sel = K.clampRect(K.resizeRect(base, handle, ev.clientX - start.x, ev.clientY - start.y, 8), r.width, r.height) || sel;
       else { const [x1, y1] = px(ev); sel = K.normRect(x0, y0, x1, y1); }
       drawSel(); update();
     };
