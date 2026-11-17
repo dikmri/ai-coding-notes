@@ -3400,7 +3400,7 @@ dekiru.add({
   t: '回転台の上のシオリのフィギュア', y: 'かいてんだいのうえのしおりのふぃぎゅあ',
   tags: ['キャラクター', 'シオリ', '3D', 'レイマーチング', 'WebGL'],
   d: 'シオリの小さなフィギュアを、撮影用の回転台に載せて撮ったような映像。頭・髪・ケープ・プリーツスカート・ブーツを、距離関数を組み合わせて立体にし、レイマーチングで描く。部品どうしは材質が混ざらないよう別々に扱う。目・頬・口は、本物のフィギュアと同じように顔の面に印刷する。照明は撮影スタジオと同じく、正面の主光、後ろからの輪郭光、反対側の補助光の3つを使う。机には柔らかい影が落ち、塗装した樹脂のつやが回るにつれて表面を流れていく。ときどきまばたきもする。',
-  p: 'キャラクターをそのまま実写に寄せるより、「撮影したフィギュア」として見せると本物らしくなる。光の映り込み、柔らかい影、周りの物に遮られた暗さ（環境遮蔽）が、立体の手触りを伝える。',
+  p: 'キャラクターをそのまま実写に寄せるより、「撮影したフィギュア」として見せると本物らしくなる。光の映り込み、柔らかい影、周りの物に遮られた暗さ（環境遮蔽）で、表面の質感や立体感が出る。',
   html: `<canvas id="c" role="img" aria-label="回転台の上でゆっくり回る、キャラクター「シオリ」の小さなフィギュア"></canvas>`,
   css: `body { background: #000; overflow: hidden; } canvas { display: block; width: 100vw; height: 100vh; }`,
   js() {
@@ -3425,45 +3425,45 @@ vec2 U(vec2 a, vec2 b) { return a.x < b.x ? a : b; }
 // 材質: 0 机、1 回転台、2 肌、3 髪、4 白いシャツ、5 紺のケープ、6 灰色のスカート、7 ブーツ、8 琥珀色、9 橙のリボン
 vec2 figure(vec3 q) {
   vec3 qb = vec3(abs(q.x), q.y, q.z);
-  vec2 r = vec2(sdBox(qb - vec3(.1, .075, .03), vec3(.04, .04, .07), .03), 7.);
-  r = U(r, vec2(sdCap(qb, vec3(.09, .13, 0.), vec3(.085, .42, 0.), .04), 2.));
+  vec2 r = vec2(sdBox(qb - vec3(.07, .055, .02), vec3(.026, .045, .05), .02), 7.);
+  r = U(r, vec2(min(sdCap(qb, vec3(.066, .1, 0.), vec3(.06, .56, 0.), .033), sdCap(qb, vec3(.06, .56, 0.), vec3(.068, .95, 0.), .043)), 2.));
   float ang = atan(q.z, q.x);
-  float sy = clamp((q.y - .38) / .25, 0., 1.);
-  float sk = max((length(q.xz) - mix(.25, .135, sy) - .012 * cos(ang * 14.) * (1. - sy)) * .85, max(q.y - .63, .38 - q.y + .008 * cos(ang * 14.)));
+  float sy = clamp((q.y - .7) / .47, 0., 1.);
+  float sk = max((length(q.xz) - mix(.2, .095, sy) - .01 * cos(ang * 14.) * (1. - sy)) * .85, max(q.y - 1.17, .7 - q.y + .008 * cos(ang * 14.)));
   r = U(r, vec2(sk, 6.));
-  r = U(r, vec2(sdEll(q - vec3(0., .75, 0.), vec3(.125, .17, .1)), 4.));
-  float cy = clamp((q.y - .66) / .26, 0., 1.);
-  float cone = (length(q.xz) - mix(.215, .1, cy)) * .9;
-  float hem = .665 + .035 * abs(fract(ang / 6.2832 * 6. + .25) - .5) * 2.;   // 裾は栞のようなV字の切れ込み
-  float cape = max(abs(cone) - .013, max(q.y - .92, hem - q.y));
-  cape = max(cape, -max(.04 - abs(q.x), -q.z));                             // 前は開いている
+  r = U(r, vec2(sdEll(q - vec3(0., 1.38, 0.), vec3(.1, .25, .075)), 4.));
+  float cy = clamp((q.y - 1.3) / .3, 0., 1.);
+  float cone = (length(q.xz) - mix(.165, .07, cy)) * .9;
+  float hem = 1.305 + .03 * abs(fract(ang / 6.2832 * 6. + .25) - .5) * 2.;   // 裾は栞のようなV字の切れ込み
+  float cape = max(abs(cone) - .011, max(q.y - 1.6, hem - q.y));
+  cape = max(cape, -max(.03 - abs(q.x), -q.z));                             // 前は開いている
   r = U(r, vec2(cape, 5.));
-  r = U(r, vec2(sdCap(qb, vec3(.13, .85, 0.), vec3(.19, .63, .02), .036), 4.));
-  r = U(r, vec2(length(qb - vec3(.2, .6, .03)) - .04, 2.));
-  r = U(r, vec2(sdCap(q, vec3(0., .86, 0.), vec3(0., .98, 0.), .045), 2.));
-  r = U(r, vec2(sdBox(q - vec3(0., .9, 0.), vec3(.045, .014, .045), .012), 4.));
-  r = U(r, vec2(sdBox(q - vec3(0., .872, .066), vec3(.02, .015, .008), .006), 9.));
-  r = U(r, vec2(sdBox(q - vec3(0., .81, .082), vec3(.015, .05, .003), .003), 9.));
+  r = U(r, vec2(min(sdCap(qb, vec3(.105, 1.56, 0.), vec3(.15, 1.3, 0.), .03), sdCap(qb, vec3(.15, 1.3, 0.), vec3(.16, 1.08, .03), .026)), 4.));
+  r = U(r, vec2(length(qb - vec3(.163, 1.045, .035)) - .03, 2.));
+  r = U(r, vec2(sdCap(q, vec3(0., 1.58, 0.), vec3(0., 1.7, 0.), .03), 2.));
+  r = U(r, vec2(sdBox(q - vec3(0., 1.605, 0.), vec3(.032, .012, .03), .01), 4.));
+  r = U(r, vec2(sdBox(q - vec3(0., 1.585, .044), vec3(.014, .01, .006), .004), 9.));
+  r = U(r, vec2(sdBox(q - vec3(0., 1.535, .056), vec3(.011, .035, .003), .002), 9.));
   for (int i = 0; i < 2; i++) {   // 背中の長いリボン（2本に分かれて揺れる）
     float s = float(i) * 2. - 1.;
-    vec3 rp = q - vec3(s * .03, .6, -.16 - (.9 - q.y) * .1);
-    rp.x -= sin(q.y * 8. + T * 2. + s) * .02 * (.9 - q.y);
-    r = U(r, vec2(sdBox(rp, vec3(.015, .28, .003), .002) * .9, 9.));
+    vec3 rp = q - vec3(s * .02, 1.22, -.1 - (1.6 - q.y) * .08);
+    rp.x -= sin(q.y * 8. + T * 2. + s) * .015 * (1.6 - q.y);
+    r = U(r, vec2(sdBox(rp, vec3(.011, .38, .003), .002) * .9, 9.));
   }
-  vec3 hq = q - vec3(0., 1.3, 0.);
-  r = U(r, vec2(sdEll(hq, vec3(.38, .35, .34)), 2.));
+  vec3 hq = q - vec3(0., 1.83, 0.);
+  r = U(r, vec2(sdEll(hq, vec3(.145, .165, .14)), 2.));
   float hang = atan(hq.x, hq.z);
-  float hair = sdEll(hq - vec3(0., .05, -.02), vec3(.43, .41, .42)) + (1. - abs(sin(hang * 7. + hq.y * 2.))) * (.005 + .009 * smoothstep(.3, -.2, hq.y));   // 毛束のみぞ（頭頂から続き、下ほど深い）
-  float cut = sdEll(hq - vec3(0., -.17, .26), vec3(.31, .3 + .025 * abs(sin(hq.x * 28.)), .3));   // 顔の前を切り抜く（上の縁が前髪のぎざぎざ）
+  float hair = sdEll(hq - vec3(0., .02, -.01), vec3(.17, .18, .17)) + (1. - abs(sin(hang * 7. + hq.y * 5.))) * (.002 + .004 * smoothstep(.1, -.1, hq.y));   // 毛束のみぞ
+  float cut = sdEll(hq - vec3(0., -.065, .1), vec3(.12, .115 + .01 * abs(sin(hq.x * 70.)), .115));   // 顔の前を切り抜く（上の縁が前髪のぎざぎざ）
   hair = max(hair, -cut);
-  hair = max(hair, -.34 - hq.y + .02 * cos(hang * 6.));                                         // ボブの裾
-  hair = min(hair, sdCap(q, vec3(0., 1.74, -.03), vec3(.03, 1.9, -.01), .016));                 // アホ毛
-  hair = min(hair, sdCap(q, vec3(.03, 1.9, -.01), vec3(.12, 1.92, .02), .012));
+  hair = max(hair, -.135 - hq.y + .008 * cos(hang * 6.));                                       // ボブの裾（あごの高さ）
+  hair = min(hair, sdCap(q, vec3(0., 1.99, -.01), vec3(.012, 2.07, 0.), .007));                 // アホ毛
+  hair = min(hair, sdCap(q, vec3(.012, 2.07, 0.), vec3(.05, 2.08, .01), .005));
   r = U(r, vec2(hair, 3.));
-  vec3 pq = q - vec3(-.3, 1.5, .29);                                                            // 髪留め「＜ ＞」
-  float pin = min(sdCap(pq, vec3(0., .03, 0.), vec3(-.035, 0., 0.), .009), sdCap(pq, vec3(-.035, 0., 0.), vec3(0., -.03, 0.), .009));
-  pq = q - vec3(-.37, 1.5, .2);
-  pin = min(pin, min(sdCap(pq, vec3(-.035, .03, 0.), vec3(0., 0., 0.), .009), sdCap(pq, vec3(0., 0., 0.), vec3(-.035, -.03, 0.), .009)));
+  vec3 pq = q - vec3(-.11, 1.88, .125);                                                         // 髪留め「＜ ＞」
+  float pin = min(sdCap(pq, vec3(0., .012, 0.), vec3(-.014, 0., 0.), .0045), sdCap(pq, vec3(-.014, 0., 0.), vec3(0., -.012, 0.), .0045));
+  pq = q - vec3(-.14, 1.88, .09);
+  pin = min(pin, min(sdCap(pq, vec3(-.014, .012, 0.), vec3(0., 0., 0.), .0045), sdCap(pq, vec3(0., 0., 0.), vec3(-.014, -.012, 0.), .0045)));
   r = U(r, vec2(pin, 8.));
   return r;
 }
@@ -3471,7 +3471,7 @@ vec2 map(vec3 p) {
   vec2 r = vec2(p.y, 0.);
   r = U(r, vec2(sdCyl(p - vec3(0., .03, 0.), .5, .026) - .008, 1.));
   vec3 q = p - vec3(0., .064, 0.); q.xz = rot(A) * q.xz;
-  float bound = max(length(q.xz) - .55, max(q.y - 2.05, -q.y));
+  float bound = max(length(q.xz) - .55, max(q.y - 2.15, -q.y));
   if (bound > .1) return U(r, vec2(bound, 0.));
   return U(r, figure(q));
 }
@@ -3489,7 +3489,7 @@ vec3 env(vec3 d) {
   c += vec3(3.) * smoothstep(.9, .97, dot(d, KEY)) + vec3(1.2, 1.4, 1.7) * smoothstep(.93, .98, dot(d, RIM));
   return c;
 }
-// 顔に印刷した目・頬・口
+// 顔に印刷した目・頬・口（寸法は半径0.4ほどの頭で決めてあり、呼ぶ側で座標を縮めて渡す）
 vec3 decal(vec3 hq, vec3 col) {
   if (hq.z < .12) return col;
   vec2 uv = hq.xy;
@@ -3516,7 +3516,7 @@ vec3 decal(vec3 hq, vec3 col) {
 }
 void main() {
   vec2 p = (gl_FragCoord.xy - .5 * R) / R.y;
-  vec3 ro = vec3(sin(T * .13) * .2, 1.25, 4.7), ta = vec3(0., .98, 0.);
+  vec3 ro = vec3(sin(T * .13) * .2, 1.4, 5.3), ta = vec3(0., 1.06, 0.);
   vec3 f = normalize(ta - ro), r = normalize(cross(f, vec3(0., 1., 0.))), u = cross(r, f);
   vec3 rd = normalize(p.x * r + p.y * u + 2.3 * f);
   float t = 0.; vec2 h = vec2(0.);
@@ -3528,10 +3528,10 @@ void main() {
     float id = h.y;
     vec3 alb = vec3(.55, .55, .58); float shin = 8., spec = .05;
     if (id > .5 && id < 1.5) { alb = vec3(.02); shin = 120.; spec = .5; }
-    else if (id < 2.5) { alb = vec3(1., .8, .66); shin = 30.; spec = .2; if (q.y > .9) alb = decal(q - vec3(0., 1.3, 0.), alb); }
-    else if (id < 3.5) { alb = mix(vec3(.02, .03, .085), vec3(.2, .55, .9), smoothstep(1.12, .98, q.y)); shin = 30.; spec = .3; }
+    else if (id < 2.5) { alb = vec3(1., .8, .66); shin = 30.; spec = .2; if (q.y > 1.7) alb = decal((q - vec3(0., 1.83, 0.)) / .42, alb); }
+    else if (id < 3.5) { alb = mix(vec3(.02, .03, .085), vec3(.2, .55, .9), smoothstep(1.74, 1.68, q.y)); shin = 30.; spec = .3; }
     else if (id < 4.5) { alb = vec3(.86, .87, .9); shin = 25.; spec = .2; }
-    else if (id < 5.5) { alb = vec3(.025, .035, .09); shin = 50.; spec = .4; if (q.y < .7) alb = mix(alb, vec3(.95, .6, .15), smoothstep(.71, .69, q.y) * .6); }
+    else if (id < 5.5) { alb = vec3(.025, .035, .09); shin = 50.; spec = .4; if (q.y < 1.34) alb = mix(alb, vec3(.95, .6, .15), smoothstep(1.345, 1.325, q.y) * .6); }
     else if (id < 6.5) { alb = vec3(.075, .085, .12); shin = 20.; spec = .2; }
     else if (id < 7.5) { alb = vec3(.18, .1, .07); shin = 60.; spec = .5; }
     else if (id < 8.5) { alb = vec3(1., .62, .15); shin = 90.; spec = .8; }
@@ -3555,14 +3555,15 @@ void main() {
     const U = n => gl.getUniformLocation(pg, n);
     const uR = U('R'), uT = U('T'), uA = U('A'), uBL = U('BL');
     const q = window.THUMB ? 0.3 : 0.6;
-    let blinkAt = 2;
+    let blinkAt = 2, start = -1;
     (function draw(now) {
+      if (start < 0) start = now;
       const w = Math.max(1, Math.round(innerWidth * q)), h = Math.max(1, Math.round(innerHeight * q));
       if (c.width !== w || c.height !== h) { c.width = w; c.height = h; gl.viewport(0, 0, w, h); }
-      const t = now / 1000;
+      const t = (now - start) / 1000;   // 最初の描画から数える（開いたときは正面に近い向きから回り始める）
       if (t > blinkAt + .2) blinkAt = t + 2.5 + Math.random() * 3;
       const bt = (t - blinkAt) / .18, bl = bt > 0 && bt < 1 ? Math.abs(Math.cos(bt * Math.PI)) : 1;
-      gl.uniform2f(uR, w, h); gl.uniform1f(uT, t); gl.uniform1f(uA, t * .45 - .3); gl.uniform1f(uBL, bl);
+      gl.uniform2f(uR, w, h); gl.uniform1f(uT, t); gl.uniform1f(uA, t * .45 - .9); gl.uniform1f(uBL, bl);   // 開いてから約2秒で正面を向く
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       requestAnimationFrame(draw);
     })(0);
