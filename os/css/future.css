@@ -203,4 +203,6 @@ body.fos { overflow: hidden; background: #000; user-select: none; -webkit-user-s
 /* ファイルの開く・保存のダイアログ */
 .file-dlg { width: 430px; }
 .file-dlg .fd-list { height: 190px; }
-.file-dlg .fd-row { display: grid; grid-template-columns: 110px 1fr; gap: 6px; align-items: center; margin-top: 6px; }
+.file-dlg .fd-row { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 6px; align-items: center; margin-top: 6px; }
+/* 拡張子の一覧が長いとき（音楽プレーヤーの「音と曲」など）は折り返す。はみ出していた（Gemini の操作の確認で見つけた） */
+.file-dlg .fd-type { white-space: normal; overflow-wrap: anywhere; }

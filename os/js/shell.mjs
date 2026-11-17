@@ -24,6 +24,7 @@ export const APPS = {
   clock: { name: '時計とタイマー', icon: 'icons/clock.svg' },
   charmap: { name: '文字と色の見本帳', icon: 'icons/charmap.svg' },
   paint: { name: 'お絵かき', icon: 'icons/paint.svg' },
+  player: { name: '音楽プレーヤー', icon: 'icons/player.svg' },
 };
 
 /* ---------- 設定 ---------- */
@@ -116,7 +117,7 @@ export function fileDialog({ mode = 'open', title, dir = '/ドキュメント', 
         <div class="button-row"><button type="button" class="default" data-ok>${mode === 'save' ? '保存(<u>S</u>)' : '開く(<u>O</u>)'}</button><button type="button" data-close="">キャンセル</button></div>
       </div>`;
     dlg.querySelector('.title-bar-text').textContent = title || (mode === 'save' ? '名前を付けて保存' : '開く');
-    dlg.querySelector('.fd-type').textContent = `${typeLabel}${exts.length ? '（' + exts.map((e) => '*' + e).join(';') + '）' : ''}`;
+    dlg.querySelector('.fd-type').textContent = `${typeLabel}${exts.length ? '（' + exts.map((e) => '*' + e).join(';' + String.fromCharCode(0x200b)) + '）' : ''}`;
     document.body.append(dlg);
     const ul = dlg.querySelector('.fd-list'), nameIn = dlg.querySelector('#fdName'), dirSel = dlg.querySelector('#fdDir');
     nameIn.value = name;
@@ -179,6 +180,7 @@ const SYS = [
   { key: 'app:stickies', name: '付箋', icon: APPS.stickies.icon, open: () => launch('stickies') },
   { key: 'app:clock', name: '時計', icon: APPS.clock.icon, open: () => launch('clock') },
   { key: 'app:paint', name: 'お絵かき', icon: APPS.paint.icon, open: () => launch('paint') },
+  { key: 'app:player', name: '音楽', icon: APPS.player.icon, open: () => launch('player') },
 ];
 let deskItems = [], pos = {};
 try { pos = JSON.parse(localStorage.getItem('fos-icons') || '{}'); } catch { pos = {}; }

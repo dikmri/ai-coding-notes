@@ -661,3 +661,32 @@
 .arcadia .app-paint .pt-free { display: flex; align-items: center; gap: 6px; font-size: 12px; }
 .arcadia .app-paint .pt-free input { width: 40px; height: 28px; padding: 0; border: 2px solid var(--fos-ink); border-radius: 6px; background: none; }
 .arcadia .app-settings [data-pickwall] { margin-top: 6px; min-width: 0; padding: 0 10px; }
+
+/* ===== 音楽プレーヤー（2026-11-17） ===== */
+.arcadia .app-player .pl-main { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px; }
+.arcadia .app-player .pl-now { display: flex; flex-direction: column; gap: 6px; }
+.arcadia .app-player .pl-viz { width: 100%; height: 90px; border: 2px solid var(--fos-ink); border-radius: 8px; background: var(--fos-paper); cursor: pointer; }
+.arcadia .app-player .pl-title { font: 700 15px/1.3 var(--fos-font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.arcadia .app-player .pl-seek { display: flex; align-items: center; gap: 8px; font: 12px/1 var(--fos-mono); font-variant-numeric: tabular-nums; }
+.arcadia .app-player .pl-seek input { flex: 1; }
+.arcadia .app-player .pl-ctrls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.arcadia .app-player .pl-btn {
+  min-width: 52px; min-height: 30px; padding: 0 12px; font: 700 12.5px/1 var(--fos-font); color: var(--fos-ink);
+  background: linear-gradient(180deg, #fff, var(--fos-cream)); border: 2px solid var(--fos-ink); border-radius: 999px; box-shadow: 2px 2px 0 var(--fos-ink);
+}
+.arcadia .app-player .pl-play { min-width: 84px; background: linear-gradient(180deg, #fff7c2, var(--fos-apricot) 55%, #ff9ecf); }
+.arcadia .app-player .pl-mode { background: linear-gradient(180deg, #fff, #eae0f5); font-weight: 400; }
+.arcadia .app-player .pl-mode[aria-pressed="true"] { background: var(--fos-aqua); font-weight: 700; }
+.arcadia .app-player .pl-btn:active { translate: 1px 1px; box-shadow: 1px 1px 0 var(--fos-ink); }
+.arcadia .app-player .pl-btn:focus-visible, .arcadia .app-player .pl-small:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+.arcadia .app-player .pl-vol { display: flex; align-items: center; gap: 6px; margin-left: auto; font-size: 12px; }
+.arcadia .app-player .pl-vol input { width: 100px; }
+.arcadia .app-player .pl-listhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; flex-wrap: wrap; }
+.arcadia .app-player .pl-tools { display: flex; gap: 4px; flex-wrap: wrap; }
+.arcadia .app-player .pl-small { min-height: 24px; padding: 0 8px; font: 12px/1 var(--fos-font); color: var(--fos-ink); background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 6px; }
+.arcadia .app-player .pl-list { flex: 1; min-height: 80px; margin: 0; padding: 2px; list-style: none; overflow: auto; }
+.arcadia .app-player .pl-list li[data-i] { display: grid; grid-template-columns: 2.4em 1fr auto; align-items: center; gap: 6px; }
+.arcadia .app-player .pl-list .pl-num { color: var(--fos-ink-muted); text-align: right; font-family: var(--fos-mono); }
+.arcadia .app-player .pl-list .pl-kind { font-size: 11px; color: var(--fos-ink-muted); }
+.arcadia .app-player .pl-list li.playing .pl-name::before { content: "▶ "; color: var(--fos-rose); }
+.arcadia .app-player .pl-empty { color: var(--fos-ink-muted); padding: 8px; }

@@ -140,3 +140,16 @@ export function renderSong(song, sr, tail = 1.5) {
   e.render(out, 0, n);
   return out;
 }
+
+// .sng の中身（JSON）を、足りない値を補って鳴らせる形の曲にする（SID 風シンセと音楽プレーヤーが使う）
+export function normalizeSong(d) {
+  const s = { ...defaultSong(), ...d };
+  s.voices = [0, 1, 2].map((i) => ({ ...defaultVoice(), ...(d.voices?.[i] || {}) }));
+  s.filter = { ...defaultSong().filter, ...(d.filter || {}) };
+  s.patterns = {};
+  for (const [k, p] of Object.entries(d.patterns || { A: emptyPattern() })) s.patterns[k] = [0, 1, 2].map((v) => Array.from({ length: 16 }, (_, i) => (typeof p?.[v]?.[i] === 'number' ? p[v][i] : null)));
+  s.order = (d.order || []).filter((k) => s.patterns[k]);
+  if (!s.order.length) s.order = [Object.keys(s.patterns)[0]];
+  s.bpm = Math.max(40, Math.min(300, +s.bpm || 120));
+  return s;
+}
