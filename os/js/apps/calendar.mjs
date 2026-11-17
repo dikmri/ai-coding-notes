@@ -13,7 +13,7 @@ export async function launch(os, args = {}, rect = {}) {
   const today = () => C.localNow(new Date()).date;
   let sel = C.parseYmd(args.date) ? args.date : today(), view = C.parseYmd(sel), events = [], editId = args.id || null, lastMsg = '';
   const win = wm.open({
-    app: 'calendar', icon: 'icons/calendar.svg', className: 'app-calendar', title: 'カレンダー', w: 760, h: 520, ...rect, args: {},
+    app: 'calendar', icon: 'icons/calendar.svg', className: 'app-calendar', title: 'カレンダー', w: 880, h: 560, ...rect, args: {},
     render(w) {
       w.body.innerHTML = `<div class="cal-main">
         <section class="cal-left" aria-label="月の表">
@@ -33,7 +33,7 @@ export async function launch(os, args = {}, rect = {}) {
           </fieldset>
         </section>
       </div>
-      <div class="status-bar"><div class="status-field" role="status" data-status></div><div class="status-field" style="width:170px">予定は /ドキュメント/予定.json</div><div class="size-grip"></div></div>`;
+      <div class="status-bar"><div class="status-field" role="status" data-status></div><div class="status-field" style="width:230px">保存先: /ドキュメント/予定.json</div><div class="size-grip"></div></div>`;
     },
   });
   const q = (s) => win.body.querySelector(s);
