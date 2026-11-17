@@ -715,7 +715,9 @@
 .arcadia .app-monitor .mon-bar:hover, .arcadia .app-monitor .mon-file:hover { background: #e8fcf9; }
 .arcadia .app-monitor .mon-bar:focus-visible, .arcadia .app-monitor .mon-file:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
 .arcadia .app-monitor .mon-sub { font-weight: 700; font-size: 12.5px; }
-.arcadia .app-monitor .mon-big { margin: 0; padding: 2px; list-style: none; min-height: 60px; max-height: 180px; overflow: auto; }
+/* 大きいファイルの枠は、少なくとも4行が切れずに見える高さ（Gemini の操作の確認で、3行目が半分しか見えないと分かった） */
+.arcadia .app-monitor .mon-big { flex: 1 0 auto; margin: 0; padding: 2px; list-style: none; min-height: calc(4 * 26px + 8px); max-height: 240px; overflow: auto; }
+.arcadia .app-monitor .mon-big li + li { margin-top: 2px; }
 .arcadia .app-monitor .mon-big li { padding: 0; }
 .arcadia .app-monitor .mon-file {
   display: grid; grid-template-columns: 1fr auto auto; gap: 10px; width: 100%; min-height: 24px; padding: 2px 8px; font: 12.5px/1.2 var(--fos-font); color: var(--fos-ink);

@@ -10,7 +10,7 @@ export async function launch(os, args = {}, rect = {}) {
   let raf = 0, iv = 0, samples = [], selId = null, beep = false, fpsNow = 0;
   const counter = M.fpsCounter();
   const win = wm.open({
-    app: 'monitor', icon: 'icons/monitor.svg', className: 'app-monitor', title: 'システム モニタ', w: 600, h: 480, ...rect, args: {},
+    app: 'monitor', icon: 'icons/monitor.svg', className: 'app-monitor', title: 'システム モニタ', w: 600, h: 540, ...rect, args: {},
     render(w) {
       w.body.innerHTML = `<div class="mon-wrap"><div class="tabs">
         <div class="tab-list" role="tablist"><button type="button" class="tab" aria-selected="true">窓</button><button type="button" class="tab">ドライブ</button><button type="button" class="tab">性能</button></div>
