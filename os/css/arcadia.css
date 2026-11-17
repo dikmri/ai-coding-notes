@@ -690,3 +690,23 @@
 .arcadia .app-player .pl-list .pl-kind { font-size: 11px; color: var(--fos-ink-muted); }
 .arcadia .app-player .pl-list li.playing .pl-name::before { content: "▶ "; color: var(--fos-rose); }
 .arcadia .app-player .pl-empty { color: var(--fos-ink-muted); padding: 8px; }
+
+/* ===== 端末（2026-11-17）。作業面の決まりどおり、真珠白の地に濃い紫の等幅の文字 ===== */
+.arcadia .app-terminal .term { flex: 1; min-height: 0; overflow: auto; padding: 8px 12px; font: 13.5px/1.6 var(--fos-mono); background: var(--fos-paper); cursor: text; }
+.arcadia .app-terminal .term-row { white-space: pre-wrap; overflow-wrap: anywhere; min-height: 1.6em; }
+.arcadia .app-terminal .term-banner { font-weight: 700; color: var(--fos-cobalt); letter-spacing: 0.06em; }
+.arcadia .app-terminal .term-cmd { color: var(--fos-ink); font-weight: 700; }
+.arcadia .app-terminal .term-opts { color: var(--fos-ink-muted); }
+.arcadia .app-terminal .term-err { color: #b0245e; font-weight: 700; }
+.arcadia .app-terminal .term-path {
+  display: inline; min-width: 0; min-height: 0; padding: 0 2px; margin: 0; font: inherit; color: var(--fos-ink);
+  background: none; border: 0; border-radius: 3px; box-shadow: none; text-align: left; cursor: pointer;
+}
+.arcadia .app-terminal .term-path.dir { color: var(--fos-cobalt); font-weight: 700; }
+.arcadia .app-terminal .term-path:hover { background: #e8fcf9; text-decoration: underline; }
+.arcadia .app-terminal .term-path:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 0; }
+.arcadia .app-terminal .term-line { display: flex; align-items: baseline; gap: 8px; }
+.arcadia .app-terminal .term-prompt { flex: none; color: var(--fos-rose); font-weight: 700; }
+.arcadia .app-terminal .term-in { flex: 1; min-width: 0; min-height: 0; padding: 0; font: inherit; color: var(--fos-ink); background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+.arcadia .app-terminal .term-in:focus-visible { outline: none; box-shadow: none; border: 0; }
+.arcadia .app-terminal .term:focus-within .term-line { background: linear-gradient(90deg, rgb(107 242 227 / 0.18), transparent 70%); border-radius: 4px; }
