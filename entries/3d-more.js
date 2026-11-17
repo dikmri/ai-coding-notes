@@ -1261,8 +1261,8 @@ dekiru.add({
   t: 'VRoid のキャラをアニメ調で描く', y: 'ぶいろいどのきゃらをあにめちょうでえがく',
   tags: ['3D', 'VRM', 'アニメ調', 'スキニング', 'WebGL'],
   data: ['data/vroid-b.js'], nt: true,
-  d: 'VRoid の公式サンプル「AvatarSample_B」の 3D モデルを、ライブラリを使わずに WebGL2 で描く。元の VRM（28MB）を変換の道具で JavaScript のデータ（約 1.4MB）にし、この項目を開いたときだけ読み込む。形は 113 本の骨に結び付けてあり、骨の向きから頂点の位置を毎回計算する（スキニング）。陰影は VRM の標準のアニメ調の決まり（MToon）にならい、光の当たり方で基本の色と影の色を切り替える。輪郭線は、裏返した形を少し膨らませて描く。カメラは全身の周りを回り、14 秒ごとに顔に寄る。画面を押すと、顔に寄る・全身に戻るを切り替える。まばたきは、モデルに入っている表情のデータで動かす。',
-  p: '3D のモデルも、つまるところ数の並び。位置や法線を小さな整数に詰めて文字列にすれば、画像や 3D のファイルを読む仕組みを使わずに、JavaScript のデータとして持ち運べる。',
+  d: 'VRoid の公式サンプル「AvatarSample_B」を、ライブラリを使わずに WebGL2 で描く。元の VRM（28MB）を道具で JavaScript のデータ（約 1.4MB）に変換し、開いたときだけ読み込む。113 本の骨の向きから頂点の位置を毎回計算する（スキニング）。陰影は VRM 標準の MToon にならい、光の当たり方で基本の色と影の色を切り替える。輪郭線は、裏返した形を少し膨らませて描く。カメラは全身の周りを回り、14 秒ごとに顔に寄る。画面を押すと全身と顔が切り替わる。まばたきはモデルの表情データで動かす。',
+  p: '3D のモデルも、つまるところ数の並び。位置や法線を小さな整数に詰めて文字列にすれば、3D のファイルを開く仕組みを使わずに、JavaScript のデータとして扱える。',
   html: `<canvas id="c" role="img" aria-label="紫の長い髪の女の子の 3D モデルが、アニメ調の陰影で描かれ、カメラがゆっくり周りを回る"></canvas>
 <p class="credit">3D モデル: AvatarSample_B（VRoid Project）</p>`,
   css: `body { background: #1a1820; overflow: hidden; }
@@ -1351,7 +1351,7 @@ void main() {
     const FS = `#version 300 es
 precision highp float;
 uniform sampler2D TM, TA, TS; uniform int mode, isOutline; uniform float cutoff, shadeShift, shadeToony, outlineMix;
-uniform vec3 color, shadeColor, outlineColor, L, camPos; uniform float alphaFromMask;
+uniform vec3 color, shadeColor, outlineColor, L; uniform float alphaFromMask;
 in vec3 vN; in vec3 vP; in vec2 vUV; out vec4 O;
 void main() {
   vec4 m = texture(TM, vUV); float a = alphaFromMask > .5 ? texture(TA, vUV).r : 1.;
@@ -1369,7 +1369,7 @@ void main() {
 }`;
     const prog = program(VS, FS);
     const U = (n) => gl.getUniformLocation(prog, n);
-    const u = Object.fromEntries(['J', 'VP', 'outline', 'TW', 'TM', 'TA', 'TS', 'mode', 'isOutline', 'cutoff', 'shadeShift', 'shadeToony', 'outlineMix', 'color', 'shadeColor', 'outlineColor', 'L', 'camPos', 'alphaFromMask'].map((n) => [n, U(n)]));
+    const u = Object.fromEntries(['J', 'VP', 'outline', 'TW', 'TM', 'TA', 'TS', 'mode', 'isOutline', 'cutoff', 'shadeShift', 'shadeToony', 'outlineMix', 'color', 'shadeColor', 'outlineColor', 'L', 'alphaFromMask'].map((n) => [n, U(n)]));
 
     // ---- 画像（色と透明度を分けた WebP）を読む ----
     const white = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, white);
@@ -1477,14 +1477,14 @@ precision highp float; in vec2 q; out vec4 O; void main() { O = vec4(.15, .1, .2
         f.morphs.forEach((mo, k) => { const b = blinkBind.find((x) => D.meshes[x.mesh] === f.m && x.morph === k), w2 = b ? blink * b.weight : 0; if (mo.w !== w2) { mo.w = w2; changed = true; } });
         if (changed) { morphInto(f.cur, f.base, f.morphs); gl.bindBuffer(gl.ARRAY_BUFFER, f.buf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, f.cur); }
       }
-      // カメラ: 16 秒で全身の周りを 1 周し、正面を通る前後だけ顔に寄って、少し斜めの正面で止まる
-      const head = world[H.head], hp = [head[12], head[13] + .06, head[14]];
+      // カメラ: 全身の周りを 16 秒で 1 周する。14 秒ごと（押したときはすぐ）に、少し斜めの正面から顔に寄る
+      const head = world[H.head], hp = [head[12], head[13] + .09, head[14]];
       const want = t - pickedAt < 30 ? picked : Math.floor(t / 14) % 2;   // 14 秒ごとに全身と顔を切り替える。押したらしばらくそれに従う
       shown = want; near += (want - near) * Math.min(1, dt * 1.5);
       const k = near * near * (3 - 2 * near);
       const a0 = t * Math.PI * 2 / 16, sw = .3 + Math.sin(t * .35) * .35;           // 全身は 16 秒で 1 周、顔は斜めの正面で左右に振れる
       const ang = sw + Math.atan2(Math.sin(a0 - sw), Math.cos(a0 - sw)) * (1 - k);   // 近い向きへ回る
-      const tgt = [hp[0] * k, .85 + (hp[1] - .85) * k, hp[2] * k], dist = 3.4 + (.75 - 3.4) * k;
+      const tgt = [hp[0] * k, .85 + (hp[1] - .85) * k, hp[2] * k], dist = 3.4 + (.9 - 3.4) * k;   // 顔に寄っても、頭の上のリボンまで入る距離
       const eye = [tgt[0] + Math.sin(ang) * dist, tgt[1] + .15 * (1 - k) + .02, tgt[2] + Math.cos(ang) * dist];
       const VP = mul(persp(.5, w / h, .05, 50), lookAt(eye, tgt));
       gl.disable(gl.DEPTH_TEST); gl.useProgram(bgProg); gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -1492,7 +1492,7 @@ precision highp float; in vec2 q; out vec4 O; void main() { O = vec4(.15, .1, .2
       gl.useProgram(shadowProg); gl.uniformMatrix4fv(gl.getUniformLocation(shadowProg, 'VP'), false, VP); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.clear(gl.DEPTH_BUFFER_BIT);
       gl.useProgram(prog);
-      gl.uniformMatrix4fv(u.VP, false, VP); gl.uniform3fv(u.L, L); gl.uniform3fv(u.camPos, eye);
+      gl.uniformMatrix4fv(u.VP, false, VP); gl.uniform3fv(u.L, L);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, jtex); gl.uniform1i(u.J, 0);
       for (const pass of [0, 1]) for (const d of draws) {
         const m = d.mat;
