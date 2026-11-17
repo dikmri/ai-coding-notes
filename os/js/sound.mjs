@@ -195,6 +195,8 @@ const SOUNDS = {
   pin: (t) => { fm(hz('E7'), t, 0.4, { ratio: 3.5, index: 2, vol: 0.05, wet: 0.4 }); tone(hz('B7'), t + 0.03, 0.25, { type: 'sine', vol: 0.02, wet: 0.5 }); },
   // タイマーの残り10秒の刻み
   count: (t) => fm(hz('A5'), t, 0.07, { ratio: 3, index: 0.8, vol: 0.04 }),
+  // 画面キャプチャのシャッター（プリズムがきらめくような、高い FM の音を3つ）
+  shutter: (t) => { noise(t, 0.05, { vol: 0.06, type: 'highpass', f0: 4000 }); ['B6', 'F#7', 'D#7'].forEach((n, k) => fm(hz(n), t + 0.03 + k * 0.035, 0.3, { ratio: 3.5, index: 1.6, vol: 0.04, wet: 0.4 })); },
   // プリズム回廊: 部品を回す音（ガラスを指ではじく）
   prism: (t) => fm(hz('E6'), t, 0.09, { ratio: 2.5, index: 1.1, vol: 0.045 }),
   // プリズム回廊: 水晶が満たされるたびに、Fmaj9 の音を下から1つずつ重ねる（i は満たされた数 - 1）

@@ -831,6 +831,23 @@
 .arcadia .app-recorder .rec-btn:active:not(:disabled) { translate: 1px 1px; box-shadow: 1px 1px 0 var(--fos-ink); }
 .arcadia .app-recorder .rec-btn:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
 
+/* ===== 画面キャプチャ（2026-11-17） ===== */
+.arcadia .app-capture .cap-main { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px; }
+.arcadia .app-capture .cap-bar, .arcadia .app-capture .cap-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.arcadia .app-capture .cap-bar .default { margin-left: auto; }
+.arcadia .app-capture .cap-actions button { min-width: 0; padding: 0 12px; }
+.arcadia .app-capture .cap-stage { position: relative; flex: 1; min-height: 120px; display: grid; place-items: center; overflow: hidden; border: 2px solid var(--fos-ink); border-radius: 8px; background: repeating-conic-gradient(#f4eef8 0 25%, #e9e0f2 0 50%) 0 0 / 16px 16px; }
+.arcadia .app-capture .cap-empty { max-width: 34em; margin: 16px; padding: 10px 14px; background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 8px; }
+.arcadia .app-capture .cap-canvas-box { position: relative; line-height: 0; box-shadow: 4px 4px 0 var(--fos-shadow); border: 2px solid var(--fos-ink); cursor: crosshair; touch-action: none; }
+.arcadia .app-capture .cap-canvas { display: block; }
+.arcadia .app-capture .cap-sel { position: absolute; border: 2px dashed var(--fos-ink); background: rgb(107 242 227 / 0.18); box-shadow: 0 0 0 9999px rgb(20 12 36 / 0.35); }
+.arcadia .app-capture .cap-handle { position: absolute; width: 12px; height: 12px; rotate: 45deg; border: 1.5px solid var(--fos-ink); cursor: pointer; }
+.arcadia .app-capture .cap-handle[data-h="tl"] { left: -7px; top: -7px; background: var(--fos-aqua); }
+.arcadia .app-capture .cap-handle[data-h="tr"] { right: -7px; top: -7px; background: var(--fos-sunset); }
+.arcadia .app-capture .cap-handle[data-h="bl"] { left: -7px; bottom: -7px; background: var(--fos-sunset); }
+.arcadia .app-capture .cap-handle[data-h="br"] { right: -7px; bottom: -7px; background: var(--fos-aqua); }
+.arcadia .app-capture .cap-count { position: absolute; inset: 0; display: grid; place-items: center; font: 900 96px/1 var(--fos-mono); color: var(--fos-ink); background: rgb(255 253 249 / 0.7); }
+.arcadia .app-capture .cap-msg { margin: 0; padding: 8px 10px; border: 2px solid #c2185b; border-radius: 8px; background: #fff0f5; }
 /* ===== パズル「プリズム回廊」（2026-11-17） ===== */
 .arcadia .app-puzzle .pz-main { flex: 1; min-height: 0; display: flex; gap: 10px; padding: 10px; }
 .arcadia .app-puzzle .pz-side { width: 196px; flex: none; overflow: auto; border: 2px solid var(--fos-ink); border-radius: 8px; background: var(--fos-marble); }
