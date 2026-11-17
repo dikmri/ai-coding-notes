@@ -15,7 +15,7 @@ export async function launch(os, args = {}, rect = {}) {
   if (one) { one.focus(); if (args.path) one.openProject?.(args.path); return one; }
   let project = null, files = [], cur = null, texts = {}, saved = {}, autoRun = true, sources = {}, entry = null, lastMsg = '', findHits = [], findAt = -1, escTab = false;
   const win = wm.open({
-    app: 'workshop', icon: 'icons/workshop.svg', className: 'app-workshop', title: 'コードの作業場', w: 1180, h: 720, ...rect, args: {},
+    app: 'workshop', icon: 'icons/workshop.svg', className: 'app-workshop', title: 'コードの作業場', w: 1040, h: 680, x: 24, y: 16, ...rect, args: {}, // 1つの窓だけなので、位置の指定がなければ左上寄せ（1280px の画面でもはみ出さない）
     render(w) {
       w.body.innerHTML = `<div class="ws-main">
         <div class="ws-bar" role="toolbar" aria-label="作業場の操作">
@@ -23,7 +23,7 @@ export async function launch(os, args = {}, rect = {}) {
           <label for="wsProj-${w.id}">プロジェクト(<u>P</u>):</label><select id="wsProj-${w.id}" data-proj></select>
           <button type="button" class="flat ws-btn" data-a="save" disabled>保存(<u>S</u>)</button>
           <button type="button" class="flat ws-btn ws-run" data-a="run" disabled>動かす(<u>R</u>)</button>
-          <label class="ws-check"><input type="checkbox" data-auto checked> 保存したら動かす(<u>U</u>)</label>
+          <label class="ws-check"><input type="checkbox" data-auto checked><span>保存したら動かす(<u>U</u>)</span></label>
           <button type="button" class="flat ws-btn" data-a="stop" disabled>止める(<u>T</u>)</button>
           <button type="button" class="flat ws-btn" data-a="zip" disabled>ZIP で書き出す(<u>E</u>)</button>
           <button type="button" class="flat ws-btn" data-a="register" disabled>OS に登録(<u>A</u>)...</button>
@@ -115,9 +115,10 @@ export async function launch(os, args = {}, rect = {}) {
   function paint() {
     paintQueued = 0;
     const text = ta.value;
-    hl.textContent = text + '\n';
+    // 下に何行か足しておく（長い行で文字の欄にだけ横のスクロールバーが出ても、色の層が同じだけ下へ送れるように）
+    hl.textContent = text + '\n\n\n';
     const lines = text.split('\n').length;
-    gutter.textContent = Array.from({ length: lines }, (_, i) => i + 1).join('\n') + '\n';
+    gutter.textContent = Array.from({ length: lines }, (_, i) => i + 1).join('\n') + '\n\n\n';
     syncScroll();
     if (!('highlights' in CSS)) return; // 使えないブラウザでは、色の付かない文字のまま読める
     const node = hl.firstChild, groups = {};
@@ -281,9 +282,10 @@ export async function launch(os, args = {}, rect = {}) {
     if (path !== cur) await openFile(path);
     const lines = ta.value.split('\n'); let i = 0;
     for (let k = 0; k < Math.max(0, line - 1) && k < lines.length; k++) i += lines[k].length + 1;
-    ta.focus(); ta.setSelectionRange(i, i + (lines[line - 1] || '').length);
+    // ブラウザの自動の送りを止めてから選び、送り位置をこちらで決める。次の描画でもう一度そろえる
+    ta.focus({ preventScroll: true }); ta.setSelectionRange(i, i + (lines[line - 1] || '').length);
     ta.scrollTop = Math.max(0, (line - 5) * parseFloat(getComputedStyle(ta).lineHeight || '18'));
-    caret();
+    syncScroll(); requestAnimationFrame(syncScroll); caret();
   }
 
   /* ---------- 名前を聞く小さなダイアログ ---------- */

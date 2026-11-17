@@ -966,7 +966,7 @@
 .arcadia .app-workshop .ws-gutter { width: 44px; flex: none; overflow: hidden; padding: 8px 6px 8px 0; text-align: right; color: var(--fos-ink-muted); background: var(--fos-marble); border-right: 1.5px solid var(--fos-marble-lo); user-select: none; }
 .arcadia .app-workshop .ws-code { position: relative; flex: 1; min-width: 0; }
 .arcadia .app-workshop .ws-pre, .arcadia .app-workshop .ws-ta { position: absolute; inset: 0; width: 100%; height: 100%; box-sizing: border-box; padding: 8px 10px; border: 0; border-radius: 0; overflow: hidden; }
-.arcadia .app-workshop .ws-pre { color: var(--fos-ink); pointer-events: none; }
+.arcadia .app-workshop .ws-pre { color: var(--fos-ink); pointer-events: none; padding-right: 48px; }
 .arcadia .app-workshop .ws-ta { overflow: auto; resize: none; color: transparent; caret-color: var(--fos-ink); background: transparent; outline: none; box-shadow: none; }
 .arcadia .app-workshop .ws-ta::selection { color: transparent; background: rgb(107 242 227 / 0.45); }
 .arcadia .app-workshop .ws-ta:focus-visible { box-shadow: inset 0 0 0 2px var(--fos-cobalt); }
@@ -996,7 +996,7 @@
 .arcadia .app-workshop .ws-con.warn .ws-lv { background: var(--fos-apricot); }
 .arcadia .app-workshop .ws-con.error { background: #fff0f5; }
 .arcadia .app-workshop .ws-con.error .ws-lv { background: var(--fos-sunset); }
-.arcadia .app-workshop .ws-at { padding: 0 6px; font: 11px var(--fos-mono); color: #3346c8; background: none; border: 0; text-decoration: underline; }
+.arcadia .app-workshop .ws-at { min-width: 0; min-height: 0; height: auto; line-height: 1.5; box-shadow: none; padding: 0 6px; font: 11px var(--fos-mono); color: #3346c8; background: none; border: 0; text-decoration: underline; }
 .arcadia .app-workshop .status-field[data-kind="error"] { box-shadow: inset 4px 0 0 var(--fos-sunset); }
 .arcadia .ws-dlg { min-width: 460px; }
 .arcadia .ws-dlg .ws-choices { display: grid; gap: 6px; margin: 0 0 10px; }
