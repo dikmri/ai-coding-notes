@@ -5,6 +5,7 @@ import * as sound from './sound.mjs';
 import { drawWallpaper, forgetWall } from './boot.mjs';
 import { appFor, typeName } from './core/assoc.mjs';
 import { basename, dirname, extname, normalize } from './core/path.mjs';
+import { openKey } from './core/winfind.mjs';
 
 const $ = (s) => document.querySelector(s);
 const log = (...a) => (window.dlog || (() => {}))(...a);
@@ -21,6 +22,7 @@ export const APPS = {
   calc: { name: '電卓', icon: 'icons/calc.svg' },
   stickies: { name: '付箋', icon: 'icons/stickies.svg' },
   clock: { name: '時計とタイマー', icon: 'icons/clock.svg' },
+  charmap: { name: '文字と色の見本帳', icon: 'icons/charmap.svg' },
   paint: { name: 'お絵かき', icon: 'icons/paint.svg' },
 };
 
@@ -73,19 +75,31 @@ export async function launch(app, args = {}, rect = {}) {
     return null;
   }
 }
+// 同じアプリで同じ場所を開いている窓があれば、新しく開かずにその窓を手前に出す。
+// 開いている途中（読み込み中）の窓も覚えておき、続けて2回開いても窓が二重にならないようにする
+const opening = new Map();
+async function launchAt(app, path) {
+  const open = wm.find(app, path);
+  if (open) { await wm.raise(open); log('shell.reuse', { app, path }, 'ok ' + open.id); return open; }
+  const key = openKey(app, path);
+  if (opening.has(key)) { log('shell.reuse', { app, path }, 'ok opening'); return opening.get(key); }
+  const p = launch(app, { path }).finally(() => opening.delete(key));
+  opening.set(key, p);
+  return p;
+}
 export async function openFile(path, withApp) {
   const st = await fs.stat(path);
   if (!st) { msgbox({ title: 'Future OS', text: `「${path}」が見つかりません。\n\n移動したか、消された可能性があります。`, icon: 'warning' }); return null; }
-  if (st.kind === 'dir') return launch('filer', { path });
-  const app = withApp || appFor(path);
+  if (st.kind === 'dir') return launchAt('filer', path);
+  const app = withApp || appFor(path) || (wm.find('notepad', path) ? 'notepad' : null);
   if (!app) {
     const a = await msgbox({ title: 'ファイルを開く', text: `「${basename(path)}」を開くアプリが決まっていません。\n\nメモ帳で文字として開きますか?`, icon: 'warning', buttons: ['はい(&Y)', 'いいえ(&N)'] });
     if (a !== 'はい') return null;
     addRecent(path);
-    return launch('notepad', { path });
+    return launchAt('notepad', path);
   }
   addRecent(path);
-  return launch(app, { path });
+  return launchAt(app, path);
 }
 
 /* ---------- 開く・保存のダイアログ ---------- */
@@ -154,8 +168,8 @@ export function fileDialog({ mode = 'open', title, dir = '/ドキュメント', 
 /* ---------- デスクトップ ---------- */
 const iconsEl = $('#icons'), desk = $('#desk');
 const SYS = [
-  { key: 'sys:drive', name: 'マイ ドライブ', icon: 'icons/drive.svg', open: () => launch('filer', { path: '/' }) },
-  { key: 'sys:trash', name: 'ゴミ箱', icon: 'icons/trash.svg', open: () => launch('filer', { path: fs.TRASH }), path: fs.TRASH },
+  { key: 'sys:drive', name: 'マイ ドライブ', icon: 'icons/drive.svg', open: () => launchAt('filer', '/') },
+  { key: 'sys:trash', name: 'ゴミ箱', icon: 'icons/trash.svg', open: () => launchAt('filer', fs.TRASH), path: fs.TRASH },
   { key: 'app:notepad', name: 'メモ帳', icon: APPS.notepad.icon, open: () => launch('notepad') },
   { key: 'app:modeler', name: 'ローポリ モデラー', icon: APPS.modeler.icon, open: () => launch('modeler') },
   { key: 'app:synth', name: 'SID 風シンセ', icon: APPS.synth.icon, open: () => launch('synth') },

@@ -127,6 +127,8 @@ async function pixel(args) {
     note = j.note || '';
     if (!v.ok) {
       log('gemini.pixel.invalid', { name, round }, v.errors.slice(0, 5).join(' / '));
+      // 直しの回だけが決まりに合わなかったときは、その前の正しい絵を使う（全体を失敗にしない）
+      if (round === rounds && art) { note = '直しの回の絵が決まりに合わなかったので、その前の絵を使いました。'; break; }
       if (round === rounds) throw new Error('決まりに合う絵になりませんでした: ' + v.errors.slice(0, 5).join(' / '));
       input = rules + '\n\n描くもの: ' + prompt + '\n\n前の答えは次の点が決まりに合いませんでした。直した全体を返してください。\n- ' + v.errors.slice(0, 20).join('\n- ') + '\n\n前の答え:\n' + JSON.stringify(j);
       targets = refs;

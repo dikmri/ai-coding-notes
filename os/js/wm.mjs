@@ -1,5 +1,6 @@
 // 窓の管理: 開く・閉じる・手前へ・移動・大きさ変更・端へ寄せる・最小化・最大化・タスクバー・次回の起動での開き直し
 import * as sound from './sound.mjs';
+import { findWindow } from './core/winfind.mjs';
 
 const $ = (s) => document.querySelector(s);
 const log = (...a) => (window.dlog || (() => {}))(...a);
@@ -13,6 +14,8 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 
 export const list = () => [...wins.values()];
 export const getActive = () => active;
+// 同じアプリで同じ場所（win.args.path）を開いている窓を、手前の窓から探す。無ければ null
+export const find = (app, path) => findWindow(list().sort((a, b) => b.el.style.zIndex - a.el.style.zIndex), app, path);
 
 export function open(o) {
   const id = 'w' + ++seq, d = deskRect(), n = wins.size;
@@ -123,6 +126,17 @@ export async function restore(win) {
   }
   saveSession();
 }
+// すでに開いている窓を手前に出す。最小化していれば元の大きさに戻す。
+// キーボードの焦点は、その窓で最後に焦点があった場所（無ければ最初の入力欄など）へ移す
+export async function raise(win) {
+  if (!wins.has(win.id)) return;
+  if (win.min) await restore(win);
+  else { focus(win); sound.play('select'); }
+  const last = win.lastFocus;
+  const target = last && last.isConnected && win.el.contains(last) ? last : win.body.querySelector('textarea, input, [tabindex="0"]');
+  if (target) target.focus({ preventScroll: true });
+  log('wm.raise', { app: win.app, title: win.title }, 'ok');
+}
 export function maximize(win, quiet) {
   if (win.max) return restore(win);
   win.max = true; win.el.classList.add('maximized'); maxBtn(win);
@@ -147,6 +161,7 @@ function snapTo(win, kind) {
 function bind(win) {
   const el = win.el, bar = el.querySelector('.title-bar');
   el.addEventListener('pointerdown', () => { if (active !== win) focus(win); }, true);
+  el.addEventListener('focusin', (e) => { win.lastFocus = e.target; });
   el.addEventListener('w95:window', (e) => {
     const a = e.detail.action;
     if (a === 'min') minimize(win);

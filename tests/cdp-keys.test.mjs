@@ -43,3 +43,18 @@ test('ドラッグの引数: 出発点と行き先の言い換え（x・from_x�
     imp({ x: 1, y: 2 }).then((r) => assert.equal(r, null)),
   ]);
 });
+
+test('キーの組み合わせ: 「+」そのものと、修飾キーを別に送る形（Gemini の press_key）', async () => {
+  const { withModifiers, typedText } = await import('../tools/lib/cdp.mjs');
+  assert.equal(parseCombo('+').main, '+');
+  assert.deepEqual(parseCombo('Shift++'), { modifiers: 8, mods: ['Shift'], main: '+' });
+  assert.deepEqual(parseCombo(withModifiers('a', ['Control'])), { modifiers: 2, mods: ['Control'], main: 'a' });
+  assert.equal(parseCombo(withModifiers('+', ['Shift'])).main, '+');
+  assert.deepEqual(withModifiers('Enter'), ['Enter']);
+  // 打たれる文字: Ctrl などが付けば打たない。Shift と英字は大文字
+  assert.equal(typedText('a', ['Control']), null);
+  assert.equal(typedText('u', ['Shift']), 'U');
+  assert.equal(typedText('+', ['Shift']), '+');
+  assert.equal(typedText('5', []), '5');
+  assert.equal(typedText('ArrowLeft', []), null);
+});

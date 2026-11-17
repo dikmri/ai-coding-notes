@@ -566,6 +566,64 @@
 .arcadia .app-clock table.laps td, .arcadia .app-clock table.laps th { padding: 2px 10px; text-align: right; }
 .arcadia .app-clock table.laps tr.best td { background: #e8fcf9; font-weight: 700; }
 
+/* ===== 文字と色の見本帳（2026-11-17） ===== */
+.arcadia .app-charmap .cm-wrap { flex: 1; min-height: 0; padding: 8px; display: flex; }
+.arcadia .app-charmap .tabs { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.arcadia .app-charmap .cm-page { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px; }
+.arcadia .app-charmap .cm-page[hidden] { display: none; }
+.arcadia .app-charmap .cm-bar, .arcadia .app-charmap .cm-collect { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.arcadia .app-charmap #cmQ { width: 130px; }
+.arcadia .app-charmap #cmPick { flex: 1; min-width: 120px; font-size: 16px; }
+.arcadia .app-charmap .cm-main { flex: 1; min-height: 0; display: flex; gap: 10px; }
+.arcadia .app-charmap .cm-grid {
+  flex: 1; min-width: 0; overflow: auto; align-content: start;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 2px; padding: 4px;
+  background: var(--fos-paper); border: 2px solid var(--fos-ink); border-radius: 6px;
+}
+.arcadia .app-charmap .ch {
+  display: grid; place-items: center; height: 34px; font: 18px/1 var(--fos-font); color: var(--fos-ink);
+  border: 1px solid #e6def0; border-radius: 4px; background: var(--fos-paper);
+}
+.arcadia .app-charmap .ch:hover { background: #f1fcfa; }
+.arcadia .app-charmap .ch[aria-selected="true"] { background: var(--fos-aqua); border-color: var(--fos-ink); font-weight: 700; }
+.arcadia .app-charmap .ch:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 1px; }
+.arcadia .app-charmap .cm-empty { grid-column: 1 / -1; margin: 8px; color: var(--fos-ink-muted); }
+.arcadia .app-charmap .cm-info { flex: 0 0 210px; display: flex; flex-direction: column; gap: 8px; }
+.arcadia .app-charmap .cm-big {
+  height: 96px; display: grid; place-items: center; font: 64px/1 var(--fos-font);
+  background: var(--fos-paper); border: 2px solid var(--fos-ink); border-radius: 8px;
+}
+.arcadia .app-charmap .cm-props { display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; margin: 0; font-size: 12px; }
+.arcadia .app-charmap .cm-props dt { color: var(--fos-ink-muted); }
+.arcadia .app-charmap .cm-props dd { margin: 0; font-family: var(--fos-mono); overflow-wrap: anywhere; user-select: text; }
+.arcadia .app-charmap .cm-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.arcadia .app-charmap .cm-colors { flex: 1; min-height: 0; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto 1fr; gap: 10px; overflow: auto; }
+.arcadia .app-charmap .cm-swatches { display: grid; grid-template-columns: repeat(4, 40px); gap: 6px; align-content: start; }
+.arcadia .app-charmap .cm-sw { width: 40px; height: 40px; background: var(--c); border: 2px solid var(--fos-ink); border-radius: 8px; box-shadow: 2px 2px 0 var(--fos-ink); }
+/* 選んでいる色は濃い紫の太い枠と白い縁、キーボードの位置はコバルトの点線（同じ見た目だと、どちらを見ているか紛らわしい） */
+.arcadia .app-charmap .cm-sw[aria-selected="true"] { box-shadow: 0 0 0 2px #fff, 0 0 0 5px var(--fos-ink); }
+.arcadia .app-charmap .cm-sw:focus-visible { outline: 2px dashed var(--fos-cobalt); outline-offset: 6px; }
+.arcadia .app-charmap .cm-free { grid-column: 1; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.arcadia .app-charmap #cmColor { width: 44px; height: 30px; padding: 0; border: 2px solid var(--fos-ink); border-radius: 6px; background: none; }
+.arcadia .app-charmap #cmHex { width: 90px; font-family: var(--fos-mono); }
+.arcadia .app-charmap .cm-cinfo { grid-column: 2; grid-row: 1 / 3; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.arcadia .app-charmap .cm-cname { font-weight: 700; }
+.arcadia .app-charmap .cm-previews { display: flex; gap: 8px; }
+.arcadia .app-charmap .pv { flex: 1; padding: 10px; text-align: center; font: 700 18px/1.2 var(--fos-font); border: 2px solid var(--fos-ink); border-radius: 8px; }
+.arcadia .app-charmap .pv-on { color: var(--fos-ink); }
+.arcadia .app-charmap .pv-text { background: var(--fos-paper); }
+.arcadia .app-charmap .cm-ratio { border-collapse: collapse; font-size: 12px; }
+.arcadia .app-charmap .cm-ratio th { text-align: left; font-weight: 400; color: var(--fos-ink-muted); padding: 2px 8px 2px 0; }
+.arcadia .app-charmap .cm-ratio td { font: 700 13px/1.4 var(--fos-mono); }
+.arcadia .app-charmap .cm-formats { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; }
+.arcadia .app-charmap .cm-formats code { padding: 4px 8px; font: 13px/1.4 var(--fos-mono); background: var(--fos-paper); border: 1.5px solid #b5a3ce; border-radius: 4px; user-select: text; }
+.arcadia .app-charmap .cm-near { font-size: 12px; }
+.arcadia .app-charmap .near-btn {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 2px 10px; font: 700 12px/1.2 var(--fos-font); color: var(--fos-ink);
+  background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 999px;
+}
+.arcadia .app-charmap .near-btn i { width: 14px; height: 14px; border: 1.5px solid var(--fos-ink); border-radius: 3px; }
+.arcadia .app-charmap .near-btn:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
 /* ===== お絵かき（2026-11-17） ===== */
 .arcadia .app-paint .app-body { outline: none; }
 .arcadia .app-paint .pt-main { flex: 1; min-height: 0; display: flex; }
