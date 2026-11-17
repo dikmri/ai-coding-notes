@@ -5,7 +5,7 @@ export async function launch(os, args = {}, rect = {}) {
   const win = wm.open({
     app: 'icosaria', icon: os.APPS.icosaria.icon, className: 'app-icosaria', title: '蒼海と白柱のイコサリア', w: 1000, h: 640, ...rect, args: {},
     render(w) {
-      w.body.innerHTML = '<iframe class="game-frame" src="games/icosaria/index.html" title="蒼海と白柱のイコサリア" allow="gamepad; autoplay"></iframe>';
+      w.body.innerHTML = '<iframe class="game-frame" src="games/icosaria/index.html" aria-label="蒼海と白柱のイコサリア" allow="gamepad; autoplay"></iframe>';
     },
   });
   const frame = win.body.querySelector('iframe');

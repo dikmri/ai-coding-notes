@@ -14,7 +14,7 @@ export async function launch(os, args = {}, rect = {}) {
   const win = wm.open({
     app: 'user:' + id, icon: 'icons/userapp.svg', className: 'app-user', title: app.name, w: app.w || 640, h: app.h || 480, ...rect, args: { id },
     render(w) {
-      w.body.innerHTML = `<div class="ua-main"><iframe class="ua-frame" sandbox="allow-scripts allow-modals" title="${os.esc(app.name)}"></iframe></div>
+      w.body.innerHTML = `<div class="ua-main"><iframe class="ua-frame" sandbox="allow-scripts allow-modals" aria-label="${os.esc(app.name)}"></iframe></div>
         <div class="status-bar"><div class="status-field" role="status" data-status></div><div class="size-grip"></div></div>`;
     },
   });
@@ -29,7 +29,7 @@ export async function launch(os, args = {}, rect = {}) {
   async function load() {
     const built = await build(fs, app.root, entry, files);
     const f = document.createElement('iframe');
-    f.className = 'ua-frame'; f.setAttribute('sandbox', 'allow-scripts allow-modals'); f.title = app.name;
+    f.className = 'ua-frame'; f.setAttribute('sandbox', 'allow-scripts allow-modals'); f.setAttribute('aria-label', app.name);
     win.body.querySelector('.ua-frame').replaceWith(f);
     host.attach(f); f.srcdoc = built.html;
     if (built.missing.length) status(`見つからないファイルがあります: ${built.missing.map((m) => m.slice(app.root.length + 1)).join('、')}`, 'error');
