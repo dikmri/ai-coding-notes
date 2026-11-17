@@ -59,8 +59,8 @@ export async function launch(os, args = {}, rect = {}) {
   function say(text) {
     clearTimeout(msgTimer);
     let m = text; if (m === lastMsg) m += ' '; lastMsg = m;
-    q('[data-status]').textContent = m;
-    msgTimer = setTimeout(() => { q('[data-status]').textContent = ''; lastMsg = ''; }, 4000);
+    q('.status-field[data-status]').textContent = m;
+    msgTimer = setTimeout(() => { q('.status-field[data-status]').textContent = ''; lastMsg = ''; }, 4000);
   }
   async function copy(text, what) {
     try { await navigator.clipboard.writeText(text); say(`${what}をコピーしました。`); log('charmap.copy', { text: text.slice(0, 40) }, 'ok'); return true; }

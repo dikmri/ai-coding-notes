@@ -65,8 +65,8 @@ export async function launch(os, args = {}, rect = {}) {
     let m = text;
     if (m === lastMsg) m += ' ';
     lastMsg = m;
-    q('[data-status]').textContent = m;
-    if (!keep) msgTimer = setTimeout(() => { q('[data-status]').textContent = ''; lastMsg = ''; }, 4000);
+    q('.status-field[data-status]').textContent = m;
+    if (!keep) msgTimer = setTimeout(() => { q('.status-field[data-status]').textContent = ''; lastMsg = ''; }, 4000);
   }
   function preview() {
     if (!st.expr) return null;
