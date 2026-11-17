@@ -3,6 +3,8 @@
 // ・プロジェクトのファイルをそのまま配信する
 // ・画面から送られた操作ログを logs/app.log に1行ずつ追記する
 // ・Future OS のウェブブラウザのための、手元専用の中継（/__arcadia/relay）。手元の機械と家の中のネットワークへはつながない
+// ・AI の道具（MCP）から Future OS を操作するための中継点（/__arcadia/agent、tools/lib/agent-hub.mjs）。この機械の中からだけ受ける
+// ・runtime/ は配信しない（中継点の合言葉や、確認用のブラウザの記録を置くため）
 import { createServer, request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { lookup } from 'node:dns';
@@ -13,6 +15,7 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isBlockedAddress } from '../os/js/core/netguard.mjs';
 import { frameBlocked } from '../os/js/core/browser.mjs';
+import { createAgentHub } from './lib/agent-hub.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const LOG_DIR = join(ROOT, 'logs');
@@ -27,6 +30,7 @@ const TYPES = {
 
 await mkdir(LOG_DIR, { recursive: true });
 const serverLog = (line) => appendFile(LOG_FILE, `${new Date().toISOString()} ${line}\n`).catch(() => {});
+const hub = await createAgentHub({ port: PORT, root: ROOT, log: serverLog });
 
 /* ---------- ウェブブラウザの中継（手元専用） ---------- */
 const RELAY_MAX = 5 * 1024 * 1024, RELAY_TIMEOUT = 10000, RELAY_HOPS = 5;
@@ -105,10 +109,11 @@ async function relay(req, res, url) {
   }
 }
 
-createServer(async (req, res) => {
+const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
     if (url.pathname === '/__arcadia/relay') { await relay(req, res, url); return; }
+    if (url.pathname === '/__arcadia/agent-token') { hub.handleToken(req, res); return; }
     if (req.method === 'POST' && url.pathname === '/__log') {
       let body = '';
       for await (const chunk of req) { body += chunk; if (body.length > 1e6) break; }
@@ -134,6 +139,7 @@ createServer(async (req, res) => {
     if (path.endsWith('/')) path += 'index.html';
     const file = normalize(join(ROOT, path));
     if (!file.startsWith(ROOT + sep) && file !== ROOT) { res.writeHead(403).end(); return; }
+    if (file.slice(ROOT.length + 1).split(sep)[0].toLowerCase() === 'runtime') { res.writeHead(403).end(); serverLog(`server.403 args={"path":${JSON.stringify(path)}} result=403`); return; }
     const st = await stat(file).catch(() => null);
     if (!st || !st.isFile()) {
       res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('見つかりません');
@@ -146,7 +152,14 @@ createServer(async (req, res) => {
     serverLog(`server.error args={"url":${JSON.stringify(req.url)}} result=${JSON.stringify(err.message)}`);
     res.writeHead(500).end();
   }
-}).listen(PORT, () => {
+});
+// WebSocket は MCP の中継点だけ
+server.on('upgrade', (req, socket, head) => {
+  socket.on('error', () => socket.destroy());
+  if (new URL(req.url, 'http://localhost').pathname === '/__arcadia/agent') hub.handleUpgrade(req, socket, head);
+  else socket.destroy();
+});
+server.listen(PORT, () => {
   console.log(`出来る！ http://localhost:${PORT}/   ログ: ${LOG_FILE}`);
   serverLog(`server.start args={"port":${PORT}} result=ok`);
 });

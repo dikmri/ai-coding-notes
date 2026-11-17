@@ -77,6 +77,8 @@ async function start() {
   shell.initTaskbar();
   shell.initReminders();
   wireSounds();
+  // AI の道具（MCP）からの操作を受け付ける設定なら、手元の配信の中継点へつなぐ（公開版では何もしない）
+  try { if (JSON.parse(localStorage.getItem('fos-assistant') || '{}').mcp) import('./assistant/mcp.mjs').then((m) => m.start(shell.os)); } catch { /* 設定を読めない */ }
   // 前回開いていた窓を、同じ場所・同じファイルで開き直す
   for (const s of shot ? [] : wm.loadSession()) {
     const win = await shell.launch(s.app, s.args || {}, s.rect || {});
