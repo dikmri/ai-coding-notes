@@ -151,3 +151,15 @@ test('VRM の向きへの移し方: VRM の骨（180 度回った基準の姿）
   const dirWant = Q.rotate(Q.mul(Lh, Lc), [0, 1, 0]), dirGot = Q.rotate(R, Q.rotate(Q.mul(Wm, toVrm0Rotation(Lc)), toVrm0Position([0, 1, 0])));
   assert.ok(close(dirGot, dirWant, 1e-9));
 });
+
+test('付け替え: 最初のコマの顔は水平で、腰と同じ向きを向く（BVH の頭の先の向きが傾いていても、あごが上がらない）', () => {
+  const bvh = makeBvh(2);
+  bvh.joints.find((j) => j.name === 'Head').end = [0, 13, -6];   // 頭の先が後ろへ傾いた BVH
+  const out = retarget({ rest: VRM, parent: VPARENT, map: MAP, bvh });
+  const W = {};
+  for (const v of Object.keys(VPARENT)) W[v] = VPARENT[v] ? Q.mul(W[VPARENT[v]], out.frames[0].rot[v] || [0, 0, 0, 1]) : out.frames[0].rot[v];
+  const face = Q.rotate(W.head, [0, 0, 1]), hipsFwd = Q.rotate(W.hips, [0, 0, 1]);
+  assert.ok(Math.abs(face[1]) < 1e-6, `顔が上下を向いている: ${face}`);
+  const h = Q.normalize3([hipsFwd[0], 0, hipsFwd[2]]);
+  assert.ok(face[0] * h[0] + face[2] * h[2] > 0.9999, `顔が腰と違う向き: ${face} / ${h}`);
+});

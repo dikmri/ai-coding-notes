@@ -46,6 +46,13 @@ export function retarget({ rest, parent, map, bvh }) {
     if (v === 'hips') continue;
     const pw = Wv0[parent[v]];
     if (!map[v]) { Wv0[v] = pw; continue; }   // BVH にない骨（上の胸など）は親と同じ向き
+    if (v === 'head') {
+      // 頭: BVH の「頭の先」は顔の向きと合っていないことがある（後ろへ傾いていると、あごが上がる）。
+      // 最初のコマの俳優は正面を見ている前提で、顔を水平にし、腰と同じ向きへ向ける
+      const f = Q.rotate(Wv0.hips, [0, 0, 1]);
+      Wv0[v] = Q.fromAxis([0, 1, 0], Math.atan2(f[0], f[2]));
+      continue;
+    }
     Wv0[v] = Q.mul(Q.fromTo(Q.rotate(pw, restDir(v)), dirOf(w0, v)), pw);
   }
   for (const v of Object.keys(map)) C[v] = Q.mul(Q.conj(w0.rot[J(v)]), Wv0[v]);

@@ -1521,15 +1521,16 @@ dekiru.add({
   t: 'VRoid のキャラを人の動きで動かす', y: 'ぶいろいどのきゃらをひとのうごきでうごかす',
   tags: ['3D', 'VRM', 'モーションキャプチャー', '揺れもの', 'WebGL'],
   data: ['data/vroid-b.js', 'data/motion-bn1.js'], nt: true,
-  d: 'VRoid の公式サンプル「AvatarSample_B」を、俳優の動きを記録したデータ（モーションキャプチャー）で動かす。お辞儀・手を振る・歩く・案内する・嬉しそうに手を振る・短いダンスの 6 つを順に演じ、動きと動きの間は 0.5 秒かけて混ぜる。記録の関節の回転は、変換の道具で VRoid の骨へ付け替えてある。髪・スカート・袖・胸は、モデルに入っている揺れものの設定で、遅れてついてくる動きを毎回計算する。体の当たり判定にはめり込まない。目はカメラを追い、嬉しいときは笑顔になる。画面を押すと次の動きへ進む。',
-  p: '手で姿勢を付けた動きは、どこか機械的になる。人の体の重さや、手足の動きの小さなずれは、実際の人の動きを記録したデータがいちばんよく持っている。そこに髪や服の揺れを物理で足すと、生きた動きになる。',
+  d: 'VRoid の公式サンプル「AvatarSample_B」を、俳優の動きを記録したデータ（モーションキャプチャー）で動かす。お辞儀・手を振る・嬉しそうに手を振る・歩く・案内する・短いダンスの 6 つを順に演じ、動きと動きの間は 0.5 秒かけて混ぜる。記録の関節の回転は、変換の道具で VRoid の骨へ付け替えてある。髪・スカート・袖・胸は、モデルに入っている揺れものの設定で、遅れてついてくる動きを毎回計算する。体の当たり判定にはめり込まない。目はカメラを追い、嬉しいときは笑顔になる。画面を押すと次の動きへ進む。',
+  p: '手で姿勢を付けた動きは、どこか機械的になる。実際の人の動きを記録したデータには、体の重さや手足の動きの小さなずれがそのまま入っている。そこに髪や服の揺れを物理で足すと、生きた動きになる。',
   html: `<canvas id="c" role="img" aria-label="紫の長い髪の女の子の 3D モデルが、お辞儀や手を振るなどの動きを演じ、髪とスカートが揺れる"></canvas>
 <p class="now" id="now"></p>
 <p class="credit">3D モデル: AvatarSample_B（VRoid Project）・動き: Bandai Namco Research Motiondataset（CC BY-NC 4.0）</p>`,
   css: `body { background: #1a1820; overflow: hidden; }
 canvas { display: block; width: 100vw; height: 100vh; }
-.now { position: fixed; left: 12px; top: 8px; margin: 0; font-size: 13px; color: #fffc; text-shadow: 0 1px 2px #0008; }
-.credit { position: fixed; left: 12px; bottom: 8px; margin: 0; font-size: 11px; color: #fff9; }`,
+.now, .credit { position: fixed; left: 12px; margin: 0; color: #fff; background: #0007; padding: 2px 8px; border-radius: 4px; }
+.now { top: 8px; font-size: 13px; }
+.credit { bottom: 8px; font-size: 11px; }`,
   core() {
     // データを戻す計算（変換の道具の逆）・四元数・動きの再生・揺れもの。DOM を使わない
     const TYPES = { Uint8Array, Int8Array, Uint16Array, Int16Array, Uint32Array, Float32Array };
@@ -1766,7 +1767,8 @@ void main() {
       const root = trs([0, 0, 0], R);
       skin.joints.forEach((n, j) => jdata.set(mul(mul(root, trs(Wp[n], Wq[n])), ibm.subarray(j * 16, j * 16 + 16)), j * 16));
       gl.bindTexture(gl.TEXTURE_2D, jtex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, 4, skin.joints.length, 0, gl.RGBA, gl.FLOAT, jdata);
-      return [-hipsT[0], hipsT[1], -hipsT[2]];   // 腰の位置（正面向きの空間）
+      const foot = (a, b) => [-(Wp[a][0] + Wp[b][0]) / 2, -(Wp[a][2] + Wp[b][2]) / 2];
+      return { hips: [-hipsT[0], hipsT[1], -hipsT[2]], feet: [foot(H.leftFoot, H.leftToes), foot(H.rightFoot, H.rightToes)] };   // 正面向きの空間での腰と足の位置
     }
 
     // ---- 表情: まばたき＋動きごとの表情 ----
@@ -1796,9 +1798,19 @@ void main() {
 out vec2 q; void main() { vec2 p = vec2(gl_VertexID & 1, gl_VertexID >> 1) * 4. - 1.; q = p; gl_Position = vec4(p, .999, 1); }`, `#version 300 es
 precision highp float; in vec2 q; out vec4 O;
 void main() { vec3 c = mix(vec3(.62, .58, .68), vec3(.9, .87, .92), q.y * .5 + .5); c *= 1. - .25 * dot(q * .7, q * .7); O = vec4(c, 1); }`);
+    // 床: 足もとを中心に半径 6m。奥ほど背景に溶け、50cm ごとの薄い目盛りと、腰・両足の影を落とす（足が床に着いて見える）
     const shadowProg = program(`#version 300 es
-uniform mat4 VP; uniform vec2 at; out vec2 q; void main() { vec2 p = vec2(gl_VertexID & 1, gl_VertexID >> 1) * 2. - 1.; q = p; gl_Position = VP * vec4(at.x + p.x * .45, 0., at.y + p.y * .3, 1); }`, `#version 300 es
-precision highp float; in vec2 q; out vec4 O; void main() { O = vec4(.15, .1, .2, .35 * smoothstep(1., .2, length(q))); }`);
+uniform mat4 VP; uniform vec2 at; out vec2 w; void main() { vec2 p = vec2(gl_VertexID & 1, gl_VertexID >> 1) * 2. - 1.; w = at + p * 6.; gl_Position = VP * vec4(w.x, 0., w.y, 1); }`, `#version 300 es
+precision highp float; uniform vec2 at, S0, S1, S2; in vec2 w; out vec4 O;
+float blob(vec2 c, vec2 r) { return smoothstep(1., .05, length((w - c) / r)); }
+void main() {
+  float fade = smoothstep(5.5, 1.2, length(w - at));
+  vec2 gw = fwidth(w * 2.), gg = abs(fract(w * 2. - .5) - .5) / max(gw, vec2(1e-4));
+  float line = (1. - min(min(gg.x, gg.y), 1.)) * .22;
+  float sh = max(blob(S0, vec2(.4, .3)) * .45, max(blob(S1, vec2(.08, .13)), blob(S2, vec2(.08, .13))) * .7);
+  vec3 col = mix(vec3(.6, .56, .66) * (1. - line), vec3(.18, .13, .24), sh);
+  O = vec4(col, fade * (.75 + .25 * sh));
+}`);
     const L = norm3([-.45, .65, .6]);
     let blinkAt = 2, start = null, last = 0, ok = false, look = null;
     ready.then(() => { ok = true; console.log(`動き ${clips.length} 個・合わせて ${clips.reduce((a, cl) => a + cl.len, 0).toFixed(0)} 秒・揺れもの ${springs.size} 本`); });
@@ -1815,15 +1827,17 @@ precision highp float; in vec2 q; out vec4 O; void main() { O = vec4(.15, .1, .2
       ct += dt; fade = Math.min(1, fade + dt / .5);
       if (ct > clips[ci].len && lastPose) nextClip(lastPose);
       // カメラ: 腰を追いかけ、正面の少し斜めから左右にゆっくり振れる
-      const hp = look || [0, .85, 0], ang = .35 + Math.sin(t * .2) * .4, dist = 3.2;
+      const hp = look || [0, .8, 0], ang = .35 + Math.sin(t * .2) * .4, dist = 3.5;   // 歩いて近づいても足まで入る距離
       const eye = [hp[0] + Math.sin(ang) * dist, 1.05, hp[2] + Math.cos(ang) * dist];
-      const hipsNow = pose(dt, [-eye[0], eye[1], -eye[2]]);
+      const P = pose(dt, [-eye[0], eye[1], -eye[2]]), hipsNow = P.hips;
       look = look ? look.map((v, i) => v + ([hipsNow[0], .85, hipsNow[2]][i] - v) * Math.min(1, dt * 4)) : [hipsNow[0], .85, hipsNow[2]];   // 歩いて近づいても、全身が画面に入るように追う
       expressions(t, dt);
-      const VP = mul(persp(.55, w / h, .05, 50), lookAt(eye, [look[0], .85, look[2]]));
+      const VP = mul(persp(.55, w / h, .05, 50), lookAt(eye, [look[0], .8, look[2]]));
       gl.disable(gl.DEPTH_TEST); gl.useProgram(bgProg); gl.drawArrays(gl.TRIANGLES, 0, 3);
       gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-      gl.useProgram(shadowProg); gl.uniformMatrix4fv(gl.getUniformLocation(shadowProg, 'VP'), false, VP); gl.uniform2f(gl.getUniformLocation(shadowProg, 'at'), hipsNow[0], hipsNow[2]); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      gl.useProgram(shadowProg); gl.uniformMatrix4fv(gl.getUniformLocation(shadowProg, 'VP'), false, VP); const su = (n) => gl.getUniformLocation(shadowProg, n);
+      gl.uniform2f(su('at'), look[0], look[2]); gl.uniform2f(su('S0'), hipsNow[0], hipsNow[2]); gl.uniform2fv(su('S1'), P.feet[0]); gl.uniform2fv(su('S2'), P.feet[1]);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.clear(gl.DEPTH_BUFFER_BIT);
       gl.useProgram(prog); gl.uniformMatrix4fv(u.VP, false, VP); gl.uniform3fv(u.L, L);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, jtex); gl.uniform1i(u.J, 0);
