@@ -104,6 +104,7 @@ function createAgent(os) {
     if (el.closest('[data-ai-ignore]')) throw new Error('この部品は操作できません');
     return el;
   };
+  const isSecret = (el) => el.matches('input[type=password]') || !!el.closest('[data-ai-secret]');
   const guideEl = (id, win) => (win?.el || document).querySelector(`[data-guide="${CSS.escape(id)}"]`) || document.querySelector(`[data-guide="${CSS.escape(id)}"]`);
 
   /* ---------- 見せる動き ---------- */
@@ -255,6 +256,7 @@ function createAgent(os) {
     click_element: async ({ windowId, ref, double }, signal) => { const el = refEl(windowId, ref); await press(el, signal, !!double); return { ok: true }; },
     input_text: async ({ windowId, ref, value, submit, mode }, signal) => {
       const el = refEl(windowId, ref);
+      if (isSecret(el)) throw new Error('秘密の欄（パスワードや鍵）には、AI からは書き込めません');
       await typeInto(el, value, mode, signal);
       if (submit) keyEvent(el, 'Enter');
       return { ok: true };
@@ -387,8 +389,30 @@ function createAgent(os) {
   }
   const homePos = () => ({ x: innerWidth - 96 - 24, y: innerHeight - 96 - 28 });
 
+  // 対話の1回の依頼の間、止めるボタンと Esc を有効にする。fn には止めたときに中断する signal を渡す
+  async function session(fn) {
+    await ensure();
+    const signal = begin();
+    try { return await fn(signal); } finally { end(); }
+  }
+  // 考えている間の動き（think_1 と think_2 を交互に）
+  let thinkTimer = 0;
+  function think(on) {
+    clearInterval(thinkTimer); thinkTimer = 0;
+    if (!on || !C.isVisible()) { if (!on) C.setFrame('idle_1'); return; }
+    let k = 0; C.setFrame('think_1');
+    thinkTimer = setInterval(() => C.setFrame(k++ % 2 ? 'think_1' : 'think_2'), 450);
+  }
+  // 答えを吹き出しで話す（待たずに戻る。長い文は頭だけ）
+  function speak(text) {
+    if (!C.isVisible() || !text) return;
+    const t = text.length > 90 ? text.slice(0, 88) + '…' : text;
+    C.say(t, { hold: 1800 + t.length * 35, sound: () => sound.play('type') }).then(() => C.hideBubble()).catch(() => {});
+  }
+
   return {
-    call, runGuide, stop, events, tools: A.TOOLS,
+    call, runGuide, stop, events, tools: A.TOOLS, session, think, speak,
+    ask: (text) => confirmAsk(text),
     get running() { return running > 0; },
     get guiding() { return guiding; },
     async show() { await ensure(); C.show(); }, hide: () => C.hide(), isVisible: () => C.isVisible(),
