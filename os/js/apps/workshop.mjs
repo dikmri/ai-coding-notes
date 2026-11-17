@@ -250,7 +250,8 @@ export async function launch(os, args = {}, rect = {}) {
     if (list.some((r) => r.id === id)) {
       await saveRegistry(fs, list.filter((r) => r.id !== id));
       os.events.dispatchEvent(new CustomEvent('userapps'));
-      say(`「${list.find((x) => x.id === id).name}」を OS の登録から外しました。`); sound.play('op'); // 登録したときと同じ名前で知らせる log('workshop.unregister', { id }, 'ok');
+      // 登録したときと同じ名前で知らせる
+      say(`「${list.find((x) => x.id === id).name}」を OS の登録から外しました。`); sound.play('op'); log('workshop.unregister', { id }, 'ok');
       syncRegister(); return;
     }
     const man = await manifest();
