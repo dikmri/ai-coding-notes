@@ -45,6 +45,14 @@
       "id": "open",
       "say": "では、メモ帳を開いてみますね。スタートボタンから開くところを見ていてください。",
       "emotion": "happy_1",
+      "target": {
+        "guideId": "start-button"
+      },
+      "waitFor": "next"
+    },
+    {
+      "id": "opened",
+      "say": "メモ帳が開きましたね。スタートボタンから、「プログラム」、「メモ帳」の順に押すと開けますよ。",
       "action": {
         "tool": "open_app",
         "args": {

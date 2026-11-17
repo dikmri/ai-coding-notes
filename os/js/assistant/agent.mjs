@@ -16,7 +16,7 @@ export function getAgent(os) { return (agent ??= createAgent(os)); }
 function createAgent(os) {
   const { fs, wm, log, sound } = os;
   const refs = new Map(); // windowId → Map(ref → 部品)
-  let ctrl = null, running = 0;
+  let ctrl = null, running = 0, guiding = false;
   const events = new EventTarget();
   const emit = (type, detail) => events.dispatchEvent(new CustomEvent(type, { detail }));
   const winById = (id) => wm.list().find((w) => w.id === id) || null;
@@ -109,7 +109,8 @@ function createAgent(os) {
   /* ---------- 見せる動き ---------- */
   async function approach(el, signal) {
     el.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-    const r = el.getBoundingClientRect();
+    // デスクトップのアイコンの並びのような大きな入れ物は、中の部品をまとめた範囲を指す
+    const r = A.pointRect(el.getBoundingClientRect(), [...el.children].map((c) => c.getBoundingClientRect()), { w: innerWidth, h: innerHeight });
     if (C.isVisible()) {
       await C.moveTo(C.standBeside(r), signal);
       C.highlight(r);
@@ -319,7 +320,8 @@ function createAgent(os) {
   function resolveTarget(t) {
     if (!t) return null;
     if (t.guideId) return guideEl(t.guideId);
-    if (t.selector) return document.querySelector(t.selector);
+    // 同じアプリの窓がいくつも開いているときは、いちばん手前の窓の中を先に探す
+    if (t.selector) return wm.getActive()?.el.querySelector(t.selector) || document.querySelector(t.selector);
     if (t.app) return wm.list().find((w) => w.app === t.app)?.el || null;
     return null;
   }
@@ -329,6 +331,7 @@ function createAgent(os) {
     if (errs.length) throw new Error('台本の形が正しくありません: ' + errs.join(' / '));
     const shown = C.isVisible(); C.show();
     const signal = begin();
+    guiding = true;
     log('agent.guide', { id: script.id }, 'start');
     let r = G.start();
     try {
@@ -371,6 +374,7 @@ function createAgent(os) {
       if (e.name !== 'AbortError') throw e;
       return false;
     } finally {
+      guiding = false;
       end(); C.highlight(null);
       if (!shown) C.hide(); else { await C.moveTo({ ...homePos() }, null).catch(() => {}); C.setFrame('idle_1'); }
     }
@@ -380,6 +384,7 @@ function createAgent(os) {
   return {
     call, runGuide, stop, events, tools: A.TOOLS,
     get running() { return running > 0; },
+    get guiding() { return guiding; },
     async show() { await ensure(); C.show(); }, hide: () => C.hide(), isVisible: () => C.isVisible(),
     setSpeed: (s) => C.setSpeed(s), getSpeed: () => C.getSpeed(), frameCanvas: (n) => C.frameCanvas(n),
     async goHome() { await ensure(); await C.moveTo(homePos(), null); },

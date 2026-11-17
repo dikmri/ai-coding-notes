@@ -1,12 +1,15 @@
 // AI アシスタント「イコちゃん」の見た目と動き: ドット絵（sprites.json）、歩く・飛ぶ、指さす・押す・打つ・話す、吹き出し、強調の枠。
 // 画面の一番上の層（.ai-layer）に置き、マウスの操作は通す（pointer-events: none）。止めるボタンと吹き出しの中のボタンだけは押せる。
 // 動きを減らす設定（prefers-reduced-motion）の人には、移動の動きを省く。歩く時間の計算は core/agent.mjs の walkMs。
-import { walkMs } from '../core/agent.mjs';
+import { walkMs, standSpot, bubbleSpot } from '../core/agent.mjs';
 
 const SIZE = 48, SCALE = 2, PX = SIZE * SCALE;
 let layer = null, char = null, cv = null, bubble = null, bubbleText = null, bubbleBtns = null, hl = null, stopBtn = null;
 const frames = new Map();
 let pos = { x: 0, y: 0 }, facing = 1, speed = 'normal', busy = 0, idleTimer = 0, visible = false, anim = null;
+// 吹き出しで隠したくない四角（いま指している部品）。イコちゃんが歩き出すと消す
+let avoidRect = null;
+const view = () => ({ w: innerWidth, h: innerHeight });
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 export const getSpeed = () => (reduced() ? 'instant' : speed);
 export function setSpeed(s) { speed = ['normal', 'fast', 'instant'].includes(s) ? s : 'normal'; }
@@ -86,15 +89,11 @@ function idle() {
   }, 600);
 }
 
-// 目当ての点（画面の座標）の近くへ歩く。右向きに指させるよう、相手の左に立つ（画面の左の端なら右に立って左を向く）
-export function standBeside(rect) {
-  const leftSide = rect.left - PX - 6 >= 4;
-  const x = leftSide ? rect.left - PX - 6 : Math.min(innerWidth - PX - 4, rect.right + 6);
-  const y = Math.max(4, Math.min(innerHeight - PX - 4, rect.top + rect.height / 2 - PX * 0.55));
-  return { x, y, face: leftSide ? 1 : -1 };
-}
+// 目当ての部品の横の立つ場所（計算は core/agent.mjs の standSpot）
+export function standBeside(rect) { return standSpot(rect, view(), PX); }
 export async function moveTo(to, signal) {
   busy++;
+  avoidRect = null;
   try {
     const ms = walkMs(pos, to, getSpeed());
     const face = to.face ?? (to.x >= pos.x ? 1 : -1);
@@ -125,6 +124,7 @@ export async function typeAnim(times, signal) { for (let i = 0; i < times; i++) 
 export function highlight(rect) {
   if (!hl) return;
   if (!rect) { hl.hidden = true; return; }
+  avoidRect = { left: rect.left - 8, top: rect.top - 8, width: rect.width + 16, height: rect.height + 16 };
   Object.assign(hl.style, { left: rect.left - 4 + 'px', top: rect.top - 4 + 'px', width: rect.width + 8 + 'px', height: rect.height + 8 + 'px' });
   hl.hidden = false;
 }
@@ -133,19 +133,22 @@ export function highlight(rect) {
 export async function say(text, { signal, buttons = [], hold = 0, sound } = {}) {
   busy++;
   try {
-    bubbleText.textContent = '';
     bubbleBtns.innerHTML = buttons.map((b, i) => `<button type="button" class="flat ai-bbtn${i ? '' : ' default'}" data-v="${i}">${b.label}</button>`).join('');
+    // 全文を入れた大きさを先に測って置き場所を決める（1文字ずつ出す間に、吹き出しが跳ねないように）
+    bubble.style.width = ''; bubble.style.minHeight = '';
+    bubbleText.textContent = text;
     bubble.hidden = false;
+    const cs = getComputedStyle(bubble);
+    bubble.style.width = cs.width; bubble.style.minHeight = cs.height;
     placeBubble();
     const step = getSpeed() === 'instant' ? text.length : 2;
     for (let i = 0; i < text.length; i += step) {
       bubbleText.textContent = text.slice(0, i + step);
       setFrame((i / step) % 2 ? 'talk_2' : 'talk_1');
       if (i % 6 === 0) sound?.();
-      placeBubble();
       if (step < text.length) await sleep(getSpeed() === 'fast' ? 12 : 28, signal);
     }
-    bubbleText.textContent = text; placeBubble(); setFrame('talk_2');
+    bubbleText.textContent = text; setFrame('talk_2');
     if (buttons.length) {
       const v = await new Promise((ok, ng) => {
         // 押したら吹き出しをすぐ消す（次の部品へ歩く間に、前のボタンが残らないように）
@@ -159,12 +162,13 @@ export async function say(text, { signal, buttons = [], hold = 0, sound } = {}) 
     return null;
   } finally { busy--; setFrame('idle_1'); }
 }
-export function hideBubble() { if (bubble) { bubble.hidden = true; bubbleBtns.innerHTML = ''; } }
+export function hideBubble() { if (bubble) { bubble.hidden = true; bubbleBtns.innerHTML = ''; bubble.style.width = ''; bubble.style.minHeight = ''; } }
+// 吹き出しは、イコちゃん・足元の止めるボタン・指している部品に重ならない場所へ（計算は core/agent.mjs の bubbleSpot）
 function placeBubble() {
-  const bw = bubble.offsetWidth, bh = bubble.offsetHeight;
-  let x = pos.x + PX / 2 - bw / 2, y = pos.y - bh - 8;
-  if (y < 4) y = pos.y + PX + 8;
-  x = Math.max(4, Math.min(innerWidth - bw - 4, x));
-  y = Math.max(4, Math.min(innerHeight - bh - 4, y));
-  bubble.style.left = x + 'px'; bubble.style.top = y + 'px';
+  let bottom = pos.y + PX;
+  if (!stopBtn.hidden) bottom = Math.max(bottom, stopBtn.offsetTop + stopBtn.offsetHeight);
+  const char = { left: Math.min(pos.x, stopBtn.hidden ? pos.x : stopBtn.offsetLeft), top: pos.y, width: PX, height: bottom - pos.y };
+  if (!stopBtn.hidden) char.width = Math.max(pos.x + PX, stopBtn.offsetLeft + stopBtn.offsetWidth) - char.left;
+  const s = bubbleSpot({ char, size: { w: bubble.offsetWidth, h: bubble.offsetHeight }, avoid: avoidRect ? [avoidRect] : [], view: view() });
+  bubble.style.left = s.x + 'px'; bubble.style.top = s.y + 'px';
 }

@@ -29,26 +29,32 @@ export async function launch(os, args = {}, rect = {}) {
         <section class="as-sec"><h3>使い方ガイド</h3><ul class="as-guides">${guides.map((g) => `<li><button type="button" class="flat as-btn" data-run="${esc(g.id)}">見る</button><div><b>${esc(g.title)}</b><span>${esc(g.summary || '')}</span></div></li>`).join('')}</ul></section>
         <div class="as-actions"><button type="button" class="flat as-btn as-stop" data-a="stop" disabled>止める(Esc)</button></div>
       </div>
-      <div class="status-bar"><div class="status-field" role="status" data-status></div><div class="status-field" style="width:150px" data-conn>AI: まだつないでいません</div><div class="size-grip"></div></div>`;
+      <div class="status-bar"><div class="status-field" role="status" data-status></div><div class="status-field" style="width:160px" data-conn>AI: つないでいません</div><div class="size-grip"></div></div>`;
     },
   });
   const q = (s) => win.body.querySelector(s);
-  const say = (t) => { q('.status-field[data-status]').textContent = t; };
+  const say = (t) => { const f = q('.status-field[data-status]'); f.textContent = t; f.title = t; };
   q(`input[value="${pref.speed}"]`).checked = true;
   q('[data-visible]').checked = pref.visible;
   if (pref.visible) await agent.show();
   const face = agent.frameCanvas('idle_1');
   if (face) q('.as-face').getContext('2d').drawImage(face, 0, 0);
   win.body.addEventListener('change', async (e) => {
-    if (e.target.name?.startsWith('asSpeed')) { pref.speed = e.target.value; agent.setSpeed(pref.speed); savePref(pref); say(`イコちゃんの動きを「${e.target.parentElement.textContent.trim().replace(/\(.\)$/, '')}」にしました。`); }
-    if (e.target.matches('[data-visible]')) { pref.visible = e.target.checked; savePref(pref); if (pref.visible) await agent.show(); else agent.hide(); say(pref.visible ? 'イコちゃんを画面に出しました。' : 'イコちゃんを隠しました。'); }
+    if (e.target.name?.startsWith('asSpeed')) { pref.speed = e.target.value; agent.setSpeed(pref.speed); savePref(pref); say(`動きを「${e.target.parentElement.textContent.trim().replace(/\(.\)$/, '')}」にしました。`); }
+    if (e.target.matches('[data-visible]')) {
+      pref.visible = e.target.checked; savePref(pref);
+      // 案内の途中で隠したら、案内も止める（イコちゃんのいない案内は続けない）
+      if (!pref.visible && agent.guiding) agent.stop();
+      if (pref.visible) await agent.show(); else agent.hide();
+      say(pref.visible ? 'イコちゃんを画面に出しました。' : 'イコちゃんを隠しました。');
+    }
   });
   win.body.addEventListener('click', async (e) => {
     const run = e.target.closest('[data-run]');
     if (run) {
       const g = guides.find((x) => x.id === run.dataset.run);
-      say(`「${g.title}」を始めます。Esc でいつでも止められます。`);
-      try { const done = await agent.runGuide(g); say(done ? `「${g.title}」が終わりました。` : '案内を止めました。'); }
+      say('案内中です。Esc で止められます。');
+      try { const done = await agent.runGuide(g); say(done ? '案内が終わりました。' : '案内を止めました。'); }
       catch (err) { say('案内を続けられませんでした: ' + err.message); }
       return;
     }
@@ -57,7 +63,7 @@ export async function launch(os, args = {}, rect = {}) {
   const onState = (e) => { q('[data-a="stop"]').disabled = !e.detail.running; };
   agent.events.addEventListener('state', onState);
   win.cleanup = () => agent.events.removeEventListener('state', onState);
-  say('使い方ガイドの「見る」を押すと、イコちゃんが案内します。');
+  say('ガイドを選んで「見る」を押してください。');
   log('assistant.open', { guides: guides.length }, 'ok');
   return win;
 }

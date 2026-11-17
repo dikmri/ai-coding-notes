@@ -79,6 +79,53 @@ export function walkMs(from, to, speed = 'normal') {
   return Math.round(Math.min(1600, 250 + d * 0.45));
 }
 
+/* ---------- 位置の計算（四角は { left, top, width, height }、画面は { w, h }） ---------- */
+const area = (a, b) => Math.max(0, Math.min(a.left + a.width, b.left + b.width) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.top + a.height, b.top + b.height) - Math.max(a.top, b.top));
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+// 指す範囲: 画面の半分より大きい入れ物（デスクトップのアイコンの並びなど）は、中に見えている部品をまとめた範囲にする
+export function pointRect(rect, childRects = [], view) {
+  if (rect.width <= view.w * 0.5 && rect.height <= view.h * 0.6) return rect;
+  const kids = childRects.filter((r) => r.width > 0 && r.height > 0);
+  if (!kids.length) return rect;
+  const left = Math.min(...kids.map((r) => r.left)), top = Math.min(...kids.map((r) => r.top));
+  const right = Math.max(...kids.map((r) => r.left + r.width)), bottom = Math.max(...kids.map((r) => r.top + r.height));
+  return { left, top, width: right - left, height: bottom - top };
+}
+
+// イコちゃん（px × px）の立つ場所: 部品の左に立って右を向く。左に場所がなければ右に立って左を向く。
+// 両側に場所がない大きな部品では、部品の左の端の上に立つ
+export function standSpot(rect, view, px, gap = 6, margin = 4) {
+  const y = Math.round(clamp(rect.top + rect.height / 2 - px * 0.55, margin, view.h - px - margin));
+  if (rect.left - px - gap >= margin) return { x: Math.round(rect.left - px - gap), y, face: 1 };
+  if (rect.left + rect.width + gap + px <= view.w - margin) return { x: Math.round(rect.left + rect.width + gap), y, face: -1 };
+  return { x: Math.round(clamp(rect.left + 8, margin, view.w - px - margin)), y, face: 1 };
+}
+
+// 吹き出し（size）の場所: イコちゃんの上 → 下 → 横の順に試し、画面に収めたうえで、イコちゃん（char。止めるボタンを含む）と
+// 避けたい四角（指している部品など）に重ならない最初の場所を選ぶ。イコちゃんの周りに場所がなければ、避けたい四角の下か上へ回す。
+// どこも重なるなら、重なりのいちばん小さい場所
+export function bubbleSpot({ char, size, avoid = [], view, gap = 8, margin = 4 }) {
+  const { w, h } = size, cx = char.left + char.width / 2, cy = char.top + char.height / 2;
+  const above = char.top - h - gap, below = char.top + char.height + gap;
+  const tries = [
+    [cx - w / 2, above], [char.left + char.width - w, above], [char.left, above],
+    [cx - w / 2, below], [char.left + char.width - w, below], [char.left, below],
+    [char.left - w - gap, cy - h / 2], [char.left + char.width + gap, cy - h / 2],
+    ...avoid.flatMap((a) => [[cx - w / 2, Math.max(a.top + a.height + gap, below)], [cx - w / 2, Math.min(a.top - h - gap, above)]]),
+  ];
+  const blocks = [char, ...avoid];
+  let best = null;
+  for (const [tx, ty] of tries) {
+    const x = Math.round(clamp(tx, margin, view.w - w - margin)), y = Math.round(clamp(ty, margin, view.h - h - margin));
+    const box = { left: x, top: y, width: w, height: h };
+    const cost = blocks.reduce((s, b) => s + area(box, b), 0);
+    if (!cost) return { x, y };
+    if (!best || cost < best.cost) best = { x, y, cost };
+  }
+  return { x: best.x, y: best.y };
+}
+
 // API キーらしい文字列を伏せる（記録や画面に出す前に通す）
 export function maskSecrets(text) {
   return String(text)

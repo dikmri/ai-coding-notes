@@ -85,3 +85,62 @@ test('台本の進め方: 次へ・戻る・終わり。最後の次は終わり
   r = G.next(s, r); assert.equal(r.done, true); assert.equal(G.current(s, r), null);
   assert.equal(G.progress(s, G.start(s)), '1 / 2');
 });
+
+// 位置の計算（画面 1280×800、イコちゃんは 96×96）
+const VIEW = { w: 1280, h: 800 };
+const R = (left, top, width, height) => ({ left, top, width, height });
+const hit = (a, b) => a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height;
+
+test('指す範囲: ふつうの部品はそのまま。画面の半分より大きい入れ物は、中の部品をまとめた範囲', () => {
+  assert.deepEqual(A.pointRect(R(10, 20, 100, 30), [], VIEW), R(10, 20, 100, 30));
+  // デスクトップ全体に広がるアイコンの並び → 左の列のアイコンだけを囲む
+  assert.deepEqual(A.pointRect(R(80, 0, 1200, 800), [R(100, 10, 90, 70), R(100, 90, 90, 70), R(0, 0, 0, 0)], VIEW), R(100, 10, 90, 150));
+  // 中に部品のない大きな部品（最大化したメモ帳の本文など）は、そのまま
+  assert.deepEqual(A.pointRect(R(80, 40, 1200, 700), [], VIEW), R(80, 40, 1200, 700));
+});
+
+test('立つ場所: 部品の左に立って右を向く。左に場所がなければ右に立って左を向く。両側にないときは部品の上に立つ', () => {
+  assert.deepEqual(A.standSpot(R(500, 300, 80, 40), VIEW, 96), { x: 398, y: 267, face: 1 });
+  assert.deepEqual(A.standSpot(R(16, 40, 60, 60), VIEW, 96), { x: 82, y: 17, face: -1 });
+  const wide = A.standSpot(R(60, 40, 1200, 700), VIEW, 96);
+  assert.equal(wide.face, 1);
+  assert.ok(wide.x >= 60 && wide.x + 96 <= 1260, JSON.stringify(wide));
+  // 画面の下の端では、はみ出さない
+  assert.equal(A.standSpot(R(500, 780, 80, 20), VIEW, 96).y, 800 - 96 - 4);
+});
+
+test('吹き出しの場所: 上 → 下 → 横の順に、イコちゃん・止めるボタン・指している部品と重ならない所を選ぶ', () => {
+  const size = { w: 340, h: 100 };
+  // 広い所では、イコちゃんの真上
+  assert.deepEqual(A.bubbleSpot({ char: R(600, 400, 96, 96), size, avoid: [], view: VIEW }), { x: 478, y: 292 });
+  // 画面の上の端（スタートボタンの横）: 上は入らないので、止めるボタンも含めたイコちゃんの下
+  const top = A.bubbleSpot({ char: R(82, 17, 96, 126), size, avoid: [R(12, 36, 68, 68)], view: VIEW });
+  assert.ok(top.y >= 17 + 126, JSON.stringify(top));
+  // メモ帳の本文の左に立つとき: 本文に重ならない場所（左上へ伸ばす）
+  const text = R(402, 250, 500, 350), char = R(300, 300, 96, 96);
+  const s = A.bubbleSpot({ char, size, avoid: [text], view: VIEW });
+  const b = R(s.x, s.y, size.w, size.h);
+  assert.equal(hit(b, text), false, JSON.stringify(s));
+  assert.equal(hit(b, char), false, JSON.stringify(s));
+  // どこも重なるときも、画面の中には収まる
+  const all = A.bubbleSpot({ char: R(0, 0, 96, 96), size, avoid: [R(0, 0, 1280, 800)], view: VIEW });
+  assert.ok(all.x >= 4 && all.y >= 4 && all.x + 340 <= 1276 && all.y + 100 <= 796, JSON.stringify(all));
+});
+
+test('ガイドの台本: assistant/guides の台本は、どれも形の確かめを通る', async () => {
+  const { readdirSync, readFileSync } = await import('node:fs');
+  const dir = new URL('../os/js/assistant/guides/', import.meta.url);
+  const files = readdirSync(dir).filter((n) => n.endsWith('.json'));
+  assert.ok(files.length >= 1);
+  for (const f of files) assert.deepEqual(G.validateScript(JSON.parse(readFileSync(new URL(f, dir), 'utf8'))), [], f);
+});
+
+test('吹き出しの場所: イコちゃんの横に入る幅がないときは、指している部品の上か下へ回す', () => {
+  // 画面 1366×820。メモ帳の本文（強調の枠の分だけ広げた四角）の左に、イコちゃん（止めるボタンを含む）が立つ
+  const view = { w: 1366, h: 820 }, size = { w: 360, h: 103 };
+  const text = R(242, 131, 596, 337), char = R(148, 246, 96, 124);
+  const s = A.bubbleSpot({ char, size, avoid: [text], view });
+  const b = R(s.x, s.y, size.w, size.h);
+  assert.equal(hit(b, text), false, JSON.stringify(s));
+  assert.equal(hit(b, char), false, JSON.stringify(s));
+});
