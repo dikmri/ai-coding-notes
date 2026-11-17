@@ -195,6 +195,8 @@ const SOUNDS = {
   pin: (t) => { fm(hz('E7'), t, 0.4, { ratio: 3.5, index: 2, vol: 0.05, wet: 0.4 }); tone(hz('B7'), t + 0.03, 0.25, { type: 'sine', vol: 0.02, wet: 0.5 }); },
   // タイマーの残り10秒の刻み
   count: (t) => fm(hz('A5'), t, 0.07, { ratio: 3, index: 0.8, vol: 0.04 }),
+  // 画面キャプチャのシャッター（プリズムがきらめくような、高い FM の音を3つ）
+  shutter: (t) => { noise(t, 0.05, { vol: 0.06, type: 'highpass', f0: 4000 }); ['B6', 'F#7', 'D#7'].forEach((n, k) => fm(hz(n), t + 0.03 + k * 0.035, 0.3, { ratio: 3.5, index: 1.6, vol: 0.04, wet: 0.4 })); },
   // タイマーが終わったときのチャイム（F#maj7 を2回）
   chime: (t) => [0, 0.7].forEach((d) => ['F#5', 'A#5', 'C#6', 'F6'].forEach((n, k) => fm(hz(n), t + d + k * 0.09, 1.1, { ratio: 1, index: 1.3, vol: 0.08, wet: 0.5 }))),
 };
