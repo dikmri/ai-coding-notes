@@ -103,9 +103,10 @@ export async function launch(os, args = {}, rect = {}) {
   /* ---------- タイマー ---------- */
   const minIn = q('#tmMin'), secIn = q('#tmSec');
   const showInputs = () => { minIn.value = Math.floor(tm.dur / 60000); secIn.value = Math.floor((tm.dur % 60000) / 1000); };
-  function setDuration(ms) {
+  // keepInputs: 打っている途中は欄を書き換えない（75 秒を 1 分 15 秒に直すのは、欄を離れたとき）
+  function setDuration(ms, keepInputs = false) {
     if (tm.running) return;
-    tm = K.timer(ms); savePref({ timerMs: ms }); showInputs(); drawTimer(Date.now());
+    tm = K.timer(ms); savePref({ timerMs: ms }); if (!keepInputs) showInputs(); drawTimer(Date.now());
   }
   function drawTimer(now) {
     const left = K.timerLeft(tm, now);
@@ -137,7 +138,13 @@ export async function launch(os, args = {}, rect = {}) {
   });
   q('[data-tm-reset]').addEventListener('click', () => { tm = K.timerReset(tm); drawTimer(Date.now()); say('リセットしました。'); log('clock.timer', {}, 'reset'); });
   q('.preset-row').addEventListener('click', (e) => { const b = e.target.closest('[data-preset]'); if (b) { setDuration(+b.dataset.preset * 60000); sound.play('select'); } });
-  for (const el of [minIn, secIn]) el.addEventListener('change', () => setDuration(K.duration(minIn.value, secIn.value)));
+  for (const el of [minIn, secIn]) {
+    // 欄に入ったら中の数字を全部選ぶ（打つと置き換わり、元の数字が残って「50」のようにならない）。Gemini の操作の確認で見つけた
+    el.addEventListener('focus', () => requestAnimationFrame(() => el.select()));
+    // 打つたびに上の大きな表示を合わせ、欄を離れたら分と秒を整える
+    el.addEventListener('input', () => setDuration(K.duration(minIn.value, secIn.value), true));
+    el.addEventListener('change', () => setDuration(K.duration(minIn.value, secIn.value)));
+  }
 
   /* ---------- ストップウォッチ ---------- */
   function drawSw(now) {
