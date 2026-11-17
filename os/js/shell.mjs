@@ -29,6 +29,7 @@ export const APPS = {
   monitor: { name: 'システム モニタ', icon: 'icons/monitor.svg' },
   calendar: { name: 'カレンダー', icon: 'icons/calendar.svg' },
   recorder: { name: '音声レコーダー', icon: 'icons/recorder.svg' },
+  puzzle: { name: 'プリズム回廊', icon: 'icons/puzzle.svg' },
 };
 
 /* ---------- 設定 ---------- */
