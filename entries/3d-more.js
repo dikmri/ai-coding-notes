@@ -1516,3 +1516,332 @@ precision highp float; in vec2 q; out vec4 O; void main() { O = vec4(.15, .1, .2
     requestAnimationFrame(frame);
   },
 });
+dekiru.add({
+  id: '3d-vroid-motion', c: '3d', lv: 3,
+  t: 'VRoid のキャラを人の動きで動かす', y: 'ぶいろいどのきゃらをひとのうごきでうごかす',
+  tags: ['3D', 'VRM', 'モーションキャプチャー', '揺れもの', 'WebGL'],
+  data: ['data/vroid-b.js', 'data/motion-bn1.js'], nt: true,
+  d: 'VRoid の公式サンプル「AvatarSample_B」を、俳優の動きを記録したデータ（モーションキャプチャー）で動かす。お辞儀・手を振る・歩く・案内する・嬉しそうに手を振る・短いダンスの 6 つを順に演じ、動きと動きの間は 0.5 秒かけて混ぜる。記録の関節の回転は、変換の道具で VRoid の骨へ付け替えてある。髪・スカート・袖・胸は、モデルに入っている揺れものの設定で、遅れてついてくる動きを毎回計算する。体の当たり判定にはめり込まない。目はカメラを追い、嬉しいときは笑顔になる。画面を押すと次の動きへ進む。',
+  p: '手で姿勢を付けた動きは、どこか機械的になる。人の体の重さや、手足の動きの小さなずれは、実際の人の動きを記録したデータがいちばんよく持っている。そこに髪や服の揺れを物理で足すと、生きた動きになる。',
+  html: `<canvas id="c" role="img" aria-label="紫の長い髪の女の子の 3D モデルが、お辞儀や手を振るなどの動きを演じ、髪とスカートが揺れる"></canvas>
+<p class="now" id="now"></p>
+<p class="credit">3D モデル: AvatarSample_B（VRoid Project）・動き: Bandai Namco Research Motiondataset（CC BY-NC 4.0）</p>`,
+  css: `body { background: #1a1820; overflow: hidden; }
+canvas { display: block; width: 100vw; height: 100vh; }
+.now { position: fixed; left: 12px; top: 8px; margin: 0; font-size: 13px; color: #fffc; text-shadow: 0 1px 2px #0008; }
+.credit { position: fixed; left: 12px; bottom: 8px; margin: 0; font-size: 11px; color: #fff9; }`,
+  core() {
+    // データを戻す計算（変換の道具の逆）・四元数・動きの再生・揺れもの。DOM を使わない
+    const TYPES = { Uint8Array, Int8Array, Uint16Array, Int16Array, Uint32Array, Float32Array };
+    const view = (bytes, r) => new TYPES[r.t](bytes.buffer, bytes.byteOffset + r.o, r.n);
+    function dequant(q, min, max, k) {
+      const out = new Float32Array(q.length);
+      for (let i = 0; i < q.length; i++) { const a = i % k; out[i] = min[a] + q[i] / 65535 * (max[a] - min[a]); }
+      return out;
+    }
+    function octDecode(e) {
+      const out = new Float32Array(e.length / 2 * 3);
+      for (let i = 0, j = 0; i < e.length; i += 2, j += 3) {
+        let x = e[i] / 127, y = e[i + 1] / 127; const z = 1 - Math.abs(x) - Math.abs(y);
+        if (z < 0) { const ox = x; x = (1 - Math.abs(y)) * (ox >= 0 ? 1 : -1); y = (1 - Math.abs(ox)) * (y >= 0 ? 1 : -1); }
+        const l = Math.hypot(x, y, z) || 1; out[j] = x / l; out[j + 1] = y / l; out[j + 2] = z / l;
+      }
+      return out;
+    }
+    function morphInto(dst, base, morphs) {
+      dst.set(base);
+      for (const { idx, d, scale, w } of morphs) {
+        if (!w) continue;
+        for (let k = 0; k < idx.length; k++) { const v = idx[k] * 3; dst[v] += d[k * 3] * scale * w; dst[v + 1] += d[k * 3 + 1] * scale * w; dst[v + 2] += d[k * 3 + 2] * scale * w; }
+      }
+      return dst;
+    }
+    // ---- 四元数 [x, y, z, w] と向き ----
+    const qmul = (a, b) => [a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1], a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0], a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3], a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]];
+    const qconj = (q) => [-q[0], -q[1], -q[2], q[3]];
+    const qaxis = (ax, ang) => { const s = Math.sin(ang / 2); return [ax[0] * s, ax[1] * s, ax[2] * s, Math.cos(ang / 2)]; };
+    function qrot(q, v) {
+      const [x, y, z, w] = q, ix = w * v[0] + y * v[2] - z * v[1], iy = w * v[1] + z * v[0] - x * v[2], iz = w * v[2] + x * v[1] - y * v[0], iw = -x * v[0] - y * v[1] - z * v[2];
+      return [ix * w - iw * x - iy * z + iz * y, iy * w - iw * y - iz * x + ix * z, iz * w - iw * z - ix * y + iy * x];
+    }
+    const norm3 = (v) => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
+    function qfromTo(a, b) {
+      a = norm3(a); b = norm3(b);
+      const d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+      if (d < -0.999999) return [0, 0, 1, 0];
+      const q = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0], 1 + d], l = Math.hypot(...q);
+      return q.map((v) => v / l);
+    }
+    // 2 つの回転の間を、球面の上でなめらかにつなぐ
+    function qslerp(a, b, t) {
+      let d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+      if (d < 0) { b = b.map((v) => -v); d = -d; }
+      if (d > 0.9995) { const q = a.map((v, i) => v + (b[i] - v) * t), l = Math.hypot(...q); return q.map((v) => v / l); }
+      const th = Math.acos(d), s = Math.sin(th), wa = Math.sin((1 - t) * th) / s, wb = Math.sin(t * th) / s;
+      return a.map((v, i) => v * wa + b[i] * wb);
+    }
+    // 動きの t 秒の姿勢: 前後のコマの回転を球面でつなぎ、腰の位置を直線でつなぐ
+    function sampleClip(clip, rot, hips, t) {
+      const n = clip.frames, B = rot.length / n / 4, f = Math.max(0, Math.min(n - 1.0001, t * clip.fps)), i = Math.floor(f), u = f - i;
+      const out = [];
+      for (let k = 0; k < B; k++) {
+        const a = [0, 1, 2, 3].map((c) => rot[(i * B + k) * 4 + c] / 32767), b = [0, 1, 2, 3].map((c) => rot[((i + 1) * B + k) * 4 + c] / 32767);
+        out.push(qslerp(a, b, u));
+      }
+      return { rot: out, hips: [0, 1, 2].map((c) => hips[i * 3 + c] + (hips[(i + 1) * 3 + c] - hips[i * 3 + c]) * u) };
+    }
+    // 揺れもの 1 つ分（VRM 0.x の決まり）: 先端を、慣性・元の向きへ戻る力・重さで動かし、長さを保ち、当たり判定の球から押し出す
+    function springStep(s, pos, rest, dt, spheres) {
+      const tail = [pos[0] + rest[0] * s.len, pos[1] + rest[1] * s.len, pos[2] + rest[2] * s.len];
+      if (!s.cur) { s.cur = tail; s.prev = tail.slice(); }
+      let nx = [0, 1, 2].map((c) => s.cur[c] + (s.cur[c] - s.prev[c]) * (1 - s.drag) + rest[c] * s.stiff * dt + s.gdir[c] * s.grav * dt);
+      const fix = () => { const d = norm3([nx[0] - pos[0], nx[1] - pos[1], nx[2] - pos[2]]); nx = [pos[0] + d[0] * s.len, pos[1] + d[1] * s.len, pos[2] + d[2] * s.len]; };
+      fix();
+      for (const c of spheres) {
+        const r = s.hit + c.r, d = [nx[0] - c.p[0], nx[1] - c.p[1], nx[2] - c.p[2]], l = Math.hypot(...d);
+        if (l < r && l > 1e-6) { nx = [c.p[0] + d[0] / l * r, c.p[1] + d[1] / l * r, c.p[2] + d[2] / l * r]; fix(); }
+      }
+      s.prev = s.cur; s.cur = nx;
+      return qfromTo(rest, [nx[0] - pos[0], nx[1] - pos[1], nx[2] - pos[2]]);   // 元の向きから、いまの先端の向きへの回転
+    }
+    // 4x4 の行列（列の順）
+    function trs(t, r) {
+      const [x, y, z, w] = r, m = new Float32Array(16);
+      m[0] = 1 - 2 * (y * y + z * z); m[1] = 2 * (x * y + z * w); m[2] = 2 * (x * z - y * w);
+      m[4] = 2 * (x * y - z * w); m[5] = 1 - 2 * (x * x + z * z); m[6] = 2 * (y * z + x * w);
+      m[8] = 2 * (x * z + y * w); m[9] = 2 * (y * z - x * w); m[10] = 1 - 2 * (x * x + y * y);
+      m[12] = t[0]; m[13] = t[1]; m[14] = t[2]; m[15] = 1;
+      return m;
+    }
+    function mul(a, b) {
+      const o = new Float32Array(16);
+      for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
+      return o;
+    }
+  },
+  js() {
+    const c = document.getElementById('c'), gl = c.getContext('webgl2', { antialias: true });
+    if (!gl) { document.body.textContent = 'この作品には WebGL2 が必要です。'; throw new Error('WebGL2 が使えません'); }
+    const D = window.DEKIRU_DATA?.['vroid-b'], MO = window.DEKIRU_DATA?.['motion-bn1'];
+    if (!D || !MO) { document.body.textContent = 'モデルか動きのデータを読み込めませんでした。'; throw new Error('データがありません'); }
+    const b64 = (s) => { const r = atob(s), u = new Uint8Array(r.length); for (let i = 0; i < r.length; i++) u[i] = r.charCodeAt(i); return u; };
+    const bytes = b64(D.bin), mbytes = b64(MO.bin);
+    const sh = (type, src) => { const o = gl.createShader(type); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+    const program = (vs, fs) => { const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p; };
+
+    // ---- 骨で形を動かし、アニメ調の陰影をつけるシェーダー（「VRoid のキャラをアニメ調で描く」と同じ） ----
+    const prog = program(`#version 300 es
+uniform highp sampler2D J; uniform mat4 VP; uniform float outline; uniform sampler2D TW;
+in vec3 aP; in vec3 aN; in vec2 aUV; in uvec4 aJ; in vec4 aW;
+out vec3 vN; out vec2 vUV;
+mat4 jm(uint i) { int k = int(i); return mat4(texelFetch(J, ivec2(0, k), 0), texelFetch(J, ivec2(1, k), 0), texelFetch(J, ivec2(2, k), 0), texelFetch(J, ivec2(3, k), 0)); }
+void main() {
+  mat4 S = jm(aJ.x) * aW.x + jm(aJ.y) * aW.y + jm(aJ.z) * aW.z + jm(aJ.w) * aW.w;
+  vec4 p = S * vec4(aP, 1.); vN = normalize(mat3(S) * aN); vUV = aUV;
+  if (outline > 0.) p.xyz += vN * outline * texture(TW, aUV).r;
+  gl_Position = VP * p;
+}`, `#version 300 es
+precision highp float;
+uniform sampler2D TM, TA, TS; uniform int mode, isOutline; uniform float cutoff, shadeShift, shadeToony, outlineMix, alphaFromMask;
+uniform vec3 color, shadeColor, outlineColor, L;
+in vec3 vN; in vec2 vUV; out vec4 O;
+void main() {
+  vec4 m = texture(TM, vUV); float a = alphaFromMask > .5 ? texture(TA, vUV).r : 1.;
+  if (mode == 1 && a < cutoff) discard;
+  vec3 lit = color * m.rgb, shade = shadeColor * texture(TS, vUV).rgb;
+  vec3 N = normalize(vN) * (gl_FrontFacing ? 1. : -1.);
+  float li = dot(N, L) * .5 + .5; li = li * 2. - 1.;
+  float hi = mix(1., shadeShift, shadeToony);
+  li = clamp((li - shadeShift) / max(1e-4, hi - shadeShift), 0., 1.);
+  vec3 col = mix(shade, lit, li) + lit * .1;
+  if (isOutline == 1) col = outlineColor * mix(vec3(1.), col, outlineMix);
+  O = vec4(pow(clamp(col, 0., 1.), vec3(1. / 2.2)), mode == 2 ? a * m.a : 1.);
+}`);
+    const u = Object.fromEntries(['J', 'VP', 'outline', 'TW', 'TM', 'TA', 'TS', 'mode', 'isOutline', 'cutoff', 'shadeShift', 'shadeToony', 'outlineMix', 'color', 'shadeColor', 'outlineColor', 'L', 'alphaFromMask'].map((n) => [n, gl.getUniformLocation(prog, n)]));
+    const white = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, white);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));
+    const aniso = gl.getExtension('EXT_texture_filter_anisotropic');
+    async function tex(url, srgb) {
+      const im = new Image(); im.src = url; await im.decode();
+      const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+      gl.texImage2D(gl.TEXTURE_2D, 0, srgb ? gl.SRGB8_ALPHA8 : gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, im);
+      gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      if (aniso) gl.texParameterf(gl.TEXTURE_2D, aniso.TEXTURE_MAX_ANISOTROPY_EXT, 8);
+      return t;
+    }
+    const texColor = {}, texAlpha = {};
+    const ready = Promise.all(Object.entries(D.images).map(async ([k, im]) => { texColor[k] = await tex(im.color, true); if (im.alpha) texAlpha[k] = await tex(im.alpha, false); }));
+
+    // ---- 形を GPU へ（面の番号の入れ物は、描く直前に結び直す） ----
+    const draws = [], faces = [];
+    for (const m of D.meshes) {
+      const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+      const buf = (data, name, size, type, norm, mode2) => {
+        const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, mode2 === 'dyn' ? gl.DYNAMIC_DRAW : gl.STATIC_DRAW);
+        const loc = gl.getAttribLocation(prog, name); gl.enableVertexAttribArray(loc);
+        if (mode2 === 'int') gl.vertexAttribIPointer(loc, size, type, 0, 0); else gl.vertexAttribPointer(loc, size, type, norm, 0, 0);
+        return b;
+      };
+      const pos = dequant(view(bytes, m.pos), m.pos.min, m.pos.max, 3);
+      const posBuf = buf(pos, 'aP', 3, gl.FLOAT, false, m.morphs.length ? 'dyn' : '');
+      buf(octDecode(view(bytes, m.nrm)), 'aN', 3, gl.FLOAT, false);
+      buf(dequant(view(bytes, m.uv), m.uv.min, m.uv.max, 2), 'aUV', 2, gl.FLOAT, false);
+      buf(view(bytes, m.jnt), 'aJ', 4, gl.UNSIGNED_BYTE, false, 'int');
+      buf(view(bytes, m.wgt), 'aW', 4, gl.UNSIGNED_BYTE, true);
+      if (m.morphs.length) faces.push({ mi: D.meshes.indexOf(m), base: pos, cur: new Float32Array(pos), buf: posBuf, morphs: m.morphs.map((x) => ({ idx: view(bytes, x.idx), d: view(bytes, x.d), scale: x.scale, w: 0 })) });
+      for (const p of m.prims) {
+        const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, view(bytes, p.idx), gl.STATIC_DRAW);
+        draws.push({ vao, ib, count: p.idx.n, mat: D.materials[p.mat] });
+      }
+    }
+    gl.bindVertexArray(null);
+    draws.sort((a, b) => a.mat.queue - b.mat.queue);
+
+    // ---- 骨の並び: 親から順にたどる順番と、揺れもの・当たり判定の準備 ----
+    const N = D.nodes, H = D.humanoid, kids = N.map(() => []);
+    N.forEach((n, i) => { if (n.parent >= 0) kids[n.parent].push(i); });
+    const order = []; (function walk(i) { order.push(i); kids[i].forEach(walk); })(0);
+    N.forEach((n, i) => { if (n.parent < 0 && i !== 0) (function walk(j) { order.push(j); kids[j].forEach(walk); })(i); });
+    const flipZ = (v) => [v[0], v[1], -v[2]];   // VRM 0.x の揺れものの向きと当たり判定の位置は、Z が逆向きで書かれている
+    const springs = new Map();
+    for (const g of D.springs) {
+      const setup = (n) => {
+        const ch = kids[n], local = ch.length ? N[ch[0]].t : (() => { const t = N[n].t, l = Math.hypot(...t) || 1; return t.map((v) => v / l * 0.07); })();   // 先端の骨は 7cm 先に仮の先端
+        springs.set(n, { axis: norm3(local), len: Math.hypot(...local), stiff: g.stiffness, grav: g.gravityPower, gdir: flipZ(g.gravityDir), drag: g.drag, hit: g.hitRadius, cols: g.colliderGroups, cur: null, prev: null });
+        ch.forEach(setup);
+      };
+      g.bones.forEach(setup);
+    }
+    let spheres = D.colliders.map(() => []);   // 当たり判定の球（前のコマの位置を使う）
+
+    // ---- 動き ----
+    const BI = Object.fromEntries(MO.bones.map((b, k) => [b, k]));
+    const clips = MO.clips.map((cl) => ({ ...cl, rotA: view(mbytes, cl.rot), hipsA: dequant(view(mbytes, cl.hips), cl.hips.min, cl.hips.max, 3), len: (cl.frames - 1) / cl.fps }));
+    const FACE = { byehappy: { joy: 0.85 }, byebye: { joy: 0.45 }, dance: { fun: 0.7 }, bow: { joy: 0.25 } };   // 動きごとの表情
+    let ci = 0, ct = 0, prevPose = null, fade = 1, offset = [0, 0, 0];
+    const nowEl = document.getElementById('now');
+    const showName = () => { nowEl.textContent = `動き ${ci + 1}/${clips.length}: ${clips[ci].label}（押すと次へ）`; };
+    function nextClip(pose) {
+      // 次の動きは、いまの腰の位置から始める（歩いて進んだ分を引き継ぐ）
+      const nc = (ci + 1) % clips.length, h0 = [0, 1, 2].map((k) => clips[nc].hipsA[k]);
+      offset = [offset[0] + pose.hips[0] - h0[0], 0, offset[2] + pose.hips[2] - h0[2]];
+      prevPose = { rot: pose.rot.map((q) => q.slice()), hips: [h0[0], pose.hips[1], h0[2]] };
+      ci = nc; ct = 0; fade = 0; showName();
+    }
+    let lastPose = null;
+    c.addEventListener('pointerdown', () => { if (lastPose) nextClip(lastPose); });
+    showName();
+
+    // ---- 1 コマの骨の姿勢（動き → 揺れもの → 目線）を計算し、骨の行列にする ----
+    const skin = D.skins[0], ibm = view(bytes, skin.ibm);
+    const jtex = gl.createTexture(), jdata = new Float32Array(16 * skin.joints.length);
+    gl.bindTexture(gl.TEXTURE_2D, jtex); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    const R = [0, 1, 0, 0];   // VRM 0.x は -Z を向いているので、縦の軸で 180 度回して正面へ
+    const local = N.map((n) => n.r.slice()), Wp = N.map(() => [0, 0, 0]), Wq = N.map(() => [0, 0, 0, 1]);
+    const humanNode = Object.fromEntries(MO.bones.map((b) => [H[b], b]));
+    function pose(dt, camModel) {
+      let p = sampleClip(clips[ci], clips[ci].rotA, clips[ci].hipsA, ct);
+      if (fade < 1 && prevPose) { const k = fade * fade * (3 - 2 * fade); p = { rot: p.rot.map((q, i) => qslerp(prevPose.rot[i], q, k)), hips: p.hips.map((v, i) => prevPose.hips[i] + (v - prevPose.hips[i]) * k) }; }
+      lastPose = p;
+      for (const [n, b] of Object.entries(humanNode)) local[n] = p.rot[BI[b]];
+      const hipsT = [p.hips[0] + offset[0], p.hips[1], p.hips[2] + offset[2]];
+      for (const i of order) {
+        const n = N[i], par = n.parent;
+        const t = i === H.hips ? hipsT : n.t;
+        const pp = par >= 0 ? Wp[par] : [0, 0, 0], pq = par >= 0 ? Wq[par] : [0, 0, 0, 1];
+        const d = qrot(pq, t); Wp[i] = [pp[0] + d[0], pp[1] + d[1], pp[2] + d[2]];
+        const s = springs.get(i);
+        if (s) {
+          const restDir = qrot(pq, s.axis), sph = [];
+          for (const g of s.cols) for (const c2 of spheres[g]) sph.push(c2);
+          Wq[i] = qmul(springStep(s, Wp[i], restDir, dt, sph), pq);
+        } else if (i === H.leftEye || i === H.rightEye) {
+          // 目線: 頭から見たカメラの向きへ、上下左右に少しだけ回す（VRM 0.x の顔は -Z 向き）
+          const v = qrot(qconj(pq), [camModel[0] - Wp[i][0], camModel[1] - Wp[i][1], camModel[2] - Wp[i][2]]), l = Math.hypot(...v) || 1;
+          const yaw = Math.max(-.25, Math.min(.25, Math.atan2(-v[0], -v[2]))), pit = Math.max(-.18, Math.min(.18, Math.asin(v[1] / l)));
+          Wq[i] = qmul(pq, qmul(qaxis([0, 1, 0], yaw), qaxis([1, 0, 0], pit)));
+        } else Wq[i] = qmul(pq, local[i]);
+      }
+      spheres = D.colliders.map((cg) => cg.colliders.map((k) => { const o = qrot(Wq[cg.node], flipZ(k.offset)); return { p: [Wp[cg.node][0] + o[0], Wp[cg.node][1] + o[1], Wp[cg.node][2] + o[2]], r: k.radius }; }));
+      const root = trs([0, 0, 0], R);
+      skin.joints.forEach((n, j) => jdata.set(mul(mul(root, trs(Wp[n], Wq[n])), ibm.subarray(j * 16, j * 16 + 16)), j * 16));
+      gl.bindTexture(gl.TEXTURE_2D, jtex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, 4, skin.joints.length, 0, gl.RGBA, gl.FLOAT, jdata);
+      return [-hipsT[0], hipsT[1], -hipsT[2]];   // 腰の位置（正面向きの空間）
+    }
+
+    // ---- 表情: まばたき＋動きごとの表情 ----
+    const exprOf = Object.fromEntries(D.expressions.map((e) => [e.preset, e.binds]));
+    const face = { joy: 0, fun: 0 };
+    function expressions(t, dt) {
+      const want = FACE[clips[ci].name] || {};
+      for (const k of Object.keys(face)) face[k] += ((want[k] || 0) - face[k]) * Math.min(1, dt * 3);
+      if (t > blinkAt + .15) blinkAt = t + 2.5 + Math.random() * 3;
+      const bt = (t - blinkAt) / .15, blink = (bt > 0 && bt < 1 ? Math.sin(bt * Math.PI) : 0) * (1 - Math.min(1, face.joy + face.fun));   // 笑顔で目を細めているときは、まばたきしない
+      const w = new Map(), add = (preset, k) => { for (const b of exprOf[preset] || []) { const key = b.mesh + '/' + b.morph; w.set(key, Math.min(1, (w.get(key) || 0) + b.weight * k)); } };
+      add('blink', blink); add('joy', face.joy); add('fun', face.fun);
+      for (const f of faces) {
+        let changed = false;
+        f.morphs.forEach((mo, k) => { const v = w.get(f.mi + '/' + k) || 0; if (Math.abs(mo.w - v) > 1e-3) { mo.w = v; changed = true; } });
+        if (changed) { morphInto(f.cur, f.base, f.morphs); gl.bindBuffer(gl.ARRAY_BUFFER, f.buf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, f.cur); }
+      }
+    }
+
+    // ---- カメラと背景 ----
+    const persp = (fov, asp, n, f) => { const t = 1 / Math.tan(fov / 2); return new Float32Array([t / asp, 0, 0, 0, 0, t, 0, 0, 0, 0, (f + n) / (n - f), -1, 0, 0, 2 * f * n / (n - f), 0]); };
+    function lookAt(e, t) {
+      const z = norm3([e[0] - t[0], e[1] - t[1], e[2] - t[2]]), x = norm3([z[2], 0, -z[0]]), y = [z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0]];
+      return new Float32Array([x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0, -(x[0] * e[0] + x[1] * e[1] + x[2] * e[2]), -(y[0] * e[0] + y[1] * e[1] + y[2] * e[2]), -(z[0] * e[0] + z[1] * e[1] + z[2] * e[2]), 1]);
+    }
+    const bgProg = program(`#version 300 es
+out vec2 q; void main() { vec2 p = vec2(gl_VertexID & 1, gl_VertexID >> 1) * 4. - 1.; q = p; gl_Position = vec4(p, .999, 1); }`, `#version 300 es
+precision highp float; in vec2 q; out vec4 O;
+void main() { vec3 c = mix(vec3(.62, .58, .68), vec3(.9, .87, .92), q.y * .5 + .5); c *= 1. - .25 * dot(q * .7, q * .7); O = vec4(c, 1); }`);
+    const shadowProg = program(`#version 300 es
+uniform mat4 VP; uniform vec2 at; out vec2 q; void main() { vec2 p = vec2(gl_VertexID & 1, gl_VertexID >> 1) * 2. - 1.; q = p; gl_Position = VP * vec4(at.x + p.x * .45, 0., at.y + p.y * .3, 1); }`, `#version 300 es
+precision highp float; in vec2 q; out vec4 O; void main() { O = vec4(.15, .1, .2, .35 * smoothstep(1., .2, length(q))); }`);
+    const L = norm3([-.45, .65, .6]);
+    let blinkAt = 2, start = null, last = 0, ok = false, look = null;
+    ready.then(() => { ok = true; console.log(`動き ${clips.length} 個・合わせて ${clips.reduce((a, cl) => a + cl.len, 0).toFixed(0)} 秒・揺れもの ${springs.size} 本`); });
+
+    function frame(now) {
+      requestAnimationFrame(frame);
+      if (!ok) return;
+      start ??= now;
+      const t = (now - start) / 1000, dt = Math.min(1 / 30, Math.max(1e-3, t - last)); last = t;
+      const dpr = Math.min(2, devicePixelRatio || 1), w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr);
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+      gl.viewport(0, 0, w, h);
+      // 動きを進める。終わったら次の動きへ
+      ct += dt; fade = Math.min(1, fade + dt / .5);
+      if (ct > clips[ci].len && lastPose) nextClip(lastPose);
+      // カメラ: 腰を追いかけ、正面の少し斜めから左右にゆっくり振れる
+      const hp = look || [0, .85, 0], ang = .35 + Math.sin(t * .2) * .4, dist = 3.2;
+      const eye = [hp[0] + Math.sin(ang) * dist, 1.05, hp[2] + Math.cos(ang) * dist];
+      const hipsNow = pose(dt, [-eye[0], eye[1], -eye[2]]);
+      look = look ? look.map((v, i) => v + ([hipsNow[0], .85, hipsNow[2]][i] - v) * Math.min(1, dt * 4)) : [hipsNow[0], .85, hipsNow[2]];   // 歩いて近づいても、全身が画面に入るように追う
+      expressions(t, dt);
+      const VP = mul(persp(.55, w / h, .05, 50), lookAt(eye, [look[0], .85, look[2]]));
+      gl.disable(gl.DEPTH_TEST); gl.useProgram(bgProg); gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.useProgram(shadowProg); gl.uniformMatrix4fv(gl.getUniformLocation(shadowProg, 'VP'), false, VP); gl.uniform2f(gl.getUniformLocation(shadowProg, 'at'), hipsNow[0], hipsNow[2]); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.clear(gl.DEPTH_BUFFER_BIT);
+      gl.useProgram(prog); gl.uniformMatrix4fv(u.VP, false, VP); gl.uniform3fv(u.L, L);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, jtex); gl.uniform1i(u.J, 0);
+      for (const pass of [0, 1]) for (const d of draws) {
+        const m = d.mat;
+        if (pass === 1 && !(m.outlineWidth > 0)) continue;
+        const blend = m.mode === 'blend';
+        gl.depthMask(!blend); if (blend) gl.enable(gl.BLEND); else gl.disable(gl.BLEND);
+        if (pass === 1) { gl.enable(gl.CULL_FACE); gl.cullFace(gl.FRONT); } else if (m.cull === 2) { gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK); } else gl.disable(gl.CULL_FACE);
+        const bind = (unit, name, t2) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t2 || white); gl.uniform1i(u[name], unit); };
+        bind(1, 'TM', texColor[m.tex.main]); bind(2, 'TA', texAlpha[m.tex.main]); bind(3, 'TS', texColor[m.tex.shade]); bind(4, 'TW', texColor[m.tex.outline]);
+        gl.uniform1f(u.alphaFromMask, texAlpha[m.tex.main] ? 1 : 0); gl.uniform1i(u.mode, { opaque: 0, cutout: 1, blend: 2 }[m.mode]); gl.uniform1i(u.isOutline, pass);
+        gl.uniform1f(u.outline, pass ? m.outlineWidth : 0); gl.uniform1f(u.cutoff, m.cutoff); gl.uniform1f(u.shadeShift, m.shadeShift); gl.uniform1f(u.shadeToony, m.shadeToony); gl.uniform1f(u.outlineMix, m.outlineMix);
+        gl.uniform3fv(u.color, m.color.slice(0, 3)); gl.uniform3fv(u.shadeColor, m.shadeColor.slice(0, 3)); gl.uniform3fv(u.outlineColor, m.outlineColor.slice(0, 3));
+        gl.bindVertexArray(d.vao); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, d.ib); gl.drawElements(gl.TRIANGLES, d.count, gl.UNSIGNED_SHORT, 0);
+      }
+      gl.bindVertexArray(null); gl.depthMask(true); gl.disable(gl.CULL_FACE);
+    }
+    requestAnimationFrame(frame);
+  },
+});
