@@ -185,11 +185,25 @@ const SOUNDS = {
   // 起動の音を飛ばしたときと、設定の「起動音」で鳴らす4音
   startup: (t) => jingle(t, outs()),
   shutdown,
+  // 電卓の数字（0〜9 で音の高さが上がるマリンバ。五音の音階なので続けて押しても濁らない）
+  key: (t, i = 0) => { const n = ['C5', 'D5', 'E5', 'G5', 'A5', 'C6', 'D6', 'E6', 'G6', 'A6'][Math.max(0, Math.min(9, i))]; fm(hz(n), t, 0.2, { ratio: 4, index: 1.6, vol: 0.07 }); },
+  // 電卓の演算子（低めの木の音）
+  op: (t) => fm(hz('G4'), t, 0.12, { ratio: 1.5, index: 2.2, vol: 0.06 }),
+  // 電卓の答え（7th の和音を上へ。i で根音を変える）
+  equals: (t, i = 0) => { const r = [0, 2, 4, 7, 9][Math.abs(i) % 5]; ['C5', 'E5', 'G5', 'B5'].forEach((n, k) => fm(mf(nm(n) + r), t + k * 0.045, 0.5, { ratio: 2, index: 1.4, vol: 0.06, wet: 0.35 })); },
+  // 付箋のピン留め（高い水晶のベル）
+  pin: (t) => { fm(hz('E7'), t, 0.4, { ratio: 3.5, index: 2, vol: 0.05, wet: 0.4 }); tone(hz('B7'), t + 0.03, 0.25, { type: 'sine', vol: 0.02, wet: 0.5 }); },
+  // タイマーの残り10秒の刻み
+  count: (t) => fm(hz('A5'), t, 0.07, { ratio: 3, index: 0.8, vol: 0.04 }),
+  // タイマーが終わったときのチャイム（F#maj7 を2回）
+  chime: (t) => [0, 0.7].forEach((d) => ['F#5', 'A#5', 'C#6', 'F6'].forEach((n, k) => fm(hz(n), t + d + k * 0.09, 1.1, { ratio: 1, index: 1.3, vol: 0.08, wet: 0.5 }))),
 };
+// 操作音を切っていても鳴らす音（起動・終了と、タイマーのような知らせ）。消音のときは鳴らさない
+const ALWAYS = ['startup', 'shutdown', 'beep', 'crt', 'chime'];
 export function play(name, arg) {
   if (!ac || cfg.mute) return;
   if (name === 'type' && !cfg.keys) return;
-  if (!cfg.ui && !['startup', 'shutdown', 'beep', 'crt'].includes(name)) return;
+  if (!cfg.ui && !ALWAYS.includes(name)) return;
   const fn = SOUNDS[name];
   if (!fn) return;
   try { fn(ac.currentTime + 0.005, arg); } catch (e) { log('sound.play', { name }, 'error: ' + e.message); }
