@@ -1009,3 +1009,43 @@
 .arcadia .app-user .ua-main { flex: 1; min-height: 0; display: flex; background: #fff; }
 .arcadia .app-user .ua-frame { flex: 1; width: 100%; border: 0; background: #fff; }
 .arcadia .app-user .status-field[data-kind="error"] { box-shadow: inset 4px 0 0 var(--fos-sunset); }
+
+/* ===== AI アシスタント「イコちゃん」（2026-11-17） ===== */
+.ai-layer { position: fixed; inset: 0; z-index: 9500; pointer-events: none; }
+.ai-layer .ai-char { position: absolute; left: 0; top: 0; width: 96px; height: 96px; filter: drop-shadow(3px 4px 0 rgb(45 27 70 / 0.35)); }
+.ai-layer .ai-char[hidden] { display: none; }
+.ai-layer .ai-char canvas { width: 96px; height: 96px; image-rendering: pixelated; }
+.ai-layer .ai-hl { position: absolute; border: 3px dashed #6bf2e3; border-radius: 8px; box-shadow: 0 0 0 3px #ff8ec7, 0 0 14px rgb(107 242 227 / 0.7); }
+@media (prefers-reduced-motion: no-preference) {
+  .ai-layer .ai-hl { animation: ai-hl-pulse 0.9s ease-in-out infinite alternate; }
+}
+@keyframes ai-hl-pulse { to { border-color: #ff8ec7; box-shadow: 0 0 0 3px #6bf2e3, 0 0 18px rgb(255 142 199 / 0.7); } }
+.ai-layer .ai-bubble { position: absolute; max-width: min(360px, 90vw); padding: 10px 12px; color: #241734; background: #fffdf9; border: 2px solid #241734; border-radius: 12px; box-shadow: 4px 4px 0 rgb(45 27 70 / 0.82); pointer-events: auto; font: 14px/1.6 var(--fos-font, sans-serif); }
+.ai-layer .ai-bubble[hidden] { display: none; }
+.ai-layer .ai-say { margin: 0; white-space: pre-wrap; }
+.ai-layer .ai-bubble-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ai-layer .ai-bubble-btns:empty { display: none; }
+.ai-layer .ai-bbtn, .ai-layer .ai-stop { min-width: 0; min-height: 26px; padding: 0 12px; font: 700 12px/1 var(--fos-font, sans-serif); color: #241734; background: linear-gradient(180deg, #fff, #fff4e2); border: 2px solid #241734; border-radius: 999px; box-shadow: 2px 2px 0 #241734; pointer-events: auto; }
+.ai-layer .ai-bbtn.default { background: linear-gradient(180deg, #fff, #6bf2e3); }
+.ai-layer .ai-stop { position: absolute; background: linear-gradient(180deg, #fff, #ff8ec7); }
+.ai-layer .ai-stop[hidden] { display: none; }
+.ai-layer :is(.ai-bbtn, .ai-stop):focus-visible { outline: 2px solid #4b5fe8; outline-offset: 2px; }
+.arcadia .ai-confirm .ai-confirm-row { display: flex; gap: 10px; align-items: center; }
+.arcadia .ai-confirm .ai-confirm-row canvas { width: 96px; height: 96px; image-rendering: pixelated; flex: none; }
+.arcadia .ai-confirm .ai-confirm-row p { margin: 0; max-width: 34em; line-height: 1.6; }
+.arcadia .ai-confirm .ai-confirm-note { font-size: 12px; color: var(--fos-ink-muted); }
+.arcadia .app-assistant .as-main { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 12px; background: var(--fos-paper); }
+.arcadia .app-assistant .as-hello { display: flex; gap: 12px; align-items: center; }
+.arcadia .app-assistant .as-face { width: 96px; height: 96px; image-rendering: pixelated; flex: none; background: radial-gradient(circle, #fff 30%, #e9e0f2 70%); border: 2px solid var(--fos-ink); border-radius: 12px; }
+.arcadia .app-assistant .as-name { margin: 0 0 4px; font-size: 17px; }
+.arcadia .app-assistant .as-hello p { margin: 0; line-height: 1.6; }
+.arcadia .app-assistant .as-set { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; }
+.arcadia .app-assistant .as-sec h3 { margin: 0 0 6px; font-size: 14px; border-bottom: 1.5px solid var(--fos-marble-lo); }
+.arcadia .app-assistant .as-guides { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.arcadia .app-assistant .as-guides li { display: flex; gap: 10px; align-items: flex-start; }
+.arcadia .app-assistant .as-guides b { display: block; }
+.arcadia .app-assistant .as-guides span { font-size: 12px; color: var(--fos-ink-muted); line-height: 1.5; }
+.arcadia .app-assistant .as-btn { min-width: 0; min-height: 28px; padding: 0 12px; flex: none; font: 700 12px/1 var(--fos-font); color: var(--fos-ink); background: linear-gradient(180deg, #fff, var(--fos-aqua)); border: 2px solid var(--fos-ink); border-radius: 999px; box-shadow: 2px 2px 0 var(--fos-ink); }
+.arcadia .app-assistant .as-btn:disabled { background: #e5e0ec; border-color: #8e7fa3; color: #8e7fa3; box-shadow: none; }
+.arcadia .app-assistant .as-stop:not(:disabled) { background: linear-gradient(180deg, #fff, var(--fos-sunset)); }
+.arcadia .app-assistant .as-actions { margin-top: auto; display: flex; justify-content: flex-end; }

@@ -1,0 +1,86 @@
+{
+  "id": "desktop",
+  "title": "デスクトップの案内",
+  "summary": "スタートボタンやアイコン、開いている窓の並び、時計をイコちゃんが案内します。最後にメモ帳を開いて文字を書いてみます。",
+  "steps": [
+    {
+      "id": "hello",
+      "say": "はじめまして、イコちゃんです。これから Future OS の使い方を案内しますね。",
+      "emotion": "happy_1",
+      "waitFor": "next"
+    },
+    {
+      "id": "start",
+      "say": "ここがスタートボタンです。アプリを開いたり、ファイルを探したりするときに押します。",
+      "target": {
+        "guideId": "start-button"
+      },
+      "waitFor": "next"
+    },
+    {
+      "id": "icons",
+      "say": "こちらはデスクトップのアイコンです。素早く2回押すと、そのアプリが開きます。",
+      "target": {
+        "guideId": "desktop-icons"
+      },
+      "waitFor": "next"
+    },
+    {
+      "id": "tasks",
+      "say": "開いている窓はここに並びます。押すと、その窓がいちばん手前に出てきますよ。",
+      "target": {
+        "guideId": "taskbar-tasks"
+      },
+      "waitFor": "next"
+    },
+    {
+      "id": "clock",
+      "say": "ここは時計です。押すと、「時計とタイマー」のアプリが開きます。",
+      "target": {
+        "guideId": "clock"
+      },
+      "waitFor": "next"
+    },
+    {
+      "id": "open",
+      "say": "では、メモ帳を開いてみますね。スタートボタンから開くところを見ていてください。",
+      "emotion": "happy_1",
+      "target": {
+        "guideId": "start-button"
+      },
+      "waitFor": "next"
+    },
+    {
+      "id": "opened",
+      "say": "メモ帳が開きましたね。スタートボタンから、「プログラム」、「メモ帳」の順に押すと開けますよ。",
+      "action": {
+        "tool": "open_app",
+        "args": {
+          "appId": "notepad"
+        }
+      },
+      "waitFor": "next"
+    },
+    {
+      "id": "type",
+      "say": "メモ帳にひとこと書きました。続けて好きなことを書いたら、「次へ」を押してくださいね。",
+      "target": {
+        "selector": ".app-notepad textarea"
+      },
+      "action": {
+        "tool": "input_text",
+        "args": {
+          "value": "イコちゃんと一緒に、Future OS を始めました。"
+        }
+      },
+      "waitFor": "next"
+    },
+    {
+      "id": "end",
+      "say": "案内はここまでです。困ったときは、デスクトップの「イコちゃん」のアイコンから呼んでくださいね。",
+      "emotion": "happy_1",
+      "waitFor": "next"
+    }
+  ],
+  "polishedBy": "Gemini（gemini-4-carbon）が清書し、Claude が意味を確かめた（2026-11-17）"
+}

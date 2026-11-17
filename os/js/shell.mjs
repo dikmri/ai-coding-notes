@@ -34,6 +34,7 @@ export const APPS = {
   puzzle: { name: 'プリズム回廊', icon: 'icons/puzzle.svg' },
   browser: { name: 'ウェブブラウザ', icon: 'icons/browser.svg' },
   workshop: { name: 'コードの作業場', icon: 'icons/workshop.svg' },
+  assistant: { name: 'AI アシスタント', icon: 'icons/assistant.svg' },
 };
 
 /* ---------- 設定 ---------- */
@@ -70,7 +71,7 @@ export async function msgbox(o) {
   sound.play(o.icon === 'error' ? 'error' : o.icon === 'warning' ? 'notify' : 'notify');
   return w95.msgbox(o);
 }
-export const os = { fs, wm, sound, launch, openFile, fileDialog, msgbox, getSettings, saveSettings, recent, addRecent, iconFor, esc, APPS, events, log };
+export const os = { fs, wm, sound, launch, openFile, fileDialog, msgbox, getSettings, saveSettings, recent, addRecent, iconFor, esc, APPS, events, log, userApps: () => userAppList() };
 
 // 作ったアプリ（コードの作業場で OS に登録したもの）。名前は user:<id> で開く
 let userApps = [];
@@ -202,6 +203,7 @@ const SYS = [
   { key: 'app:player', name: '音楽', icon: APPS.player.icon, open: () => launch('player') },
   { key: 'app:browser', name: 'ネット', icon: APPS.browser.icon, open: () => launch('browser') },
   { key: 'app:workshop', name: '作業場', icon: APPS.workshop.icon, open: () => launch('workshop') },
+  { key: 'app:assistant', name: 'イコちゃん', icon: APPS.assistant.icon, open: () => launch('assistant') },
 ];
 let deskItems = [], pos = {};
 try { pos = JSON.parse(localStorage.getItem('fos-icons') || '{}'); } catch { pos = {}; }
@@ -391,7 +393,7 @@ let subEl = null;
 function closeSub() { if (subEl) { subEl.remove(); subEl = null; } }
 function startItems() {
   return [
-    { label: 'プログラム(<u>P</u>)', icon: 'icons/app.svg', sub: () => [...Object.entries(APPS).map(([id, a]) => ({ label: esc(a.name), icon: a.icon, run: () => launch(id) })), ...userApps.map((u) => ({ label: esc(u.name) + '（作ったアプリ）', icon: 'icons/userapp.svg', run: () => launch('user:' + u.id) }))] },
+    { label: 'プログラム(<u>P</u>)', icon: 'icons/app.svg', guide: 'start-programs', sub: () => [...Object.entries(APPS).map(([id, a]) => ({ label: esc(a.name), icon: a.icon, guide: 'start-app-' + id, run: () => launch(id) })), ...userApps.map((u) => ({ label: esc(u.name) + '（作ったアプリ）', icon: 'icons/userapp.svg', guide: 'start-app-user:' + u.id, run: () => launch('user:' + u.id) }))] },
     { label: '最近使ったファイル(<u>D</u>)', icon: 'icons/document.svg', sub: () => recent().map((p) => ({ label: esc(basename(p)), icon: iconFor({ kind: 'file', name: p }), run: () => openFile(p) })) },
     { label: 'ファイル マネージャ(<u>F</u>)', icon: APPS.filer.icon, run: () => launch('filer', { path: '/' }) },
     { label: '設定(<u>S</u>)', icon: APPS.settings.icon, run: () => launch('settings') },
@@ -403,7 +405,7 @@ function startItems() {
 let current = [];
 function renderStart(items, small) {
   current = items;
-  listEl.innerHTML = items.length ? items.map((it, i) => (it.sep ? '<li class="start-sep" role="separator"></li>' : `<li role="none"><div class="start-item${small ? ' small' : ''}${it.sub ? ' sub' : ''}" role="menuitem" tabindex="-1" data-i="${i}"><img src="${it.icon}" alt=""><span>${it.label}</span></div></li>`)).join('') : '<li class="start-empty">見つかりませんでした</li>';
+  listEl.innerHTML = items.length ? items.map((it, i) => (it.sep ? '<li class="start-sep" role="separator"></li>' : `<li role="none"><div class="start-item${small ? ' small' : ''}${it.sub ? ' sub' : ''}" role="menuitem" tabindex="-1" data-i="${i}"${it.guide ? ` data-guide="${it.guide}"` : ''}><img src="${it.icon}" alt=""><span>${it.label}</span></div></li>`)).join('') : '<li class="start-empty">見つかりませんでした</li>';
 }
 function openSub(div, item) {
   closeSub();
@@ -411,7 +413,7 @@ function openSub(div, item) {
   subEl = document.createElement('ul');
   subEl.className = 'start-sub';
   subEl.setAttribute('role', 'menu');
-  subEl.innerHTML = items.length ? items.map((it, i) => `<li role="none"><div class="start-item small" role="menuitem" tabindex="-1" data-i="${i}"><img src="${it.icon}" alt=""><span>${it.label}</span></div></li>`).join('') : '<li class="start-empty">（空）</li>';
+  subEl.innerHTML = items.length ? items.map((it, i) => `<li role="none"><div class="start-item small" role="menuitem" tabindex="-1" data-i="${i}"${it.guide ? ` data-guide="${esc(it.guide)}"` : ''}><img src="${it.icon}" alt=""><span>${it.label}</span></div></li>`).join('') : '<li class="start-empty">（空）</li>';
   document.body.append(subEl);
   const r = div.getBoundingClientRect();
   subEl.style.left = r.right - 3 + 'px';
