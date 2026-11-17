@@ -5,7 +5,8 @@ class FosRecorder extends AudioWorkletProcessor {
     super();
     this.buf = new Float32Array(2048);
     this.n = 0;
-    this.port.onmessage = (e) => { if (e.data === 'flush' && this.n) this.send(); };
+    // flush: 2048 に満たない残りを送り、送り終えたことを 'flushed' で知らせる（画面の側は、これを待ってから録音をつなぐ）
+    this.port.onmessage = (e) => { if (e.data === 'flush') { if (this.n) this.send(); this.port.postMessage('flushed'); } };
   }
   send() { const out = this.buf.slice(0, this.n); this.port.postMessage(out, [out.buffer]); this.n = 0; }
   process(inputs) {

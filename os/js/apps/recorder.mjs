@@ -8,7 +8,7 @@ import { basename } from '../core/path.mjs';
 
 export async function launch(os, args = {}, rect = {}) {
   const { fs, wm, log, sound, esc } = os;
-  let ac = null, stream = null, node = null, src = null, chunks = [], state = 'idle', rate = 48000, samples = null, saved = true, raf = 0, player = null, playStart = 0, lastPeak = 0, lastMsg = '';
+  let ac = null, stream = null, node = null, src = null, chunks = [], state = 'idle', rate = 48000, samples = null, saved = true, raf = 0, player = null, flushed = null, playStart = 0, lastPeak = 0, lastMsg = '';
   const win = wm.open({
     app: 'recorder', icon: 'icons/recorder.svg', className: 'app-recorder', title: '音声レコーダー', w: 640, h: 420, ...rect, args: {},
     render(w) {
@@ -63,13 +63,25 @@ export async function launch(os, args = {}, rect = {}) {
     node = new AudioWorkletNode(ac, 'fos-recorder', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
     const mute = ac.createGain(); mute.gain.value = 0; // 処理を続けさせるために出口へつなぐが、音は出さない
     src.connect(node).connect(mute).connect(ac.destination);
-    node.port.onmessage = (e) => { const d = e.data; lastPeak = Math.max(lastPeak * 0.6, R.peak(d)); if (state === 'recording') chunks.push(d); };
+    node.port.onmessage = (e) => {
+      const d = e.data;
+      if (d === 'flushed') { flushed?.(); return; }
+      lastPeak = Math.max(lastPeak * 0.6, R.peak(d)); if (state === 'recording' || state === 'stopping') chunks.push(d);
+    };
     q('[data-rate]').textContent = `${rate} Hz ・ モノラル`;
     stream.getAudioTracks()[0].addEventListener('ended', () => { if (state === 'recording' || state === 'paused') { stop(); showMsg('マイクが外れたので、録音を止めました。'); } });
     listDevices();
   }
+  // 停止の前に、部品の中に残っている最後の切れ端（2048 標本未満、最大 40 ミリ秒ほど）を受け取る。返事が来なければ 300 ミリ秒であきらめる
+  function drain() {
+    return new Promise((r) => {
+      if (!node) return r();
+      const t = setTimeout(r, 300);
+      flushed = () => { clearTimeout(t); flushed = null; r(); };
+      try { node.port.postMessage('flush'); } catch { r(); }
+    });
+  }
   function closeMic() {
-    try { node?.port.postMessage('flush'); } catch { /* もう閉じている */ }
     src?.disconnect(); node?.disconnect(); src = node = null;
     stream?.getTracks().forEach((t) => t.stop()); stream = null;
   }
@@ -87,13 +99,17 @@ export async function launch(os, args = {}, rect = {}) {
     update(); loop();
   }
   function pause() { if (state !== 'recording') return; state = 'paused'; sound.play('op'); say('一時停止しました。「続ける」で再開します。'); log('recorder.pause', { sec: R.seconds(total(), rate) }, 'ok'); update(); }
-  function stop() {
+  async function stop() {
     if (state !== 'recording' && state !== 'paused') return;
+    // 録音中から止めたときだけ、最後の切れ端を待つ（一時停止中の音は残さない）
+    const tail = state === 'recording';
+    state = 'stopping'; update();
+    if (tail) await drain();
     state = 'stopped'; closeMic();
     samples = R.joinChunks(chunks); chunks = []; saved = !samples.length;
     sound.play('op'); say(samples.length ? `${fmt(R.seconds(samples.length, rate) * 1000, { cs: true })} 録りました。「聞く」「保存」が使えます。` : '音が録れていませんでした。');
     log('recorder.stop', { samples: samples.length, sec: R.seconds(samples.length, rate) }, 'ok');
-    update(); drawWave();
+    update(); drawWave(); loop(); // 止まった状態の1回分で、経過時間を録音の全体の長さにする
   }
 
   /* ---------- 聞き直し ---------- */
@@ -129,7 +145,7 @@ export async function launch(os, args = {}, rect = {}) {
     const has = !!(samples && samples.length), rec = state === 'recording' || state === 'paused';
     const b = (a) => q(`[data-a="${a}"]`);
     b('rec').innerHTML = state === 'paused' ? '続ける(<u>R</u>)' : '録音(<u>R</u>)';
-    b('rec').disabled = state === 'recording';
+    b('rec').disabled = state === 'recording' || state === 'stopping';
     b('pause').disabled = state !== 'recording';
     b('stop').disabled = !rec;
     b('play').disabled = rec || !has; b('play').innerHTML = player ? '止める(<u>P</u>)' : '聞く(<u>P</u>)';
