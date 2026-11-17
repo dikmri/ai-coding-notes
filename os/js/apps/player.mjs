@@ -176,7 +176,8 @@ export async function launch(os, args = {}, rect = {}) {
     if ('mediaSession' in navigator) { navigator.mediaSession.metadata = null; for (const k of ['play', 'pause', 'previoustrack', 'nexttrack', 'stop']) try { navigator.mediaSession.setActionHandler(k, null); } catch { /* 使えない操作 */ } }
   }
   audio.addEventListener('ended', () => { const n = L.afterEnd({ order, index, repeat }); log('player.ended', { index, next: n }, 'ok'); if (n >= 0) playAt(n); else { say('一覧の最後まで鳴らしました。'); updateButtons(); } });
-  audio.addEventListener('play', updateButtons);
+  // 鳴り始めたら（一時停止からの再開も）、何を鳴らしているかを知らせる
+  audio.addEventListener('play', () => { updateButtons(); if (index >= 0) say(`「${stem(list[index])}」を鳴らしています。`); });
   audio.addEventListener('pause', updateButtons);
   audio.addEventListener('loadedmetadata', () => { q('[data-dur]').textContent = fmt(audio.duration * 1000); });
   audio.addEventListener('timeupdate', () => { q('[data-cur]').textContent = fmt(audio.currentTime * 1000); if (!seeking && audio.duration) q('[data-seek]').value = Math.round((audio.currentTime / audio.duration) * 1000); });
