@@ -63,7 +63,7 @@ export async function launch(os, args = {}, rect = {}) {
       <div class="pt-palette">
         <div class="pt-current" title="左のボタンで塗る色（前）と、右のボタンで塗る色（後ろ）"><span class="pt-back" data-back></span><span class="pt-front" data-front></span></div>
         <div class="pt-swatches" role="group" aria-label="色（左クリックで前、右クリックで後ろ）">${ARCADIA.map((c) => `<button type="button" class="flat pt-sw" data-hex="${c.hex}" style="--c:${c.hex}" title="${c.name}" aria-label="${c.name}"></button>`).join('')}</div>
-        <label class="pt-free">自由な色(<u>C</u>): <input type="color" id="ptColor"></label>
+        <label class="pt-free"><span>自由な色(<u>C</u>):</span><input type="color" id="ptColor"></label>
       </div>
       <div class="status-bar"><div class="status-field" role="status" data-status></div><div class="status-field" style="width:90px" data-pos></div><div class="status-field" style="width:110px" data-dim></div><div class="status-field" style="width:60px" data-zoomtxt></div><div class="size-grip"></div></div>`;
     },
@@ -128,6 +128,8 @@ export async function launch(os, args = {}, rect = {}) {
   cv.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 && e.button !== 2) return;
     e.preventDefault();
+    // 入力の行き先は、つかまえる前にここで移す（つかまえたあとに移すと、Chrome がつかまえを外し、線が途切れる）
+    if (!win.el.contains(document.activeElement)) win.body.focus({ preventScroll: true });
     const [x, y] = posOf(e), btn = e.button;
     if (tool === 'pick') {
       if (!P.inside(img, x, y)) return;
@@ -143,29 +145,33 @@ export async function launch(os, args = {}, rect = {}) {
       if (n) { hist.push(before); changed(); draw(); sound.play('pin'); log('paint.fill', { x, y, n }, 'ok'); say(`${n} マスを塗りました。`); }
       return;
     }
-    cv.setPointerCapture(e.pointerId);
+    try { cv.setPointerCapture(e.pointerId); } catch { /* つかまえられなくても、window で受けるので描ける */ }
     drag = { btn, start: [x, y], last: [x, y], before: snapshot(), fn: colorFn(btn) };
+    addEventListener('pointermove', onDragMove); addEventListener('pointerup', finish); addEventListener('pointercancel', finish);
     if (tool === 'pencil' || tool === 'brush' || tool === 'eraser') { stroke(x, y, x, y, drag.fn); schedule(); }
   });
-  cv.addEventListener('pointermove', (e) => {
-    const [x, y] = posOf(e);
-    q('[data-pos]').textContent = P.inside(img, x, y) ? `${x}, ${y}` : '';
+  // 位置の表示は canvas の上で。描いている間の動きは window で受ける（絵の外まで動かしても追えるように）
+  cv.addEventListener('pointermove', (e) => { const [x, y] = posOf(e); q('[data-pos]').textContent = P.inside(img, x, y) ? `${x}, ${y}` : ''; });
+  const onDragMove = (e) => {
     if (!drag) return;
+    const [x, y] = posOf(e);
     if (tool === 'pencil' || tool === 'brush' || tool === 'eraser') {
       // 速く動かしても線が途切れないよう、間の位置（まとめられたイベント）もたどる
       const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
       for (const ce of evs.length ? evs : [e]) { const p = posOf(ce); stroke(drag.last[0], drag.last[1], p[0], p[1], drag.fn); drag.last = p; }
       schedule();
     } else { drag.last = [x, y]; showPreview(shapePts(drag.start, drag.last), drag.fn); }
-  });
+  };
   const finish = () => {
     if (!drag) return;
+    removeEventListener('pointermove', onDragMove); removeEventListener('pointerup', finish); removeEventListener('pointercancel', finish);
     if (tool === 'line' || tool === 'rect' || tool === 'ellipse') { P.paint(img, shapePts(drag.start, drag.last), drag.fn); pctx.clearRect(0, 0, pv.width, pv.height); }
     hist.push(drag.before); changed(); draw();
     log('paint.draw', { tool, from: drag.start, to: drag.last }, 'ok');
     drag = null;
   };
-  cv.addEventListener('lostpointercapture', finish);
+  // 描き終わりは、離したときと取り消されたときに決める。window で受けるので、絵の外で離しても終わる
+  // （つかまえが外れた知らせ lostpointercapture は、離す前に来ることも来ないこともあったので使わない）
   cv.addEventListener('pointerleave', () => { q('[data-pos]').textContent = ''; });
 
   /* ---------- 道具と色 ---------- */

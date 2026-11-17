@@ -627,7 +627,7 @@
 /* ===== お絵かき（2026-11-17） ===== */
 .arcadia .app-paint .app-body { outline: none; }
 .arcadia .app-paint .pt-main { flex: 1; min-height: 0; display: flex; }
-.arcadia .app-paint .pt-tools { flex: none; width: 112px; padding: 8px 6px; display: flex; flex-direction: column; gap: 4px; background: var(--fos-marble); border-right: 1.5px solid var(--fos-marble-lo); overflow: auto; }
+.arcadia .app-paint .pt-tools { flex: none; width: 136px; padding: 8px 6px; display: flex; flex-direction: column; gap: 4px; background: var(--fos-marble); border-right: 1.5px solid var(--fos-marble-lo); overflow: auto; }
 .arcadia .app-paint .pt-tool {
   min-height: 26px; padding: 2px 8px; text-align: left; font: 700 12px/1.2 var(--fos-font); color: var(--fos-ink);
   background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 7px; box-shadow: 2px 2px 0 var(--fos-ink);
