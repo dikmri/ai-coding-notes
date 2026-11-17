@@ -1869,3 +1869,514 @@ void main() {
     requestAnimationFrame(frame);
   },
 });
+
+dekiru.add({
+  id: '3d-vroid-shore', c: '3d', lv: 3,
+  t: '夕暮れの浅瀬で手を振るキャラ（アニメ映画風の合成）', y: 'ゆうぐれのあさせでてをふるきゃら',
+  tags: ['3D', 'VRM', '合成', '撮影処理', 'WebGL'],
+  data: ['data/vroid-b.js', 'data/motion-bn1.js'], nt: true,
+  d: '夕暮れの浅瀬に、VRoid の公式サンプル「AvatarSample_B」が立つアニメ映画風の場面。背景は「夕凪の浅瀬を歩く人の影」と同じ計算の夕日と海で、キャラはそれと同じ高さ・同じ焦点距離のカメラで写すので、足が水面に正しく乗る。沖からこちらへ歩いてきて、嬉しそうに手を振り、お辞儀をして、もう一度手を振る。キャラは正面から空の色の柔らかい光で照らし、後ろの夕日が輪郭を光らせる。くるぶしまで水に浸かり、水面には揺れる逆さの姿が映る。仕上げに、背景の光がキャラの縁へ回り込む処理、背景のぼかし、明るい所のにじみ、太陽からのレンズの光、逆光に浮かぶ光の粒を重ねる。夕方の風で髪とスカートがなびき、足もとから波紋が広がる。',
+  p: 'アニメ映画の画面は、絵を描いた後の「撮影」で決まる。背景と人物を同じカメラで写して光の向きをそろえ、縁に光を回り込ませて全体をにじませると、別々に作った絵が 1 つの場面になる。',
+  html: `<canvas id="c" role="img" aria-label="夕暮れの浅瀬を紫の長い髪の女の子が歩いてきて、逆光の中で手を振る"></canvas>
+<div class="bar"><button id="next" type="button">▶ 次の動き</button><button id="pause" type="button">❚❚ 止める</button></div>
+<p class="credit">3D モデル: AvatarSample_B（VRoid Project）・動き: Bandai Namco Research Motiondataset（CC BY-NC 4.0）</p>`,
+  css: `body { background: #000; overflow: hidden; }
+canvas { display: block; width: 100vw; height: 100vh; }
+.bar { position: fixed; top: 8px; left: 12px; display: flex; gap: 6px; }
+.bar button, .credit { margin: 0; color: #fff; background: #0007; padding: 2px 8px; border-radius: 4px; }
+.bar button { font-size: 13px; border: 0; }
+.bar button:hover { background: #000a; }
+.bar button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.credit { position: fixed; left: 12px; bottom: 8px; font-size: 11px; }`,
+  core() {
+    // データを戻す計算・四元数・動きの再生・揺れもの・背景と同じカメラの写し方。DOM を使わない
+    const TYPES = { Uint8Array, Int8Array, Uint16Array, Int16Array, Uint32Array, Float32Array };
+    const view = (bytes, r) => new TYPES[r.t](bytes.buffer, bytes.byteOffset + r.o, r.n);
+    function dequant(q, min, max, k) {
+      const out = new Float32Array(q.length);
+      for (let i = 0; i < q.length; i++) { const a = i % k; out[i] = min[a] + q[i] / 65535 * (max[a] - min[a]); }
+      return out;
+    }
+    function octDecode(e) {
+      const out = new Float32Array(e.length / 2 * 3);
+      for (let i = 0, j = 0; i < e.length; i += 2, j += 3) {
+        let x = e[i] / 127, y = e[i + 1] / 127; const z = 1 - Math.abs(x) - Math.abs(y);
+        if (z < 0) { const ox = x; x = (1 - Math.abs(y)) * (ox >= 0 ? 1 : -1); y = (1 - Math.abs(ox)) * (y >= 0 ? 1 : -1); }
+        const l = Math.hypot(x, y, z) || 1; out[j] = x / l; out[j + 1] = y / l; out[j + 2] = z / l;
+      }
+      return out;
+    }
+    function morphInto(dst, base, morphs) {
+      dst.set(base);
+      for (const { idx, d, scale, w } of morphs) {
+        if (!w) continue;
+        for (let k = 0; k < idx.length; k++) { const v = idx[k] * 3; dst[v] += d[k * 3] * scale * w; dst[v + 1] += d[k * 3 + 1] * scale * w; dst[v + 2] += d[k * 3 + 2] * scale * w; }
+      }
+      return dst;
+    }
+    const qmul = (a, b) => [a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1], a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0], a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3], a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]];
+    const qconj = (q) => [-q[0], -q[1], -q[2], q[3]];
+    const qaxis = (ax, ang) => { const s = Math.sin(ang / 2); return [ax[0] * s, ax[1] * s, ax[2] * s, Math.cos(ang / 2)]; };
+    function qrot(q, v) {
+      const [x, y, z, w] = q, ix = w * v[0] + y * v[2] - z * v[1], iy = w * v[1] + z * v[0] - x * v[2], iz = w * v[2] + x * v[1] - y * v[0], iw = -x * v[0] - y * v[1] - z * v[2];
+      return [ix * w - iw * x - iy * z + iz * y, iy * w - iw * y - iz * x + ix * z, iz * w - iw * z - ix * y + iy * x];
+    }
+    const norm3 = (v) => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
+    function qfromTo(a, b) {
+      a = norm3(a); b = norm3(b);
+      const d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+      if (d < -0.999999) return [0, 0, 1, 0];
+      const q = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0], 1 + d], l = Math.hypot(...q);
+      return q.map((v) => v / l);
+    }
+    function qslerp(a, b, t) {
+      let d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+      if (d < 0) { b = b.map((v) => -v); d = -d; }
+      if (d > 0.9995) { const q = a.map((v, i) => v + (b[i] - v) * t), l = Math.hypot(...q); return q.map((v) => v / l); }
+      const th = Math.acos(d), s = Math.sin(th), wa = Math.sin((1 - t) * th) / s, wb = Math.sin(t * th) / s;
+      return a.map((v, i) => v * wa + b[i] * wb);
+    }
+    function sampleClip(clip, rot, hips, t) {
+      const n = clip.frames, B = rot.length / n / 4, f = Math.max(0, Math.min(n - 1.0001, t * clip.fps)), i = Math.floor(f), u = f - i, out = [];
+      for (let k = 0; k < B; k++) {
+        const a = [0, 1, 2, 3].map((c) => rot[(i * B + k) * 4 + c] / 32767), b = [0, 1, 2, 3].map((c) => rot[((i + 1) * B + k) * 4 + c] / 32767);
+        out.push(qslerp(a, b, u));
+      }
+      return { rot: out, hips: [0, 1, 2].map((c) => hips[i * 3 + c] + (hips[(i + 1) * 3 + c] - hips[i * 3 + c]) * u) };
+    }
+    // 揺れもの 1 つ分（VRM 0.x の決まり）。ext は風などの外からの力（1 秒あたりの動き）
+    function springStep(s, pos, rest, dt, spheres, ext) {
+      const tail = [pos[0] + rest[0] * s.len, pos[1] + rest[1] * s.len, pos[2] + rest[2] * s.len];
+      if (!s.cur) { s.cur = tail; s.prev = tail.slice(); }
+      const e = ext || [0, 0, 0];
+      let nx = [0, 1, 2].map((c) => s.cur[c] + (s.cur[c] - s.prev[c]) * (1 - s.drag) + rest[c] * s.stiff * dt + (s.gdir[c] * s.grav + e[c]) * dt);
+      const fix = () => { const d = norm3([nx[0] - pos[0], nx[1] - pos[1], nx[2] - pos[2]]); nx = [pos[0] + d[0] * s.len, pos[1] + d[1] * s.len, pos[2] + d[2] * s.len]; };
+      fix();
+      for (const c of spheres) {
+        const r = s.hit + c.r, d = [nx[0] - c.p[0], nx[1] - c.p[1], nx[2] - c.p[2]], l = Math.hypot(...d);
+        if (l < r && l > 1e-6) { nx = [c.p[0] + d[0] / l * r, c.p[1] + d[1] / l * r, c.p[2] + d[2] / l * r]; fix(); }
+      }
+      s.prev = s.cur; s.cur = nx;
+      return qfromTo(rest, [nx[0] - pos[0], nx[1] - pos[1], nx[2] - pos[2]]);
+    }
+    // 背景と同じカメラ: 高さ CH から +Z を水平に見る。焦点距離は画面の高さ 1、水平線は HZ だけ上。画面の右は世界の -X
+    const HZ = .02, CH = .876;
+    const toScreen = (w, cam) => { const v = [w[0] - cam[0], w[1] - cam[1], w[2] - cam[2]]; return [-v[0] / v[2], HZ + v[1] / v[2]]; };
+    function trs(t, r) {
+      const [x, y, z, w] = r, m = new Float32Array(16);
+      m[0] = 1 - 2 * (y * y + z * z); m[1] = 2 * (x * y + z * w); m[2] = 2 * (x * z - y * w);
+      m[4] = 2 * (x * y - z * w); m[5] = 1 - 2 * (x * x + z * z); m[6] = 2 * (y * z + x * w);
+      m[8] = 2 * (x * z + y * w); m[9] = 2 * (y * z - x * w); m[10] = 1 - 2 * (x * x + y * y);
+      m[12] = t[0]; m[13] = t[1]; m[14] = t[2]; m[15] = 1;
+      return m;
+    }
+    function mul(a, b) {
+      const o = new Float32Array(16);
+      for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
+      return o;
+    }
+  },
+  js() {
+    const c = document.getElementById('c'), gl = c.getContext('webgl2', { antialias: false, alpha: false });
+    if (!gl) { document.body.textContent = 'この作品には WebGL2 が必要です。'; throw new Error('WebGL2 が使えません'); }
+    const D = window.DEKIRU_DATA?.['vroid-b'], MO = window.DEKIRU_DATA?.['motion-bn1'];
+    if (!D || !MO) { document.body.textContent = 'モデルか動きのデータを読み込めませんでした。'; throw new Error('データがありません'); }
+    const HDR = !!gl.getExtension('EXT_color_buffer_float');   // 明るさの幅の広い絵（浮動小数）に描けるか
+    const b64 = (s) => { const r = atob(s), u = new Uint8Array(r.length); for (let i = 0; i < r.length; i++) u[i] = r.charCodeAt(i); return u; };
+    const bytes = b64(D.bin), mbytes = b64(MO.bin);
+    const sh = (type, src) => { const o = gl.createShader(type); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+    const program = (vs, fs) => { const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p; };
+    const FULL = `#version 300 es
+void main() { gl_Position = vec4(vec2(gl_VertexID & 1, gl_VertexID >> 1) * 4. - 1., 0, 1); }`;
+    const NOISE = `float hash(vec2 p) { vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+float noise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+float fbm(vec2 p) { float s = 0., a = .5; for (int i = 0; i < 5; i++) { s += a * noise(p); p = mat2(1.6, 1.2, -1.2, 1.6) * p; a *= .5; } return s; }`;
+
+    // ---- 1. 背景: 夕日の空と浅瀬（「夕凪の浅瀬を歩く人の影」と同じ計算）。カメラが前へ寄った分だけ床の模様もずらす ----
+    const bgProg = program(FULL, `#version 300 es
+precision highp float;
+uniform vec2 R, shake; uniform float T, camX, camZ; uniform vec4 RP[4]; out vec4 O;
+${NOISE}
+const float HZ = .02, CH = .876; const vec2 SUN = vec2(.16, .055);
+vec3 sky(vec2 p) {
+  float h = p.y - HZ, ds = length((p - SUN) * vec2(1., 1.3));
+  vec3 c = mix(vec3(1.25, .5, .18), vec3(.45, .2, .17), smoothstep(.0, .1, h));
+  c = mix(c, vec3(.07, .07, .15), smoothstep(.06, .32, h));
+  c = mix(c, vec3(.012, .018, .05), smoothstep(.28, .6, h));
+  c += vec3(1., .5, .2) * (exp(-ds * 5.) * .7 + exp(-ds * 18.) * 1.1);
+  float cl = fbm(vec2(p.x * 1.4 + T * .004, h * 13.)) * smoothstep(.06, .13, h) * smoothstep(.42, .16, h);
+  cl = smoothstep(.42, .72, cl);
+  c = mix(c, vec3(.1, .06, .09) + vec3(1., .45, .2) * exp(-ds * 3.) * .9, cl * .85);
+  float sd = length(p - SUN);
+  c += vec3(1.6, .9, .45) * 6. * smoothstep(.029, .026, sd) * (.7 + .3 * sqrt(max(0., 1. - sd / .028))) * smoothstep(HZ - .004, HZ + .006, p.y);
+  return c;
+}
+void main() {
+  vec2 p = (gl_FragCoord.xy - .5 * R) / R.y + shake;
+  vec3 col;
+  if (p.y >= HZ) col = sky(p);
+  else {
+    float z = CH / max(1e-4, HZ - p.y);
+    vec2 g = vec2(-p.x * z + camX, z + camZ);   // 世界の床の位置（画面の右は -X）
+    float rough = mix(.01, .07, smoothstep(5., 30., z));
+    vec2 sl = vec2(noise(g * vec2(1.5, 3.) + vec2(3., -T * .7)) - .5, noise(g * vec2(.7, 1.6) + vec2(0., -T * .45)) - .5) * rough * 2.;
+    sl.y += (noise(g * vec2(4., 9.) + vec2(T * .3, -T * 1.4)) - .5) * rough;
+    sl.y += sin(g.y * 16. + noise(g * 1.5) * 5. - T * 1.8) * .006 * smoothstep(12., 3., z);
+    float ring = 0.;
+    for (int i = 0; i < 4; i++) {            // 足のまわりから広がる輪
+      vec4 r = RP[i]; vec2 dv = g - r.xy; float dd = length(dv), rr = .05 + r.z * .35;
+      sl += dv / (dd + .01) * sin((dd - rr) * 45.) * exp(-abs(dd - rr) * 20.) * exp(-r.z * 1.3) * r.w * .03;
+      ring += exp(-abs(dd - rr) * 60.) * exp(-r.z * 1.6) * r.w;
+    }
+    vec3 refl = sky(vec2(p.x + sl.x * .5, 2. * HZ - p.y + sl.y));
+    float cs = CH / sqrt(CH * CH + z * z), fre = .02 + .98 * pow(1. - cs, 5.);
+    float rip = smoothstep(-.3, .9, sin(g.y * 45. + g.x * 6. + noise(g * 3.) * 9.)) * smoothstep(9., 3., z);
+    vec3 sand = vec3(.03, .022, .018) * (.55 + .5 * rip) * (.7 + .6 * noise(g * 8.));
+    col = mix(sand, refl, fre);
+    float bar = smoothstep(.6, .66, fbm(g * vec2(.35, .6) + 2.)) * smoothstep(14., 6., z);
+    col = mix(col, sand * 1.3 + refl * .14, bar);
+    col += vec3(1., .55, .3) * ring * .07;    // 輪の山が夕日を映して光る
+  }
+  O = vec4(col, 1.);
+}`);
+
+    // ---- 2. キャラ: 背景と同じカメラで写す。正面から空の色の光、後ろの夕日で縁が光る。水の中は描かず、水面に逆さに映す ----
+    const prog = program(`#version 300 es
+uniform highp sampler2D J; uniform sampler2D TW; uniform vec3 cam, base; uniform vec2 shake; uniform float asp, outline, mirror, T, waterY;
+in vec3 aP; in vec3 aN; in vec2 aUV; in uvec4 aJ; in vec4 aW;
+out vec3 vN, vW; out vec2 vUV; out float vY;
+mat4 jm(uint i) { int k = int(i); return mat4(texelFetch(J, ivec2(0, k), 0), texelFetch(J, ivec2(1, k), 0), texelFetch(J, ivec2(2, k), 0), texelFetch(J, ivec2(3, k), 0)); }
+void main() {
+  mat4 S = jm(aJ.x) * aW.x + jm(aJ.y) * aW.y + jm(aJ.z) * aW.z + jm(aJ.w) * aW.w;
+  vec4 p = S * vec4(aP, 1.); vec3 n = normalize(mat3(S) * aN);
+  if (outline > 0.) p.xyz += n * outline * texture(TW, aUV).r;
+  vec3 w = p.xyz + base;          // キャラは VRM のまま -Z（カメラの方）を向く
+  vY = w.y;
+  if (mirror > .5) { w.y = 2. * waterY - w.y; n.y = -n.y; w.x += sin(w.y * 40. + T * 3.) * .008 * (waterY - w.y); }   // 水面に逆さに映り、さざ波で揺れる
+  vN = n; vW = w; vUV = aUV;
+  vec3 v = w - cam;
+  gl_Position = vec4(-2. * v.x / asp, 2. * (.02 * v.z + v.y), 1.002 * v.z - .2002, v.z);   // 背景と同じ写し方（近い面 0.1m、遠い面 100m）
+  gl_Position.xy -= 2. * shake * vec2(1. / asp, 1.) * gl_Position.w;
+}`, `#version 300 es
+precision highp float;
+uniform sampler2D TM, TA, TS; uniform int mode, isOutline; uniform float cutoff, shadeShift, shadeToony, outlineMix, alphaFromMask, mirror, waterY;
+uniform vec3 color, shadeColor, outlineColor, Lk, Ls, cam, skyCol, sunCol;
+in vec3 vN, vW; in vec2 vUV; in float vY; out vec4 O;
+void main() {
+  if (vY < waterY) discard;                       // くるぶしから下は水の中
+  vec4 m = texture(TM, vUV); float a = alphaFromMask > .5 ? texture(TA, vUV).r : 1.;
+  if (mode == 1 && a < cutoff) discard;
+  vec3 lit = color * m.rgb, shade = shadeColor * texture(TS, vUV).rgb;
+  vec3 N = normalize(vN) * (gl_FrontFacing ? 1. : -1.);
+  float li = dot(N, Lk) * .5 + .5; li = li * 2. - 1.;
+  float hi = mix(1., shadeShift, shadeToony);
+  li = clamp((li - shadeShift) / max(1e-4, hi - shadeShift), 0., 1.);
+  vec3 col = mix(shade, lit, li) * skyCol;
+  vec3 V = normalize(cam - vW);
+  float rim = pow(1. - max(dot(N, V), 0.), 3.) * max(0., dot(N, Ls) * .6 + .45);   // 後ろの夕日が縁を光らせる
+  if (isOutline == 1) col = outlineColor * mix(vec3(1.), col, outlineMix);
+  else col += sunCol * (rim + .12 * smoothstep(.01, 0., vY - waterY));   // 水に入る所は夕日を受けて光る
+  float alpha = mode == 2 ? a * m.a : 1.;
+  if (mirror > .5) { col *= vec3(.5, .45, .55); alpha *= .55; }   // 水面に映る姿は暗く、半ば透ける
+  O = vec4(col * alpha, alpha);                                   // 透明度を掛けた色で持つ
+}`);
+    const u = Object.fromEntries(['J', 'TW', 'cam', 'base', 'shake', 'asp', 'outline', 'mirror', 'T', 'waterY', 'TM', 'TA', 'TS', 'mode', 'isOutline', 'cutoff', 'shadeShift', 'shadeToony', 'outlineMix', 'alphaFromMask',
+      'color', 'shadeColor', 'outlineColor', 'Lk', 'Ls', 'skyCol', 'sunCol'].map((n) => [n, gl.getUniformLocation(prog, n)]));
+
+    // ---- 3. 重ねる: 背景のぼかし（被写界深度）と、背景の光がキャラの縁へ回り込む処理 ----
+    const compProg = program(FULL, `#version 300 es
+precision highp float;
+uniform sampler2D BG, CHR; uniform vec2 R; uniform float dof; out vec4 O;
+void main() {
+  vec2 uv = gl_FragCoord.xy / R;
+  vec3 bg = mix(texture(BG, uv).rgb, textureLod(BG, uv, 2.5).rgb, dof);
+  vec4 ch = texture(CHR, uv);
+  vec3 col = bg * (1. - ch.a) + ch.rgb;
+  col += textureLod(BG, uv, 3.).rgb * clamp(ch.a - textureLod(CHR, uv, 1.5).a, 0., 1.) * .6;   // 光の回り込み（輪郭から数画素だけ）
+  O = vec4(col, 1.);
+}`);
+    // ---- 4. 仕上げ: 明るい所のにじみ、太陽のレンズの光（キャラが隠すと弱まる）、色の調子、周辺の暗さ、粒子、場面の切り替えの暗転 ----
+    const finalProg = program(FULL, `#version 300 es
+precision highp float;
+uniform sampler2D C, CHR; uniform vec2 R, sunUV; uniform float T, fade, asp; out vec4 O;
+float hash(vec2 p) { vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+void main() {
+  vec2 uv = gl_FragCoord.xy / R;
+  vec3 col = texture(C, uv).rgb;
+  vec3 bl = textureLod(C, uv, 3.).rgb * .45 + textureLod(C, uv, 5.).rgb * .35 + textureLod(C, uv, 6.5).rgb * .25;
+  col += max(bl - 1., 0.) * .35 + bl * .04;
+  float vis = (1. - textureLod(CHR, sunUV, 2.).a * .85) * (1. - texture(CHR, uv).a * .7);   // キャラが太陽を隠すと弱まり、キャラの上では薄くなる
+  vec2 p = (uv - .5) * vec2(asp, 1.), s = (sunUV - .5) * vec2(asp, 1.);
+  col += vec3(1., .55, .25) * exp(-length(p - s) * 9.) * .22 * vis;
+  col += vec3(1., .6, .35) * exp(-abs(p.y - s.y) * 260.) * exp(-abs(p.x - s.x) * 1.8) * .25 * vis;   // 横に伸びる光の筋
+  for (int i = 0; i < 3; i++) { float k = float(i), t = -.5 - k * .45; col += vec3(.5, .35, .2) * (.3 + .3 * k) * smoothstep(.05 + k * .03, .04 + k * .025, length(p - s * t)) * .05 * vis; }
+  for (int i = 0; i < 24; i++) {   // 逆光に浮かぶ光の粒（ピントの外れた丸いぼけ）。ゆっくり漂い、太陽に近いほど明るい
+    float k = float(i), sp = .008 + .015 * hash(vec2(k, 3.)), r = .005 + .018 * hash(vec2(k, 4.));
+    vec2 c = (fract(vec2(hash(vec2(k, 1.)), hash(vec2(k, 2.))) + vec2(-.6, .35) * sp * T) - .5) * vec2(asp, 1.);
+    float tw = .55 + .45 * sin(T * (.8 + 1.5 * hash(vec2(k, 5.))) + k * 2.1);
+    col += vec3(1., .62, .32) * smoothstep(r, r * .65, length(p - c)) * (.03 + .25 * exp(-length(c - s) * 2.5)) * tw;
+  }
+  col = col * (2.51 * col + .03) / (col * (2.43 * col + .59) + .14);
+  col *= .55 + .45 * pow(16. * uv.x * uv.y * (1. - uv.x) * (1. - uv.y), .25);
+  col = pow(clamp(col, 0., 1.), vec3(1. / 2.2)) + (hash(gl_FragCoord.xy + fract(T * 7.) * 517.) - .5) * .03;
+  O = vec4(col * fade, 1.);
+}`);
+
+    // ---- 絵を描く入れ物（浮動小数の絵。細かさを落とした段も作れるようにする） ----
+    // キャラの絵は 1 画素を 4 か所で調べて描き（マルチサンプル）、輪郭のぎざぎざを抑える。使えない環境では 1 か所で描く
+    const FMT = HDR ? gl.RGBA16F : gl.RGBA8, SAMPLES = Math.min(4, gl.getInternalformatParameter(gl.RENDERBUFFER, FMT, gl.SAMPLES)?.[0] || 0);
+    function target(withDepth) {
+      const t = { tex: gl.createTexture(), fb: gl.createFramebuffer(), w: 0, h: 0 };
+      if (withDepth) { t.depth = gl.createRenderbuffer(); t.ms = SAMPLES ? gl.createFramebuffer() : t.fb; t.color = SAMPLES ? gl.createRenderbuffer() : null; }
+      t.size = (w, h) => {
+        if (t.w === w && t.h === h) return;
+        t.w = w; t.h = h;
+        gl.bindTexture(gl.TEXTURE_2D, t.tex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, FMT, w, h, 0, gl.RGBA, HDR ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, t.fb); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t.tex, 0);
+        if (!withDepth) return;
+        if (t.color) {
+          gl.bindRenderbuffer(gl.RENDERBUFFER, t.color); gl.renderbufferStorageMultisample(gl.RENDERBUFFER, SAMPLES, FMT, w, h);
+          gl.bindFramebuffer(gl.FRAMEBUFFER, t.ms); gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, t.color);
+        }
+        gl.bindRenderbuffer(gl.RENDERBUFFER, t.depth);
+        if (t.color) gl.renderbufferStorageMultisample(gl.RENDERBUFFER, SAMPLES, gl.DEPTH_COMPONENT24, w, h); else gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h);
+        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, t.depth);
+      };
+      // マルチサンプルの絵を、普通の絵（テクスチャ）へ移す
+      t.resolve = () => { if (!t.color) return; gl.bindFramebuffer(gl.READ_FRAMEBUFFER, t.ms); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, t.fb); gl.blitFramebuffer(0, 0, t.w, t.h, 0, 0, t.w, t.h, gl.COLOR_BUFFER_BIT, gl.NEAREST); };
+      t.mip = () => { gl.bindTexture(gl.TEXTURE_2D, t.tex); gl.generateMipmap(gl.TEXTURE_2D); };
+      return t;
+    }
+    const tBG = target(false), tCH = target(true), tC = target(false);
+
+    // ---- モデルの画像と形（「VRoid のキャラを人の動きで動かす」と同じ） ----
+    const white = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, white);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));
+    const aniso = gl.getExtension('EXT_texture_filter_anisotropic');
+    async function tex(url, srgb) {
+      const im = new Image(); im.src = url; await im.decode();
+      const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+      gl.texImage2D(gl.TEXTURE_2D, 0, srgb ? gl.SRGB8_ALPHA8 : gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, im);
+      gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      if (aniso) gl.texParameterf(gl.TEXTURE_2D, aniso.TEXTURE_MAX_ANISOTROPY_EXT, 8);
+      return t;
+    }
+    const texColor = {}, texAlpha = {};
+    const ready = Promise.all(Object.entries(D.images).map(async ([k, im]) => { texColor[k] = await tex(im.color, true); if (im.alpha) texAlpha[k] = await tex(im.alpha, false); }));
+    const draws = [], faces = [];
+    for (const m of D.meshes) {
+      const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+      const buf = (data, name, size, type, norm, mode2) => {
+        const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, mode2 === 'dyn' ? gl.DYNAMIC_DRAW : gl.STATIC_DRAW);
+        const loc = gl.getAttribLocation(prog, name); gl.enableVertexAttribArray(loc);
+        if (mode2 === 'int') gl.vertexAttribIPointer(loc, size, type, 0, 0); else gl.vertexAttribPointer(loc, size, type, norm, 0, 0);
+        return b;
+      };
+      const pos = dequant(view(bytes, m.pos), m.pos.min, m.pos.max, 3);
+      const posBuf = buf(pos, 'aP', 3, gl.FLOAT, false, m.morphs.length ? 'dyn' : '');
+      buf(octDecode(view(bytes, m.nrm)), 'aN', 3, gl.FLOAT, false);
+      buf(dequant(view(bytes, m.uv), m.uv.min, m.uv.max, 2), 'aUV', 2, gl.FLOAT, false);
+      buf(view(bytes, m.jnt), 'aJ', 4, gl.UNSIGNED_BYTE, false, 'int');
+      buf(view(bytes, m.wgt), 'aW', 4, gl.UNSIGNED_BYTE, true);
+      if (m.morphs.length) faces.push({ mi: D.meshes.indexOf(m), base: pos, cur: new Float32Array(pos), buf: posBuf, morphs: m.morphs.map((x) => ({ idx: view(bytes, x.idx), d: view(bytes, x.d), scale: x.scale, w: 0 })) });
+      for (const p of m.prims) {
+        const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, view(bytes, p.idx), gl.STATIC_DRAW);
+        draws.push({ vao, ib, count: p.idx.n, mat: D.materials[p.mat] });
+      }
+    }
+    gl.bindVertexArray(null);
+    draws.sort((a, b) => a.mat.queue - b.mat.queue);
+
+    // ---- 骨・揺れもの・当たり判定 ----
+    const N = D.nodes, H = D.humanoid, kids = N.map(() => []);
+    N.forEach((n, i) => { if (n.parent >= 0) kids[n.parent].push(i); });
+    const order = []; (function walk(i) { order.push(i); kids[i].forEach(walk); })(0);
+    N.forEach((n, i) => { if (n.parent < 0 && i !== 0) (function walk(j) { order.push(j); kids[j].forEach(walk); })(i); });   // 根が分かれたデータでも全部の骨をたどる
+    const flipZ = (v) => [v[0], v[1], -v[2]];
+    const springs = new Map();
+    for (const g of D.springs) {
+      const setup = (n) => {
+        const ch = kids[n], local = ch.length ? N[ch[0]].t : (() => { const t = N[n].t, l = Math.hypot(...t) || 1; return t.map((v) => v / l * 0.07); })();
+        springs.set(n, { axis: norm3(local), len: Math.hypot(...local), stiff: g.stiffness, grav: g.gravityPower, gdir: flipZ(g.gravityDir), drag: g.drag, hit: g.hitRadius, cols: g.colliderGroups, cur: null, prev: null });
+        ch.forEach(setup);
+      };
+      g.bones.forEach(setup);
+    }
+    let spheres = D.colliders.map(() => []);
+
+    // ---- 場面: 沖から歩いてくる → 嬉しそうに手を振る → お辞儀 → 手を振る → 暗転して最初へ ----
+    const BI = Object.fromEntries(MO.bones.map((b, k) => [b, k]));
+    const byName = Object.fromEntries(MO.clips.map((cl) => [cl.name, { ...cl, rotA: view(mbytes, cl.rot), hipsA: dequant(view(mbytes, cl.hips), cl.hips.min, cl.hips.max, 3), len: (cl.frames - 1) / cl.fps }]));
+    const SHOT = ['walk', 'byehappy', 'bow', 'byebye'].map((n) => byName[n]);
+    const FACE = { walk: { joy: .2 }, byehappy: { joy: .85 }, bow: { joy: .3 }, byebye: { joy: .5 } };
+    const START = [0.15, -0.11, 6.6];   // 歩き始める位置（世界）。水面が高さ 0 で、足は 11cm 下の砂を踏む（動きの足首は床から約 14cm なので、くるぶしまで水に入る）
+    let ci = 0, ct = 0, prevPose = null, fade = 1, offset = [0, 0, 0], lastPose = null, cutAt = -1, clock = 0, paused = false;
+    function nextClip(pose) {
+      if (ci === SHOT.length - 1) { cutAt = clock; return; }   // 最後の動きのあとは暗転して最初に戻る
+      const nc = ci + 1, h0 = [0, 1, 2].map((k) => SHOT[nc].hipsA[k]);
+      offset = [offset[0] + pose.hips[0] - h0[0], 0, offset[2] + pose.hips[2] - h0[2]];
+      prevPose = { rot: pose.rot.map((q) => q.slice()), hips: [h0[0], pose.hips[1], h0[2]] };
+      ci = nc; ct = 0; fade = 0;
+    }
+    function restart() { ci = 0; ct = 0; fade = 1; prevPose = null; offset = [0, 0, 0]; for (const s of springs.values()) s.cur = s.prev = null; camZ = null; }
+    document.getElementById('next').addEventListener('click', () => { if (lastPose) nextClip(lastPose); });   // ボタンなので、キーボードでも押せる
+    const pauseBtn = document.getElementById('pause');
+    pauseBtn.addEventListener('click', () => { paused = !paused; pauseBtn.textContent = paused ? '▶ 動かす' : '❚❚ 止める'; });
+    const calm = matchMedia('(prefers-reduced-motion: reduce)');   // 動きを減らす設定のときは、カメラの手ぶれをなくす
+
+    // ---- 1 コマの骨の姿勢（動き → 海風を受ける揺れもの → 目線） ----
+    const skin = D.skins[0], ibm = view(bytes, skin.ibm);
+    const jtex = gl.createTexture(), jdata = new Float32Array(16 * skin.joints.length);
+    gl.bindTexture(gl.TEXTURE_2D, jtex); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    const local = N.map((n) => n.r.slice()), Wp = N.map(() => [0, 0, 0]), Wq = N.map(() => [0, 0, 0, 1]);
+    const humanNode = Object.fromEntries(MO.bones.map((b) => [H[b], b]));
+    function pose(dt, t, camModel) {
+      const clip = SHOT[ci];
+      let p = sampleClip(clip, clip.rotA, clip.hipsA, ct);
+      if (fade < 1 && prevPose) { const k = fade * fade * (3 - 2 * fade); p = { rot: p.rot.map((q, i) => qslerp(prevPose.rot[i], q, k)), hips: p.hips.map((v, i) => prevPose.hips[i] + (v - prevPose.hips[i]) * k) }; }
+      lastPose = p;
+      for (const [n, b] of Object.entries(humanNode)) local[n] = p.rot[BI[b]];
+      const hipsT = [p.hips[0] + offset[0], p.hips[1], p.hips[2] + offset[2]];
+      const gust = .6 + .4 * Math.sin(t * .9) + .25 * Math.sin(t * 2.3 + 1), wind = [WIND[0] * gust, WIND[1], WIND[2] * gust];   // 海風（強さが波のように変わる）
+      for (const i of order) {
+        const n = N[i], par = n.parent, t2 = i === H.hips ? hipsT : n.t;
+        const pp = par >= 0 ? Wp[par] : [0, 0, 0], pq = par >= 0 ? Wq[par] : [0, 0, 0, 1];
+        const d = qrot(pq, t2); Wp[i] = [pp[0] + d[0], pp[1] + d[1], pp[2] + d[2]];
+        const s = springs.get(i);
+        if (s) {
+          const restDir = qrot(pq, s.axis), sph = [];
+          for (const g of s.cols) for (const c2 of spheres[g]) sph.push(c2);
+          Wq[i] = qmul(springStep(s, Wp[i], restDir, dt, sph, wind), pq);
+        } else if (i === H.leftEye || i === H.rightEye) {
+          const v = qrot(qconj(pq), [camModel[0] - Wp[i][0], camModel[1] - Wp[i][1], camModel[2] - Wp[i][2]]), l = Math.hypot(...v) || 1;
+          Wq[i] = qmul(pq, qmul(qaxis([0, 1, 0], Math.max(-.25, Math.min(.25, Math.atan2(-v[0], -v[2])))), qaxis([1, 0, 0], Math.max(-.18, Math.min(.18, Math.asin(v[1] / l))))));
+        } else Wq[i] = qmul(pq, local[i]);
+      }
+      spheres = D.colliders.map((cg) => cg.colliders.map((k) => { const o = qrot(Wq[cg.node], flipZ(k.offset)); return { p: [Wp[cg.node][0] + o[0], Wp[cg.node][1] + o[1], Wp[cg.node][2] + o[2]], r: k.radius }; }));
+      skin.joints.forEach((n, j) => jdata.set(mul(trs(Wp[n], Wq[n]), ibm.subarray(j * 16, j * 16 + 16)), j * 16));
+      gl.bindTexture(gl.TEXTURE_2D, jtex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, 4, skin.joints.length, 0, gl.RGBA, gl.FLOAT, jdata);
+      return { hips: hipsT, feet: [Wp[H.leftFoot], Wp[H.rightFoot]] };
+    }
+
+    // ---- 表情 ----
+    const exprOf = Object.fromEntries(D.expressions.map((e) => [e.preset, e.binds]));
+    const face = { joy: 0 };
+    let blinkAt = 2;
+    function expressions(t, dt) {
+      const want = FACE[SHOT[ci].name] || {};
+      face.joy += ((want.joy || 0) - face.joy) * Math.min(1, dt * 3);
+      if (t > blinkAt + .15) blinkAt = t + 2.5 + Math.random() * 3;
+      const bt = (t - blinkAt) / .15, blink = (bt > 0 && bt < 1 ? Math.sin(bt * Math.PI) : 0) * (1 - Math.min(1, face.joy * 1.5));
+      const w = new Map(), add = (preset, k) => { for (const b of exprOf[preset] || []) { const key = b.mesh + '/' + b.morph; w.set(key, Math.min(1, (w.get(key) || 0) + b.weight * k)); } };
+      add('blink', blink); add('joy', face.joy);
+      for (const f of faces) {
+        let changed = false;
+        f.morphs.forEach((mo, k) => { const v = w.get(f.mi + '/' + k) || 0; if (Math.abs(mo.w - v) > 1e-3) { mo.w = v; changed = true; } });
+        if (changed) { morphInto(f.cur, f.base, f.morphs); gl.bindBuffer(gl.ARRAY_BUFFER, f.buf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, f.cur); }
+      }
+    }
+
+    // ---- 光: 正面（カメラの側）から空の色、後ろの夕日（画面の太陽の向き）から縁の光 ----
+    const SUN = [.16, .055], Ls = norm3([-SUN[0], SUN[1] - HZ, 1]), Lk = norm3([.35, .55, -1]);
+    const skyCol = [.62, .5, .55], sunCol = [1.7, .8, .4], WATER = 0, WIND = [.55, .05, .5];   // 夕方の陸風: カメラの側（陸）から沖へ、少し画面の左（世界の +X）へ吹く
+    const DIST = { walk: 3.1, byehappy: 2.35, bow: 2.7, byebye: 2.35 };   // 動きごとのカメラの距離（ゆっくり寄ったり引いたりする）
+    let ok = false, camZ = null, camX = 0, lastNow = null, drawnW = 0, drawnH = 0, lastP = null;
+    ready.then(() => { ok = true; console.log(`場面 ${SHOT.length} カット・明るさの幅の広い絵: ${HDR ? 'あり' : 'なし（8 ビット）'}`); });
+
+    function frame(now) {
+      requestAnimationFrame(frame);
+      if (!ok) return;
+      const dpr = Math.min(1.5, devicePixelRatio || 1), w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr), asp = w / h;
+      const step = lastNow == null ? 1 / 60 : Math.min(1 / 30, Math.max(1e-3, (now - lastNow) / 1000)); lastNow = now;
+      if (paused && w === drawnW && h === drawnH) return;   // 止めている間は描き直さない（大きさが変わったときだけ描く）
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+      drawnW = w; drawnH = h;
+      const dt = paused ? 0 : step; clock += dt;
+      const t = clock;
+      // 場面を進める。最後の動きのあとは暗転（0.6 秒）して最初へ
+      ct += dt; fade = Math.min(1, fade + dt / .5);
+      if (cutAt < 0 && ct > SHOT[ci].len && lastPose) nextClip(lastPose);
+      let dark = 1;
+      if (cutAt >= 0) { const k = (t - cutAt) / .6; dark = Math.abs(1 - 2 * Math.min(1, k)); if (k >= .5 && ci !== 0) restart(); if (k >= 1) cutAt = -1; }
+      // 姿勢を先に決める（目線は前のコマのカメラを見る）
+      const shake = calm.matches ? [0, 0] : [Math.sin(t * .7) * .0012, Math.sin(t * .93 + 1) * .001];   // ほんの少しの手ぶれ
+      const P = dt > 0 || !lastPose ? pose(Math.max(dt, 1e-3), t, [camX - START[0], CH - START[1], (camZ ?? 0) - START[2]]) : lastP;
+      lastP = P;
+      expressions(t, Math.max(dt, 1e-3));
+      // カメラ: 腰から 3.7m 手前（手を振る間は 3.0m までゆっくり寄る）
+      const hipsW = [P.hips[0] + START[0], 0, P.hips[2] + START[2]];
+      const want = hipsW[2] - DIST[SHOT[ci].name];
+      camZ = camZ == null ? want : camZ + (want - camZ) * Math.min(1, dt * (ci === 0 ? 2 : .5));
+      camX += (hipsW[0] * .4 - camX) * Math.min(1, dt);
+      const cam = [camX, CH, camZ];
+      const feetW = P.feet.map((f) => [f[0] + START[0], f[2] + START[2]]);
+
+      // 1. 背景
+      tBG.size(w, h); tCH.size(w, h); tC.size(w, h);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, tBG.fb); gl.viewport(0, 0, w, h); gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
+      gl.useProgram(bgProg);
+      const bu = (n) => gl.getUniformLocation(bgProg, n);
+      gl.uniform2f(bu('R'), w, h); gl.uniform2fv(bu('shake'), shake); gl.uniform1f(bu('T'), t); gl.uniform1f(bu('camX'), camX); gl.uniform1f(bu('camZ'), camZ);
+      const rp = new Float32Array(16);
+      feetW.forEach((f, k) => { for (let j = 0; j < 2; j++) { const i = k * 2 + j, age = (t / 1.7 + i * .43) % 1 * 1.7; rp.set([f[0], f[1], age, 1], i * 4); } });   // 足のまわりに、ずらして広がる輪
+      gl.uniform4fv(bu('RP'), rp);
+      gl.drawArrays(gl.TRIANGLES, 0, 3); tBG.mip();
+
+      // 2. キャラ（先に水面の逆さの姿、次に本体）
+      gl.bindFramebuffer(gl.FRAMEBUFFER, tCH.ms); gl.viewport(0, 0, w, h);
+      gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
+      gl.useProgram(prog);
+      gl.uniform3fv(u.cam, cam); gl.uniform3fv(u.base, START); gl.uniform2fv(u.shake, shake); gl.uniform1f(u.asp, asp); gl.uniform1f(u.T, t); gl.uniform1f(u.waterY, WATER);
+      gl.uniform3fv(u.Lk, Lk); gl.uniform3fv(u.Ls, Ls); gl.uniform3fv(u.skyCol, skyCol); gl.uniform3fv(u.sunCol, sunCol);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, jtex); gl.uniform1i(u.J, 0);
+      gl.blendFuncSeparate(gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);   // 透明度を掛けた色どうしを重ねる
+      // 水面の姿は半ば透けるので、先に奥行きだけ描き（depthOnly）、いちばん手前の面だけに色を付ける。こうしないと髪と体が重なった所が濃くなる
+      for (const [mirror, depthOnly] of [[1, 1], [1, 0], [0, 0]]) {
+        gl.frontFace(mirror ? gl.CW : gl.CCW);   // 上下を返すと、面の表と裏が入れ替わる
+        gl.uniform1f(u.mirror, mirror);
+        gl.colorMask(!depthOnly, !depthOnly, !depthOnly, !depthOnly);
+        for (const pass of [0, 1]) for (const d of draws) {
+          const m = d.mat;
+          if (pass === 1 && !(m.outlineWidth > 0)) continue;
+          if (depthOnly && m.mode === 'blend') continue;
+          const blend = m.mode === 'blend' || mirror;
+          gl.depthMask(m.mode !== 'blend' && (!mirror || depthOnly)); if (blend) gl.enable(gl.BLEND); else gl.disable(gl.BLEND);
+          if (pass === 1) { gl.enable(gl.CULL_FACE); gl.cullFace(gl.FRONT); } else if (m.cull === 2) { gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK); } else gl.disable(gl.CULL_FACE);
+          const bind = (unit, name, t2) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t2 || white); gl.uniform1i(u[name], unit); };
+          bind(1, 'TM', texColor[m.tex.main]); bind(2, 'TA', texAlpha[m.tex.main]); bind(3, 'TS', texColor[m.tex.shade]); bind(4, 'TW', texColor[m.tex.outline]);
+          gl.uniform1f(u.alphaFromMask, texAlpha[m.tex.main] ? 1 : 0); gl.uniform1i(u.mode, { opaque: 0, cutout: 1, blend: 2 }[m.mode]); gl.uniform1i(u.isOutline, pass);
+          gl.uniform1f(u.outline, pass ? m.outlineWidth : 0); gl.uniform1f(u.cutoff, m.cutoff); gl.uniform1f(u.shadeShift, m.shadeShift); gl.uniform1f(u.shadeToony, m.shadeToony); gl.uniform1f(u.outlineMix, m.outlineMix);
+          gl.uniform3fv(u.color, m.color.slice(0, 3)); gl.uniform3fv(u.shadeColor, m.shadeColor.slice(0, 3)); gl.uniform3fv(u.outlineColor, m.outlineColor.slice(0, 3));
+          gl.bindVertexArray(d.vao); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, d.ib); gl.drawElements(gl.TRIANGLES, d.count, gl.UNSIGNED_SHORT, 0);
+        }
+        if (mirror && !depthOnly) gl.clear(gl.DEPTH_BUFFER_BIT);   // 逆さの姿は本体より奥なので、本体は上から描く
+      }
+      gl.colorMask(true, true, true, true); gl.bindVertexArray(null); gl.depthMask(true); gl.disable(gl.CULL_FACE); gl.disable(gl.BLEND); gl.frontFace(gl.CCW); gl.disable(gl.DEPTH_TEST);
+      tCH.resolve(); tCH.mip();
+
+      // 3. 重ねる
+      gl.bindFramebuffer(gl.FRAMEBUFFER, tC.fb); gl.viewport(0, 0, w, h);
+      gl.useProgram(compProg);
+      const cu = (n) => gl.getUniformLocation(compProg, n);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tBG.tex); gl.uniform1i(cu('BG'), 0);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, tCH.tex); gl.uniform1i(cu('CHR'), 1);
+      gl.uniform2f(cu('R'), w, h); gl.uniform1f(cu('dof'), .45 + .35 * Math.max(0, Math.min(1, (3.7 - (hipsW[2] - camZ)) / .7)));   // 寄るほど背景をぼかす
+      gl.drawArrays(gl.TRIANGLES, 0, 3); tC.mip();
+
+      // 4. 仕上げ
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w, h);
+      gl.useProgram(finalProg);
+      const fu = (n) => gl.getUniformLocation(finalProg, n);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tC.tex); gl.uniform1i(fu('C'), 0);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, tCH.tex); gl.uniform1i(fu('CHR'), 1);
+      gl.uniform2f(fu('R'), w, h); gl.uniform2f(fu('sunUV'), (SUN[0] - shake[0]) / asp + .5, SUN[1] - shake[1] + .5);
+      gl.uniform1f(fu('T'), t); gl.uniform1f(fu('fade'), dark); gl.uniform1f(fu('asp'), asp);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
+    requestAnimationFrame(frame);
+  },
+});
