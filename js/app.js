@@ -92,13 +92,26 @@ canvas, img, video { display: block; max-width: 100%; }
       `for(const k of['log','info','warn','error']){const o=console[k];console[k]=(...a)=>{send('console',{level:k,text:a.map(fmt).join(' ')});o.apply(console,a)}}` +
       `window.THUMB=${mode === 'thumb'};})();`;
   }
-  function buildDoc(e, { mode = 'detail', html, css, js } = {}) {
+  // 項目の data に書いた大きなデータ（3D モデルなど）。iframe では住所で読み、HTML 1枚に書き出すときは中身を埋め込む
+  const dataCache = new Map();
+  async function loadData(e) {
+    const out = {};
+    for (const p of e.data || []) {
+      if (!dataCache.has(p)) dataCache.set(p, fetch(p).then((r) => { if (!r.ok) throw new Error(`${p} を読めません（${r.status}）`); return r.text(); }));
+      out[p] = await dataCache.get(p);
+    }
+    return out;
+  }
+  const dataTags = (e, inline) => (e.data || []).map((p) => (inline && inline[p] != null
+    ? `<script>\n${inline[p].replace(/<\/script/gi, '<\\/script')}\n<\/script>\n`
+    : `<script src="${esc(new URL(p, location.href).href)}"><\/script>\n`)).join('');
+  function buildDoc(e, { mode = 'detail', html, css, js, inline } = {}) {
     html = html ?? e.src.html;
     css = css ?? e.src.css;
     js = js ?? e.src.js;
     const top = mode === 'export' ? `<!-- 出来る！HTML/CSS/JavaScript No.${pad(e.no)} ${e.t} -->\n` : '';
     const bridge = mode === 'export' ? '' : `<link rel="icon" href="data:,">\n<script>${prelude(mode)}<\/script>\n`;
-    const head = `<!doctype html>\n${top}<html lang="ja">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${esc(e.t)}</title>\n${bridge}<style>\n${BASE_CSS}\n</style>\n<style>\n${css.replace(/<\/style/gi, '<\\/style')}\n</style>\n</head>\n<body>\n${html}\n<script>\n`;
+    const head = `<!doctype html>\n${top}<html lang="ja">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${esc(e.t)}</title>\n${bridge}<style>\n${BASE_CSS}\n</style>\n<style>\n${css.replace(/<\/style/gi, '<\\/style')}\n</style>\n${dataTags(e, inline)}</head>\n<body>\n${html}\n<script>\n`;
     const doc = head + js.replace(/<\/script/gi, '<\\/script') + '\n<\/script>\n</body>\n</html>\n';
     return { doc, jsLine: (head.match(/\n/g) || []).length };
   }
@@ -648,9 +661,9 @@ canvas, img, video { display: block; max-width: 100%; }
     const c = getCode();
     copyText(state.tab === 'base' ? BASE_CSS : c[state.tab], { html: 'HTML', css: 'CSS', js: 'JavaScript', base: '下地CSS' }[state.tab]);
   });
-  $('#dSave').addEventListener('click', () => {
+  $('#dSave').addEventListener('click', async () => {
     const e = state.current, c = getCode();
-    const doc = buildDoc(e, { mode: 'export', ...c }).doc;
+    const doc = buildDoc(e, { mode: 'export', ...c, inline: await loadData(e) }).doc;   // データも中に入れて、1枚で動くように
     // 共有ページではダウンロードが止められるので、HTML 1枚ぶんをクリップボードへ写す
     if (SHARED) { copyText(doc, 'HTML 1枚ぶん'); return; }
     download(`${pad(e.no)}-${e.id}.html`, doc);
@@ -662,9 +675,9 @@ canvas, img, video { display: block; max-width: 100%; }
     for (const id of ['#dPop', '#dLink', '#pipeShare']) $(id).hidden = true;
     $('#sharedNote').hidden = false;
   }
-  $('#dPop').addEventListener('click', () => {
+  $('#dPop').addEventListener('click', async () => {
     const e = state.current, c = getCode();
-    const url = URL.createObjectURL(new Blob([buildDoc(e, { mode: 'export', ...c }).doc], { type: 'text/html;charset=utf-8' }));
+    const url = URL.createObjectURL(new Blob([buildDoc(e, { mode: 'export', ...c, inline: await loadData(e) }).doc], { type: 'text/html;charset=utf-8' }));
     const w = window.open(url, '_blank');
     log('demo.popout', { id: e.id }, w ? 'ok' : 'blocked');
     setTimeout(() => URL.revokeObjectURL(url), 60000);

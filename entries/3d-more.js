@@ -1253,3 +1253,266 @@ dekiru.add({
     if (window.THUMB) { let d = 1; setInterval(() => { if (cur + d < 0 || cur + d >= cards.length) d = -d; go(cur + d); }, 1100); }
   },
 });
+/* キャラクターの 3D モデル
+ * 権利上自由に使えるモデル（VRoid の公式サンプル）を、変換の道具（tools/vrm2js.mjs）で JavaScript のデータにして描く。
+ * データは大きいので、項目の data に書いたファイルを、その項目を開いたときだけ読み込む（一覧の小さな絵は出さない）。 */
+dekiru.add({
+  id: '3d-vroid-toon', c: '3d', lv: 3,
+  t: 'VRoid のキャラをアニメ調で描く', y: 'ぶいろいどのきゃらをあにめちょうでえがく',
+  tags: ['3D', 'VRM', 'アニメ調', 'スキニング', 'WebGL'],
+  data: ['data/vroid-b.js'], nt: true,
+  d: 'VRoid の公式サンプル「AvatarSample_B」の 3D モデルを、ライブラリを使わずに WebGL2 で描く。元の VRM（28MB）を変換の道具で JavaScript のデータ（約 1.4MB）にし、この項目を開いたときだけ読み込む。形は 113 本の骨に結び付けてあり、骨の向きから頂点の位置を毎回計算する（スキニング）。陰影は VRM の標準のアニメ調の決まり（MToon）にならい、光の当たり方で基本の色と影の色を切り替える。輪郭線は、裏返した形を少し膨らませて描く。カメラは全身の周りを回り、14 秒ごとに顔に寄る。画面を押すと、顔に寄る・全身に戻るを切り替える。まばたきは、モデルに入っている表情のデータで動かす。',
+  p: '3D のモデルも、つまるところ数の並び。位置や法線を小さな整数に詰めて文字列にすれば、画像や 3D のファイルを読む仕組みを使わずに、JavaScript のデータとして持ち運べる。',
+  html: `<canvas id="c" role="img" aria-label="紫の長い髪の女の子の 3D モデルが、アニメ調の陰影で描かれ、カメラがゆっくり周りを回る"></canvas>
+<p class="credit">3D モデル: AvatarSample_B（VRoid Project）</p>`,
+  css: `body { background: #1a1820; overflow: hidden; }
+canvas { display: block; width: 100vw; height: 100vh; }
+.credit { position: fixed; left: 12px; bottom: 8px; margin: 0; font-size: 11px; color: #fff9; }`,
+  core() {
+    // データを戻す計算（変換の道具 tools/lib/meshpack.mjs の逆）と、骨の行列の計算。DOM を使わない
+    const TYPES = { Uint8Array, Int8Array, Uint16Array, Int16Array, Uint32Array, Float32Array };
+    const view = (bytes, r) => new TYPES[r.t](bytes.buffer, bytes.byteOffset + r.o, r.n);
+    // 箱の中を 0〜65535 に分けた整数を、元の小数に戻す（k は 1 組の数: 位置は 3、UV は 2）
+    function dequant(q, min, max, k) {
+      const out = new Float32Array(q.length);
+      for (let i = 0; i < q.length; i++) { const a = i % k; out[i] = min[a] + q[i] / 65535 * (max[a] - min[a]); }
+      return out;
+    }
+    // 八面体に写した 2 つの整数から、法線（長さ 1 の向き）に戻す
+    function octDecode(e) {
+      const out = new Float32Array(e.length / 2 * 3);
+      for (let i = 0, j = 0; i < e.length; i += 2, j += 3) {
+        let x = e[i] / 127, y = e[i + 1] / 127; const z = 1 - Math.abs(x) - Math.abs(y);
+        if (z < 0) { const ox = x; x = (1 - Math.abs(y)) * (ox >= 0 ? 1 : -1); y = (1 - Math.abs(ox)) * (y >= 0 ? 1 : -1); }
+        const l = Math.hypot(x, y, z) || 1; out[j] = x / l; out[j + 1] = y / l; out[j + 2] = z / l;
+      }
+      return out;
+    }
+    // 表情: 元の位置に、動く頂点の差分を重みを掛けて足す
+    function morphInto(dst, base, morphs) {
+      dst.set(base);
+      for (const { idx, d, scale, w } of morphs) {
+        if (!w) continue;
+        for (let k = 0; k < idx.length; k++) { const v = idx[k] * 3; dst[v] += d[k * 3] * scale * w; dst[v + 1] += d[k * 3 + 1] * scale * w; dst[v + 2] += d[k * 3 + 2] * scale * w; }
+      }
+      return dst;
+    }
+    // 4x4 の行列（列の順に並べる）。位置 t・回転 r（四元数）・大きさ s から作る
+    function trs(t, r, s) {
+      const [x, y, z, w] = r, m = new Float32Array(16);
+      m[0] = (1 - 2 * (y * y + z * z)) * s[0]; m[1] = 2 * (x * y + z * w) * s[0]; m[2] = 2 * (x * z - y * w) * s[0];
+      m[4] = 2 * (x * y - z * w) * s[1]; m[5] = (1 - 2 * (x * x + z * z)) * s[1]; m[6] = 2 * (y * z + x * w) * s[1];
+      m[8] = 2 * (x * z + y * w) * s[2]; m[9] = 2 * (y * z - x * w) * s[2]; m[10] = (1 - 2 * (x * x + y * y)) * s[2];
+      m[12] = t[0]; m[13] = t[1]; m[14] = t[2]; m[15] = 1;
+      return m;
+    }
+    function mul(a, b) {
+      const o = new Float32Array(16);
+      for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
+      return o;
+    }
+    const qmul = (a, b) => [a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1], a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0], a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3], a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]];
+    const qaxis = (ax, ang) => { const s = Math.sin(ang / 2); return [ax[0] * s, ax[1] * s, ax[2] * s, Math.cos(ang / 2)]; };
+    // 全部の骨の、世界での行列。pose は「骨の番号 → 足す回転（四元数）」
+    function worldMatrices(nodes, pose) {
+      const out = new Array(nodes.length);
+      const get = (i) => {
+        if (out[i]) return out[i];
+        const n = nodes[i], r = pose.has(i) ? qmul(n.r, pose.get(i)) : n.r, local = trs(n.t, r, n.s);
+        return (out[i] = n.parent < 0 ? local : mul(get(n.parent), local));
+      };
+      for (let i = 0; i < nodes.length; i++) get(i);
+      return out;
+    }
+  },
+  js() {
+    const c = document.getElementById('c'), gl = c.getContext('webgl2', { antialias: true });
+    if (!gl) { document.body.textContent = 'この作品には WebGL2 が必要です。'; throw new Error('WebGL2 が使えません'); }
+    const D = window.DEKIRU_DATA?.['vroid-b'];
+    if (!D) { document.body.textContent = 'モデルのデータ（data/vroid-b.js）を読み込めませんでした。'; throw new Error('データがありません'); }
+    const t0 = performance.now();
+    const raw = atob(D.bin), bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    const sh = (type, src) => { const o = gl.createShader(type); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+    const program = (vs, fs) => { const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p; };
+
+    // ---- 骨で形を動かし、アニメ調の陰影をつけるシェーダー（outline が 1 のときは、裏返して膨らませた輪郭線） ----
+    const VS = `#version 300 es
+uniform highp sampler2D J; uniform mat4 VP; uniform float outline; uniform sampler2D TW;
+in vec3 aP; in vec3 aN; in vec2 aUV; in uvec4 aJ; in vec4 aW;
+out vec3 vN; out vec3 vP; out vec2 vUV;
+mat4 jm(uint i) { int k = int(i); return mat4(texelFetch(J, ivec2(0, k), 0), texelFetch(J, ivec2(1, k), 0), texelFetch(J, ivec2(2, k), 0), texelFetch(J, ivec2(3, k), 0)); }
+void main() {
+  mat4 S = jm(aJ.x) * aW.x + jm(aJ.y) * aW.y + jm(aJ.z) * aW.z + jm(aJ.w) * aW.w;
+  vec4 p = S * vec4(aP, 1.); vN = normalize(mat3(S) * aN); vUV = aUV;
+  if (outline > 0.) p.xyz += vN * outline * texture(TW, aUV).r;
+  vP = p.xyz; gl_Position = VP * p;
+}`;
+    const FS = `#version 300 es
+precision highp float;
+uniform sampler2D TM, TA, TS; uniform int mode, isOutline; uniform float cutoff, shadeShift, shadeToony, outlineMix;
+uniform vec3 color, shadeColor, outlineColor, L, camPos; uniform float alphaFromMask;
+in vec3 vN; in vec3 vP; in vec2 vUV; out vec4 O;
+void main() {
+  vec4 m = texture(TM, vUV); float a = alphaFromMask > .5 ? texture(TA, vUV).r : 1.;
+  if (mode == 1 && a < cutoff) discard;
+  vec3 lit = color * m.rgb, shade = shadeColor * texture(TS, vUV).rgb;
+  vec3 N = normalize(vN) * (gl_FrontFacing ? 1. : -1.);
+  // MToon の陰影: 半分のランバートを [-1, 1] に広げ、影の位置（shadeShift）と硬さ（shadeToony）で 0〜1 に写す
+  float li = dot(N, L) * .5 + .5; li = li * 2. - 1.;
+  float hi = mix(1., shadeShift, shadeToony);
+  li = clamp((li - shadeShift) / max(1e-4, hi - shadeShift), 0., 1.);
+  vec3 col = mix(shade, lit, li) + lit * .1;                                     // 周りから回り込む弱い光
+  if (isOutline == 1) col = outlineColor * mix(vec3(1.), col, outlineMix);
+  col = pow(clamp(col, 0., 1.), vec3(1. / 2.2));
+  O = vec4(col, mode == 2 ? a * m.a : 1.);
+}`;
+    const prog = program(VS, FS);
+    const U = (n) => gl.getUniformLocation(prog, n);
+    const u = Object.fromEntries(['J', 'VP', 'outline', 'TW', 'TM', 'TA', 'TS', 'mode', 'isOutline', 'cutoff', 'shadeShift', 'shadeToony', 'outlineMix', 'color', 'shadeColor', 'outlineColor', 'L', 'camPos', 'alphaFromMask'].map((n) => [n, U(n)]));
+
+    // ---- 画像（色と透明度を分けた WebP）を読む ----
+    const white = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, white);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));
+    const aniso = gl.getExtension('EXT_texture_filter_anisotropic');
+    async function tex(url, srgb) {
+      const im = new Image(); im.src = url; await im.decode();
+      const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+      gl.texImage2D(gl.TEXTURE_2D, 0, srgb ? gl.SRGB8_ALPHA8 : gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, im);
+      gl.generateMipmap(gl.TEXTURE_2D);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      if (aniso) gl.texParameterf(gl.TEXTURE_2D, aniso.TEXTURE_MAX_ANISOTROPY_EXT, 8);
+      return t;
+    }
+    const texColor = {}, texAlpha = {};
+    const ready = Promise.all(Object.entries(D.images).map(async ([k, im]) => {
+      texColor[k] = await tex(im.color, true);
+      if (im.alpha) texAlpha[k] = await tex(im.alpha, false);
+    }));
+
+    // ---- 形（頂点と面）を GPU へ ----
+    // view・dequant・octDecode・morphInto・worldMatrices・mul・qaxis は、上の core にある
+    const draws = [];
+    const faces = [];   // 表情で形が変わる部分
+    for (const m of D.meshes) {
+      const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+      const buf = (data, loc, size, type, norm, int) => {
+        const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, int === 'dyn' ? gl.DYNAMIC_DRAW : gl.STATIC_DRAW);
+        const L2 = gl.getAttribLocation(prog, loc); gl.enableVertexAttribArray(L2);
+        if (int === true) gl.vertexAttribIPointer(L2, size, type, 0, 0); else gl.vertexAttribPointer(L2, size, type, norm, 0, 0);
+        return b;
+      };
+      const pos = dequant(view(bytes, m.pos), m.pos.min, m.pos.max, 3);
+      const posBuf = buf(pos, 'aP', 3, gl.FLOAT, false, m.morphs.length ? 'dyn' : false);
+      buf(octDecode(view(bytes, m.nrm)), 'aN', 3, gl.FLOAT, false);
+      buf(dequant(view(bytes, m.uv), m.uv.min, m.uv.max, 2), 'aUV', 2, gl.FLOAT, false);
+      buf(view(bytes, m.jnt), 'aJ', 4, gl.UNSIGNED_BYTE, false, true);
+      buf(view(bytes, m.wgt), 'aW', 4, gl.UNSIGNED_BYTE, true);
+      if (m.morphs.length) faces.push({ m, base: pos, cur: new Float32Array(pos), buf: posBuf, morphs: m.morphs.map((x) => ({ idx: view(bytes, x.idx), d: view(bytes, x.d), scale: x.scale, w: 0 })) });
+      for (const p of m.prims) {
+        const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, view(bytes, p.idx), gl.STATIC_DRAW);
+        draws.push({ vao, ib, count: p.idx.n, mat: D.materials[p.mat] });   // 面の番号の入れ物は、描く直前に結び直す（VAO には最後に結んだ1つしか残らない）
+      }
+    }
+    gl.bindVertexArray(null);
+    draws.sort((a, b) => a.mat.queue - b.mat.queue);
+    const blinkBind = D.expressions.find((e) => e.preset === 'blink')?.binds || [];
+
+    // ---- 骨: 腕を下ろした姿（T の字から A の字へ）。VRM 0.x は後ろ（-Z）を向いているので 180 度回して正面に ----
+    const H = D.humanoid, pose = new Map();
+    pose.set(H.leftUpperArm, qaxis([0, 0, 1], 1.15));
+    pose.set(H.rightUpperArm, qaxis([0, 0, 1], -1.15));
+    pose.set(H.leftLowerArm, qaxis([0, 1, 0], -0.15));
+    pose.set(H.rightLowerArm, qaxis([0, 1, 0], 0.15));
+    const root = new Float32Array([-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1]);
+    const skin = D.skins[0], ibm = view(bytes, skin.ibm);
+    const jtex = gl.createTexture(), jdata = new Float32Array(4 * 4 * skin.joints.length);
+    gl.bindTexture(gl.TEXTURE_2D, jtex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    let world = null;
+    function updateBones() {
+      world = worldMatrices(D.nodes, pose).map((m) => mul(root, m));
+      skin.joints.forEach((n, j) => jdata.set(mul(world[n], ibm.subarray(j * 16, j * 16 + 16)), j * 16));
+      gl.bindTexture(gl.TEXTURE_2D, jtex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, 4, skin.joints.length, 0, gl.RGBA, gl.FLOAT, jdata);
+    }
+    updateBones();
+
+    // ---- カメラ（透視と、見る位置）----
+    const persp = (fov, asp, n, f) => { const t = 1 / Math.tan(fov / 2); return new Float32Array([t / asp, 0, 0, 0, 0, t, 0, 0, 0, 0, (f + n) / (n - f), -1, 0, 0, 2 * f * n / (n - f), 0]); };
+    function lookAt(e, t) {
+      const z = [e[0] - t[0], e[1] - t[1], e[2] - t[2]], zl = Math.hypot(...z); z.forEach((v, i) => (z[i] = v / zl));
+      const x = [z[2], 0, -z[0]], xl = Math.hypot(...x); x.forEach((v, i) => (x[i] = v / xl));
+      const y = [z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0]];
+      return new Float32Array([x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0, -(x[0] * e[0] + x[1] * e[1] + x[2] * e[2]), -(y[0] * e[0] + y[1] * e[1] + y[2] * e[2]), -(z[0] * e[0] + z[1] * e[1] + z[2] * e[2]), 1]);
+    }
+
+    // ---- 背景: やわらかい色の壁と、足もとの丸い影 ----
+    const bgProg = program(`#version 300 es
+out vec2 q; void main() { vec2 p = vec2(gl_VertexID & 1, gl_VertexID >> 1) * 4. - 1.; q = p; gl_Position = vec4(p, .999, 1); }`, `#version 300 es
+precision highp float; in vec2 q; out vec4 O;
+void main() { vec3 c = mix(vec3(.62, .58, .68), vec3(.9, .87, .92), q.y * .5 + .5); c *= 1. - .25 * dot(q * .7, q * .7); O = vec4(c, 1); }`);
+    const shadowProg = program(`#version 300 es
+uniform mat4 VP; out vec2 q; void main() { vec2 p = vec2(gl_VertexID & 1, gl_VertexID >> 1) * 2. - 1.; q = p; gl_Position = VP * vec4(p.x * .45, 0., p.y * .3, 1); }`, `#version 300 es
+precision highp float; in vec2 q; out vec4 O; void main() { O = vec4(.15, .1, .2, .35 * smoothstep(1., .2, length(q))); }`);
+
+    const L = (() => { const v = [-.45, .65, .6], l = Math.hypot(...v); return v.map((x) => x / l); })();
+    let blinkAt = 2, start = null, ok = false, near = 0, picked = 0, pickedAt = -99, shown = 0, last = 0, dt = 0;
+    c.addEventListener('pointerdown', () => { picked = shown ? 0 : 1; pickedAt = last; });   // 押すと、顔に寄る・全身に戻る
+    ready.then(() => { ok = true; console.log(`読み込み ${Math.round(performance.now() - t0)} ms・頂点 ${D.meshes.reduce((a, m) => a + m.count, 0)}・骨 ${skin.joints.length}`); });
+
+    function frame(now) {
+      requestAnimationFrame(frame);
+      if (!ok) return;
+      start ??= now;
+      const t = (now - start) / 1000; dt = Math.min(.1, t - last); last = t;
+      const dpr = Math.min(2, devicePixelRatio || 1), w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr);
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+      gl.viewport(0, 0, w, h);
+      // まばたき（3〜6 秒ごと、0.15 秒）
+      if (t > blinkAt + .15) blinkAt = t + 3 + Math.random() * 3;
+      const bt = (t - blinkAt) / .15, blink = bt > 0 && bt < 1 ? Math.sin(bt * Math.PI) : 0;
+      for (const f of faces) {
+        let changed = false;
+        f.morphs.forEach((mo, k) => { const b = blinkBind.find((x) => D.meshes[x.mesh] === f.m && x.morph === k), w2 = b ? blink * b.weight : 0; if (mo.w !== w2) { mo.w = w2; changed = true; } });
+        if (changed) { morphInto(f.cur, f.base, f.morphs); gl.bindBuffer(gl.ARRAY_BUFFER, f.buf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, f.cur); }
+      }
+      // カメラ: 16 秒で全身の周りを 1 周し、正面を通る前後だけ顔に寄って、少し斜めの正面で止まる
+      const head = world[H.head], hp = [head[12], head[13] + .06, head[14]];
+      const want = t - pickedAt < 30 ? picked : Math.floor(t / 14) % 2;   // 14 秒ごとに全身と顔を切り替える。押したらしばらくそれに従う
+      shown = want; near += (want - near) * Math.min(1, dt * 1.5);
+      const k = near * near * (3 - 2 * near);
+      const a0 = t * Math.PI * 2 / 16, sw = .3 + Math.sin(t * .35) * .35;           // 全身は 16 秒で 1 周、顔は斜めの正面で左右に振れる
+      const ang = sw + Math.atan2(Math.sin(a0 - sw), Math.cos(a0 - sw)) * (1 - k);   // 近い向きへ回る
+      const tgt = [hp[0] * k, .85 + (hp[1] - .85) * k, hp[2] * k], dist = 3.4 + (.75 - 3.4) * k;
+      const eye = [tgt[0] + Math.sin(ang) * dist, tgt[1] + .15 * (1 - k) + .02, tgt[2] + Math.cos(ang) * dist];
+      const VP = mul(persp(.5, w / h, .05, 50), lookAt(eye, tgt));
+      gl.disable(gl.DEPTH_TEST); gl.useProgram(bgProg); gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.useProgram(shadowProg); gl.uniformMatrix4fv(gl.getUniformLocation(shadowProg, 'VP'), false, VP); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.clear(gl.DEPTH_BUFFER_BIT);
+      gl.useProgram(prog);
+      gl.uniformMatrix4fv(u.VP, false, VP); gl.uniform3fv(u.L, L); gl.uniform3fv(u.camPos, eye);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, jtex); gl.uniform1i(u.J, 0);
+      for (const pass of [0, 1]) for (const d of draws) {
+        const m = d.mat;
+        if (pass === 1 && !(m.outlineWidth > 0)) continue;
+        const blend = m.mode === 'blend';
+        gl.depthMask(!blend); if (blend) gl.enable(gl.BLEND); else gl.disable(gl.BLEND);
+        if (pass === 1) { gl.enable(gl.CULL_FACE); gl.cullFace(gl.FRONT); }
+        else if (m.cull === 2) { gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK); }
+        else gl.disable(gl.CULL_FACE);
+        const bind = (unit, name, t2) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t2 || white); gl.uniform1i(u[name], unit); };
+        bind(1, 'TM', texColor[m.tex.main]); bind(2, 'TA', texAlpha[m.tex.main]); bind(3, 'TS', texColor[m.tex.shade]); bind(4, 'TW', texColor[m.tex.outline]);
+        gl.uniform1f(u.alphaFromMask, texAlpha[m.tex.main] ? 1 : 0);
+        gl.uniform1i(u.mode, { opaque: 0, cutout: 1, blend: 2 }[m.mode]); gl.uniform1i(u.isOutline, pass);
+        gl.uniform1f(u.outline, pass ? m.outlineWidth : 0); gl.uniform1f(u.cutoff, m.cutoff);
+        gl.uniform1f(u.shadeShift, m.shadeShift); gl.uniform1f(u.shadeToony, m.shadeToony); gl.uniform1f(u.outlineMix, m.outlineMix);
+        gl.uniform3fv(u.color, m.color.slice(0, 3)); gl.uniform3fv(u.shadeColor, m.shadeColor.slice(0, 3)); gl.uniform3fv(u.outlineColor, m.outlineColor.slice(0, 3));
+        gl.bindVertexArray(d.vao); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, d.ib); gl.drawElements(gl.TRIANGLES, d.count, gl.UNSIGNED_SHORT, 0);
+      }
+      gl.bindVertexArray(null); gl.depthMask(true); gl.disable(gl.CULL_FACE);
+    }
+    requestAnimationFrame(frame);
+  },
+});
