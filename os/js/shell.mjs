@@ -26,6 +26,7 @@ export const APPS = {
   paint: { name: 'お絵かき', icon: 'icons/paint.svg' },
   player: { name: '音楽プレーヤー', icon: 'icons/player.svg' },
   terminal: { name: '端末', icon: 'icons/terminal.svg' },
+  calendar: { name: 'カレンダー', icon: 'icons/calendar.svg' },
 };
 
 /* ---------- 設定 ---------- */
@@ -472,4 +473,71 @@ async function shutdownDialog() {
   if (choice === 'reboot') { location.reload(); return; }
   for (const id of ['#desk', '#taskbar', '#start']) $(id).hidden = true;
   $('#off').hidden = false;
+}
+
+/* ---------- 知らせ（トースト） ----------
+   popover="manual" で、閉じるまで残す。入れ物は名前付きの領域（role="region"）にまとめ、右下に下から積む。
+   モーダルのダイアログが開いている間は出さずに待つ（見落とさないように）。読み上げは ariaNotify、使えなければ読み上げの領域で行う。 */
+let toastBox = null, toastLive = null;
+const toasts = [];
+function toastRoot() {
+  if (!toastBox) {
+    toastBox = document.createElement('div'); toastBox.className = 'fos-toasts'; toastBox.setAttribute('role', 'region'); toastBox.setAttribute('aria-label', '知らせ');
+    toastLive = document.createElement('div'); toastLive.className = 'fos-sr-only'; toastLive.setAttribute('aria-live', 'polite');
+    document.body.append(toastBox, toastLive);
+  }
+  return toastBox;
+}
+function layoutToasts() { let y = 16; for (const t of toasts) { t.style.bottom = y + 'px'; y += t.offsetHeight + 10; } }
+export function notify(o) {
+  if (document.querySelector('dialog[open]')) { setTimeout(() => notify(o), 1000); return; }
+  const el = document.createElement('div');
+  el.className = 'fos-toast'; el.setAttribute('popover', 'manual');
+  el.innerHTML = `<div class="fos-toast-title"></div><div class="fos-toast-text"></div><div class="fos-toast-actions">${o.actionLabel ? '<button type="button" class="flat fos-toast-btn" data-act></button>' : ''}<button type="button" class="flat fos-toast-btn" data-close>閉じる</button></div>`;
+  el.querySelector('.fos-toast-title').textContent = o.title || 'Future OS';
+  el.querySelector('.fos-toast-text').textContent = o.text || '';
+  if (o.actionLabel) el.querySelector('[data-act]').textContent = o.actionLabel;
+  toastRoot().append(el);
+  const before = document.activeElement;
+  const close = () => {
+    const had = el.contains(document.activeElement), i = toasts.indexOf(el);
+    try { el.hidePopover?.(); } catch { /* もう閉じている */ }
+    el.remove(); if (i >= 0) toasts.splice(i, 1); layoutToasts();
+    // 知らせの中にフォーカスがあったら、次の知らせへ、無ければ前にいた場所へ戻す
+    if (had) (toasts.at(-1)?.querySelector('[data-close]') || (before && before.isConnected ? before : document.body)).focus?.();
+    log('notify.close', { title: o.title }, 'ok');
+  };
+  el.querySelector('[data-close]').addEventListener('click', close);
+  el.querySelector('[data-act]')?.addEventListener('click', () => { close(); o.onAction?.(); });
+  toasts.push(el);
+  if (el.showPopover) el.showPopover(); else el.classList.add('open');
+  layoutToasts();
+  const say = `${o.title || ''}。${o.text || ''}${o.actionLabel ? '。操作があります。' : ''}`;
+  if (typeof document.ariaNotify === 'function') document.ariaNotify(say); else { toastLive.textContent = ''; requestAnimationFrame(() => { toastLive.textContent = say; }); }
+  sound.play(o.sound || 'notify');
+  log('notify.show', { title: o.title, text: o.text }, 'ok');
+  return close;
+}
+os.notify = notify;
+
+/* ---------- 予定の知らせ（カレンダーの窓を閉じていても、OS を開いている間は見張る） ---------- */
+import { normalizeEvents, dueReminders, reminderKey, localNow, FILE as CAL_FILE } from './core/calendar.mjs';
+const FIRED = 'fos-calendar-fired';
+const loadFired = () => { try { return new Set(JSON.parse(localStorage.getItem(FIRED) || '[]')); } catch { return new Set(); } };
+const saveFired = (s) => { try { localStorage.setItem(FIRED, JSON.stringify([...s].slice(-300))); } catch { /* 保存できない */ } };
+async function checkReminders() {
+  let list;
+  try { if (!(await fs.exists(CAL_FILE))) return; list = normalizeEvents(await fs.readJSON(CAL_FILE)); } catch (e) { log('calendar.watch', {}, 'error: ' + e.message); return; }
+  const fired = loadFired(), due = dueReminders(list, localNow(new Date()), fired);
+  for (const e of due) {
+    fired.add(reminderKey(e));
+    notify({ title: '予定の時刻です', text: `${e.date.slice(5).replace('-', '/')} ${e.time}　${e.title || '（題名なし）'}`, actionLabel: 'カレンダーで開く', onAction: () => launch('calendar', { date: e.date, id: e.id }), sound: 'chime' });
+    log('calendar.remind', { id: e.id, date: e.date, time: e.time }, 'ok');
+  }
+  if (due.length) saveFired(fired);
+}
+export function initReminders() {
+  checkReminders();
+  setInterval(checkReminders, 30000);
+  events.addEventListener('calendar', checkReminders);
 }

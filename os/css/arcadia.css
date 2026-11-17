@@ -710,3 +710,62 @@
 .arcadia .app-terminal .term-in { flex: 1; min-width: 0; min-height: 0; padding: 0; font: inherit; color: var(--fos-ink); background: transparent; border: 0; border-radius: 0; box-shadow: none; }
 .arcadia .app-terminal .term-in:focus-visible { outline: none; box-shadow: none; border: 0; }
 .arcadia .app-terminal .term:focus-within .term-line { background: linear-gradient(90deg, rgb(107 242 227 / 0.18), transparent 70%); border-radius: 4px; }
+
+/* ===== 知らせ（トースト）。popover="manual" で右下に積む ===== */
+.arcadia .fos-toast {
+  position: fixed; inset: auto 16px 16px auto; margin: 0; width: 300px; max-width: calc(100vw - 32px); padding: 10px 12px;
+  color: var(--fos-ink); background: var(--fos-paper); border: 2px solid var(--fos-ink); border-radius: 10px; box-shadow: 5px 5px 0 var(--fos-shadow);
+}
+.arcadia .fos-toast:not([popover]), .arcadia .fos-toast.open { display: block; }
+.arcadia .fos-toast-title { font-weight: 700; padding: 2px 8px; margin: -2px -4px 6px; border-radius: 6px; background: var(--fos-dither) 0 0 / 4px 4px, var(--fos-rainbow); }
+.arcadia .fos-toast-text { overflow-wrap: anywhere; }
+.arcadia .fos-toast-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 8px; flex-wrap: wrap; }
+.arcadia .fos-toast-btn { min-height: 26px; padding: 0 10px; font: 700 12px/1 var(--fos-font); color: var(--fos-ink); background: linear-gradient(180deg, #fff, var(--fos-cream)); border: 1.5px solid var(--fos-ink); border-radius: 999px; box-shadow: 2px 2px 0 var(--fos-ink); }
+.arcadia .fos-toast-btn:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+@media (prefers-reduced-motion: no-preference) {
+  .arcadia .fos-toast { transition: opacity 160ms ease-out, translate 160ms ease-out, display 160ms; transition-behavior: allow-discrete; }
+  @starting-style { .arcadia .fos-toast:popover-open { opacity: 0; translate: 0 8px; } }
+}
+.fos-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* ===== カレンダー（2026-11-17） ===== */
+.arcadia .app-calendar .cal-main { flex: 1; min-height: 0; display: flex; gap: 10px; padding: 10px; }
+.arcadia .app-calendar .cal-left { flex: 1 1 420px; min-width: 300px; display: flex; flex-direction: column; gap: 6px; }
+.arcadia .app-calendar .cal-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.arcadia .app-calendar .cal-head button { min-width: 0; padding: 0 12px; }
+.arcadia .app-calendar .cal-title { flex: 1; margin: 0; text-align: center; font: 700 18px/1.2 var(--fos-font); }
+.arcadia .app-calendar .cal-dows { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-weight: 700; font-size: 12px; }
+.arcadia .app-calendar .dow0 .cal-num, .arcadia .app-calendar .cal-dow.dow0, .arcadia .app-calendar .hol .cal-num { color: #c2185b; }
+.arcadia .app-calendar .dow6 .cal-num, .arcadia .app-calendar .cal-dow.dow6 { color: var(--fos-cobalt); }
+.arcadia .app-calendar .cal-grid { flex: 1; min-height: 0; display: grid; grid-template-rows: repeat(6, 1fr); gap: 3px; }
+.arcadia .app-calendar .cal-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; min-height: 0; }
+.arcadia .app-calendar .cal-day {
+  display: flex; flex-direction: column; align-items: stretch; gap: 1px; min-width: 0; min-height: 0; padding: 2px 4px; overflow: hidden; text-align: left;
+  font: 11px/1.25 var(--fos-font); color: var(--fos-ink); background: var(--fos-paper); border: 1.5px solid #cbbce0; border-radius: 5px; box-shadow: none;
+}
+.arcadia .app-calendar .cal-day.out { background: #f4f0f8; color: #8e7fa3; }
+.arcadia .app-calendar .cal-day.out .cal-num { opacity: 0.6; }
+.arcadia .app-calendar .cal-num { font: 700 13px/1.1 var(--fos-mono); }
+.arcadia .app-calendar .cal-hol { color: #c2185b; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arcadia .app-calendar .cal-ev { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #e8fcf9; border-radius: 3px; padding: 0 3px; }
+.arcadia .app-calendar .cal-more { color: var(--fos-ink-muted); font-size: 10px; }
+.arcadia .app-calendar .cal-day.today { border-color: var(--fos-ink); box-shadow: inset 0 0 0 2px var(--fos-apricot); }
+.arcadia .app-calendar .cal-day.sel { background: #d9fbf6; border-color: var(--fos-ink); border-width: 2px; }
+.arcadia .app-calendar .cal-day:focus-visible { outline: 2px dashed var(--fos-cobalt); outline-offset: 1px; }
+.arcadia .app-calendar .cal-right { flex: 0 1 280px; min-width: 240px; display: flex; flex-direction: column; gap: 8px; overflow: auto; }
+.arcadia .app-calendar .cal-day-title { margin: 0; font: 700 14px/1.4 var(--fos-font); }
+.arcadia .app-calendar .cal-events { min-height: 70px; max-height: 150px; overflow: auto; margin: 0; padding: 2px; list-style: none; }
+.arcadia .app-calendar .cal-events li { padding: 0; }
+.arcadia .app-calendar .cal-evbtn { display: grid; grid-template-columns: 3.4em 1fr auto; gap: 6px; width: 100%; min-height: 24px; padding: 2px 6px; text-align: left; font: 12.5px/1.3 var(--fos-font); color: var(--fos-ink); background: none; border: 0; border-radius: 4px; box-shadow: none; }
+.arcadia .app-calendar .cal-evbtn.cur, .arcadia .app-calendar .cal-evbtn:hover { background: #e8fcf9; }
+.arcadia .app-calendar .cal-evbtn:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: -2px; }
+.arcadia .app-calendar .cal-evtime { font-family: var(--fos-mono); }
+.arcadia .app-calendar .cal-bell { color: var(--fos-rose); }
+.arcadia .app-calendar .cal-empty { color: var(--fos-ink-muted); padding: 6px; }
+.arcadia .app-calendar .cal-form { display: flex; flex-direction: column; gap: 6px; }
+.arcadia .app-calendar .cal-row { display: grid; grid-template-columns: 5.5em 1fr; align-items: center; gap: 6px; }
+.arcadia .app-calendar .cal-row:has(.cal-hint) { grid-template-columns: 5.5em auto 1fr; }
+.arcadia .app-calendar .cal-hint { font-size: 11px; color: var(--fos-ink-muted); }
+.arcadia .app-calendar .cal-row textarea { resize: vertical; min-height: 54px; }
+.arcadia .app-calendar .cal-form .button-row { flex-wrap: wrap; gap: 6px; justify-content: flex-start; }
+.arcadia .app-calendar .cal-form .button-row button { min-width: 0; padding: 0 12px; }
