@@ -1894,6 +1894,7 @@ canvas { display: block; width: 100vw; height: 100vh; }
 .sub { position: fixed; left: 50%; bottom: 44px; transform: translateX(-50%); margin: 0; color: #fff; font-size: clamp(16px, 3.4vw, 30px); font-weight: 600; letter-spacing: .06em; white-space: nowrap; text-shadow: 0 0 3px #000, 0 0 3px #000, 0 2px 8px #000c; pointer-events: none; }
 .sub:empty { display: none; }
 .script { position: fixed; right: 12px; bottom: 8px; font-size: 11px; max-width: 60vw; }
+.script[open] { z-index: 1; background: #000d; }
 .script summary { cursor: pointer; }
 .script ol { margin: 4px 0 2px; padding-left: 20px; }`,
   core() {
