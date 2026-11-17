@@ -18,7 +18,7 @@ export async function launch(os, args = {}, rect = {}) {
   if (one) { one.focus(); return one; }
   let lv = Math.max(0, Math.min(P.LEVELS.length - 1, (args.lv | 0) || 0)), b, state, moves = 0, done = false, hintOn = 0, hintAt = -1, cur = 0, best = loadBest(), lastMsg = '', lastLit = 0;
   const win = wm.open({
-    app: 'puzzle', icon: 'icons/puzzle.svg', className: 'app-puzzle', title: 'プリズム回廊', w: 820, h: 600, ...rect, args: { lv },
+    app: 'puzzle', icon: 'icons/puzzle.svg', className: 'app-puzzle', title: 'プリズム回廊', w: 820, h: 640, ...rect, args: { lv },
     render(w) {
       w.body.innerHTML = `<div class="pz-main">
         <nav class="pz-side" aria-label="面の一覧"><ol class="pz-levels" data-levels></ol></nav>
@@ -28,6 +28,12 @@ export async function launch(os, args = {}, rect = {}) {
             <dl class="pz-stats"><div><dt>手数</dt><dd data-moves>0</dd></div><div><dt>記録</dt><dd data-best>—</dd></div><div><dt>目安</dt><dd data-par></dd></div></dl>
           </div>
           <div class="pz-board-wrap"><div class="pz-board" data-board></div></div>
+          <details class="pz-rules" data-rules${Object.keys(best).length ? '' : ' open'}><summary>遊び方</summary><ul>
+            <li>鏡を押すと、／と＼が入れ替わります。光はどの色も直角に曲がります。</li>
+            <li>プリズムを押すと、時計回りに回ります。白い窓から入った白い光だけを、進む向きの左へミント、右へピンクに分けます。</li>
+            <li>ミントとピンクが同じマスを縦と横に通ると、その先は両方アプリコットになります。柱は光を止め、海は光を通します。</li>
+            <li>すべての水晶を、その色の光で満たすと解けます。</li>
+          </ul></details>
           <p class="pz-clear" data-clear hidden></p>
           <p class="pz-hint" data-hint hidden></p>
           <div class="pz-actions">
@@ -132,7 +138,7 @@ export async function launch(os, args = {}, rect = {}) {
     const c = b.cells[i], pi = b.at.get(i);
     if (pi !== undefined) {
       const p = b.pieces[pi];
-      return p.kind === 'mirror' ? `鏡（${state[pi] === 0 ? '／' : '＼'}）。押すと向きが変わる` : `プリズム（${DIRS[state[pi]]}向き）。押すと時計回りに回る`;
+      return p.kind === 'mirror' ? `鏡（${state[pi] === 0 ? '／' : '＼'}）。押すと向きが変わる` : `プリズム（白い窓が${DIRS[state[pi]]}）。押すと時計回りに回る`;
     }
     if (hit.has(i)) { const h = hit.get(i); return `${CNAME[h.color]}の水晶（${h.full ? '満たされている' : h.colors.size ? 'ちがう色が届いている' : 'まだ届いていない'}）`; }
     return { '.': '床', '~': '海', O: '柱', '>': '光源（右向き）', v: '光源（下向き）', '<': '光源（左向き）', '^': '光源（上向き）' }[c] || '床';
@@ -151,7 +157,7 @@ export async function launch(os, args = {}, rect = {}) {
     lastLit = r.lit;
     if (r.won) return win1();
     const p = b.pieces[pi];
-    say(p.kind === 'mirror' ? `鏡を ${state[pi] === 0 ? '／' : '＼'} にしました。` : `プリズムを${DIRS[state[pi]]}向きにしました。`);
+    say(p.kind === 'mirror' ? `鏡を ${state[pi] === 0 ? '／' : '＼'} にしました。` : `プリズムの白い窓を${DIRS[state[pi]]}へ向けました。`);
   }
   function win1() {
     done = true;
@@ -160,6 +166,7 @@ export async function launch(os, args = {}, rect = {}) {
     const c = q('[data-clear]');
     c.textContent = `解けました！ ${moves} 手（目安 ${l.par} 手）。${moves <= l.par ? 'いちばん少ない手数です。' : 'もっと少ない手数でも解けます。'}${better ? ' 記録を縮めました。' : ''}`;
     c.hidden = false;
+    q('[data-hint]').hidden = true; hintAt = -1; // 解けたらヒントは要らない（盤の欄を狭めない）
     setTimeout(() => sound.play('solve'), 180);
     draw(); drawLevels();
     say(lv === P.LEVELS.length - 1 ? '全10面の最後の面を解きました。' : '解けました。「次の面へ」で続けられます。');
@@ -187,7 +194,8 @@ export async function launch(os, args = {}, rect = {}) {
   const acts = { hint, reset, next: () => { if (lv < P.LEVELS.length - 1) { load(lv + 1, 'next'); sound.play('select'); focusCell(cur); } } };
   win.body.addEventListener('click', (e) => {
     const lvB = e.target.closest('[data-lv]');
-    if (lvB) { load(+lvB.dataset.lv, 'list'); sound.play('select'); say(`第${lv + 1}面を始めます。`); return; }
+    // 面を選んだら、盤のマスへフォーカスを移す（Tab で残りの面のボタンを通らずに遊べる）
+    if (lvB) { load(+lvB.dataset.lv, 'list'); sound.play('select'); focusCell(cur); say(`第${lv + 1}面を始めます。`); return; }
     const a = e.target.closest('[data-a]');
     if (a && !a.disabled) { acts[a.dataset.a](); return; }
     const cell = e.target.closest('.pz-cell');
