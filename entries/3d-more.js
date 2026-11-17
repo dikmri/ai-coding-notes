@@ -1261,13 +1261,17 @@ dekiru.add({
   t: 'VRoid のキャラをアニメ調で描く', y: 'ぶいろいどのきゃらをあにめちょうでえがく',
   tags: ['3D', 'VRM', 'アニメ調', 'スキニング', 'WebGL'],
   data: ['data/vroid-b.js'], nt: true,
-  d: 'VRoid の公式サンプル「AvatarSample_B」を、ライブラリを使わずに WebGL2 で描く。元の VRM（28MB）を道具で JavaScript のデータ（約 1.4MB）に変換し、開いたときだけ読み込む。113 本の骨の向きから頂点の位置を毎回計算する（スキニング）。陰影は VRM 標準の MToon にならい、光の当たり方で基本の色と影の色を切り替える。輪郭線は、裏返した形を少し膨らませて描く。カメラは全身の周りを回り、14 秒ごとに顔に寄る。画面を押すと全身と顔が切り替わる。まばたきはモデルの表情データで動かす。',
+  d: 'VRoid の公式サンプル「AvatarSample_B」を、ライブラリを使わずに WebGL2 で描く。元の VRM（28MB）を道具で JavaScript のデータ（約 1.4MB）に変換し、開いたときだけ読み込む。113 本の骨の向きから頂点の位置を毎回計算する（スキニング）。陰影は VRM 標準の MToon にならい、光の当たり方で基本の色と影の色を切り替える。輪郭線は、裏返した形を少し膨らませて描く。カメラは全身の周りを回り、14 秒ごとに顔に寄る。画面か左上のボタンを押すと全身と顔が切り替わる。まばたきはモデルの表情データで動かす。',
   p: '3D のモデルも、つまるところ数の並び。位置や法線を小さな整数に詰めて文字列にすれば、3D のファイルを開く仕組みを使わずに、JavaScript のデータとして扱える。',
   html: `<canvas id="c" role="img" aria-label="紫の長い髪の女の子の 3D モデルが、アニメ調の陰影で描かれ、カメラがゆっくり周りを回る"></canvas>
-<p class="credit">3D モデル: AvatarSample_B（VRoid Project）</p>`,
+<p class="credit">3D モデル: AvatarSample_B（VRoid Project）</p>
+<button class="zoom" id="zoom" type="button">顔に寄る</button>`,
   css: `body { background: #1a1820; overflow: hidden; }
 canvas { display: block; width: 100vw; height: 100vh; }
-.credit { position: fixed; left: 12px; bottom: 8px; margin: 0; font-size: 11px; color: #fff9; }`,
+.credit { position: fixed; left: 12px; bottom: 8px; margin: 0; font-size: 11px; color: #fff9; }
+.zoom { position: fixed; left: 12px; top: 8px; font-size: 13px; color: #fff; background: #0007; border: 0; padding: 2px 8px; border-radius: 4px; }
+.zoom:hover { background: #000a; }
+.zoom:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }`,
   core() {
     // データを戻す計算（変換の道具 tools/lib/meshpack.mjs の逆）と、骨の行列の計算。DOM を使わない
     const TYPES = { Uint8Array, Int8Array, Uint16Array, Int16Array, Uint32Array, Float32Array };
@@ -1458,7 +1462,9 @@ precision highp float; in vec2 q; out vec4 O; void main() { O = vec4(.15, .1, .2
 
     const L = (() => { const v = [-.45, .65, .6], l = Math.hypot(...v); return v.map((x) => x / l); })();
     let blinkAt = 2, start = null, ok = false, near = 0, picked = 0, pickedAt = -99, shown = 0, last = 0, dt = 0;
-    c.addEventListener('pointerdown', () => { picked = shown ? 0 : 1; pickedAt = last; });   // 押すと、顔に寄る・全身に戻る
+    const zoomBtn = document.getElementById('zoom'), toggle = () => { picked = shown ? 0 : 1; pickedAt = last; };
+    c.addEventListener('pointerdown', toggle);   // 押すと、顔に寄る・全身に戻る
+    zoomBtn.addEventListener('click', toggle);   // ボタンなので、キーボードでも切り替えられる
     ready.then(() => { ok = true; console.log(`読み込み ${Math.round(performance.now() - t0)} ms・頂点 ${D.meshes.reduce((a, m) => a + m.count, 0)}・骨 ${skin.joints.length}`); });
 
     function frame(now) {
@@ -1480,6 +1486,7 @@ precision highp float; in vec2 q; out vec4 O; void main() { O = vec4(.15, .1, .2
       // カメラ: 全身の周りを 16 秒で 1 周する。14 秒ごと（押したときはすぐ）に、少し斜めの正面から顔に寄る
       const head = world[H.head], hp = [head[12], head[13] + .09, head[14]];
       const want = t - pickedAt < 30 ? picked : Math.floor(t / 14) % 2;   // 14 秒ごとに全身と顔を切り替える。押したらしばらくそれに従う
+      if (shown !== want) zoomBtn.textContent = want ? '全身に戻る' : '顔に寄る';
       shown = want; near += (want - near) * Math.min(1, dt * 1.5);
       const k = near * near * (3 - 2 * near);
       const a0 = t * Math.PI * 2 / 16, sw = .3 + Math.sin(t * .35) * .35;           // 全身は 16 秒で 1 周、顔は斜めの正面で左右に振れる
@@ -1521,15 +1528,17 @@ dekiru.add({
   t: 'VRoid のキャラを人の動きで動かす', y: 'ぶいろいどのきゃらをひとのうごきでうごかす',
   tags: ['3D', 'VRM', 'モーションキャプチャー', '揺れもの', 'WebGL'],
   data: ['data/vroid-b.js', 'data/motion-bn1.js'], nt: true,
-  d: 'VRoid の公式サンプル「AvatarSample_B」を、俳優の動きを記録したデータ（モーションキャプチャー）で動かす。お辞儀・手を振る・嬉しそうに手を振る・歩く・案内する・短いダンスの 6 つを順に演じ、動きと動きの間は 0.5 秒かけて混ぜる。記録の関節の回転は、変換の道具で VRoid の骨へ付け替えてある。髪・スカート・袖・胸は、モデルに入っている揺れものの設定で、遅れてついてくる動きを毎回計算する。体の当たり判定にはめり込まない。目はカメラを追い、嬉しいときは笑顔になる。画面を押すと次の動きへ進む。',
+  d: 'VRoid の公式サンプル「AvatarSample_B」を、俳優の動きを記録したデータ（モーションキャプチャー）で動かす。お辞儀・手を振る・嬉しそうに手を振る・歩く・案内する・短いダンスの 6 つを順に演じ、動きと動きの間は 0.5 秒かけて混ぜる。記録の関節の回転は、変換の道具で VRoid の骨へ付け替えてある。髪・スカート・袖・胸は、モデルに入っている揺れものの設定で、遅れてついてくる動きを毎回計算する。体の当たり判定にはめり込まない。目はカメラを追い、嬉しいときは笑顔になる。画面か左上のボタンを押すと次の動きへ進む。',
   p: '手で姿勢を付けた動きは、どこか機械的になる。実際の人の動きを記録したデータには、体の重さや手足の動きの小さなずれがそのまま入っている。そこに髪や服の揺れを物理で足すと、生きた動きになる。',
   html: `<canvas id="c" role="img" aria-label="紫の長い髪の女の子の 3D モデルが、お辞儀や手を振るなどの動きを演じ、髪とスカートが揺れる"></canvas>
-<p class="now" id="now"></p>
+<button class="now" id="now" type="button"></button>
 <p class="credit">3D モデル: AvatarSample_B（VRoid Project）・動き: Bandai Namco Research Motiondataset（CC BY-NC 4.0）</p>`,
   css: `body { background: #1a1820; overflow: hidden; }
 canvas { display: block; width: 100vw; height: 100vh; }
 .now, .credit { position: fixed; left: 12px; margin: 0; color: #fff; background: #0007; padding: 2px 8px; border-radius: 4px; }
-.now { top: 8px; font-size: 13px; }
+.now { top: 8px; font-size: 13px; border: 0; }
+.now:hover { background: #000a; }
+.now:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .credit { bottom: 8px; font-size: 11px; }`,
   core() {
     // データを戻す計算（変換の道具の逆）・四元数・動きの再生・揺れもの。DOM を使わない
@@ -1721,7 +1730,7 @@ void main() {
     const FACE = { byehappy: { joy: 0.85 }, byebye: { joy: 0.45 }, dance: { fun: 0.7 }, bow: { joy: 0.25 } };   // 動きごとの表情
     let ci = 0, ct = 0, prevPose = null, fade = 1, offset = [0, 0, 0];
     const nowEl = document.getElementById('now');
-    const showName = () => { nowEl.textContent = `動き ${ci + 1}/${clips.length}: ${clips[ci].label}（押すと次へ）`; };
+    const showName = () => { nowEl.textContent = `動き ${ci + 1}/${clips.length}: ${clips[ci].label} ▶ 次へ`; };
     function nextClip(pose) {
       // 次の動きは、いまの腰の位置から始める（歩いて進んだ分を引き継ぐ）
       const nc = (ci + 1) % clips.length, h0 = [0, 1, 2].map((k) => clips[nc].hipsA[k]);
@@ -1731,6 +1740,7 @@ void main() {
     }
     let lastPose = null;
     c.addEventListener('pointerdown', () => { if (lastPose) nextClip(lastPose); });
+    nowEl.addEventListener('click', () => { if (lastPose) nextClip(lastPose); });   // ボタンなので、キーボード（Tab と Enter）でも次へ進める
     showName();
 
     // ---- 1 コマの骨の姿勢（動き → 揺れもの → 目線）を計算し、骨の行列にする ----
