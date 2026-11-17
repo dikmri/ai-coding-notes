@@ -996,7 +996,7 @@
 .arcadia .app-workshop .ws-con.warn .ws-lv { background: var(--fos-apricot); }
 .arcadia .app-workshop .ws-con.error { background: #fff0f5; }
 .arcadia .app-workshop .ws-con.error .ws-lv { background: var(--fos-sunset); }
-.arcadia .app-workshop .ws-at { min-height: 0; height: auto; line-height: 1.5; padding: 0 6px; font: 11px var(--fos-mono); color: #3346c8; background: none; border: 0; text-decoration: underline; }
+.arcadia .app-workshop .ws-at { min-width: 0; min-height: 0; height: auto; line-height: 1.5; box-shadow: none; padding: 0 6px; font: 11px var(--fos-mono); color: #3346c8; background: none; border: 0; text-decoration: underline; }
 .arcadia .app-workshop .status-field[data-kind="error"] { box-shadow: inset 4px 0 0 var(--fos-sunset); }
 .arcadia .ws-dlg { min-width: 460px; }
 .arcadia .ws-dlg .ws-choices { display: grid; gap: 6px; margin: 0 0 10px; }

@@ -16,7 +16,7 @@ export async function launch(os, args = {}, rect = {}) {
   if (one) { one.focus(); if (args.path) one.openProject?.(args.path); return one; }
   let project = null, files = [], cur = null, texts = {}, saved = {}, autoRun = true, port = null, sources = {}, entry = null, lastMsg = '', findHits = [], findAt = -1, escTab = false;
   const win = wm.open({
-    app: 'workshop', icon: 'icons/workshop.svg', className: 'app-workshop', title: 'コードの作業場', w: 1040, h: 680, ...rect, args: {},
+    app: 'workshop', icon: 'icons/workshop.svg', className: 'app-workshop', title: 'コードの作業場', w: 1040, h: 680, x: 24, y: 16, ...rect, args: {}, // 1つの窓だけなので、位置の指定がなければ左上寄せ（1280px の画面でもはみ出さない）
     render(w) {
       w.body.innerHTML = `<div class="ws-main">
         <div class="ws-bar" role="toolbar" aria-label="作業場の操作">
@@ -295,9 +295,10 @@ export async function launch(os, args = {}, rect = {}) {
     if (path !== cur) await openFile(path);
     const lines = ta.value.split('\n'); let i = 0;
     for (let k = 0; k < Math.max(0, line - 1) && k < lines.length; k++) i += lines[k].length + 1;
-    ta.focus(); ta.setSelectionRange(i, i + (lines[line - 1] || '').length);
+    // ブラウザの自動の送りを止めてから選び、送り位置をこちらで決める。次の描画でもう一度そろえる
+    ta.focus({ preventScroll: true }); ta.setSelectionRange(i, i + (lines[line - 1] || '').length);
     ta.scrollTop = Math.max(0, (line - 5) * parseFloat(getComputedStyle(ta).lineHeight || '18'));
-    syncScroll(); caret();
+    syncScroll(); requestAnimationFrame(syncScroll); caret();
   }
 
   /* ---------- 名前を聞く小さなダイアログ ---------- */
