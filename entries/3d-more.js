@@ -1880,8 +1880,7 @@ dekiru.add({
   html: `<canvas id="c" role="img" aria-label="夕暮れの浅瀬を紫の長い髪の女の子が歩いてきて、逆光の中で手を振る"></canvas>
 <div class="bar"><button id="next" type="button">▶ 次の動き</button><button id="pause" type="button">❚❚ 止める</button><button id="voice" type="button">🔈 声を出す</button><button id="tone" type="button">音: トラッカー風</button></div>
 <p class="sub" id="sub"></p>
-<details class="script"><summary>セリフ</summary><ol id="script"></ol></details>
-<p class="credit">3D モデル: AvatarSample_B（VRoid Project）・動き: Bandai Namco Research Motiondataset（CC BY-NC 4.0）・声: Irodori-TTS（MIT）で合成</p>`,
+<div class="foot"><p class="credit">3D モデル: AvatarSample_B（VRoid Project）・動き: Bandai Namco Research Motiondataset（CC BY-NC 4.0）・声: Irodori-TTS（MIT）で合成</p><details class="script"><summary>セリフ</summary><ol id="script"></ol></details></div>`,
   css: `body { background: #000; overflow: hidden; }
 canvas { display: block; width: 100vw; height: 100vh; }
 .bar { position: fixed; top: 8px; left: 12px; right: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1890,11 +1889,12 @@ canvas { display: block; width: 100vw; height: 100vh; }
 .bar button:hover { background: #000a; }
 .bar button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .bar button:disabled { opacity: .5; }
-.credit { position: fixed; left: 12px; bottom: 8px; font-size: 11px; max-width: calc(100vw - 120px); }
+.foot { position: fixed; left: 12px; right: 12px; bottom: 8px; display: flex; align-items: flex-end; gap: 8px; }   /* クレジットとセリフの全文を横に並べ、重ならないようにする */
+.credit { font-size: 11px; margin-right: auto; }
 .sub { position: fixed; left: 50%; bottom: 44px; transform: translateX(-50%); margin: 0; color: #fff; font-size: clamp(16px, 3.4vw, 30px); font-weight: 600; letter-spacing: .06em; white-space: nowrap; text-shadow: 0 0 3px #000, 0 0 3px #000, 0 2px 8px #000c; pointer-events: none; }
 .sub:empty { display: none; }
-.script { position: fixed; right: 12px; bottom: 8px; font-size: 11px; max-width: 60vw; }
-.script[open] { z-index: 1; background: #000d; }
+.script { flex: none; font-size: 11px; max-width: 60vw; }
+.script[open] { background: #000d; }
 .script summary { cursor: pointer; }
 .script ol { margin: 4px 0 2px; padding-left: 20px; }`,
   core() {
