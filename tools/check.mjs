@@ -2,7 +2,7 @@
 // ・必須項目（id / 分類 / 見出し / 読み / 説明 / コード）の有無
 // ・読みがひらがなだけか
 // ・デモ用 JS が単独のスクリプトとして構文エラーにならないか
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
@@ -51,6 +51,9 @@ for (const e of entries) {
     if (!Array.isArray(e.refs) || !e.refs.length || !e.refs.every((s) => s && s.title && /^https?:\/\//.test(s.url))) errors.push(`${where}: refs に出典（title と url）を1つ以上`);
   }
   if (/<script[^>]+src=|<link[^>]+href=["']https?:|import\(\s*['"]https?:|from\s+['"]https?:/i.test(e.code)) errors.push(`${where}: 外部のファイルを読み込まない（ブラウザだけで作る）`);
+  // 大きなデータ（3D モデルなど）: data/ の下の .js だけを、項目を開いたときに読む
+  if (e.data != null && !(Array.isArray(e.data) && e.data.every((p) => /^data\/[a-z0-9-]+\.js$/.test(p) && existsSync(join(ROOT, p))))) errors.push(`${where}: data は data/ の下にある .js の道筋の配列で`);
+  if (e.data && !e.nt) errors.push(`${where}: data を読む項目は nt も付ける（一覧の小さな絵で大きなデータを読まない）`);
   // メガデモ: 1ファイル全体が決めた上限のバイト数に収まること
   if (e.c === 'demo') {
     if (![256, 1024, 4096].includes(e.size)) errors.push(`${where}: size は 256・1024・4096 のどれか`);
