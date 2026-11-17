@@ -1873,21 +1873,29 @@ void main() {
 dekiru.add({
   id: '3d-vroid-shore', c: '3d', lv: 3,
   t: '夕暮れの浅瀬で手を振るキャラ（アニメ映画風の合成）', y: 'ゆうぐれのあさせでてをふるきゃら',
-  tags: ['3D', 'VRM', '合成', '撮影処理', 'WebGL'],
-  data: ['data/vroid-b.js', 'data/motion-bn1.js'], nt: true,
-  d: '夕暮れの浅瀬に、VRoid の公式サンプル「AvatarSample_B」が立つアニメ映画風の場面。背景は「夕凪の浅瀬を歩く人の影」と同じ計算の夕日と海で、キャラはそれと同じ高さ・同じ焦点距離のカメラで写すので、足が水面に正しく乗る。沖からこちらへ歩いてきて、嬉しそうに手を振り、お辞儀をして、もう一度手を振る。キャラは正面から空の色の柔らかい光で照らし、後ろの夕日が輪郭を光らせる。くるぶしまで水に浸かり、水面には揺れる逆さの姿が映る。仕上げに、背景の光がキャラの縁へ回り込む処理、背景のぼかし、明るい所のにじみ、太陽からのレンズの光、逆光に浮かぶ光の粒を重ねる。夕方の風で髪とスカートがなびき、足もとから波紋が広がる。',
+  tags: ['3D', 'VRM', '合成', '撮影処理', '音声', 'WebGL', 'Web Audio'],
+  data: ['data/vroid-b.js', 'data/motion-bn1.js', 'data/voice-shore.js'], nt: true,
+  d: '夕暮れの浅瀬に、VRoid の公式サンプル「AvatarSample_B」が立つアニメ映画風の場面。背景は「夕凪の浅瀬を歩く人の影」と同じ計算の夕日と海で、キャラはそれと同じ高さ・同じ焦点距離のカメラで写すので、足が水面に正しく乗る。沖からこちらへ歩いてきて、嬉しそうに手を振り、お辞儀をして、もう一度手を振る。キャラは正面から空の色の柔らかい光で照らし、後ろの夕日が輪郭を光らせる。くるぶしまで水に浸かり、水面には揺れる逆さの姿が映る。仕上げに、背景の光がキャラの縁へ回り込む処理、背景のぼかし、明るい所のにじみ、太陽からのレンズの光、逆光に浮かぶ光の粒を重ねる。夕方の風で髪とスカートがなびき、足もとから波紋が広がる。セリフは Irodori-TTS で合成した声を、アミガのトラッカーのように 1 本の 8 ビットの音（11kHz）にまとめたデータで、各セリフの始まりの位置から鳴らす。口は、読み仮名の母音と声の大きさから作った時間表で「あいうえお」の形に動き、字幕も出る。',
   p: 'アニメ映画の画面は、絵を描いた後の「撮影」で決まる。背景と人物を同じカメラで写して光の向きをそろえ、縁に光を回り込ませて全体をにじませると、別々に作った絵が 1 つの場面になる。',
   html: `<canvas id="c" role="img" aria-label="夕暮れの浅瀬を紫の長い髪の女の子が歩いてきて、逆光の中で手を振る"></canvas>
-<div class="bar"><button id="next" type="button">▶ 次の動き</button><button id="pause" type="button">❚❚ 止める</button></div>
-<p class="credit">3D モデル: AvatarSample_B（VRoid Project）・動き: Bandai Namco Research Motiondataset（CC BY-NC 4.0）</p>`,
+<div class="bar"><button id="next" type="button">▶ 次の動き</button><button id="pause" type="button">❚❚ 止める</button><button id="voice" type="button">🔈 声を出す</button><button id="tone" type="button">音: トラッカー風</button></div>
+<p class="sub" id="sub"></p>
+<details class="script"><summary>セリフ</summary><ol id="script"></ol></details>
+<p class="credit">3D モデル: AvatarSample_B（VRoid Project）・動き: Bandai Namco Research Motiondataset（CC BY-NC 4.0）・声: Irodori-TTS（MIT）で合成</p>`,
   css: `body { background: #000; overflow: hidden; }
 canvas { display: block; width: 100vw; height: 100vh; }
-.bar { position: fixed; top: 8px; left: 12px; display: flex; gap: 6px; }
-.bar button, .credit { margin: 0; color: #fff; background: #0007; padding: 2px 8px; border-radius: 4px; }
+.bar { position: fixed; top: 8px; left: 12px; right: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+.bar button, .credit, .script { margin: 0; color: #fff; background: #0007; padding: 2px 8px; border-radius: 4px; }
 .bar button { font-size: 13px; border: 0; }
 .bar button:hover { background: #000a; }
 .bar button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
-.credit { position: fixed; left: 12px; bottom: 8px; font-size: 11px; }`,
+.bar button:disabled { opacity: .5; }
+.credit { position: fixed; left: 12px; bottom: 8px; font-size: 11px; max-width: calc(100vw - 120px); }
+.sub { position: fixed; left: 50%; bottom: 44px; transform: translateX(-50%); margin: 0; color: #fff; font-size: clamp(16px, 3.4vw, 30px); font-weight: 600; letter-spacing: .06em; white-space: nowrap; text-shadow: 0 0 3px #000, 0 0 3px #000, 0 2px 8px #000c; pointer-events: none; }
+.sub:empty { display: none; }
+.script { position: fixed; right: 12px; bottom: 8px; font-size: 11px; max-width: 60vw; }
+.script summary { cursor: pointer; }
+.script ol { margin: 4px 0 2px; padding-left: 20px; }`,
   core() {
     // データを戻す計算・四元数・動きの再生・揺れもの・背景と同じカメラの写し方。DOM を使わない
     const TYPES = { Uint8Array, Int8Array, Uint16Array, Int16Array, Uint32Array, Float32Array };
@@ -1974,6 +1982,18 @@ canvas { display: block; width: 100vw; height: 100vh; }
       const o = new Float32Array(16);
       for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
       return o;
+    }
+    // 口の形の 1 バイト（上の 3 ビットが 0 閉じる・1 あ・2 い・3 う・4 え・5 お、下の 5 ビットが開き 0〜31）を、あ・い・う・え・お の重みに戻す
+    function mouthWeights(b) {
+      const w = [0, 0, 0, 0, 0], shape = b >> 5;
+      if (shape >= 1 && shape <= 5) w[shape - 1] = (b & 31) / 31;
+      return w;
+    }
+    // トラッカー風の音: 8 ビットの点を k 回ずつ繰り返して周波数を k 倍にする。点の間をなめらかにつながないので、昔の機械のざらざらした音になる
+    function holdUp(pcm, k) {
+      const out = new Float32Array(pcm.length * k);
+      for (let i = 0; i < pcm.length; i++) out.fill(pcm[i] / 128, i * k, i * k + k);
+      return out;
     }
   },
   js() {
@@ -2221,11 +2241,67 @@ void main() {
       prevPose = { rot: pose.rot.map((q) => q.slice()), hips: [h0[0], pose.hips[1], h0[2]] };
       ci = nc; ct = 0; fade = 0;
     }
-    function restart() { ci = 0; ct = 0; fade = 1; prevPose = null; offset = [0, 0, 0]; for (const s of springs.values()) s.cur = s.prev = null; camZ = null; }
-    document.getElementById('next').addEventListener('click', () => { if (lastPose) nextClip(lastPose); });   // ボタンなので、キーボードでも押せる
+    function restart() { ci = 0; ct = 0; fade = 1; prevPose = null; offset = [0, 0, 0]; for (const s of springs.values()) s.cur = s.prev = null; camZ = null; said = -1; hush(); }
+    document.getElementById('next').addEventListener('click', () => { if (lastPose) { hush(); nextClip(lastPose); } });   // ボタンなので、キーボードでも押せる
     const pauseBtn = document.getElementById('pause');
-    pauseBtn.addEventListener('click', () => { paused = !paused; pauseBtn.textContent = paused ? '▶ 動かす' : '❚❚ 止める'; });
+    pauseBtn.addEventListener('click', () => {
+      paused = !paused; pauseBtn.textContent = paused ? '▶ 動かす' : '❚❚ 止める';
+      if (actx && voiceOn) { if (paused) actx.suspend(); else actx.resume(); }   // 音の時計も一緒に止める（口の形とずれない）
+    });
     const calm = matchMedia('(prefers-reduced-motion: reduce)');   // 動きを減らす設定のときは、カメラの手ぶれをなくす
+
+    // ---- 声: 全部のセリフを 1 本の 8 ビットの音にしたデータ（トラッカーのサンプル）。セリフの始まりの位置から鳴らす ----
+    const VO = window.DEKIRU_DATA?.['voice-shore'];
+    const CUE = { walk: ['walk', 6.0], byehappy: ['call', .5], bow: ['thanks', .25], byebye: ['bye', .15] };   // 動きごとに、どのセリフを何秒目に言うか
+    const subEl = document.getElementById('sub'), voiceBtn = document.getElementById('voice'), toneBtn = document.getElementById('tone');
+    const mouth = [0, 0, 0, 0, 0], lineBy = {};
+    let pcm = null, talk = null, said = -1, actx = null, gain = null, src = null, voiceOn = false, crunchy = true, bufs = null;
+    if (VO) {
+      const u8 = b64(VO.pcm); pcm = new Int8Array(u8.buffer, u8.byteOffset, u8.length);
+      const ol = document.getElementById('script');
+      for (const l of VO.lines) {
+        lineBy[l.name] = { ...l, mouthA: b64(l.mouth) };
+        const li = document.createElement('li'); li.textContent = l.text; ol.append(li);   // セリフの全文（書き起こし）
+      }
+    } else { voiceBtn.disabled = toneBtn.disabled = true; }
+    // 鳴らす音を 2 通り用意する: 点を繰り返して 44.1kHz にしたトラッカー風と、ブラウザがなめらかにつなぐ 11kHz のまま
+    function buffers() {
+      const k = 4, hold = holdUp(pcm, k), smooth = Float32Array.from(pcm, (v) => v / 128);
+      const a = actx.createBuffer(1, hold.length, VO.rate * k); a.copyToChannel(hold, 0);
+      const b = actx.createBuffer(1, smooth.length, VO.rate); b.copyToChannel(smooth, 0);
+      return { crunchy: a, smooth: b };
+    }
+    function stopSound() { if (src) { try { src.stop(); } catch { /* 鳴り終わっている */ } src = null; } }
+    function play(from) {   // 今のセリフを、始まりから from 秒の所から鳴らす（トラッカーの「サンプルの途中から鳴らす」命令と同じ）
+      stopSound();
+      if (!voiceOn || !talk || !actx) return;
+      const l = talk.line, dur = l.len / VO.rate - from;
+      if (dur < .02) return;
+      src = actx.createBufferSource(); src.buffer = crunchy ? bufs.crunchy : bufs.smooth; src.connect(gain);
+      src.start(0, l.start / VO.rate + from, dur);
+    }
+    function say(name) { talk = { line: lineBy[name], t0: clock }; subEl.textContent = talk.line.text; play(0); console.log(`セリフ: ${talk.line.text}（${voiceOn ? (crunchy ? 'トラッカー風' : 'なめらか') : '声なし'}）`); }
+    function hush() { talk = null; stopSound(); subEl.textContent = ''; }
+    voiceBtn.addEventListener('click', () => {   // ブラウザは操作なしに音を鳴らさないので、ボタンで鳴らし始める
+      voiceOn = !voiceOn; voiceBtn.textContent = voiceOn ? '🔇 声を消す' : '🔈 声を出す';
+      if (voiceOn && !actx) { actx = new AudioContext(); gain = actx.createGain(); gain.gain.value = .9; gain.connect(actx.destination); bufs = buffers(); }
+      if (voiceOn && !paused) actx.resume().then(() => console.log(`声: 出す（音の仕組み ${actx.state}・${actx.sampleRate}Hz）`), (e) => console.error('声を鳴らせません: ' + e.message));
+      else console.log('声: 消す');
+      if (voiceOn && talk) play(clock - talk.t0); else stopSound();
+    });
+    toneBtn.addEventListener('click', () => { crunchy = !crunchy; toneBtn.textContent = crunchy ? '音: トラッカー風' : '音: なめらか'; console.log('音の質: ' + (crunchy ? 'トラッカー風' : 'なめらか')); if (talk) play(clock - talk.t0); });
+    // 1 コマごとに: セリフを始める・口の形を時間表から読む・言い終えたら字幕を消す
+    function speech(dt) {
+      const cue = VO && CUE[SHOT[ci].name];
+      if (cue && said !== ci && cutAt < 0 && ct >= cue[1]) { said = ci; say(cue[0]); }
+      let want = [0, 0, 0, 0, 0];
+      if (talk) {
+        const e = clock - talk.t0, m = talk.line.mouthA, f = Math.floor(e * VO.tick);
+        if (f >= 0 && f < m.length) want = mouthWeights(m[f]).map((v) => Math.min(1, v * 1.25));   // 引いた画面でも見えるよう、少し大きめに開く
+        if (e > talk.line.len / VO.rate + .6) hush();
+      }
+      for (let k = 0; k < 5; k++) mouth[k] += (want[k] - mouth[k]) * Math.min(1, dt * 30);
+    }
 
     // ---- 1 コマの骨の姿勢（動き → 海風を受ける揺れもの → 目線） ----
     const skin = D.skins[0], ibm = view(bytes, skin.ibm);
@@ -2271,7 +2347,8 @@ void main() {
       if (t > blinkAt + .15) blinkAt = t + 2.5 + Math.random() * 3;
       const bt = (t - blinkAt) / .15, blink = (bt > 0 && bt < 1 ? Math.sin(bt * Math.PI) : 0) * (1 - Math.min(1, face.joy * 1.5));
       const w = new Map(), add = (preset, k) => { for (const b of exprOf[preset] || []) { const key = b.mesh + '/' + b.morph; w.set(key, Math.min(1, (w.get(key) || 0) + b.weight * k)); } };
-      add('blink', blink); add('joy', face.joy);
+      add('blink', blink); add('joy', face.joy * (talk ? .5 : 1));   // 話している間は笑顔の口を弱め、あいうえお の口を見せる
+      ['a', 'i', 'u', 'e', 'o'].forEach((p, k) => add(p, mouth[k]));
       for (const f of faces) {
         let changed = false;
         f.morphs.forEach((mo, k) => { const v = w.get(f.mi + '/' + k) || 0; if (Math.abs(mo.w - v) > 1e-3) { mo.w = v; changed = true; } });
@@ -2284,7 +2361,7 @@ void main() {
     const skyCol = [.62, .5, .55], sunCol = [1.7, .8, .4], WATER = 0, WIND = [.55, .05, .5];   // 夕方の陸風: カメラの側（陸）から沖へ、少し画面の左（世界の +X）へ吹く
     const DIST = { walk: 3.1, byehappy: 2.35, bow: 2.7, byebye: 2.35 };   // 動きごとのカメラの距離（ゆっくり寄ったり引いたりする）
     let ok = false, camZ = null, camX = 0, lastNow = null, drawnW = 0, drawnH = 0, lastP = null;
-    ready.then(() => { ok = true; console.log(`場面 ${SHOT.length} カット・明るさの幅の広い絵: ${HDR ? 'あり' : 'なし（8 ビット）'}`); });
+    ready.then(() => { ok = true; console.log(`場面 ${SHOT.length} カット・明るさの幅の広い絵: ${HDR ? 'あり' : 'なし（8 ビット）'}・声 ${VO ? `${VO.lines.length} 本・${(pcm.length / VO.rate).toFixed(1)} 秒（${VO.rate}Hz・8 ビット）` : 'なし'}`); });
 
     function frame(now) {
       requestAnimationFrame(frame);
@@ -2305,6 +2382,7 @@ void main() {
       const shake = calm.matches ? [0, 0] : [Math.sin(t * .7) * .0012, Math.sin(t * .93 + 1) * .001];   // ほんの少しの手ぶれ
       const P = dt > 0 || !lastPose ? pose(Math.max(dt, 1e-3), t, [camX - START[0], CH - START[1], (camZ ?? 0) - START[2]]) : lastP;
       lastP = P;
+      speech(dt);
       expressions(t, Math.max(dt, 1e-3));
       // カメラ: 腰から 3.7m 手前（手を振る間は 3.0m までゆっくり寄る）
       const hipsW = [P.hips[0] + START[0], 0, P.hips[2] + START[2]];

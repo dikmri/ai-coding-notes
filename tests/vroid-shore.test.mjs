@@ -14,7 +14,7 @@ for (const [, f] of html.matchAll(/<script src="(entries\/[^"]+)"/g)) vm.runInCo
 const e = sb.dekiru.entries.find((x) => x.id === '3d-vroid-shore');
 assert.ok(e, '項目 3d-vroid-shore がない');
 const ctx = vm.createContext({});
-vm.runInContext(sb.dekiru.src(e.core) + '\n;globalThis.__x = { toScreen, springStep, HZ, CH };', ctx);
+vm.runInContext(sb.dekiru.src(e.core) + '\n;globalThis.__x = { toScreen, springStep, HZ, CH, mouthWeights, holdUp };', ctx);
 const C = ctx.__x;
 
 // 背景のシェーダーが画面の点から床の位置を求める式（entries の bgProg と同じ）
@@ -45,4 +45,17 @@ test('海風: 外からの力の向きへ先端がなびき、長さは保たれ
   assert.ok(Math.abs(calm.cur[0]) < 1e-9, `風がないのに横へ動いた: ${calm.cur}`);
   assert.ok(windy.cur[0] > 0.05, `風の向きへなびいていない: ${windy.cur}`);
   assert.ok(Math.abs(Math.hypot(...windy.cur) - 0.3) < 1e-6);
+});
+
+test('口の形: 1 バイト（上の 3 ビットが形、下の 5 ビットが開き）を、あ・い・う・え・お の重みに戻す', () => {
+  assert.deepEqual([...C.mouthWeights((1 << 5) | 31)], [1, 0, 0, 0, 0]);
+  const o = C.mouthWeights((5 << 5) | 15);
+  assert.ok(Math.abs(o[4] - 15 / 31) < 1e-9 && o.slice(0, 4).every((v) => v === 0));
+  assert.deepEqual([...C.mouthWeights(0)], [0, 0, 0, 0, 0]);
+});
+
+test('トラッカー風の音: 8 ビットの点を k 回ずつ繰り返して周波数を上げる（点の間をなめらかにつながない）', () => {
+  const y = C.holdUp(Int8Array.from([64, -128, 0]), 4);
+  assert.equal(y.length, 12);
+  assert.deepEqual([...y], [0.5, 0.5, 0.5, 0.5, -1, -1, -1, -1, 0, 0, 0, 0]);
 });

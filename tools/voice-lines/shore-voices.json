@@ -1,0 +1,9 @@
+{
+  "model": "phasefield-audio/Irodori-TTS-v4.1-Anime",
+  "out_dir": "runtime/assets/voice/shore-voices",
+  "jobs": [
+    { "name": "voice-a", "seed": 11, "text": "おーい！ こっちだよー！ 今日も来てくれて、ありがとう。またね！", "caption": "明るく元気な、高めのかわいい声の女の子。近い距離で、楽しそうに話す" },
+    { "name": "voice-b", "seed": 22, "text": "おーい！ こっちだよー！ 今日も来てくれて、ありがとう。またね！", "caption": "やわらかく透明感のある、澄んだ少女の声。やさしく、うれしそうに話す" },
+    { "name": "voice-c", "seed": 33, "text": "おーい！ こっちだよー！ 今日も来てくれて、ありがとう。またね！", "caption": "少し落ち着いた、芯のある明るい女の子の声。はきはきと、楽しそうに話す" }
+  ]
+}

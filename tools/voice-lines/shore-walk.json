@@ -1,0 +1,9 @@
+{
+  "model": "phasefield-audio/Irodori-TTS-v4.1-Anime",
+  "out_dir": "runtime/assets/voice/shore-lines",
+  "jobs": [
+    { "name": "walk-1", "seed": 101, "text": "あっ、来てくれたんだ！", "caption": "少し驚いて、うれしそうに", "ref": "runtime/assets/voice/shore-voices/voice-b.wav" },
+    { "name": "walk-2", "seed": 202, "text": "あっ、来てくれたんだ！", "caption": "少し驚いて、うれしそうに", "ref": "runtime/assets/voice/shore-voices/voice-b.wav" },
+    { "name": "walk-3", "seed": 303, "text": "あっ、来てくれたんだ！", "caption": "やわらかく透明感のある、澄んだ少女の声。少し驚いて、うれしそうに", "ref": "runtime/assets/voice/shore-voices/voice-b.wav" }
+  ]
+}
