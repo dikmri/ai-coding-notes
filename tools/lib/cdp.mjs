@@ -52,7 +52,7 @@ export function keyInfo(name) {
 export function parseCombo(keys) {
   // 文字列は + で区切る。ただし「+」そのものと、末尾の「++」（Shift++ など）は + のキーとして読む
   const str = String(keys);
-  const parts = (Array.isArray(keys) ? keys : str === '+' ? ['+'] : str.endsWith('++') ? [...str.slice(0, -2).split('+'), '+'] : str.split('+')).map((s) => String(s).trim()).filter(Boolean);
+  const parts = (Array.isArray(keys) ? keys : str === '+' ? ['+'] : str.endsWith('++') ? [...str.slice(0, -2).split('+'), '+'] : str.split('+')).map((s) => (s === ' ' ? s : String(s).trim())).filter(Boolean); // 空白1文字は Space のキー
   const mods = [], rest = [];
   for (const p of parts) {
     const a = p.length > 1 ? ALIAS[p.toLowerCase()] ?? p : p;

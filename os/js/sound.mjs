@@ -197,6 +197,12 @@ const SOUNDS = {
   count: (t) => fm(hz('A5'), t, 0.07, { ratio: 3, index: 0.8, vol: 0.04 }),
   // 画面キャプチャのシャッター（プリズムがきらめくような、高い FM の音を3つ）
   shutter: (t) => { noise(t, 0.05, { vol: 0.06, type: 'highpass', f0: 4000 }); ['B6', 'F#7', 'D#7'].forEach((n, k) => fm(hz(n), t + 0.03 + k * 0.035, 0.3, { ratio: 3.5, index: 1.6, vol: 0.04, wet: 0.4 })); },
+  // プリズム回廊: 部品を回す音（ガラスを指ではじく）
+  prism: (t) => fm(hz('E6'), t, 0.09, { ratio: 2.5, index: 1.1, vol: 0.045 }),
+  // プリズム回廊: 水晶が満たされるたびに、Fmaj9 の音を下から1つずつ重ねる（i は満たされた数 - 1）
+  crystal: (t, i = 0) => { const n = ['F4', 'A4', 'C5', 'E5', 'G5'][Math.max(0, Math.min(4, i))]; fm(hz(n), t, 1.2, { ratio: 1, index: 1.2, vol: 0.07, wet: 0.5 }); },
+  // プリズム回廊: 面を解いたときの和音（Fmaj9 を上へ広げる）
+  solve: (t) => ['F4', 'A4', 'C5', 'E5', 'G5', 'C6'].forEach((n, k) => fm(hz(n), t + k * 0.07, 1.6, { ratio: 2, index: 1.3, vol: 0.06, wet: 0.55 })),
   // タイマーが終わったときのチャイム（F#maj7 を2回）
   chime: (t) => [0, 0.7].forEach((d) => ['F#5', 'A#5', 'C#6', 'F6'].forEach((n, k) => fm(hz(n), t + d + k * 0.09, 1.1, { ratio: 1, index: 1.3, vol: 0.08, wet: 0.5 }))),
 };

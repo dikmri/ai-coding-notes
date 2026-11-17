@@ -30,6 +30,7 @@ export const APPS = {
   calendar: { name: 'カレンダー', icon: 'icons/calendar.svg' },
   recorder: { name: '音声レコーダー', icon: 'icons/recorder.svg' },
   capture: { name: '画面キャプチャ', icon: 'icons/capture.svg' },
+  puzzle: { name: 'プリズム回廊', icon: 'icons/puzzle.svg' },
 };
 
 /* ---------- 設定 ---------- */

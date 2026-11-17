@@ -47,6 +47,9 @@ test('ドラッグの引数: 出発点と行き先の言い換え（x・from_x�
 test('キーの組み合わせ: 「+」そのものと、修飾キーを別に送る形（Gemini の press_key）', async () => {
   const { withModifiers, typedText } = await import('../tools/lib/cdp.mjs');
   assert.equal(parseCombo('+').main, '+');
+  // 空白1文字（Space）も1つのキーとして読む。前後の空白を削ると、名前が空になってキーが送られなかった
+  assert.equal(parseCombo(' ').main, ' ');
+  assert.equal(parseCombo(withModifiers(' ', ['Shift'])).main, ' ');
   assert.deepEqual(parseCombo('Shift++'), { modifiers: 8, mods: ['Shift'], main: '+' });
   assert.deepEqual(parseCombo(withModifiers('a', ['Control'])), { modifiers: 2, mods: ['Control'], main: 'a' });
   assert.equal(parseCombo(withModifiers('+', ['Shift'])).main, '+');
