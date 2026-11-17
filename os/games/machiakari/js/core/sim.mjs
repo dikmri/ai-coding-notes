@@ -361,14 +361,14 @@ function advise(sim, net) {
   }
   let svcNoPow = 0;
   for (let k = 0; k < s.N * s.N; k++) if (s.svc[k] && s.anchor[k] === k && (sim.prob[k] & PROB.POWER)) svcNoPow++;
-  if (svcNoPow) say(sim, 'svcpower', `電気の来ていない施設が ${svcNoPow} つあり、働いていません。区画のそばに置くか、送電線（道具 5）でつなぎましょう。`, 'warn', -1, 2);
+  if (svcNoPow) say(sim, 'svcpower', `電気の来ていない施設が ${svcNoPow} か所あり、働いていません。区画のそばに置くか、送電線（道具 5）でつなぎましょう。`, 'warn', -1, 2);
   if (noPow > 4 && st.power.supply === 0) say(sim, 'nopower', `電気の来ない建物が ${noPow} 軒あります。発電所（道具 5）を置きましょう。`, 'warn', -1, 2);
   else if (noPow > 4 && st.power.demand <= st.power.supply) say(sim, 'powerline', `電気の届いていない建物が ${noPow} 軒あります。電気は建物と区画を2マスまでしか飛べません。発電所から送電線（道具 5）を引きましょう。`, 'warn', -1, 2);
   if (noWater > 4 && st.water.supply === 0) say(sim, 'nowater', `水の来ない建物が ${noWater} 軒あります。給水塔（道具 6）を道に面して置きましょう。`, 'warn', -1, 2);
   if (noSewer > 4 && st.sewer.supply === 0) say(sim, 'nosewer', `下水の流れない建物が ${noSewer} 軒あります。下水処理場（道具 6）を道に面して置きましょう。`, 'warn', -1, 2);
   if (farLots > 12) say(sim, 'farlots', `道から遠い区画が ${farLots} マスあります。建物が建つのは、道から3マスまでの区画です。`, 'info', -1, 6);
   if (st.power.demand > st.power.supply + 0.5) say(sim, 'power', `電気が足りません（使う量 ${Math.round(st.power.demand)}、作る量 ${Math.round(st.power.supply)}）。発電所を増やしましょう。`, 'warn');
-  if (st.water.demand > st.water.supply + 0.5) say(sim, 'water', `水が足りません（使う量 ${Math.round(st.water.demand)}、送れる量 ${Math.round(st.water.supply)}）。給水塔か揚水ポンプ場を。`, 'warn');
+  if (st.water.demand > st.water.supply + 0.5) say(sim, 'water', `水が足りません（使う量 ${Math.round(st.water.demand)}、送れる量 ${Math.round(st.water.supply)}）。給水塔か揚水ポンプ場を増やしましょう。`, 'warn');
   if (st.sewer.demand > st.sewer.supply + 0.5) say(sim, 'sewer', `下水があふれています（${Math.round(st.sewer.demand)} / ${Math.round(st.sewer.supply)}）。下水処理場を増やしましょう。`, 'warn');
   if (net < 0 && s.funds < 3000) say(sim, 'debt', `赤字です（月に ${Math.round(-net).toLocaleString('ja-JP')} 万円）。税を少し上げるか、施設の予算を見直しましょう。`, 'bad', -1, 2);
   if (s.funds < 0) say(sim, 'broke', 'お金が尽きました。融資を受けるか、税を上げてください。マイナスの間は新しく建てられません。', 'bad', -1, 2);

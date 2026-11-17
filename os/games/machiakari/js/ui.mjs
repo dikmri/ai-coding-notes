@@ -386,8 +386,8 @@ export function makeUi(G) {
       $('#graphNote').textContent = `${hist[n].y}年${hist[n].m}月: ` + def.series.map((sr) => `${sr.name} ${yen(hist[n][sr.k])}${def.unit}`).join('、');
     } else $('#graphNote').textContent = (def.series.length > 1 ? '線の色: ' + def.series.map((sr) => `${sr.name}`).join('・') + '。' : '') + 'グラフの上に指を置くと、その月の値が出ます。';
   }
-  gc.addEventListener('pointermove', (e) => { const r = gc.getBoundingClientRect(); drawGraph(((e.clientX - r.left) / r.width) * gc.width); });
-  gc.addEventListener('pointerleave', () => drawGraph());
+  gc.addEventListener('pointermove', (e) => { if (!graphGeom) return; const r = gc.getBoundingClientRect(); drawGraph(((e.clientX - r.left) / r.width) * gc.width); });
+  gc.addEventListener('pointerleave', () => { if (graphGeom) drawGraph(); });
 
   // 目標
   function fillGoals() {
@@ -423,7 +423,7 @@ export function makeUi(G) {
     const st = G.settings;
     $('#setSfx').checked = st.sfx; $('#setMusic').checked = st.music; $('#setVol').value = Math.round(st.volume * 100);
     for (const r of document.querySelectorAll('[name="traffic"]')) r.checked = +r.value === st.maxVehicles;
-    $('#setFire').checked = G.sim ? G.sim.s.flags.disasters !== false : true; $('#setIcons').checked = st.icons; $('#setAuto').checked = st.autosave;
+    $('#setFire').checked = G.playing && G.sim ? G.sim.s.flags.disasters !== false : st.disasters !== false; $('#setIcons').checked = st.icons; $('#setAuto').checked = st.autosave;
     $('#toTitle').hidden = !G.playing;
   }
   $('#dlgSettings').addEventListener('change', (e) => {
@@ -432,7 +432,8 @@ export function makeUi(G) {
     if (t.id === 'setMusic') st.music = t.checked;
     if (t.id === 'setVol') st.volume = +t.value / 100;
     if (t.name === 'traffic') { st.maxVehicles = +t.value; if (G.sim) G.sim.opts.maxVehicles = st.maxVehicles; }
-    if (t.id === 'setFire' && G.sim) G.sim.s.flags.disasters = t.checked;
+    // 火事の有無は設定として覚え（新しい街に使う）、遊んでいる街にもすぐ効かせる
+    if (t.id === 'setFire') { st.disasters = t.checked; if (G.playing && G.sim) G.sim.s.flags.disasters = t.checked; }
     if (t.id === 'setIcons') { st.icons = t.checked; ui.icons = t.checked; }
     if (t.id === 'setAuto') st.autosave = t.checked;
     G.saveSettings();

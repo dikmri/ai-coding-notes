@@ -18,7 +18,7 @@ const SPEEDS = [0, 1, 2, 4];
 const PREFIX = 'machiakari-';
 
 /* ---- 設定 ---- */
-const DEFAULTS = { sfx: true, music: true, volume: 0.6, maxVehicles: 450, icons: true, autosave: true };
+const DEFAULTS = { sfx: true, music: true, volume: 0.6, maxVehicles: 450, icons: true, autosave: true, disasters: true };
 let settings = { ...DEFAULTS };
 try { settings = { ...DEFAULTS, ...JSON.parse(localStorage.getItem(PREFIX + 'settings') || '{}') }; } catch { /* 読めない */ }
 
@@ -153,7 +153,9 @@ $('#dlgNew').addEventListener('close', () => {
   const pick = (n) => document.querySelector(`[name="${n}"]:checked`).value;
   const opts = { name: ($('#newName').value || 'あかり市').trim().slice(0, 16), terrain: pick('terrain'), size: +pick('size'), funds: +pick('funds'), seed: Math.max(1, +$('#newSeed').value || 1) };
   log('game.new', opts, 'ok');
-  startWith(createCity(opts));
+  const s = createCity(opts);
+  s.flags.disasters = settings.disasters !== false;
+  startWith(s);
 });
 
 G.uiApi = makeUi(G);
