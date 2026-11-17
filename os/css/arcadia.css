@@ -830,6 +830,7 @@
 .arcadia .app-recorder .rec-btn:disabled { background: #e5e0ec; border-color: #8e7fa3; color: #8e7fa3; box-shadow: none; }
 .arcadia .app-recorder .rec-btn:active:not(:disabled) { translate: 1px 1px; box-shadow: 1px 1px 0 var(--fos-ink); }
 .arcadia .app-recorder .rec-btn:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+
 /* ===== 画面キャプチャ（2026-11-17） ===== */
 .arcadia .app-capture .cap-main { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px; }
 .arcadia .app-capture .cap-bar, .arcadia .app-capture .cap-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

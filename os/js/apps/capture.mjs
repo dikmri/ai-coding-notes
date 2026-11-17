@@ -62,7 +62,9 @@ export async function launch(os, args = {}, rect = {}) {
       for (let s = wait; s > 0; s--) { cnt.hidden = hide; cnt.textContent = String(s); sound.play('key', 2 + (wait - s) * 2); say(`${s} 秒後に撮ります。`); await sleep(1000); }
       cnt.hidden = true;
       await sleep(hide ? 120 : 0);
-      await new Promise((r) => (video.requestVideoFrameCallback ? video.requestVideoFrameCallback(() => r()) : setTimeout(r, 100)));
+      // 新しい1コマを待つ。ただしタブの共有は、画面が変わったときだけコマを送るので、窓を隠して画面が止まっていると来ない。
+      // 300 ミリ秒で待つのをやめ、video が持っている最後のコマ（窓を隠したあとの画面）を使う
+      await new Promise((r) => { const t = setTimeout(r, 300); video.requestVideoFrameCallback?.(() => { clearTimeout(t); r(); }); });
       const c = document.createElement('canvas'); c.width = video.videoWidth; c.height = video.videoHeight;
       c.getContext('2d').drawImage(video, 0, 0);
       shot = c; history = []; sel = null; path = null;
@@ -140,7 +142,7 @@ export async function launch(os, args = {}, rect = {}) {
   async function toPaint() { const p = path || (await save()); if (p) { os.openFile(p, 'paint'); log('capture.paint', { path: p }, 'ok'); } }
   async function copy() {
     try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob() })]); say('画像をコピーしました。'); log('capture.copy', {}, 'ok'); }
-    catch (e) { say('コピーできませんでした。'); log('clipboard.write', {}, 'error: ' + e.message); }
+    catch (e) { say('コピーできませんでした。「保存」で残せます。');log('clipboard.write', {}, 'error: ' + e.message); }
   }
   const acts = { shoot, crop, undo, save, paint: toPaint, copy };
   win.body.addEventListener('click', (e) => { const b = e.target.closest('[data-a]'); if (b && !b.disabled) acts[b.dataset.a](); });
