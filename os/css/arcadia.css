@@ -710,6 +710,45 @@
 .arcadia .app-terminal .term-in { flex: 1; min-width: 0; min-height: 0; padding: 0; font: inherit; color: var(--fos-ink); background: transparent; border: 0; border-radius: 0; box-shadow: none; }
 .arcadia .app-terminal .term-in:focus-visible { outline: none; box-shadow: none; border: 0; }
 .arcadia .app-terminal .term:focus-within .term-line { background: linear-gradient(90deg, rgb(107 242 227 / 0.18), transparent 70%); border-radius: 4px; }
+/* ===== システム モニタ（2026-11-17） ===== */
+.arcadia .app-monitor { --mon-c0: #6bf2e3; --mon-c1: #cfaeff; --mon-c2: #ff8ec7; --mon-c3: #ffd37a; --mon-c4: #4b5fe8; --mon-c5: #3ba89c; }
+.arcadia .app-monitor .mon-wrap { flex: 1; min-height: 0; padding: 8px; display: flex; }
+.arcadia .app-monitor .tabs { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.arcadia .app-monitor .mon-page { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px; overflow: auto; }
+.arcadia .app-monitor .mon-page[hidden] { display: none; }
+.arcadia .app-monitor .mon-tablebox { flex: 1; min-height: 80px; overflow: auto; border: 2px solid var(--fos-ink); border-radius: 6px; background: var(--fos-paper); }
+.arcadia .app-monitor table.mon-wins { width: 100%; border-collapse: collapse; }
+.arcadia .app-monitor table.mon-wins td, .arcadia .app-monitor table.mon-wins th { padding: 3px 8px; text-align: left; white-space: nowrap; }
+.arcadia .app-monitor table.mon-wins td img { vertical-align: -3px; }
+.arcadia .app-monitor .mon-actions { justify-content: flex-start; }
+.arcadia .app-monitor .mon-usage { font-size: 12.5px; }
+.arcadia .app-monitor .mon-bars { display: flex; flex-direction: column; gap: 5px; }
+.arcadia .app-monitor .mon-bar {
+  display: grid; grid-template-columns: 9em 1fr auto; align-items: center; gap: 8px; width: 100%; min-height: 26px; padding: 2px 8px;
+  font: 12.5px/1.2 var(--fos-font); color: var(--fos-ink); text-align: left; background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 6px; box-shadow: none; cursor: pointer;
+}
+.arcadia .app-monitor .mon-bar-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.arcadia .app-monitor .mon-bar-fill { position: relative; height: 12px; border: 1.5px solid var(--fos-ink); border-radius: 999px; background: #f4eef8; overflow: hidden; }
+.arcadia .app-monitor .mon-bar-fill::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--w); background: var(--c); }
+.arcadia .app-monitor .mon-bar-val { font: 11.5px/1 var(--fos-mono); white-space: nowrap; }
+.arcadia .app-monitor .mon-bar:hover, .arcadia .app-monitor .mon-file:hover { background: #e8fcf9; }
+.arcadia .app-monitor .mon-bar:focus-visible, .arcadia .app-monitor .mon-file:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+.arcadia .app-monitor .mon-sub { font-weight: 700; font-size: 12.5px; }
+/* 大きいファイルの枠は、少なくとも4行が切れずに見える高さ（Gemini の操作の確認で、3行目が半分しか見えないと分かった） */
+.arcadia .app-monitor .mon-big { flex: 1 0 auto; margin: 0; padding: 2px; list-style: none; min-height: calc(4 * 26px + 8px); max-height: 240px; overflow: auto; }
+.arcadia .app-monitor .mon-big li + li { margin-top: 2px; }
+.arcadia .app-monitor .mon-big li { padding: 0; }
+.arcadia .app-monitor .mon-file {
+  display: grid; grid-template-columns: 1fr auto auto; gap: 10px; width: 100%; min-height: 24px; padding: 2px 8px; font: 12.5px/1.2 var(--fos-font); color: var(--fos-ink);
+  text-align: left; background: none; border: 0; border-radius: 4px; box-shadow: none; cursor: pointer;
+}
+.arcadia .app-monitor .mon-file-dir { color: var(--fos-ink-muted); }
+.arcadia .app-monitor .mon-file-size { font-family: var(--fos-mono); }
+.arcadia .app-monitor .mon-empty { color: var(--fos-ink-muted); padding: 6px; }
+.arcadia .app-monitor .mon-chart { width: 100%; height: 150px; border: 2px solid var(--fos-ink); border-radius: 8px; background: var(--fos-paper); }
+.arcadia .app-monitor .mon-stats { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; }
+.arcadia .app-monitor .mon-stats dt { color: var(--fos-ink-muted); }
+.arcadia .app-monitor .mon-stats dd { margin: 0; font: 700 13px/1.4 var(--fos-mono); }
 
 /* ===== 知らせ（トースト）。popover="manual" で右下に積む ===== */
 .arcadia .fos-toast {
