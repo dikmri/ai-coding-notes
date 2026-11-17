@@ -141,7 +141,8 @@ export async function launch(os, args = {}, rect = {}) {
   ta.addEventListener('scroll', syncScroll);
   ta.addEventListener('keyup', caret); ta.addEventListener('click', caret);
   ta.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { escTab = true; return; }
+    // Esc: 探す欄が開いていれば閉じるだけ。開いていなければ、次の Tab でエディタの外へ移れるようにする
+    if (e.key === 'Escape') { if (!q('[data-find]').hidden) closeFind(); else escTab = true; return; }
     if (e.key === 'Tab' && !e.ctrlKey && !e.altKey) {
       if (escTab) { escTab = false; return; } // Esc のあとの Tab は、エディタの外へ移る
       e.preventDefault();
