@@ -1952,7 +1952,8 @@ void main() {
   float s = clamp((p.x + .62) / .98, 0., 1.);
   float le = mix(-.06, .03, s) + flex * s * s;              // 前縁
   float te = mix(-.5, -.03, pow(s, .7)) + flex * s * s;     // 後縁
-  float wing = step(p.x, .36) * smoothstep(te - .002, te + .002, p.y) * smoothstep(le + .002, le - .002, p.y);
+  float aa = 1.3 / R.y;   // 縁を1画素ほどぼかして、斜めの輪郭のぎざぎざを消す
+  float wing = smoothstep(.36 + aa, .36 - aa, p.x) * smoothstep(te - aa, te + aa, p.y) * smoothstep(le + aa, le - aa, p.y);
   if (wing > 0.) {
     float v = clamp((p.y - te) / (le - te), 0., 1.);
     // 白い塗装の翼が、上の空を映して鈍く光る。前縁の近くと夕日の向きが明るい
@@ -1986,7 +1987,7 @@ void main() {
     gl.attachShader(pg, sh(gl.VERTEX_SHADER, '#version 300 es\nvoid main() { gl_Position = vec4(vec2(gl_VertexID & 1, gl_VertexID >> 1) * 4. - 1., 0, 1); }'));
     gl.attachShader(pg, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(pg); gl.useProgram(pg);
     const uR = gl.getUniformLocation(pg, 'R'), uT = gl.getUniformLocation(pg, 'T');
-    const q = window.THUMB ? 0.35 : 0.7;
+    const q = window.THUMB ? 0.35 : 0.9;
     (function draw(now) {
       const w = Math.max(1, Math.round(innerWidth * q)), h = Math.max(1, Math.round(innerHeight * q));
       if (c.width !== w || c.height !== h) { c.width = w; c.height = h; gl.viewport(0, 0, w, h); }
@@ -2032,20 +2033,31 @@ void main() {
   float tower = step(abs(w.x + .06), .012) * step(w.y, -.08) * step(-.33, w.y);
   vec3 lit = vec3(1., .55, .2) * ign * exp(-length(w - vec2(0., -.3)) * 2.5);   // 噴射炎に照らされる
   col = mix(col, vec3(.01, .012, .02) + lit * .5, max(ground, tower));
+  // 塔の作業灯と、点滅する赤い灯。地上の投光器が、点火前の機体を下から照らす
+  for (int i = 0; i < 4; i++) col += vec3(1., .78, .45) * exp(-length(w - vec2(-.046, -.3 + float(i) * .06)) * 420.) * .9;
+  col += vec3(1., .1, .05) * exp(-length(w - vec2(-.06, -.074)) * 300.) * step(.5, fract(T * .7)) * 1.5;
+  for (int i = 0; i < 2; i++) {
+    vec2 a = vec2(float(i) * .3 - .15, -.33), tg = rk + vec2(0., .04) - a, d = normalize(tg), e = w - a;
+    float along = dot(e, d), off = abs(e.x * d.y - e.y * d.x);
+    col += vec3(.65, .72, .85) * exp(-off * 70. / max(.3 + along, .05)) * smoothstep(.0, .1, along) * smoothstep(length(tg) + .02, length(tg) - .03, along) * (1. - ign) * .06;   // 光源の後ろでは数が無限大にならないよう下限を置き、機体の所で止める
+  }
   // 白煙: 発射台から横へ広がる水蒸気と、ロケットまで伸びる柱
   float side = fbm(vec2(w.x * 3. - sign(w.x) * A * .4, w.y * 6. - A * .1)) * smoothstep(.02, -.15, w.y + .26 - abs(w.x) * .08) * smoothstep(min(A * .25, 1.4), .0, abs(w.x)) * step(0., A);
   float colw = .035 + max(0., H - w.y) * .09;
   float colm = smoothstep(colw, colw * .3, abs(w.x + (noise(vec2(w.y * 2., 3.)) - .5) * .05)) * step(-.32, w.y) * step(w.y, H - .02);
-  float column = colm * (.5 + fbm(vec2(w.x * 8., w.y * 3. - A * .2)) * 1.2);
+  float column = colm * (.5 + fbm(vec2(w.x * 8., w.y * 3. - A * .2)) * 1.2) * step(0., A);   // 白煙は点火してから
   float smoke = clamp(side + column, 0., 1.);
   vec3 sc = mix(vec3(.1, .1, .13), vec3(.45, .44, .46), fbm(w * 7.));
   sc += vec3(1., .5, .15) * ign * exp(-abs(w.y - rk.y + .05) * 4.) * 2.;   // 炎の近くは橙に照らされる
   col = mix(col, sc, smoothstep(.15, .6, smoke));
   // ロケット本体と噴射炎
   vec2 q = w - rk;
-  float body = smoothstep(.006, .004, abs(q.x)) * step(0., q.y) * step(q.y, .09);
-  col = mix(col, vec3(.85, .85, .9) * (.6 + .4 * ign), body);
-  float flame = exp(-abs(q.x) * (90. - min(q.y, 0.) * 200.)) * exp(min(q.y, 0.) * 18.) * step(q.y, 0.) * ign;
+  float wd = .005 * (1. - smoothstep(.07, .092, q.y) * .85);                     // 先端は細くなる
+  float body = smoothstep(wd + .0015, wd - .0005, abs(q.x)) * step(0., q.y) * step(q.y, .092);
+  vec3 bc = mix(vec3(.95, .95, 1.), vec3(.32, .34, .4), smoothstep(-wd, wd, q.x));   // 左から光が当たる
+  bc *= 1. - .6 * smoothstep(.003, .0, abs(q.y - .056));                            // 段の継ぎ目
+  col = mix(col, bc * (.6 + .4 * ign), body);
+  float flame = exp(-abs(q.x) * (90. - min(q.y, 0.) * 200.)) * exp(min(q.y, 0.) * 18.) * step(q.y, 0.) * ign * smoothstep(-.335, -.325, w.y);   // 炎は地面の下へは見えない
   col += vec3(1., .85, .55) * flame * 6. + vec3(1., .5, .15) * ign * exp(-length(q * vec2(1., .5)) * 9.) * 1.2;
   // 高く上がると、上空の朝日を受けた排気が青白く広がる
   float jelly = smoothstep(1.5, 3., H) * exp(-length((q - vec2(0., -.25)) * vec2(1.2, .8)) * 3.) * fbm(q * 5. + T * .05);
@@ -2209,7 +2221,12 @@ void main() {
   vec2 hc = floor(vec2(xm * 14., (p.y + .25) * 30.));
   float house = step(p.y, -.15 + hash(vec2(floor(xm * 4.), 7.)) * .07) * step(-.32, p.y);
   col = mix(col, vec3(.01, .009, .012), house);
-  col += vec3(1., .72, .4) * step(.86, hash(hc)) * house * .5 * smoothstep(.5, .2, abs(fract(xm * 14.) - .5)) * smoothstep(.5, .3, abs(fract((p.y + .25) * 30.) - .5));
+  // 窓ごとに大きさ・色（電球の暖色と蛍光灯の白）・明るさを変え、速く流れるので横にぶれる
+  vec2 wf = vec2(fract(xm * 14.), fract((p.y + .25) * 30.)) - .5;
+  float ww = .12 + .25 * hash(hc + 3.), wh = .18 + .2 * hash(hc + 5.);
+  float win = smoothstep(ww + .25, ww - .05, abs(wf.x)) * smoothstep(wh + .04, wh - .04, abs(wf.y));
+  vec3 wc = mix(vec3(1., .66, .34), vec3(.8, .9, 1.), step(.7, hash(hc + 9.)));
+  col += wc * step(.82, hash(hc)) * house * win * (.25 + .45 * hash(hc + 11.));
   float lamp = exp(-length(vec2((fract(xm * 1.3) - .5) * 1.5, (p.y + .05) * 2.)) * 12.);
   col += vec3(1., .8, .55) * lamp * .5;
   float crossing = step(.85, hash(vec2(floor(xm * .7), 9.)));
@@ -2217,9 +2234,12 @@ void main() {
   // 駅: 白い光の柱が並び、車内まで照らす
   col += vec3(.9, .95, 1.) * st * (.4 + .6 * step(.5, fract(p.x * 3. + run * 2.))) * smoothstep(.4, -.2, p.y) * .8;
   // すぐ前の架線柱: 一瞬で横切り、大きくぶれる
-  float xn = fract(p.x * .5 + run * 1.7);
-  float pole = smoothstep(.06, .0, abs(xn - .5) - .02) * step(.4, hash(vec2(floor(p.x * .5 + run * 1.7), 2.)));
-  col *= 1. - pole * .85;
+  float xc = p.x * .5 + run * 1.7, ci = floor(xc), xn = fract(xc) + (hash(vec2(ci, 6.)) - .5) * .5;   // 間隔は不ぞろい
+  float pole = smoothstep(.07, .0, abs(xn - .5) - .015) * step(.35, hash(vec2(ci, 2.)));
+  col *= 1. - pole * .97;
+  // 架線: 柱と柱の間でたわむ線が、窓の上のほうを上下する
+  float sag = .3 - .05 * (1. - 4. * (fract(xc) - .5) * (fract(xc) - .5));
+  col *= 1. - smoothstep(.006, .0, abs(p.y - sag)) * .8 - smoothstep(.005, .0, abs(p.y - sag - .025)) * .6;
   col *= 1. - tn * .95;                               // トンネルの中は暗い
   // 窓のガラス: 車内の暖かい灯りが薄く映る（トンネルの中では強く見える）
   vec3 inside = vec3(.06, .04, .025) * (smoothstep(.1, -.4, p.y) + exp(-length(p - vec2(-.5, .35)) * 4.) * .6) * (1. + tn * 2.);
@@ -2305,10 +2325,14 @@ void main() {
   col = mix(col, vec3(.06, .065, .075) * (.6 + .4 * smoothstep(lp.x + towerW, lp.x - towerW, p.x)), tower * .8);
   col += vec3(1., .9, .7) * exp(-length(p - lp) * 70.) * (3. + 30. * pow(face, 40.)) + vec3(1., .85, .6) * exp(-length(p - lp) * 6.) * .2 * (1. + 4. * pow(face, 30.));
   // 岩場と、打ち寄せる波の飛沫
-  float rock = step(p.y, -.22 + fbm(vec2(p.x * 4., 1.)) * .12 - smoothstep(.2, -.6, p.x) * .1);
+  float rtop = -.22 + fbm(vec2(p.x * 4., 1.)) * .12 - smoothstep(.2, -.6, p.x) * .1;   // 岩の上の縁
+  float rock = smoothstep(.002, -.002, p.y - rtop);
   col = mix(col, vec3(.008, .009, .011), rock);
-  float spray = fbm(vec2(p.x * 6. - T * .3, p.y * 8. + T)) * smoothstep(-.1, -.25, p.y) * smoothstep(-.32, -.22, p.y) * step(.55, fbm(vec2(p.x * 2. + T * .2, 3.)));
-  col += vec3(.5, .55, .6) * spray * .25 * (1. + pow(face, 10.) * 3.);
+  // しぶき: 岩の縁から上へ、場所ごとに時々ふくらんでは消える。縁は霧のようにやわらかい
+  float hgt = p.y - rtop;
+  float burst = smoothstep(.5, .8, fbm(vec2(p.x * 2.5 + 7., T * .35)));
+  float spray = fbm(vec2(p.x * 7. - T * .2, hgt * 10. - T * .8)) * exp(-max(hgt, 0.) / (.02 + .06 * burst)) * smoothstep(-.004, .006, hgt) * burst;
+  col += vec3(.5, .55, .6) * spray * .4 * (1. + pow(face, 10.) * 3.);
   O = vec4(film(col * 1.4), 1.);
 }`;
     const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
