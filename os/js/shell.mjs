@@ -25,6 +25,7 @@ export const APPS = {
   charmap: { name: '文字と色の見本帳', icon: 'icons/charmap.svg' },
   paint: { name: 'お絵かき', icon: 'icons/paint.svg' },
   player: { name: '音楽プレーヤー', icon: 'icons/player.svg' },
+  monitor: { name: 'システム モニタ', icon: 'icons/monitor.svg' },
 };
 
 /* ---------- 設定 ---------- */
