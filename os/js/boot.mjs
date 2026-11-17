@@ -514,7 +514,8 @@ function wallImage(kind) {
   if (!wallImages.has(kind)) {
     const im = new Image(); im.decoding = 'async';
     // 仮想ドライブの画像（'file:/画像/x.png'）は、中身を読んでから src に入れる。読めなければ標準の壁紙に戻す
-    if (kind.startsWith('file:')) fs.readBlob(kind.slice(5)).then((b) => { im.src = URL.createObjectURL(b); }).catch(() => { im.dataset.failed = '1'; im.dispatchEvent(new Event('load')); });
+    // 読み込みが終わったら URL を解放する（描き直して何度も壁紙にしたときに、メモリを使い続けないように）
+    if (kind.startsWith('file:')) fs.readBlob(kind.slice(5)).then((b) => { im.addEventListener('load', () => URL.revokeObjectURL(im.src), { once: true }); im.src = URL.createObjectURL(b); }).catch(() => { im.dataset.failed = '1'; im.dispatchEvent(new Event('load')); });
     else im.src = `img/wall-${kind}.jpg`;
     wallImages.set(kind, im);
   }

@@ -211,6 +211,8 @@ export async function launch(os, args = {}, rect = {}) {
     return save();
   }
   async function newImage() {
+    // 保存していない変更の確認を先に出す（大きさを選んだあとに聞かない）
+    if (dirty) { const a = await os.msgbox({ title: 'お絵かき', text: '今の絵の変更は保存されていません。\n\n捨てて新しい絵にしますか?', icon: 'warning', buttons: ['はい(&Y)', 'いいえ(&N)'] }); if (a !== 'はい') return; }
     const dlg = document.createElement('dialog');
     dlg.className = 'window dialog'; dlg.style.width = '330px';
     dlg.innerHTML = `<div class="title-bar"><div class="title-bar-text">新しい絵</div><div class="title-bar-controls"><button type="button" class="close" aria-label="閉じる"></button></div></div>
@@ -223,7 +225,6 @@ export async function launch(os, args = {}, rect = {}) {
     const [w, h] = dlg.querySelector('[name=sz]:checked').value.split('x').map(Number), bg = dlg.querySelector('[name=bg]:checked').value;
     dlg.remove();
     if (r !== 'ok') return;
-    if (dirty) { const a = await os.msgbox({ title: 'お絵かき', text: '今の絵の変更は保存されていません。\n\n捨てて新しい絵にしますか?', icon: 'warning', buttons: ['はい(&Y)', 'いいえ(&N)'] }); if (a !== 'はい') return; }
     img = P.makeImage(w, h, bg === 'clear' ? CLEAR : PAPER); path = null; dirty = false; hist.clear(); win.setArgs({ path: undefined });
     zoom = w <= 64 ? 8 : 2; layout(); setTitle(); log('paint.new', { w, h, bg }, 'ok');
   }
