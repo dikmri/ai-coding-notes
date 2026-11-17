@@ -600,8 +600,9 @@
 .arcadia .app-charmap .cm-colors { flex: 1; min-height: 0; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto 1fr; gap: 10px; overflow: auto; }
 .arcadia .app-charmap .cm-swatches { display: grid; grid-template-columns: repeat(4, 40px); gap: 6px; align-content: start; }
 .arcadia .app-charmap .cm-sw { width: 40px; height: 40px; background: var(--c); border: 2px solid var(--fos-ink); border-radius: 8px; box-shadow: 2px 2px 0 var(--fos-ink); }
-.arcadia .app-charmap .cm-sw[aria-selected="true"] { outline: 3px solid var(--fos-cobalt); outline-offset: 2px; }
-.arcadia .app-charmap .cm-sw:focus-visible { outline: 3px solid var(--fos-cobalt); outline-offset: 2px; }
+/* 選んでいる色は濃い紫の太い枠と白い縁、キーボードの位置はコバルトの点線（同じ見た目だと、どちらを見ているか紛らわしい） */
+.arcadia .app-charmap .cm-sw[aria-selected="true"] { box-shadow: 0 0 0 2px #fff, 0 0 0 5px var(--fos-ink); }
+.arcadia .app-charmap .cm-sw:focus-visible { outline: 2px dashed var(--fos-cobalt); outline-offset: 6px; }
 .arcadia .app-charmap .cm-free { grid-column: 1; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .arcadia .app-charmap #cmColor { width: 44px; height: 30px; padding: 0; border: 2px solid var(--fos-ink); border-radius: 6px; background: none; }
 .arcadia .app-charmap #cmHex { width: 90px; font-family: var(--fos-mono); }
