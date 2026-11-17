@@ -21,6 +21,7 @@ export const APPS = {
   calc: { name: '電卓', icon: 'icons/calc.svg' },
   stickies: { name: '付箋', icon: 'icons/stickies.svg' },
   clock: { name: '時計とタイマー', icon: 'icons/clock.svg' },
+  charmap: { name: '文字と色の見本帳', icon: 'icons/charmap.svg' },
 };
 
 /* ---------- 設定 ---------- */
