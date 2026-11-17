@@ -2,6 +2,7 @@
 // 全10面（好きな面から遊べる）、手数と記録（localStorage の fos-puzzle-best）、ヒント、矢印キーと Space/Enter・R での操作。
 // 計算（光の道・交わり・解く計算・面のデータ）は core/puzzle.mjs。
 import * as P from '../core/puzzle.mjs';
+import { spatialKeys, rove } from '../spatial.mjs';
 
 const BEST = 'fos-puzzle-best';
 const loadBest = () => { try { const b = JSON.parse(localStorage.getItem(BEST) || '{}'); return b && typeof b === 'object' ? b : {}; } catch { return {}; } };
@@ -179,9 +180,9 @@ export async function launch(os, args = {}, rect = {}) {
     log('puzzle.hint', { lv: lv + 1, step: hintOn, piece: hintAt }, 'ok');
   }
   function focusCell(i) {
-    const grid = q('[data-grid]'); if (!grid) return;
-    for (const el of grid.querySelectorAll('[role=gridcell]')) el.tabIndex = +el.dataset.i === i ? 0 : -1;
-    const el = grid.querySelector(`[data-i="${i}"]`); el?.focus(); el?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const board = q('[data-board]'), el = board.querySelector(`.pz-cell[data-i="${i}"]`);
+    if (!el) return;
+    rove(board, '.pz-cell', el); el.focus(); el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
   const acts = { hint, reset, next: () => { if (lv < P.LEVELS.length - 1) { load(lv + 1, 'next'); sound.play('select'); focusCell(cur); } } };
   win.body.addEventListener('click', (e) => {
@@ -192,14 +193,14 @@ export async function launch(os, args = {}, rect = {}) {
     const cell = e.target.closest('.pz-cell');
     if (cell) { cur = +cell.dataset.i; focusCell(cur); act(cur); }
   });
-  // 盤の中だけで受けるキー: 矢印でマスを動き（端では何もしない）、Space/Enter で回す、R でやり直す
+  // 矢印キーでマスを動く（共通の spatial.mjs。盤の端では動かず、ページのスクロールを止めない）。
+  // 盤の外枠は面を変えても残るので、そこで受ける
+  spatialKeys(q('[data-board]'), '.pz-cell', (el) => { cur = +el.dataset.i; });
+  // 盤の中だけで受けるキー: Space/Enter で回す、R でやり直す
   win.body.addEventListener('keydown', (e) => {
-    const cell = e.target.closest?.('.pz-cell');
+    const cell = e.composedPath()[0]?.closest?.('.pz-cell');
     if (!cell || e.ctrlKey || e.altKey || e.metaKey || e.defaultPrevented) return;
-    const i = +cell.dataset.i, x = i % b.w, y = Math.floor(i / b.w);
-    const to = { ArrowUp: y > 0 ? i - b.w : -1, ArrowDown: y < b.h - 1 ? i + b.w : -1, ArrowLeft: x > 0 ? i - 1 : -1, ArrowRight: x < b.w - 1 ? i + 1 : -1 }[e.key];
-    if (to !== undefined) { if (to >= 0) { e.preventDefault(); cur = to; focusCell(cur); } return; }
-    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); act(i); return; }
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); act(+cell.dataset.i); return; }
     if (!e.shiftKey && e.key.toLowerCase() === 'r') { e.preventDefault(); reset(); }
   });
   load(lv, 'open');
