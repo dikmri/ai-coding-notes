@@ -190,7 +190,7 @@ export async function launch(os, args = {}, rect = {}) {
     if (prefs.external.includes(host)) { renderExternalNotice(t, url, true); return { mode: 'blocked', title: host }; }
     if (await relayAvailable()) {
       const info = await relayCall('probe', url, signal);
-      if (!info.blocked) { frame(t, DIRECT_SANDBOX).src = info.url; say(`${host} をそのまま表示しています。`, t); return { mode: 'direct', title: host }; }
+      if (!info.blocked) { frame(t, DIRECT_SANDBOX).src = info.url; say(`${host} をそのまま表示しています。ページの中で移動した先は、住所の欄に出ないことがあります。`, t); return { mode: 'direct', title: host }; }
       const page = await relayCall('page', info.url, signal);
       if (page.html == null) { renderExternalNotice(t, info.url, false, 'このページは HTML ではないため、中継で表示できません。'); return { mode: 'blocked', title: host }; }
       t.cache = { url: page.url, html: page.html };
@@ -199,7 +199,7 @@ export async function launch(os, args = {}, rect = {}) {
       return { mode: 'relay', title: host };
     }
     frame(t, DIRECT_SANDBOX).src = url;
-    say('表示されないときは、このサイトが窓の中での表示を断っています。「外のタブで開く」を押してください。', t);
+    say('表示されないときは、このサイトが窓の中での表示を断っています。「外のタブで開く」を押してください。ページの中で移動した先は、住所の欄に出ないことがあります。', t);
     return { mode: 'direct', title: host };
   }
   // 中継したページからの知らせ（リンクの押下、題名、送れないフォーム）。どのタブの iframe からかを source で確かめる
@@ -236,6 +236,7 @@ export async function launch(os, args = {}, rect = {}) {
         <section class="bw-sec"><h3 class="bw-h3">このブラウザのつなぎ方</h3><p>${relay ? '手元のサーバーの中継が使えます。窓の中での表示を断るサイトも、中継して窓の中に出します。' : '公開版のため、手元の中継はありません。窓の中での表示を断るサイトは、「外のタブで開く(T)」で本物のブラウザに渡してください。'}百科事典（Wikipedia）は、どちらでも窓の中で読めます。</p></section>
       </div>`);
       d.querySelector('input[type=search]')?.focus();
+      say('スタートページです。言葉を入れて探すか、住所の欄に住所を入れてください。', t);
     });
   }
   async function renderSearch(t, qtext, signal) {
@@ -244,6 +245,7 @@ export async function launch(os, args = {}, rect = {}) {
     const r = await fetch(B.wikiSearchUrl(lang, qtext), { signal });
     if (!r.ok) throw new Error(`百科事典の検索が ${r.status} を返しました`);
     const items = (await r.json())?.query?.search || [];
+    say(`「${qtext}」の検索結果です（百科事典 ${items.length} 件）。`, t);
     const web = `https://duckduckgo.com/html/?q=${encodeURIComponent(qtext)}`;
     d.innerHTML = `<div class="bw-start"><h2 class="bw-h">「${esc(qtext)}」の検索</h2>
       <p><button type="button" class="flat bw-btn" data-web="${esc(web)}">ウェブ全体で探す（DuckDuckGo）</button></p>
