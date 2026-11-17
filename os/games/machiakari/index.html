@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>街あかり</title>
+<meta name="description" content="FUTURE OS // ARCADIA-91 に付いてくる街づくりゲーム。道を引き、住宅・商業・工業の区画を塗り、電気と水道と公共サービスと予算を回して街を育てる。昼と夜がめぐり、夜は街に灯りがともる。">
+<link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+<div class="app" id="app" hidden>
+  <header class="topbar">
+    <div class="tb-city"><span class="tb-name" id="cityName">街</span><span class="tb-stage" id="cityStage">開拓地</span></div>
+    <div class="tb-time" aria-label="日付と時刻"><span id="date">2027年4月</span><span class="tb-clock" id="clock">06:30</span></div>
+    <dl class="tb-stats">
+      <div><dt>お金</dt><dd id="funds">0</dd><dd class="tb-delta" id="fundsDelta"></dd></div>
+      <div><dt>人口</dt><dd id="pop">0</dd></div>
+    </dl>
+    <div class="tb-demand" role="img" aria-label="需要" id="demandBox">
+      <div class="dm" data-k="R"><span class="dm-bar"><i></i></span><b>住</b></div>
+      <div class="dm" data-k="C"><span class="dm-bar"><i></i></span><b>商</b></div>
+      <div class="dm" data-k="I"><span class="dm-bar"><i></i></span><b>工</b></div>
+      <div class="dm" data-k="O"><span class="dm-bar"><i></i></span><b>事</b></div>
+    </div>
+    <div class="tb-speed" role="toolbar" aria-label="時間の速さ" focusgroup="toolbar wrap">
+      <button type="button" data-speed="0" aria-pressed="false" aria-label="止める（P）" title="止める（P）">❚❚</button>
+      <button type="button" data-speed="1" aria-pressed="true" aria-label="ふつう" title="ふつう（,）">▶</button>
+      <button type="button" data-speed="2" aria-pressed="false" aria-label="速い" title="速い">▶▶</button>
+      <button type="button" data-speed="3" aria-pressed="false" aria-label="とても速い（.）" title="とても速い（.）">▶▶▶</button>
+    </div>
+    <div class="tb-menu" role="toolbar" aria-label="帳簿" focusgroup="toolbar wrap">
+      <button type="button" data-open="budget" title="予算（B）">予算</button>
+      <button type="button" data-open="policy" title="地区と政策（L）">政策</button>
+      <button type="button" data-open="graph" title="グラフ（G）">グラフ</button>
+      <button type="button" data-open="goals" title="目標（M）">目標</button>
+      <button type="button" data-open="save" title="保存と読み込み（Ctrl+S）">保存</button>
+      <button type="button" data-open="settings" title="設定">設定</button>
+      <button type="button" data-open="help" title="遊び方（H）">？</button>
+    </div>
+  </header>
+
+  <nav class="toolbox" role="toolbar" aria-label="道具箱" aria-orientation="vertical" focusgroup="toolbar wrap block" id="toolbox"></nav>
+  <div class="subtools" role="toolbar" aria-label="道具の種類" focusgroup="toolbar wrap" id="subtools"></div>
+
+  <main class="stage" id="stage">
+    <canvas id="city" tabindex="0" aria-label="街の地図。矢印キーでカーソルを動かし、Space か Enter で道具を使う。WASD で見る場所を動かし、＋とーで拡大と縮小。"></canvas>
+    <div class="tip" id="tip" hidden></div>
+    <div class="toolname" id="toolName" aria-hidden="true"></div>
+  </main>
+
+  <aside class="side">
+    <div class="views" role="toolbar" aria-label="色分けの表示（V）" focusgroup="toolbar wrap" id="views"></div>
+    <canvas class="minimap" id="minimap" width="200" height="110" aria-label="小さな地図。押した所へ移る"></canvas>
+    <div class="side-stats" id="sideStats"></div>
+  </aside>
+
+  <footer class="news">
+    <button type="button" class="news-btn" id="newsBtn" title="知らせの一覧">知らせ</button>
+    <p class="news-text" id="newsText" role="status" aria-live="polite"></p>
+  </footer>
+</div>
+
+<section class="title" id="title" aria-labelledby="titleName">
+  <canvas id="titleCanvas" aria-hidden="true"></canvas>
+  <div class="title-panel">
+    <h1 id="titleName">街あかり</h1>
+    <p class="title-sub">MACHIAKARI — A CITY OF EVENING LIGHTS</p>
+    <div class="title-buttons">
+      <button type="button" id="btnContinue" hidden>つづきから</button>
+      <button type="button" id="btnNew" class="primary">新しい街をはじめる</button>
+      <button type="button" id="btnLoad">保存した街を開く</button>
+      <button type="button" id="btnHelpTitle">遊び方</button>
+    </div>
+    <p class="title-foot">FUTURE OS // ARCADIA-91 付属ソフト</p>
+  </div>
+</section>
+
+<dialog id="dlgNew" aria-labelledby="dlgNewTitle">
+  <form method="dialog" class="dlg">
+    <h2 id="dlgNewTitle">新しい街</h2>
+    <label class="row">街の名前 <input id="newName" type="text" value="あかり市" maxlength="16" autocomplete="off" required></label>
+    <fieldset class="row"><legend>土地</legend>
+      <label><input type="radio" name="terrain" value="river" checked> 川の流れる平野</label>
+      <label><input type="radio" name="terrain" value="lake"> 湖のほとり</label>
+      <label><input type="radio" name="terrain" value="coast"> 海辺</label>
+      <label><input type="radio" name="terrain" value="flat"> 平らな草原</label>
+    </fieldset>
+    <fieldset class="row"><legend>広さ</legend>
+      <label><input type="radio" name="size" value="64"> 小（64×64）</label>
+      <label><input type="radio" name="size" value="80" checked> 中（80×80）</label>
+      <label><input type="radio" name="size" value="100"> 大（100×100）</label>
+    </fieldset>
+    <fieldset class="row"><legend>はじめのお金</legend>
+      <label><input type="radio" name="funds" value="50000"> たっぷり（5 億円）</label>
+      <label><input type="radio" name="funds" value="20000" checked> ふつう（2 億円）</label>
+      <label><input type="radio" name="funds" value="8000"> きびしい（8,000 万円）</label>
+    </fieldset>
+    <label class="row">地形の種 <input id="newSeed" type="number" min="1" max="999999" value="1"> <button type="button" id="newSeedRand">ほかの地形</button></label>
+    <div class="buttons"><button value="cancel" formnovalidate>やめる</button><button value="ok" class="primary" autofocus>この土地ではじめる</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgBudget" aria-labelledby="dlgBudgetTitle" class="wide">
+  <form method="dialog" class="dlg">
+    <header class="dlg-head"><h2 id="dlgBudgetTitle">予算</h2><button value="close" autofocus>閉じる（Esc）</button></header>
+    <div class="budget-grid">
+      <section><h3>税率</h3><div id="taxRows"></div><p class="note" id="taxEstimate"></p></section>
+      <section><h3>施設の予算</h3><div id="svcRows"></div><p class="note">予算を減らすと維持費が下がり、届く範囲と作る量も減ります。</p></section>
+      <section><h3>先月の収支</h3><div id="lastMonth"></div></section>
+      <section><h3>融資</h3><div id="loanRows"></div></section>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgPolicy" aria-labelledby="dlgPolicyTitle" class="wide">
+  <form method="dialog" class="dlg">
+    <header class="dlg-head"><h2 id="dlgPolicyTitle">地区と政策</h2><button value="close" autofocus>閉じる（Esc）</button></header>
+    <div class="policy-head"><label>対象 <select id="policyScope"></select></label><button type="button" id="distNew">新しい地区</button><button type="button" id="distRename">名前を変える</button><button type="button" id="distPaint">この地区を塗る</button></div>
+    <p class="note" id="policyNote"></p>
+    <ul class="policy-list" id="policyList"></ul>
+  </form>
+</dialog>
+
+<dialog id="dlgGraph" aria-labelledby="dlgGraphTitle" class="wide">
+  <form method="dialog" class="dlg">
+    <header class="dlg-head"><h2 id="dlgGraphTitle">グラフ</h2><button value="close" autofocus>閉じる（Esc）</button></header>
+    <div class="tabs" role="tablist" aria-label="グラフの種類" id="graphTabs"></div>
+    <canvas id="graphCanvas" width="720" height="300" role="img" aria-label="選んだ値の月ごとの移り変わり"></canvas>
+    <p class="note" id="graphNote"></p>
+  </form>
+</dialog>
+
+<dialog id="dlgGoals" aria-labelledby="dlgGoalsTitle" class="wide">
+  <form method="dialog" class="dlg">
+    <header class="dlg-head"><h2 id="dlgGoalsTitle">目標</h2><button value="close" autofocus>閉じる（Esc）</button></header>
+    <div class="goals-grid"><section><h3>街の段階</h3><ol class="ms-list" id="msList"></ol></section><section><h3>ほかの目標</h3><ul class="goal-list" id="goalList"></ul></section></div>
+  </form>
+</dialog>
+
+<dialog id="dlgSave" aria-labelledby="dlgSaveTitle">
+  <form method="dialog" class="dlg">
+    <header class="dlg-head"><h2 id="dlgSaveTitle">保存と読み込み</h2><button value="close" autofocus>閉じる（Esc）</button></header>
+    <ul class="slots" id="slotList"></ul>
+    <div class="row files"><button type="button" id="exportBtn">ファイルに書き出す</button><label class="filebtn">ファイルから読み込む<input type="file" id="importFile" accept=".json,application/json"></label></div>
+    <p class="note" id="saveNote"></p>
+  </form>
+</dialog>
+
+<dialog id="dlgSettings" aria-labelledby="dlgSettingsTitle">
+  <form method="dialog" class="dlg">
+    <header class="dlg-head"><h2 id="dlgSettingsTitle">設定</h2><button value="close" autofocus>閉じる（Esc）</button></header>
+    <label class="row"><input type="checkbox" id="setSfx" checked> 効果音</label>
+    <label class="row"><input type="checkbox" id="setMusic" checked> 音楽</label>
+    <label class="row">音量 <input type="range" id="setVol" min="0" max="100" value="60"></label>
+    <fieldset class="row"><legend>車と人の量（多いほど重くなります）</legend>
+      <label><input type="radio" name="traffic" value="250"> 少なめ</label>
+      <label><input type="radio" name="traffic" value="450" checked> ふつう</label>
+      <label><input type="radio" name="traffic" value="750"> 多め</label>
+    </fieldset>
+    <label class="row"><input type="checkbox" id="setFire" checked> 火事が起きる</label>
+    <label class="row"><input type="checkbox" id="setIcons" checked> 建物の困りごとの印を出す</label>
+    <label class="row"><input type="checkbox" id="setAuto" checked> 毎月、自動で保存する</label>
+    <div class="buttons"><button type="button" id="toTitle">題名の画面へ戻る</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgHelp" aria-labelledby="dlgHelpTitle" class="wide">
+  <form method="dialog" class="dlg">
+    <header class="dlg-head"><h2 id="dlgHelpTitle">遊び方</h2><button value="close" autofocus>閉じる（Esc）</button></header>
+    <div class="help" id="helpBody"></div>
+  </form>
+</dialog>
+
+<dialog id="dlgNews" aria-labelledby="dlgNewsTitle">
+  <form method="dialog" class="dlg">
+    <header class="dlg-head"><h2 id="dlgNewsTitle">知らせ</h2><button value="close" autofocus>閉じる（Esc）</button></header>
+    <ol class="news-list" id="newsList"></ol>
+  </form>
+</dialog>
+
+<dialog id="inspect" class="inspect" aria-labelledby="inspectTitle">
+  <h2 id="inspectTitle">調べる</h2>
+  <div id="inspectBody"></div>
+  <button type="button" class="inspect-close" id="inspectClose" aria-label="閉じる">×</button>
+</dialog>
+
+<p class="sr" id="announce" role="status" aria-live="polite"></p>
+
+<script src="../../../js/logger.js"></script>
+<script type="module" src="js/main.mjs"></script>
+</body>
+</html>
