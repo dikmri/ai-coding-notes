@@ -116,3 +116,85 @@ test('通り抜け: 山登り法は立方体と正八面体が通る向きを見
     assert.ok(spareScale(shadow(v, s.qo, [0, 0]), shadow(v, s.qi, s.t)) > 1.01, name);
   }
 });
+
+const MUT = 'tr-20261118-mutation-test';
+const MUT_NAMES = ['parse', 'run', 'listMutants', 'mutatedSource', 'judge', 'findWitness', 'score', 'SAMPLES'];
+const sample = (X, key) => X.SAMPLES.find((s) => s.key === key);
+const testsOf = (s) => s.tests.map(([args, expect]) => ({ args, expect, on: true }));
+const judgeAll = (X, fn, tests, equiv = new Set()) => X.listMutants(fn).map((m) => {
+  const r = X.judge(fn, m, tests);
+  return equiv.has(m.id) && r.status === 'survived' ? { ...r, status: 'equiv' } : r;
+});
+
+test('変異: 関数を読んで、JavaScript と同じ答えを返す', () => {
+  const X = trendCore(MUT, MUT_NAMES);
+  const leap = X.parse(sample(X, 'leap').code);
+  assert.deepEqual([2000, 1900, 2024, 2023].map((y) => X.run(leap, [y])), [true, false, true, false]);
+  const ship = X.parse(sample(X, 'ship').code);
+  assert.equal(X.run(ship, [2999, true]), 300);
+  assert.equal(X.run(ship, [3000, true]), 0);
+  assert.equal(X.run(ship, [999, false]), 500);
+  assert.equal(X.run(X.parse(sample(X, 'gap').code), [2, 7]), 5);
+  // 演算子の強さ、否定、三項演算子、かっこ
+  const f = X.parse('function f(x) { if (!(x > 5)) { return 1 + 2 * x === 7 && !false; } return x % 2 === 0 ? -x : x - 1; }');
+  assert.equal(X.run(f, [3]), true);
+  assert.equal(X.run(f, [8]), -8);
+  assert.equal(X.run(f, [9]), 8);
+});
+
+test('変異: 読めないコードは、行の番号つきで知らせる', () => {
+  const X = trendCore(MUT, MUT_NAMES);
+  assert.throws(() => X.parse('function f(x) {\n  return y;\n}'), /2 行目.*「y」は引数にありません/);
+  assert.throws(() => X.parse('function f(x) { let a = 1; return a; }'), /if \(条件\) return 値;/);
+  assert.throws(() => X.parse('function f(x) { return x # 1; }'), /読めない文字「#」/);
+});
+
+test('変異: 演算子・真偽・条件を1か所ずつ書き換えた変異を作る', () => {
+  const X = trendCore(MUT, MUT_NAMES);
+  const count = (key) => X.listMutants(X.parse(sample(X, key).code)).length;
+  assert.equal(count('leap'), 12);
+  assert.equal(count('ship'), 13);
+  assert.equal(count('gap'), 6);
+  const ship = X.parse(sample(X, 'ship').code);
+  const m = X.listMutants(ship).find((x) => x.from === '>=' && x.to === '>');
+  assert.equal(m.kind, '境界');
+  assert.equal(m.line, 2);
+  assert.match(X.mutatedSource(ship.src, m), /member && price > 3000\)/);
+});
+
+test('変異: 最初のテストでは、うるう年の変異が半分生き残る', () => {
+  const X = trendCore(MUT, MUT_NAMES);
+  const s = sample(X, 'leap'), fn = X.parse(s.code);
+  const sc = X.score(judgeAll(X, fn, testsOf(s)));
+  assert.deepEqual([sc.killed, sc.survived, sc.equiv, sc.pct], [6, 6, 0, 50]);
+  // 外したテストは数えない
+  const off = testsOf(s).map((t) => ({ ...t, on: false }));
+  assert.equal(X.score(judgeAll(X, fn, off)).killed, 0);
+});
+
+test('変異: 倒す入力は境界の値から探し、等価の変異では見つからない', () => {
+  const X = trendCore(MUT, MUT_NAMES);
+  const s = sample(X, 'ship'), fn = X.parse(s.code);
+  const m = X.listMutants(fn).find((x) => x.from === '>=' && x.to === '>');
+  const w = X.findWitness(fn, m, s.domain);
+  assert.deepEqual(JSON.parse(JSON.stringify(w)), { args: [3000, true], expect: 0, got: 300 });
+  const g = sample(X, 'gap'), gf = X.parse(g.code);
+  const eq = X.listMutants(gf).find((x) => x.from === '>' && x.to === '>=');
+  assert.equal(X.findWitness(gf, eq, g.domain), null);
+});
+
+test('変異: 見つけた入力をテストに足していくと、等価の変異を除いて全部倒せる', () => {
+  const X = trendCore(MUT, MUT_NAMES);
+  for (const s of X.SAMPLES) {
+    const fn = X.parse(s.code), tests = testsOf(s), equiv = new Set();
+    for (const m of X.listMutants(fn)) {
+      if (X.judge(fn, m, tests).status === 'killed') continue;
+      const w = X.findWitness(fn, m, s.domain);
+      if (w) tests.push({ args: w.args, expect: w.expect, on: true });
+      else equiv.add(m.id);
+    }
+    const sc = X.score(judgeAll(X, fn, tests, equiv));
+    assert.equal(sc.pct, 100, s.key);
+    assert.equal(sc.equiv, s.key === 'gap' ? 1 : 0, s.key);
+  }
+});

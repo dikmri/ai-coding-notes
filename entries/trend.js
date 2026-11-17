@@ -225,3 +225,584 @@ dekiru.add({
     requestAnimationFrame(frame);
   },
 });
+
+dekiru.add({
+  id: 'tr-20261118-mutation-test', c: 'trend', lv: 3, date: '2026-11-18',
+  t: 'コードをわざと書き換えて、テストが気づくかを調べる（ミューテーションテスト）', y: 'みゅーてーしょんてすと こーどをわざとかきかえててすとがきづくかしらべる',
+  tags: ['ミューテーションテスト', '@mizchi/mutator', '構文解析', 'テストの質', 'container queries'],
+  d: 'mizchi さんが 2026年11月17日に Zenn へ書いた「おい、 Mutation Test をやれ」が、日別の人気記事の1位になった。ミューテーションテストは、コードの演算子などを1か所だけわざと書き換えた「変異」を作り、テストが落ちるか（書き換えに気づくか）を調べて、テストの質を測る方法である。この見本では、小さな関数を自前の構文解析器で読み、比較・計算・論理の演算子の置き換え、true と false の入れ替え、条件を true や false に固定する変異を作って、全部のテストを流す。生き残った変異には、元のコードと答えが変わる入力を総当たりで探し、テストに足せる。どの入力でも答えが変わらない変異は「等価の変異」として点数から外す。元の道具の @mizchi/mutator は Vitest のテストを TypeScript のコードに対して流し、変えた所だけを調べて速くしている。この見本が読めるのは if と return だけの小さな関数で、等価かどうかも決めた範囲の入力でしか確かめていない。',
+  p: 'コードは1回だけ構文木にし、変異は「この節点の代わりにこの節点を使う」という差し替えとして持つ。評価する関数はその節点に来たときだけ差し替えるので、変異ごとにコードを組み立て直したり eval したりしなくて済む。答えは Object.is で比べる（Vitest の toBe と同じ）。倒す入力は、関数に出てくる数の前後（境界値）を先に試し、見つからなければ範囲全体を調べる。画面の並びは container queries で、表示枠の幅に合わせて2列と1列を切り替える。',
+  refs: [
+    { title: 'おい、 Mutation Test をやれ。テスト品質を、測るために（Zenn・mizchi）', url: 'https://zenn.dev/mizchi/articles/mutation-test-quality' },
+    { title: 'mizchi/mutator（GitHub）', url: 'https://github.com/mizchi/mutator' },
+    { title: 'mizchi/mutator を入れてみた（Zenn）', url: 'https://zenn.dev/polyco/articles/e05cb28c569801' },
+  ],
+  html: `<div class="app">
+  <div class="bar">
+    <label>関数 <select id="pick"></select></label>
+    <button id="run" type="button">テストを流す</button>
+    <button id="fix" type="button">生き残りを倒すテストを足す</button>
+    <button id="reset" type="button">最初に戻す</button>
+  </div>
+  <p id="msg" role="status"></p>
+  <div class="score"><meter id="meter" min="0" max="100" low="60" high="80" optimum="100" value="0" aria-label="変異を倒した割合"></meter><span id="score"></span></div>
+  <div class="cols">
+    <section aria-labelledby="h-code">
+      <h2 id="h-code">関数のコード（変異を選ぶと、書き換えた所を示す）</h2>
+      <div class="src"><pre class="gut" id="gut" aria-hidden="true"></pre><pre id="code"></pre></div>
+      <details>
+        <summary>コードを書き換える</summary>
+        <textarea id="edit" rows="7" spellcheck="false" aria-label="関数のコード"></textarea>
+        <button id="apply" type="button">このコードで変異を作り直す</button>
+        <p id="err" class="fail" aria-live="polite"></p>
+        <p class="note">使えるのは if (条件) return 値; と return 値; だけ。式には数、true と false、引数、+ - * / %、比較、&amp;&amp; || !、三項演算子を書ける。</p>
+      </details>
+      <h2 id="h-tests">テスト（入力 → 期待する答え）</h2>
+      <ul id="tests" aria-labelledby="h-tests"></ul>
+      <div class="add" id="add"></div>
+      <p class="note">足すテストの期待する答えには、いまのコードの答えをそのまま使う。</p>
+    </section>
+    <section>
+      <div class="tw" tabindex="0" role="region" aria-labelledby="cap">
+        <table>
+          <caption id="cap">作った変異と結果</caption>
+          <thead><tr><th scope="col">変異</th><th scope="col">行</th><th scope="col">種類</th><th scope="col">結果</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div id="detail"></div>
+    </section>
+  </div>
+</div>`,
+  css: `:root { color-scheme: dark; --bg: #0f1420; --panel: #161d2d; --line: #2a3450; --ink: #dfe6ff; --dim: #97a2c4; --ok: #5ee69a; --bad: #ffab66; --eq: #b4bddc; --now: #8cc0ff; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.5 system-ui, sans-serif; }
+    .app { container-type: inline-size; padding: 10px; display: grid; gap: 8px; }
+    .bar { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+    button, select, input, textarea { font: inherit; color: inherit; }
+    button { background: #24304d; border: 1px solid #3a4870; border-radius: 6px; padding: 3px 10px; cursor: pointer; }
+    button:hover { background: #2e3c60; }
+    select, input[type=number], textarea { background: #0b0f19; border: 1px solid #3a4870; border-radius: 6px; padding: 2px 6px; }
+    #msg { margin: 0; min-height: 1.5em; }
+    .score { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-variant-numeric: tabular-nums; }
+    meter { inline-size: 160px; block-size: 12px; }
+    .cols { display: grid; gap: 10px; }
+    @container (min-width: 640px) { .cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); } }
+    section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-inline-size: 0; }
+    h2 { font-size: 12px; color: var(--dim); margin: 4px 0; font-weight: 600; }
+    .src { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 10px; overflow-x: auto; }
+    .src pre { margin: 0; font: 12px/1.6 ui-monospace, Consolas, monospace; }
+    .gut { color: #5d6890; text-align: end; user-select: none; }
+    .gut .hit { color: var(--now); font-weight: 700; }
+    del { background: rgba(255, 110, 120, 0.22); color: #ffc0c6; text-decoration: line-through; }
+    ins { background: rgba(94, 230, 154, 0.2); color: #b6f7d2; text-decoration: underline; }
+    details { margin: 6px 0; }
+    summary { cursor: pointer; color: var(--dim); }
+    textarea { display: block; inline-size: 100%; box-sizing: border-box; margin: 4px 0; font: 12px/1.5 ui-monospace, Consolas, monospace; resize: vertical; }
+    ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+    li { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; border-radius: 4px; padding: 0 4px; }
+    li label { display: inline-flex; gap: 6px; align-items: center; }
+    li.fresh { background: rgba(94, 230, 154, 0.12); }
+    code { font: 12px ui-monospace, Consolas, monospace; }
+    button.del { padding: 0 6px; font-size: 12px; }
+    .add { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-top: 6px; }
+    .add input[type=number] { inline-size: 6.5em; }
+    .note { color: var(--dim); margin: 4px 0 0; font-size: 12px; }
+    .fail { color: #ff9aa3; margin: 0; }
+    .tw { container-type: inline-size; overflow: auto; max-block-size: 22em; }
+    table { border-collapse: separate; border-spacing: 0; inline-size: 100%; }
+    caption { text-align: start; color: var(--dim); font-weight: 600; font-size: 12px; padding-block-end: 4px; }
+    th, td { text-align: start; padding: 3px 6px; border-block-end: 1px solid var(--line); white-space: nowrap; }
+    thead th { position: sticky; inset-block-start: 0; background: var(--panel); color: var(--dim); font-weight: 600; z-index: 1; }
+    tbody th { font-weight: normal; white-space: normal; }
+    tbody th button { font: 12px ui-monospace, Consolas, monospace; padding: 1px 6px; text-align: start; }
+    tr.sel { background: rgba(140, 192, 255, 0.12); }
+    .killed { color: var(--ok); }
+    .survived { color: var(--bad); font-weight: 700; }
+    .equiv { color: var(--eq); }
+    .wait { color: #6b76a0; }
+    .now { color: var(--now); }
+    @container (width < 360px) {
+      table, thead, tbody, tr, th, td { display: block; }
+      thead { display: none; }
+      tr { border: 1px solid var(--line); border-radius: 6px; margin-block-end: 6px; }
+      th, td { border: 0; padding: 1px 6px; }
+      td:nth-child(2)::before { content: "行: "; color: var(--dim); }
+      td:nth-child(3)::before { content: "種類: "; color: var(--dim); }
+      td:nth-child(4)::before { content: "結果: "; color: var(--dim); }
+    }
+    #detail { margin-top: 8px; display: grid; gap: 4px; }
+    #detail p { margin: 0; }`,
+  core() {
+    // ---- 字句に分ける（数・名前・記号）----
+    // 「=」は式では使えないが、let a = 1; のような文に「使える形」を案内できるよう記号として読む
+    const OPS = ['===', '!==', '<=', '>=', '&&', '||', '<', '>', '=', '+', '-', '*', '/', '%', '!', '(', ')', '{', '}', ',', ';', '?', ':'];
+    const NUM = /\d+(?:\.\d+)?/y, NAME = /[A-Za-z_$][\w$]*/y, SPACE = /\s+/y;
+    function lineOf(src, pos) { return src.slice(0, pos).split('\n').length; }
+    function tokenize(src) {
+      const out = [];
+      let i = 0;
+      while (i < src.length) {
+        SPACE.lastIndex = i;
+        if (SPACE.test(src)) { i = SPACE.lastIndex; continue; }
+        if (src.startsWith('//', i)) { const nl = src.indexOf('\n', i); i = nl < 0 ? src.length : nl; continue; }
+        let m;
+        NUM.lastIndex = i;
+        if ((m = NUM.exec(src))) { out.push({ t: 'num', v: Number(m[0]), s: i, e: NUM.lastIndex }); i = NUM.lastIndex; continue; }
+        NAME.lastIndex = i;
+        if ((m = NAME.exec(src))) { out.push({ t: 'name', v: m[0], s: i, e: NAME.lastIndex }); i = NAME.lastIndex; continue; }
+        const op = OPS.find((o) => src.startsWith(o, i));
+        if (!op) throw new SyntaxError(`${lineOf(src, i)} 行目: 読めない文字「${src[i]}」`);
+        out.push({ t: 'op', v: op, s: i, e: i + op.length });
+        i += op.length;
+      }
+      return out;
+    }
+    // ---- 構文木を作る。読めるのは if (条件) return 値; と return 値; だけ ----
+    const PREC = { '||': 1, '&&': 2, '===': 3, '!==': 3, '<': 4, '<=': 4, '>': 4, '>=': 4, '+': 5, '-': 5, '*': 6, '/': 6, '%': 6 };
+    function parse(src) {
+      const T = tokenize(src), params = [];
+      let p = 0;
+      const at = (v) => p < T.length && T[p].v === v;
+      const fail = (msg) => { throw new SyntaxError((p < T.length ? `${lineOf(src, T[p].s)} 行目: ` : '最後で: ') + msg); };
+      const eat = (v) => { if (!at(v)) fail(`「${v}」が要ります`); return T[p++]; };
+      const name = () => { if (p >= T.length || T[p].t !== 'name') fail('名前が要ります'); return T[p++].v; };
+      function primary() {
+        const tk = T[p];
+        if (!tk) return fail('値が要ります');
+        if (tk.v === '!' || tk.v === '-') { p++; const a = primary(); return { k: tk.v === '!' ? 'not' : 'neg', a, s: tk.s, e: a.e, os: tk.s, oe: tk.e }; }
+        if (tk.v === '(') { p++; const a = expr(); const end = eat(')'); return { ...a, s: tk.s, e: end.e }; }
+        if (tk.t === 'num') { p++; return { k: 'num', v: tk.v, s: tk.s, e: tk.e }; }
+        if (tk.v === 'true' || tk.v === 'false') { p++; return { k: 'bool', v: tk.v === 'true', s: tk.s, e: tk.e }; }
+        if (tk.t === 'name' && params.includes(tk.v)) { p++; return { k: 'var', name: tk.v, s: tk.s, e: tk.e }; }
+        return fail(tk.t === 'name' ? `「${tk.v}」は引数にありません` : `ここに「${tk.v}」は書けません`);
+      }
+      // 演算子の強さの順に読む（強いものほど先にまとまる）
+      function binary(min) {
+        let a = primary();
+        for (;;) {
+          const tk = T[p], pr = tk && tk.t === 'op' ? PREC[tk.v] : 0;
+          if (!pr || pr < min) return a;
+          p++;
+          const b = binary(pr + 1);
+          a = { k: 'bin', op: tk.v, a, b, s: a.s, e: b.e, os: tk.s, oe: tk.e };
+        }
+      }
+      function expr() {
+        const c = binary(1);
+        if (!at('?')) return c;
+        p++;
+        const a = expr();
+        eat(':');
+        const b = expr();
+        return { k: 'cond', c, a, b, s: c.s, e: b.e };
+      }
+      function ret() { eat('return'); const r = expr(); return { r, end: eat(';').e }; }
+      eat('function');
+      const fname = name();
+      eat('(');
+      while (!at(')')) { if (params.length) eat(','); params.push(name()); }
+      eat(')');
+      eat('{');
+      const body = [];
+      while (!at('}')) {
+        if (p >= T.length) fail('「}」が要ります');
+        const s = T[p].s;
+        if (at('if')) {
+          p++;
+          eat('(');
+          const c = expr();
+          eat(')');
+          const brace = at('{');
+          if (brace) p++;
+          const { r, end } = ret();
+          body.push({ k: 'if', c, r, s, e: brace ? eat('}').e : end });
+        } else if (at('return')) {
+          const { r, end } = ret();
+          body.push({ k: 'ret', r, s, e: end });
+        } else fail('使えるのは「if (条件) return 値;」と「return 値;」だけです');
+      }
+      eat('}');
+      if (p < T.length) fail('関数の後ろに余分なものがあります');
+      return { name: fname, params, body, src };
+    }
+    // ---- 評価する。sw = { node, repl } を渡すと、node の所だけ repl を使う（これが変異）----
+    function evaluate(n, env, sw) {
+      if (sw && n === sw.node) n = sw.repl;
+      const v = (x) => evaluate(x, env, sw);
+      switch (n.k) {
+        case 'num': case 'bool': return n.v;
+        case 'var': return env[n.name];
+        case 'not': return !v(n.a);
+        case 'neg': return -v(n.a);
+        case 'cond': return v(n.c) ? v(n.a) : v(n.b);
+        case 'bin': {
+          if (n.op === '&&') return v(n.a) && v(n.b);
+          if (n.op === '||') return v(n.a) || v(n.b);
+          const a = v(n.a), b = v(n.b);
+          switch (n.op) {
+            case '+': return a + b;
+            case '-': return a - b;
+            case '*': return a * b;
+            case '/': return a / b;
+            case '%': return a % b;
+            case '<': return a < b;
+            case '<=': return a <= b;
+            case '>': return a > b;
+            case '>=': return a >= b;
+            case '===': return a === b;
+            case '!==': return a !== b;
+          }
+        }
+      }
+      throw new Error('知らない形: ' + n.k + (n.op ? ' ' + n.op : ''));
+    }
+    function run(fn, args, sw) {
+      const env = Object.create(null);
+      fn.params.forEach((name, i) => { env[name] = args[i]; });
+      for (const st of fn.body) if (st.k === 'ret' || evaluate(st.c, env, sw)) return evaluate(st.r, env, sw);
+      return undefined;
+    }
+    // ---- 変異を作る。1つの変異は「この節点の代わりにこの節点を使う」という差し替え ----
+    const SWAP = { '<': ['<=', '>='], '<=': ['<', '>'], '>': ['>=', '<='], '>=': ['>', '<'], '===': ['!=='], '!==': ['==='], '+': ['-'], '-': ['+'], '*': ['/'], '/': ['*'], '%': ['*'], '&&': ['||'], '||': ['&&'] };
+    const BOUND = ['<:<=', '<=:<', '>:>=', '>=:>'];
+    function kindOf(from, to) {
+      if (BOUND.includes(from + ':' + to)) return '境界';
+      if (['<', '<=', '>', '>=', '===', '!=='].includes(from)) return '比較の反転';
+      return from === '&&' || from === '||' ? '論理' : '計算';
+    }
+    function listMutants(fn) {
+      const out = [], src = fn.src;
+      const add = (node, repl, s, e, to, kind) => out.push({ node, repl, s, e, from: src.slice(s, e), to, kind, line: lineOf(src, s) });
+      // 条件を true と false に固定する
+      const fix = (c) => {
+        if (c.k === 'bool') return;
+        add(c, { k: 'bool', v: true }, c.s, c.e, 'true', '条件を固定');
+        add(c, { k: 'bool', v: false }, c.s, c.e, 'false', '条件を固定');
+      };
+      const walk = (n) => {
+        if (n.k === 'bin') {
+          walk(n.a);
+          for (const op of SWAP[n.op]) add(n, { ...n, op }, n.os, n.oe, op, kindOf(n.op, op));
+          walk(n.b);
+        } else if (n.k === 'bool') add(n, { k: 'bool', v: !n.v }, n.s, n.e, String(!n.v), '真偽の反転');
+        else if (n.k === 'not' || n.k === 'neg') { add(n, n.a, n.os, n.oe, '', n.k === 'not' ? '否定を外す' : '符号を外す'); walk(n.a); }
+        else if (n.k === 'cond') { fix(n.c); walk(n.c); walk(n.a); walk(n.b); }
+      };
+      for (const st of fn.body) {
+        if (st.k === 'if') { fix(st.c); walk(st.c); }
+        walk(st.r);
+      }
+      return out.map((m, id) => ({ ...m, id }));
+    }
+    function mutatedSource(src, m) { return src.slice(0, m.s) + m.to + src.slice(m.e); }
+    // ---- テストを流す。答えは Object.is で比べる（Vitest の toBe と同じ）----
+    function check(fn, t, sw) {
+      let got;
+      try { got = run(fn, t.args, sw); } catch (err) { return { ok: false, err: true }; }
+      return { ok: Object.is(got, t.expect), got };
+    }
+    // 外したテスト（on が false）は流さない。最初に落ちたテストで「倒した」とする
+    function judge(fn, m, tests) {
+      const sw = { node: m.node, repl: m.repl };
+      for (let i = 0; i < tests.length; i++) if (tests[i].on !== false && !check(fn, tests[i], sw).ok) return { status: 'killed', by: i };
+      return { status: 'survived', by: -1 };
+    }
+    // ---- 倒す入力を探す。関数に出てくる数の前後（境界値）を先に、範囲全体を後に試す ----
+    function valuesOf(d) {
+      if (d.type === 'bool') return [false, true];
+      const v = [];
+      for (let x = d.min; x <= d.max; x++) v.push(x);
+      return v.sort((a, b) => Math.abs(a) - Math.abs(b) || b - a);
+    }
+    function literals(fn) {
+      const out = [];
+      const walk = (n) => {
+        if (!n) return;
+        if (n.k === 'num' && !out.includes(n.v)) out.push(n.v);
+        walk(n.a); walk(n.b); walk(n.c);
+      };
+      for (const st of fn.body) { walk(st.c); walk(st.r); }
+      return out;
+    }
+    function tryAll(lists, test) {
+      const args = [];
+      const go = (i) => {
+        if (i === lists.length) return test(args.slice());
+        for (const v of lists[i]) { args[i] = v; const r = go(i + 1); if (r) return r; }
+        return null;
+      };
+      return go(0);
+    }
+    function findWitness(fn, m, domain) {
+      const sw = { node: m.node, repl: m.repl }, lits = literals(fn), all = domain.map(valuesOf);
+      const near = all.map((vals, i) => {
+        const d = domain[i];
+        if (d.type === 'bool') return vals;
+        const pick = [];
+        for (const n of lits) for (const v of [n - 1, n, n + 1]) if (v >= d.min && v <= d.max && !pick.includes(v)) pick.push(v);
+        return pick.length ? pick : vals;
+      });
+      const answer = (s, args) => { try { return { v: run(fn, args, s) }; } catch (err) { return { err: true }; } };
+      const differs = (args) => {
+        const a = answer(null, args), b = answer(sw, args);
+        if (a.err) return null; // 元のコードが答えを出せない入力は使わない
+        return b.err || !Object.is(a.v, b.v) ? { args, expect: a.v, got: b.err ? '例外' : b.v } : null;
+      };
+      return tryAll(near, differs) || tryAll(all, differs);
+    }
+    // 点数 = 倒した ÷ (倒した + 生き残り)。等価の変異は数えない
+    function score(results) {
+      const n = (s) => results.filter((r) => r.status === s).length;
+      const killed = n('killed'), survived = n('survived'), equiv = n('equiv');
+      return { killed, survived, equiv, pct: killed + survived ? Math.round((killed / (killed + survived)) * 100) : null };
+    }
+    function sameArgs(a, b) { return a.length === b.length && a.every((v, i) => Object.is(v, b[i])); }
+    function fmt(v) { return Object.is(v, -0) ? '-0' : String(v); }
+    // 見本の関数。domain は倒す入力を探す範囲、tests は最初から入っているテスト（[引数, 期待する答え]）
+    const SAMPLES = [
+      { key: 'leap', title: 'うるう年かどうか',
+        code: ['function isLeap(y) {', '  if (y % 400 === 0) return true;', '  if (y % 100 === 0) return false;', '  return y % 4 === 0;', '}'].join('\n'),
+        domain: [{ type: 'int', min: 1, max: 2400, start: 2000 }], tests: [[[2024], true], [[2023], false]] },
+      { key: 'ship', title: '送料（5000円を超えるか、会員は3000円から無料）',
+        code: ['function shipping(price, member) {', '  if (member && price >= 3000) return 0;', '  if (price > 5000) return 0;', '  if (price < 1000) return 500;', '  return 300;', '}'].join('\n'),
+        domain: [{ type: 'int', min: 0, max: 10000, start: 3000 }, { type: 'bool' }], tests: [[[500, false], 500], [[2000, false], 300], [[8000, false], 0], [[4000, true], 0]] },
+      { key: 'gap', title: '2つの数の差（大きい方から小さい方を引く）',
+        code: ['function gap(a, b) {', '  return a > b ? a - b : b - a;', '}'].join('\n'),
+        domain: [{ type: 'int', min: -10, max: 10, start: 4 }, { type: 'int', min: -10, max: 10, start: 7 }], tests: [[[5, 2], 3]] },
+    ];
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const calm = matchMedia('(prefers-reduced-motion: reduce)');
+    const LABEL = { wait: '待ち', now: '流しています', killed: '倒した', survived: '生き残り', equiv: '等価' };
+    let S = null, fn = null, mutants = [], tests = [], results = [], sel = -1, token = 0, timer = 0, nextId = 0, said = '', demoAt = 0;
+    const equiv = new Set(), wit = new Map();
+    function el(tag, props, ...kids) { const n = document.createElement(tag); if (props) Object.assign(n, props); n.append(...kids); return n; }
+    function btn(text, key, onclick) { const b = el('button', { type: 'button', textContent: text, onclick }); b.dataset.f = key; return b; }
+    function say(t) { if (t !== said) { $('msg').textContent = t; said = t; } }
+    const call = (args) => `${fn.name}(${args.map(fmt).join(', ')})`;
+    const rangeText = () => S.domain.map((d, i) => (d.type === 'bool' ? `${fn.params[i]} = true / false` : `${fn.params[i]} = ${d.min}〜${d.max}`)).join('、');
+    const broken = () => tests.filter((t) => t.on && !check(fn, t).ok);
+    function clearFresh() { for (const t of tests) t.fresh = false; }
+    // 作り直す前にフォーカスのあった部品を覚えておき、作り直した後に同じ部品へ戻す（キーボードで操作している人のため）
+    function keepFocus(box, build) {
+      const a = document.activeElement, key = a && box.contains(a) ? a.dataset.f : '';
+      build();
+      if (key) { const n = box.querySelector(`[data-f="${key}"]`); if (n) n.focus(); }
+    }
+
+    function load(i) {
+      S = SAMPLES[i];
+      $('pick').value = String(i);
+      tests = S.tests.map(([args, expect]) => ({ id: nextId++, args, expect, on: true }));
+      $('edit').value = S.code;
+      $('err').textContent = '';
+      setCode(parse(S.code));
+    }
+    function setCode(f) {
+      token++;
+      clearTimeout(timer);
+      fn = f;
+      mutants = listMutants(fn);
+      equiv.clear();
+      wit.clear();
+      results = mutants.map(() => ({ status: 'wait' }));
+      sel = -1;
+      buildAdd();
+      renderTests();
+      renderAll();
+    }
+    // テストを足す欄: 引数ごとに入力を1つ作る
+    function buildAdd() {
+      const kids = S.domain.map((d, i) => {
+        const inp = d.type === 'bool' ? el('input', { type: 'checkbox' }) : el('input', { type: 'number', min: d.min, max: d.max, step: 1, value: d.start, required: true });
+        return el('label', null, `${fn.params[i]} `, inp);
+      });
+      $('add').replaceChildren(...kids, el('button', { type: 'button', id: 'addbtn', textContent: 'このテストを足す', onclick: addFromForm }));
+    }
+    function addFromForm() {
+      const ins = [...$('add').querySelectorAll('input')];
+      const bad = ins.findIndex((n) => !n.checkValidity());
+      if (bad >= 0) { say(`${fn.params[bad]} には ${S.domain[bad].min}〜${S.domain[bad].max} の整数を入れてください`); return; }
+      clearFresh();
+      if (addTest(ins.map((n, i) => (S.domain[i].type === 'bool' ? n.checked : n.valueAsNumber)))) { renderTests(); runAll(true, null, 45); }
+    }
+    // 期待する答えには、いまのコードの答えを使う
+    function addTest(args, quiet) {
+      const old = tests.find((t) => sameArgs(t.args, args));
+      if (old && old.on) { if (!quiet) say(`${call(args)} のテストはもうあります`); return false; }
+      if (old) { old.on = true; old.fresh = true; return true; }
+      tests.push({ id: nextId++, args, expect: run(fn, args), on: true, fresh: true });
+      return true;
+    }
+
+    // 全部の変異に全部のテストを流す。animate のときは1つずつ順に結果を出す
+    function runAll(animate, done, delay) {
+      const my = ++token;
+      clearTimeout(timer);
+      renderTests();
+      const bad = broken();
+      if (bad.length) {
+        results = mutants.map(() => ({ status: 'wait' }));
+        renderAll();
+        say(`元のコードで落ちるテストが ${bad.length} 件あります。変異を調べる前に、元のコードでテストが全部通るようにしてください（そのテストを外すか、コードを直す）`);
+        if (done) done();
+        return;
+      }
+      const next = mutants.map((m) => { const r = judge(fn, m, tests); return r.status === 'survived' && equiv.has(m.id) ? { ...r, status: 'equiv' } : r; });
+      const finish = () => {
+        results = next;
+        const s = results.findIndex((r) => r.status === 'survived');
+        if (s >= 0) sel = s;
+        else if (sel >= mutants.length) sel = -1;
+        renderAll();
+        const sc = score(results);
+        if (!mutants.length) say('このコードには書き換えられる所がありません');
+        else if (sc.survived) say(`${mutants.length} 個の変異のうち ${sc.survived} 個が生き残りました。テストが見逃している書き換えです`);
+        else say(`生き残った変異はありません${sc.equiv ? `（等価の変異 ${sc.equiv} 個は点数に入れていません）` : ''}`);
+        if (done) done();
+      };
+      if (!animate || calm.matches || !mutants.length) { finish(); return; }
+      say(`変異を1つずつ作り、テストを ${tests.filter((t) => t.on).length} 件ずつ流しています`);
+      results = mutants.map(() => ({ status: 'wait' }));
+      let k = 0;
+      const step = () => {
+        if (my !== token) return;
+        if (k > 0) results[k - 1] = next[k - 1];
+        if (k === mutants.length) { finish(); return; }
+        results[k] = { status: 'now' };
+        sel = k;
+        k++;
+        renderAll();
+        timer = setTimeout(step, delay || 110);
+      };
+      step();
+    }
+    // 生き残った変異ごとに倒す入力を探してテストに足す。見つからなければ等価の変異とする
+    function autoFix(done) {
+      token++;
+      clearTimeout(timer);
+      if (broken().length) { runAll(false, done); return; }
+      clearFresh();
+      let added = 0, eq = 0;
+      for (const m of mutants) {
+        if (equiv.has(m.id) || judge(fn, m, tests).status === 'killed') continue;
+        if (!wit.has(m.id)) wit.set(m.id, findWitness(fn, m, S.domain));
+        const w = wit.get(m.id);
+        if (!w) { equiv.add(m.id); eq++; continue; }
+        if (addTest(w.args, true)) added++;
+      }
+      runAll(true, () => {
+        if (added || eq) say(`テストを ${added} 件足しました${eq ? `。${eq} 個は、どの入力でも答えが同じ等価の変異でした` : ''}`);
+        if (done) done();
+      }, 60);
+    }
+    function findFor(m) {
+      const w = findWitness(fn, m, S.domain);
+      wit.set(m.id, w);
+      if (w) { say(`${call(w.args)} で、元のコードと変異したコードの答えが分かれます`); return; }
+      equiv.add(m.id);
+      const i = mutants.indexOf(m);
+      if (results[i] && results[i].status === 'survived') results[i] = { ...results[i], status: 'equiv' };
+      say(`${rangeText()} の入力を全部試しても、答えが分かれませんでした。等価の変異です`);
+    }
+
+    function renderAll() { renderCode(); renderRows(); renderDetail(); renderScore(); }
+    // コード: 選んだ変異の所を、消した文字（del）と入れた文字（ins）で示す
+    function renderCode() {
+      const m = mutants[sel], src = fn.src, lines = src.split('\n');
+      $('gut').replaceChildren(...lines.map((_, i) => el('span', { className: m && m.line === i + 1 ? 'hit' : '', textContent: `${i + 1}${i + 1 < lines.length ? '\n' : ''}` })));
+      if (!m) { $('code').textContent = src; return; }
+      $('code').replaceChildren(src.slice(0, m.s), el('del', { textContent: m.from }), el('ins', { textContent: m.to }), src.slice(m.e));
+    }
+    function renderRows() {
+      keepFocus($('rows'), () => $('rows').replaceChildren(...mutants.map((m, i) => {
+        const r = results[i] || { status: 'wait' };
+        const b = btn(`${m.from} → ${m.to || '（消す）'}`, 'm' + i, () => { sel = i; renderAll(); });
+        if (i === sel) b.setAttribute('aria-current', 'true');
+        return el('tr', { className: i === sel ? 'sel' : '' }, el('th', { scope: 'row' }, b), el('td', { textContent: String(m.line) }), el('td', { textContent: m.kind }), el('td', { className: r.status, textContent: LABEL[r.status] }));
+      })));
+    }
+    function renderDetail() {
+      const box = $('detail'), m = mutants[sel];
+      keepFocus(box, () => {
+        if (!m) { box.replaceChildren(el('p', { className: 'note', textContent: '表の「変異」を押すと、コードのどこを書き換えたかと、どのテストが気づいたかを表示します。' })); return; }
+        const r = results[sel] || { status: 'wait' };
+        const what = m.to ? `「${m.from}」を「${m.to}」に変える` : `「${m.from}」を消す`;
+        const kids = [el('p', null, el('strong', { textContent: `${m.line} 行目の${what}` }), `（${m.kind}）`)];
+        const w = wit.get(m.id);
+        if (r.status === 'killed') {
+          const t = tests[r.by], got = check(fn, t, { node: m.node, repl: m.repl });
+          kids.push(el('p', { className: 'killed', textContent: `テスト ${call(t.args)} → ${fmt(t.expect)} が気づいて、この変異を倒しました。変異したコードは ${got.err ? '例外' : fmt(got.got)} を返しました。` }));
+        } else if (r.status === 'equiv' || (r.status === 'survived' && w === null)) {
+          kids.push(el('p', { className: 'equiv', textContent: `${rangeText()} のどの入力でも、元のコードと同じ答えになりました。等価の変異なので、テストを足しても倒せません。点数からは外します。` }));
+        } else if (r.status === 'survived' && w) {
+          kids.push(el('p', { className: 'survived', textContent: `どのテストも気づきませんでした。${call(w.args)} のとき、元のコードは ${fmt(w.expect)}、変異したコードは ${fmt(w.got)} を返します。` }));
+          kids.push(el('p', null, btn('この入力をテストに足す', 'addw', () => { clearFresh(); if (addTest(w.args)) { renderTests(); runAll(true, null, 45); } })));
+        } else if (r.status === 'survived') {
+          kids.push(el('p', { className: 'survived', textContent: 'どのテストも、この書き換えに気づきませんでした。' }));
+          kids.push(el('p', null, btn('倒す入力を探す', 'find', () => {
+            findFor(m);
+            renderAll();
+            const n = box.querySelector('[data-f="addw"]') || $('rows').querySelector(`[data-f="m${sel}"]`);
+            if (n) n.focus();
+          })));
+        } else kids.push(el('p', { className: r.status === 'now' ? 'now' : 'note', textContent: r.status === 'now' ? 'この変異にテストを流しています' : 'まだテストを流していません' }));
+        box.replaceChildren(...kids);
+      });
+    }
+    function renderScore() {
+      const sc = score(results), done = results.length > 0 && results.every((r) => r.status !== 'wait' && r.status !== 'now');
+      $('meter').value = done && sc.pct !== null ? sc.pct : 0;
+      $('score').textContent = `変異 ${mutants.length} 個 ・ 倒した ${sc.killed} ・ 生き残り ${sc.survived} ・ 等価 ${sc.equiv}` + (done && sc.pct !== null ? ` ・ 点数 ${sc.pct}%` : '');
+    }
+    function renderTests() {
+      keepFocus($('tests'), () => {
+        const items = tests.map((t) => {
+          const cb = el('input', { type: 'checkbox', checked: t.on, onchange: () => { t.on = cb.checked; runAll(false); } });
+          cb.dataset.f = `t${t.id}`;
+          const del = el('button', { type: 'button', className: 'del', textContent: '消す', onclick: () => {
+            const i = tests.indexOf(t);
+            tests.splice(i, 1);
+            runAll(false);
+            const rest = $('tests').querySelectorAll('button.del');
+            const n = rest[Math.min(i, rest.length - 1)] || $('addbtn');
+            if (n) n.focus();
+          } });
+          del.setAttribute('aria-label', `テスト ${call(t.args)} を消す`);
+          const li = el('li', { className: t.fresh ? 'fresh' : '' }, el('label', null, cb, el('code', { textContent: `${call(t.args)} → ${fmt(t.expect)}` })), del);
+          const c = t.on ? check(fn, t) : null;
+          if (c && !c.ok) li.append(el('span', { className: 'fail', textContent: `元のコードでは ${c.err ? '例外' : fmt(c.got)} になり、落ちます` }));
+          return li;
+        });
+        if (!items.length) items.push(el('li', { className: 'note', textContent: 'テストがありません。これでは、どの変異も生き残ります。' }));
+        $('tests').replaceChildren(...items);
+      });
+    }
+
+    SAMPLES.forEach((s, i) => $('pick').append(new Option(s.title, String(i))));
+    $('pick').addEventListener('change', () => { load(+$('pick').value); runAll(true); });
+    $('run').addEventListener('click', () => runAll(true));
+    $('fix').addEventListener('click', () => autoFix());
+    $('reset').addEventListener('click', () => { load(+$('pick').value); runAll(true); });
+    $('apply').addEventListener('click', () => {
+      let f;
+      try { f = parse($('edit').value); } catch (err) { $('err').textContent = err.message; return; }
+      if (f.params.length !== S.domain.length) { $('err').textContent = `引数は ${S.domain.length} 個のままにしてください（いまは ${f.params.length} 個）`; return; }
+      $('err').textContent = '';
+      setCode(f);
+      runAll(true);
+    });
+    // 一覧の小窓では、テストを流す → 生き残りを倒すテストを足す → 次の関数、を繰り返して見せる
+    function demo() {
+      runAll(true, () => setTimeout(() => {
+        if (score(results).survived) autoFix(() => setTimeout(nextDemo, 2600));
+        else setTimeout(nextDemo, 1600);
+      }, 1400), 90);
+    }
+    function nextDemo() { demoAt = (demoAt + 1) % SAMPLES.length; load(demoAt); demo(); }
+    load(0);
+    if (window.THUMB) demo();
+    else runAll(true);
+  },
+});
