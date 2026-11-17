@@ -362,7 +362,7 @@
       closeMenus('alt');
       return;
     }
-    var scope = topDialog() || document;
+    var scope = keyScope();
     var bar = scope.querySelector('.w95 .menu-bar, .menu-bar');
     var first = bar && bar.querySelector(':scope > .menu-title:not([aria-disabled="true"])');
     if (!first) return;
@@ -380,6 +380,12 @@
   function topDialog() {
     var ds = document.querySelectorAll('dialog[open]');
     return ds.length ? ds[ds.length - 1] : null;
+  }
+
+  /* Future OS での追加: キーで操作する範囲。開いているダイアログ、なければ使っている窓、なければページ全体。
+     ページ全体を前から探すと、後ろの窓にある同じ文字のボタンやメニューが動く（Alt+R で、使っていない窓の「録音(R)」が押されていた） */
+  function keyScope() {
+    return topDialog() || (lastActive && lastActive.isConnected ? lastActive : null) || document;
   }
 
   /* 窓の中のキャンセルのボタン。data-cancel 属性か、ラベルで探す */
@@ -922,7 +928,7 @@
   });
 
   function handleAccessKey(key, skipMenus) {
-    var scope = topDialog() || document;
+    var scope = keyScope();
     var titles = skipMenus ? [] : scope.querySelectorAll('.menu-bar > .menu-title');
     for (var i = 0; i < titles.length; i++) {
       if (accessKeyOf(titles[i]) === key && !isDisabled(titles[i]) && isVisible(titles[i])) {
