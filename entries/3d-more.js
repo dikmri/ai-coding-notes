@@ -2194,6 +2194,7 @@ void main() {
     const N = D.nodes, H = D.humanoid, kids = N.map(() => []);
     N.forEach((n, i) => { if (n.parent >= 0) kids[n.parent].push(i); });
     const order = []; (function walk(i) { order.push(i); kids[i].forEach(walk); })(0);
+    N.forEach((n, i) => { if (n.parent < 0 && i !== 0) (function walk(j) { order.push(j); kids[j].forEach(walk); })(i); });   // 根が分かれたデータでも全部の骨をたどる
     const flipZ = (v) => [v[0], v[1], -v[2]];
     const springs = new Map();
     for (const g of D.springs) {
