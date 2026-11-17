@@ -10,7 +10,7 @@ export async function launch(os, args = {}, rect = {}) {
   const { fs, wm, log, sound, esc } = os;
   let ac = null, stream = null, node = null, src = null, chunks = [], state = 'idle', rate = 48000, samples = null, saved = true, raf = 0, player = null, playStart = 0, lastPeak = 0, lastMsg = '';
   const win = wm.open({
-    app: 'recorder', icon: 'icons/recorder.svg', className: 'app-recorder', title: '音声レコーダー', w: 560, h: 420, ...rect, args: {},
+    app: 'recorder', icon: 'icons/recorder.svg', className: 'app-recorder', title: '音声レコーダー', w: 640, h: 420, ...rect, args: {},
     render(w) {
       w.body.innerHTML = `<div class="rec-main">
         <div class="rec-top"><label for="recDev-${w.id}">入力(<u>I</u>):</label><select id="recDev-${w.id}" data-dev><option value="">いつものマイク</option></select></div>
@@ -86,12 +86,12 @@ export async function launch(os, args = {}, rect = {}) {
     sound.play('pin'); say('録音しています。'); log('recorder.start', { rate, device: devSel.value ? 'chosen' : 'default' }, 'ok');
     update(); loop();
   }
-  function pause() { if (state !== 'recording') return; state = 'paused'; sound.play('op'); say('一時停止しました。「録音」で続けます。'); log('recorder.pause', { sec: R.seconds(total(), rate) }, 'ok'); update(); }
+  function pause() { if (state !== 'recording') return; state = 'paused'; sound.play('op'); say('一時停止しました。「続ける」で再開します。'); log('recorder.pause', { sec: R.seconds(total(), rate) }, 'ok'); update(); }
   function stop() {
     if (state !== 'recording' && state !== 'paused') return;
     state = 'stopped'; closeMic();
     samples = R.joinChunks(chunks); chunks = []; saved = !samples.length;
-    sound.play('op'); say(samples.length ? `${fmt(R.seconds(samples.length, rate) * 1000, { cs: true })} 録音しました。「聞く」で聞き直し、「保存」で残せます。` : '音が録れていませんでした。');
+    sound.play('op'); say(samples.length ? `${fmt(R.seconds(samples.length, rate) * 1000, { cs: true })} 録りました。「聞く」「保存」が使えます。` : '音が録れていませんでした。');
     log('recorder.stop', { samples: samples.length, sec: R.seconds(samples.length, rate) }, 'ok');
     update(); drawWave();
   }
@@ -113,11 +113,12 @@ export async function launch(os, args = {}, rect = {}) {
   /* ---------- 保存・捨てる ---------- */
   async function save() {
     if (!samples || !samples.length) return;
+    if (player) { stopPlay(); drawWave(); update(); } // 聞き直しの途中なら止めてから保存する
     const p = await os.fileDialog({ mode: 'save', dir: '/音楽', name: R.defaultName(new Date()), exts: ['.wav'], typeLabel: 'WAV 音声' });
     if (!p) return;
     try {
       await fs.write(p, new Blob([encodeWAV([samples], rate)], { type: 'audio/wav' }), 'audio/wav');
-      saved = true; os.addRecent(p); update(); say(`「${p}」に保存しました。`); log('recorder.save', { path: p, sec: R.seconds(samples.length, rate) }, 'ok');
+      saved = true; os.addRecent(p); update(); say(`「${basename(p)}」を保存しました。`); log('recorder.save', { path: p, sec: R.seconds(samples.length, rate) }, 'ok');
       os.notify?.({ title: '録音を保存しました', text: basename(p), actionLabel: '音楽プレーヤーで開く', onAction: () => os.openFile(p, 'player') });
     } catch (e) { os.msgbox({ title: '音声レコーダー', text: e.message, icon: 'error' }); log('recorder.save', { path: p }, 'error: ' + e.message); }
   }

@@ -91,7 +91,8 @@ export function sameOrigin(base, url) {
 // ---- Chrome を動かす部分 ----
 // 戻り値: 1つのページを操作する関数の集まり。最後に close() を呼ぶ
 // fakeMedia: 本物のマイクや画面を使わず、作り物のマイク（音の信号）と、マイク・画面共有の許可の自動の承認で動かす（録音や画面キャプチャの確かめ用）
-export async function openBrowser({ width = 1280, height = 800, dark = false, profile, fakeMedia = false }) {
+// sound: 既定では音を出さない（--mute-audio）。確かめる間に OS の効果音や作り物のマイクの音が鳴り続けないように。音を聞きたいときだけ true
+export async function openBrowser({ width = 1280, height = 800, dark = false, profile, fakeMedia = false, sound = false }) {
   const exe = browserPath();
   if (!exe) throw new Error('Chrome も Edge も見つかりません。CHROME_PATH で場所を教えてください');
   mkdirSync(profile, { recursive: true });
@@ -101,7 +102,7 @@ export async function openBrowser({ width = 1280, height = 800, dark = false, pr
   const proc = spawn(exe, [
     '--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`, `--window-size=${width},${height}`,
     '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--autoplay-policy=no-user-gesture-required',
-    `--blink-settings=preferredColorScheme=${dark ? 0 : 1}`, ...(dark ? ['--force-dark-mode'] : []),
+    `--blink-settings=preferredColorScheme=${dark ? 0 : 1}`, ...(dark ? ['--force-dark-mode'] : []), ...(sound ? [] : ['--mute-audio']),
     ...(fakeMedia ? ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--auto-accept-this-tab-capture', '--auto-select-tab-capture-source-by-title=Future OS'] : []), 'about:blank',
   ], { stdio: 'ignore', windowsHide: true });
   // 終わるまで最大 3 秒待ち、残っていれば子プロセスごと止める（Chrome は複数のプロセスで動くため）
