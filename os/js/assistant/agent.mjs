@@ -172,7 +172,9 @@ function createAgent(os) {
       dlg.innerHTML = `<div class="title-bar"><div class="title-bar-text">イコちゃんからの確かめ</div></div><div class="window-body"><div class="ai-confirm-row"><canvas width="48" height="48" aria-hidden="true"></canvas><p></p></div><p class="ai-confirm-note">この操作は、AI からは押せません。あなたが選んでください。</p><div class="button-row"><button type="button" data-ok>許可する(<u>Y</u>)</button><button type="button" class="default" data-no>やめる(<u>N</u>)</button></div></div>`;
       dlg.querySelector('p').textContent = text;
       const f = C.frameCanvas('ask_confirm'); if (f) dlg.querySelector('canvas').getContext('2d').drawImage(f, 0, 0);
-      const finish = (v) => { dlg.close(); dlg.remove(); done(v); };
+      // ダイアログを開いている間は外の部品が押せないので、足元の止めるボタンは隠す（ダイアログの「やめる」と Esc が代わり）
+      C.showStop(false);
+      const finish = (v) => { dlg.close(); dlg.remove(); if (running) C.showStop(true); done(v); };
       dlg.querySelector('[data-ok]').addEventListener('click', () => finish(true));
       dlg.querySelector('[data-no]').addEventListener('click', () => finish(false));
       dlg.addEventListener('cancel', (e) => { e.preventDefault(); finish(false); });
@@ -334,6 +336,8 @@ function createAgent(os) {
     guiding = true;
     log('agent.guide', { id: script.id }, 'start');
     let r = G.start();
+    // この案内で開いた窓。「戻る」で同じ場面をもう一度通ったときは、新しく開かずに手前へ出す
+    const opened = new Map();
     try {
       while (!r.done) {
         const st = G.current(script, r);
@@ -346,8 +350,10 @@ function createAgent(os) {
           if (st.action.tool === 'click_element') await press(el, signal);
           else await typeInto(el, String(st.action.args?.value ?? ''), st.action.args?.mode, signal);
         } else if (st.action) {
-          const res = await call(st.action.tool, st.action.args || {}, { source: 'guide' });
+          const isOpen = st.action.tool === 'open_app', again = isOpen && winById(opened.get(st.action.args?.appId));
+          const res = again ? await call('manage_window', { windowId: again.id, action: 'focus' }, { source: 'guide' }) : await call(st.action.tool, st.action.args || {}, { source: 'guide' });
           if (!res.ok) throw new Error(res.error);
+          if (isOpen && !again) opened.set(st.action.args.appId, res.result.windowId);
         }
         el ||= resolveTarget(st.target);
         if (el) await approach(el, signal); else C.highlight(null);
