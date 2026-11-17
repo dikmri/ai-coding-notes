@@ -7,6 +7,7 @@
 // Esc・Enter・スペース・画面を押すと飛ばせる。動きを減らす設定のときは、止まった題字の絵を短く見せるだけにする。
 import * as sound from './sound.mjs';
 import * as M from './core/boot-math.mjs';
+import * as fs from './fs.mjs';
 
 const C = { ink: '#241734', void: '#140c24', paper: '#fffdf9', marble: '#f4eef8', aqua: '#6bf2e3', lav: '#cfaeff', pink: '#ff8ec7', apricot: '#ffd37a', plum: '#2d1b46' };
 const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
@@ -510,18 +511,30 @@ export const DEFAULT_WALLPAPER = 'arcadia-lagoon';
 const IMAGE_WALLS = new Set(['arcadia-lagoon', 'celestial-atrium', 'prism-playground']);
 const wallImages = new Map();
 function wallImage(kind) {
-  if (!wallImages.has(kind)) { const im = new Image(); im.decoding = 'async'; im.src = `img/wall-${kind}.jpg`; wallImages.set(kind, im); }
+  if (!wallImages.has(kind)) {
+    const im = new Image(); im.decoding = 'async';
+    // 仮想ドライブの画像（'file:/画像/x.png'）は、中身を読んでから src に入れる。読めなければ標準の壁紙に戻す
+    // 読み込みが終わったら URL を解放する（描き直して何度も壁紙にしたときに、メモリを使い続けないように）
+    if (kind.startsWith('file:')) fs.readBlob(kind.slice(5)).then((b) => { im.addEventListener('load', () => URL.revokeObjectURL(im.src), { once: true }); im.src = URL.createObjectURL(b); }).catch(() => { im.dataset.failed = '1'; im.dispatchEvent(new Event('load')); });
+    else im.src = `img/wall-${kind}.jpg`;
+    wallImages.set(kind, im);
+  }
   return wallImages.get(kind);
 }
+// 壁紙の名前の読み替え（設定の一覧に出す名前）
+export const wallLabel = (kind) => (kind.startsWith('file:') ? '画像: ' + kind.slice(kind.lastIndexOf('/') + 1) : (WALLPAPERS.find(([k]) => k === kind) || [, ''])[1]);
+export function forgetWall(kind) { wallImages.delete(kind); }
 export function drawWallpaper(canvas, kind) {
   // 前の版の Windows 風の壁紙（青緑、市松）や知らない名前は、標準の壁紙にする
-  if (!WALLPAPERS.some(([k]) => k === kind)) kind = DEFAULT_WALLPAPER;
+  const isFile = typeof kind === 'string' && kind.startsWith('file:');
+  if (!isFile && !WALLPAPERS.some(([k]) => k === kind)) kind = DEFAULT_WALLPAPER;
   canvas.dataset.wall = kind;
   const W = Math.max(1, canvas.clientWidth), H = Math.max(1, canvas.clientHeight), dpr = Math.min(2, devicePixelRatio || 1);
   canvas.width = W * dpr; canvas.height = H * dpr;
   const x = canvas.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
-  if (IMAGE_WALLS.has(kind)) {
+  if (IMAGE_WALLS.has(kind) || isFile) {
     const im = wallImage(kind);
+    if (im.dataset.failed) { forgetWall(kind); return drawWallpaper(canvas, DEFAULT_WALLPAPER); }
     if (!im.complete || !im.naturalWidth) {
       // 読み込みの間は夕焼けの色で埋め、読み込めたら描き直す（その間に別の壁紙に変わっていたら描かない）
       const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#cfaeff'); g.addColorStop(0.6, '#ff8ec7'); g.addColorStop(1, '#6bf2e3');
@@ -532,6 +545,8 @@ export function drawWallpaper(canvas, kind) {
     // 画面いっぱいに切り抜いて描く（縦横の比を保つ）
     const s = Math.max(W / im.naturalWidth, H / im.naturalHeight), w = im.naturalWidth * s, h = im.naturalHeight * s;
     x.imageSmoothingQuality = 'high';
+    // 小さいドット絵（お絵かきの 32×32 など）は、ぼかさずに大きくする
+    if (isFile && im.naturalWidth * 3 < W) x.imageSmoothingEnabled = false;
     x.drawImage(im, (W - w) / 2, (H - h) / 2, w, h);
     return;
   }

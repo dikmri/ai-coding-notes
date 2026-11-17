@@ -1,5 +1,5 @@
 // 設定: 画面・音・ドライブ・バージョン情報。OK・キャンセル・適用で反映する
-import { WALLPAPERS, drawWallpaper } from '../boot.mjs';
+import { WALLPAPERS, drawWallpaper, wallLabel } from '../boot.mjs';
 
 export async function launch(os, args = {}, rect = {}) {
   const { fs, wm } = os;
@@ -14,7 +14,7 @@ export async function launch(os, args = {}, rect = {}) {
         <div class="tab-list" role="tablist"><button type="button" class="tab" aria-selected="true">画面</button><button type="button" class="tab">音</button><button type="button" class="tab">ドライブ</button><button type="button" class="tab">バージョン情報</button></div>
         <div class="tab-page"><div class="row" style="gap:11px;align-items:flex-start">
           <div class="col"><label for="wl">壁紙(<u>W</u>):</label><select id="wl" size="6" class="wall-list">${WALLPAPERS.map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select></div>
-          <div class="col"><span>見本:</span><canvas class="preview" width="160" height="100"></canvas></div></div>
+          <div class="col"><span>見本:</span><canvas class="preview" width="160" height="100"></canvas><button type="button" data-pickwall>画像から選ぶ(<u>I</u>)...</button></div></div>
           <fieldset style="margin-top:11px"><legend>起動</legend><label><input type="checkbox" id="skip"> 起動の演出を飛ばす(<u>S</u>)</label></fieldset></div>
         <div class="tab-page" hidden>
           <fieldset><legend>音量</legend><div class="row" style="gap:6px;align-items:center"><label for="vol">小</label><input type="range" id="vol" min="0" max="100" style="flex:1"><span>大</span></div>
@@ -38,12 +38,19 @@ export async function launch(os, args = {}, rect = {}) {
   const q = (s) => win.body.querySelector(s), apply = q('[data-apply]');
   const prev = q('.preview');
   const sync = () => {
-    q('#wl').value = draft.wallpaper; q('#skip').checked = draft.skipBoot; q('#vol').value = Math.round(draft.volume * 100);
+    // 仮想ドライブの画像の壁紙は、一覧の最後に1行足して選んだ状態にする
+    const wl = q('#wl'); wl.querySelector('[data-file]')?.remove();
+    if (String(draft.wallpaper).startsWith('file:')) { const o = new Option(wallLabel(draft.wallpaper), draft.wallpaper); o.dataset.file = '1'; wl.add(o); }
+    wl.value = draft.wallpaper; q('#skip').checked = draft.skipBoot; q('#vol').value = Math.round(draft.volume * 100);
     q('#mute').checked = draft.mute; q('#ui').checked = draft.ui; q('#keys').checked = draft.keys;
     prev.style.width = '160px'; prev.style.height = '100px'; drawWallpaper(prev, draft.wallpaper);
   };
   const change = (patch) => { draft = { ...draft, ...patch }; apply.disabled = false; sync(); };
   q('#wl').addEventListener('change', (e) => change({ wallpaper: e.target.value }));
+  q('[data-pickwall]').addEventListener('click', async () => {
+    const p = await os.fileDialog({ mode: 'open', dir: '/画像', exts: ['.png', '.jpg', '.jpeg', '.gif', '.webp'], typeLabel: '画像' });
+    if (p) change({ wallpaper: 'file:' + p });
+  });
   q('#skip').addEventListener('change', (e) => change({ skipBoot: e.target.checked }));
   q('#vol').addEventListener('input', (e) => change({ volume: e.target.value / 100 }));
   q('#mute').addEventListener('change', (e) => change({ mute: e.target.checked }));
