@@ -3436,7 +3436,7 @@ vec2 figure(vec3 q) {
   float cone = (length(q.xz) - mix(.165, .07, cy)) * .9;
   float hem = 1.305 + .03 * abs(fract(ang / 6.2832 * 6. + .25) - .5) * 2.;   // 裾は栞のようなV字の切れ込み
   float cape = max(abs(cone) - .011, max(q.y - 1.6, hem - q.y));
-  cape = max(cape, -max(.03 - abs(q.x), -q.z));                             // 前は開いている
+  cape = max(cape, -max(abs(q.x) - .035, -q.z));                            // 前の真ん中だけを切り抜いて開ける
   r = U(r, vec2(cape, 5.));
   r = U(r, vec2(min(sdCap(qb, vec3(.105, 1.56, 0.), vec3(.15, 1.3, 0.), .03), sdCap(qb, vec3(.15, 1.3, 0.), vec3(.16, 1.08, .03), .026)), 4.));
   r = U(r, vec2(length(qb - vec3(.163, 1.045, .035)) - .03, 2.));
@@ -3563,7 +3563,7 @@ void main() {
       const t = (now - start) / 1000;   // 最初の描画から数える（開いたときは正面に近い向きから回り始める）
       if (t > blinkAt + .2) blinkAt = t + 2.5 + Math.random() * 3;
       const bt = (t - blinkAt) / .18, bl = bt > 0 && bt < 1 ? Math.abs(Math.cos(bt * Math.PI)) : 1;
-      gl.uniform2f(uR, w, h); gl.uniform1f(uT, t); gl.uniform1f(uA, t * .45 - .9); gl.uniform1f(uBL, bl);   // 開いてから約2秒で正面を向く
+      gl.uniform2f(uR, w, h); gl.uniform1f(uT, t); gl.uniform1f(uA, Math.max(0, t - 1.5) * .45); gl.uniform1f(uBL, bl);   // 開いてすぐは正面を向き、1.5秒後に回り始める
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       requestAnimationFrame(draw);
     })(0);
