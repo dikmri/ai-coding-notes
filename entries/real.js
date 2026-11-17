@@ -1343,7 +1343,7 @@ void main() {
     float fk = float(k), z = 1. + fk * .55;
     float focus = abs(z - 2.6);                                // ピントからの遠さ
     float sc = 5. * z;
-    vec2 g = p * sc + vec2(T * .3 + sin(T * .5 + fk) * .4, T * (1.6 / z + .6));
+    vec2 g = p * sc + vec2(T * .3 + sin(T * .5 + fk) * .4 + fk * 13.7, T * (1.6 / z + .6) + fk * 5.3);   // 層ごとに格子をずらす
     vec2 id = floor(g), f = fract(g) - .5;
     float h = hash(id + fk * 17.);
     if (h < .8 + fk * .015) continue;
@@ -1351,7 +1351,6 @@ void main() {
     float rad = (.1 + focus * .16) * (.7 + .5 * hash(id + 5.));
     float d = length(f - o);
     float disc = smoothstep(rad, rad * (focus < .4 ? .55 : .15), d);
-    vec2 wp = (id + .5 + o) / sc - vec2(T * .3, 0.) / sc;      // その雪の画面の上の位置（光の円すいを調べる）
     float lit = .008 + cone(p) * 1.5 + exp(-length(p - LAMP) * 4.) * .4;
     col += vec3(1., .88, .74) * disc * lit * (1.1 / (1. + focus * focus * 5.)) * (fk < 1.5 ? .5 : 1.);
   }
@@ -1537,7 +1536,6 @@ void main() {
   // 太陽と光の筋（地球に隠れていない間だけ）
   float s = max(dot(rd, sun), 0.);
   col += vec3(1., .95, .85) * vis * (pow(s, 3000.) * 40. + pow(s, 400.) * .8);
-  vec3 sp = sun - rd * dot(sun, rd);
   col += vec3(1., .85, .6) * vis * exp(-abs(dot(rd - sun, u)) * 400.) * pow(s, 4.) * .6;   // 横の光の筋
   O = vec4(film(col), 1.);
 }`;
@@ -1753,7 +1751,7 @@ vec3 light(vec2 p, vec3 w, vec3 c, float pw) {
 void main() {
   vec2 p = (gl_FragCoord.xy - .5 * R) / R.y;
   float hz = proj(vec3(0., 0., 1e4)).y;
-  vec3 col = vec3(.006, .007, .011) + vec3(.02, .016, .014) * smoothstep(-.1, .2, p.y - hz) * 0.;
+  vec3 col = vec3(.006, .007, .011);
   // 濡れたアスファルトと車線の白線
   if (p.y < hz) {
     float t = (CAM.y) / max(1e-3, (hz - p.y) / ZOOM);
