@@ -565,3 +565,39 @@
 .arcadia .app-clock table.laps { width: 100%; font-family: var(--fos-mono); font-variant-numeric: tabular-nums; }
 .arcadia .app-clock table.laps td, .arcadia .app-clock table.laps th { padding: 2px 10px; text-align: right; }
 .arcadia .app-clock table.laps tr.best td { background: #e8fcf9; font-weight: 700; }
+
+/* ===== お絵かき（2026-11-17） ===== */
+.arcadia .app-paint .app-body { outline: none; }
+.arcadia .app-paint .pt-main { flex: 1; min-height: 0; display: flex; }
+.arcadia .app-paint .pt-tools { flex: none; width: 112px; padding: 8px 6px; display: flex; flex-direction: column; gap: 4px; background: var(--fos-marble); border-right: 1.5px solid var(--fos-marble-lo); overflow: auto; }
+.arcadia .app-paint .pt-tool {
+  min-height: 26px; padding: 2px 8px; text-align: left; font: 700 12px/1.2 var(--fos-font); color: var(--fos-ink);
+  background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 7px; box-shadow: 2px 2px 0 var(--fos-ink);
+}
+.arcadia .app-paint .pt-tool[aria-pressed="true"] { background: var(--fos-aqua); translate: 1px 1px; box-shadow: inset 2px 2px 0 var(--fos-aqua-lo); }
+.arcadia .app-paint .pt-tool:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+.arcadia .app-paint .pt-opts { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.arcadia .app-paint .pt-opts input[type="range"] { width: 100%; }
+.arcadia .app-paint .pt-scroll { flex: 1; min-width: 0; overflow: auto; padding: 16px; background: repeating-conic-gradient(#f4eef8 0 25%, #e9e0f2 0 50%) 0 0 / 16px 16px; }
+.arcadia .app-paint .pt-stage { position: relative; width: max-content; margin: auto; border: 2px solid var(--fos-ink); box-shadow: 4px 4px 0 var(--fos-shadow); background: repeating-conic-gradient(#ffffff 0 25%, #e6e0ec 0 50%) 0 0 / 12px 12px; }
+.arcadia .app-paint .pt-stage canvas { display: block; image-rendering: pixelated; }
+.arcadia .app-paint .pt-preview { position: absolute; inset: 0; pointer-events: none; }
+/* 400% 以上では1マスの格子（拡大した大きさの CSS の背景。大きな canvas を作らない） */
+.arcadia .app-paint .pt-stage.grid::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background-image: linear-gradient(to right, rgb(36 23 52 / 0.16) 1px, transparent 1px), linear-gradient(to bottom, rgb(36 23 52 / 0.16) 1px, transparent 1px);
+  background-size: var(--z) var(--z);
+}
+.arcadia .app-paint .pt-stage[data-tool="pick"] canvas, .arcadia .app-paint .pt-stage[data-tool="fill"] canvas { cursor: crosshair; }
+.arcadia .app-paint .pt-stage canvas { cursor: crosshair; }
+.arcadia .app-paint .pt-palette { flex: none; display: flex; align-items: center; gap: 10px; padding: 6px 10px; background: var(--fos-marble); border-top: 1.5px solid var(--fos-marble-lo); flex-wrap: wrap; }
+.arcadia .app-paint .pt-current { position: relative; width: 44px; height: 36px; flex: none; cursor: pointer; }
+.arcadia .app-paint .pt-current span { position: absolute; width: 24px; height: 24px; border: 2px solid var(--fos-ink); border-radius: 4px; }
+.arcadia .app-paint .pt-back { right: 0; bottom: 0; }
+.arcadia .app-paint .pt-front { left: 0; top: 0; box-shadow: 2px 2px 0 var(--fos-ink); }
+.arcadia .app-paint .pt-swatches { display: grid; grid-template-columns: repeat(8, 22px); gap: 4px; }
+.arcadia .app-paint .pt-sw { width: 22px; height: 22px; min-width: 0; min-height: 0; padding: 0; background: var(--c); border: 1.5px solid var(--fos-ink); border-radius: 4px; box-shadow: none; }
+.arcadia .app-paint .pt-sw:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 1px; }
+.arcadia .app-paint .pt-free { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.arcadia .app-paint .pt-free input { width: 40px; height: 28px; padding: 0; border: 2px solid var(--fos-ink); border-radius: 6px; background: none; }
+.arcadia .app-settings [data-pickwall] { margin-top: 6px; min-width: 0; padding: 0 10px; }

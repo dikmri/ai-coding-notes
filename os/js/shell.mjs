@@ -2,7 +2,7 @@
 import * as fs from './fs.mjs';
 import * as wm from './wm.mjs';
 import * as sound from './sound.mjs';
-import { drawWallpaper } from './boot.mjs';
+import { drawWallpaper, forgetWall } from './boot.mjs';
 import { appFor, typeName } from './core/assoc.mjs';
 import { basename, dirname, extname, normalize } from './core/path.mjs';
 
@@ -21,6 +21,7 @@ export const APPS = {
   calc: { name: '電卓', icon: 'icons/calc.svg' },
   stickies: { name: '付箋', icon: 'icons/stickies.svg' },
   clock: { name: '時計とタイマー', icon: 'icons/clock.svg' },
+  paint: { name: 'お絵かき', icon: 'icons/paint.svg' },
 };
 
 /* ---------- 設定 ---------- */
@@ -33,7 +34,11 @@ export function saveSettings(patch) {
   settings = { ...settings, ...patch };
   try { localStorage.setItem('fos-settings', JSON.stringify(settings)); } catch { /* 保存できない */ }
   sound.configure({ volume: settings.volume, mute: settings.mute, ui: settings.ui, keys: settings.keys });
-  if ('wallpaper' in patch) drawWallpaper($('#wall'), settings.wallpaper);
+  if ('wallpaper' in patch) {
+    // 仮想ドライブの画像は、描き直して保存されているかもしれないので、前に読んだ絵を捨ててから描く
+    if (String(patch.wallpaper).startsWith('file:')) forgetWall(patch.wallpaper);
+    drawWallpaper($('#wall'), settings.wallpaper);
+  }
   syncVolume();
   events.dispatchEvent(new CustomEvent('settings', { detail: settings }));
   log('settings.save', patch, 'ok');
@@ -159,6 +164,7 @@ const SYS = [
   { key: 'app:calc', name: '電卓', icon: APPS.calc.icon, open: () => launch('calc') },
   { key: 'app:stickies', name: '付箋', icon: APPS.stickies.icon, open: () => launch('stickies') },
   { key: 'app:clock', name: '時計', icon: APPS.clock.icon, open: () => launch('clock') },
+  { key: 'app:paint', name: 'お絵かき', icon: APPS.paint.icon, open: () => launch('paint') },
 ];
 let deskItems = [], pos = {};
 try { pos = JSON.parse(localStorage.getItem('fos-icons') || '{}'); } catch { pos = {}; }
