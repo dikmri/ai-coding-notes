@@ -17,13 +17,14 @@ export async function launch(os, args = {}, rect = {}) {
     render(w) {
       w.body.innerHTML = `<div class="term" data-term>
         <div class="term-out" role="log" aria-label="端末の出力" data-out></div>
-        <div class="term-line"><label class="term-prompt" for="termIn" data-prompt></label><input type="text" id="termIn" class="term-in" autocomplete="off" spellcheck="false" autocapitalize="off" aria-label="コマンド"></div>
+        <div class="term-line"><label class="term-prompt" for="termIn-${w.id}" data-prompt></label><input type="text" id="termIn-${w.id}" class="term-in" autocomplete="off" spellcheck="false" autocapitalize="off" aria-label="コマンド"></div>
       </div>
       <div class="status-bar"><div class="status-field" role="status" data-status></div><div class="status-field" style="width:130px">help で一覧</div><div class="size-grip"></div></div>`;
     },
   });
   const q = (s) => win.body.querySelector(s);
-  const out = q('[data-out]'), input = q('#termIn'), term = q('[data-term]');
+  // 入力の欄の id は窓ごとに変える（端末を2つ開いても、ラベルが別の窓の欄を指さないように）
+  const out = q('[data-out]'), input = q('.term-in'), term = q('[data-term]');
   const fsEnv = { TRASH: fs.TRASH, stat: fs.stat, list: fs.list, walk: fs.walk, readText: fs.readText, write: fs.write, mkdir: fs.mkdir, trash: fs.trash, move: fs.move, copy: fs.copy };
   const apps = () => Object.fromEntries(Object.entries(os.APPS).map(([k, v]) => [k, v.name]));
   const prompt = () => `ARCADIA:${cwd}>`;

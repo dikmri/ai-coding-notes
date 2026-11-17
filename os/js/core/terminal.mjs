@@ -205,6 +205,10 @@ export async function run(input, env) {
 
 // 今の行の、補完する言葉の位置と種類（最初の言葉ならコマンド、それより後ならパス）
 export function wordAt(text) {
+  // 閉じていない引用符があれば、その引用符から後ろを1つの言葉にする（空白を含む名前の途中で Tab を押したとき）
+  let open = -1, quote = null;
+  for (let i = 0; i < text.length; i++) { const c = text[i]; if (quote) { if (c === quote) { quote = null; open = -1; } } else if (c === '"' || c === "'") { quote = c; open = i; } }
+  if (quote && open >= 0) return { word: text.slice(open), start: open, isCommand: text.slice(0, open).trim() === '' };
   const m = /(?:^|\s)(\S*)$/.exec(text);
   const word = m ? m[1] : '';
   const start = text.length - word.length;

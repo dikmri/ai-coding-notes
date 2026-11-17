@@ -142,3 +142,8 @@ test('ls と tree: 場所を書かないときは今のフォルダ（cd だけ�
   assert.equal(text(await T.run('tree', e)), '/ドキュメント\n└─ はじめに.txt');
   assert.equal((await T.run('cd', e)).cwd, '/');
 });
+
+test('補完の位置: 閉じていない引用符があれば、そこから後ろを1つの言葉にする（空白を含む名前）', () => {
+  assert.deepEqual(T.wordAt('cd "新しい フォ'), { word: '"新しい フォ', start: 3, isCommand: false });
+  assert.deepEqual(T.wordAt('cat "a b" c'), { word: 'c', start: 10, isCommand: false });
+});
