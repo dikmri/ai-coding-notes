@@ -160,7 +160,7 @@
 }
 
 /* ===== 押しボタン（CD-ROM のタイトル画面のような、ふっくらしたカプセル） ===== */
-.arcadia button:where(:not(.title-bar-controls button, .toolbar button, .tab, .desk-icon, .task-btn, .start-btn, .tray-btn, .palette button)) {
+.arcadia button:where(:not(.title-bar-controls button, .toolbar button, .tab, .desk-icon, .task-btn, .start-btn, .tray-btn, .palette button, .flat, .clock)) {
   min-height: 30px; min-width: 72px; padding: 0 16px;
   font: 700 12.5px/1 var(--fos-font); letter-spacing: 0.04em; color: var(--fos-ink);
   border: 2px solid var(--fos-ink); border-radius: 999px;
@@ -169,10 +169,10 @@
 }
 .arcadia button.default { background: linear-gradient(180deg, #fff7c2 0%, var(--fos-apricot) 45%, #ff9ecf 100%); }
 .arcadia button.default::before { content: "◆"; margin-right: 6px; font-size: 9px; color: var(--fos-ink); }
-.arcadia button:where(:not(.title-bar-controls button, .toolbar button, .tab, .desk-icon, .task-btn, .start-btn, .tray-btn, .palette button)):hover:not(:disabled) { filter: brightness(1.04); }
-.arcadia button:where(:not(.title-bar-controls button, .toolbar button, .tab, .desk-icon, .task-btn, .start-btn, .tray-btn, .palette button)):active:not(:disabled) { translate: 2px 2px; box-shadow: inset 0 2px 0 #fff, inset 0 -2px 0 #ccafa0, 1px 1px 0 var(--fos-ink); }
+.arcadia button:where(:not(.title-bar-controls button, .toolbar button, .tab, .desk-icon, .task-btn, .start-btn, .tray-btn, .palette button, .flat, .clock)):hover:not(:disabled) { filter: brightness(1.04); }
+.arcadia button:where(:not(.title-bar-controls button, .toolbar button, .tab, .desk-icon, .task-btn, .start-btn, .tray-btn, .palette button, .flat, .clock)):active:not(:disabled) { translate: 2px 2px; box-shadow: inset 0 2px 0 #fff, inset 0 -2px 0 #ccafa0, 1px 1px 0 var(--fos-ink); }
 @media (prefers-reduced-motion: no-preference) {
-  .arcadia button:where(:not(.title-bar-controls button, .toolbar button, .tab, .desk-icon, .task-btn, .start-btn, .tray-btn, .palette button)):hover:not(:disabled, :active) { translate: -1px -1px; box-shadow: inset 0 2px 0 #fff, inset 0 -2px 0 #ccafa0, 4px 4px 0 var(--fos-ink); }
+  .arcadia button:where(:not(.title-bar-controls button, .toolbar button, .tab, .desk-icon, .task-btn, .start-btn, .tray-btn, .palette button, .flat, .clock)):hover:not(:disabled, :active) { translate: -1px -1px; box-shadow: inset 0 2px 0 #fff, inset 0 -2px 0 #ccafa0, 4px 4px 0 var(--fos-ink); }
 }
 .arcadia button:disabled { background: #e5e0ec; border-color: #8e7fa3; color: #8e7fa3; box-shadow: none; }
 .arcadia button:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
@@ -478,3 +478,90 @@
 /* イコサリア（ゲーム）の窓: 中身はゲームの画面だけ */
 .arcadia .app-icosaria .app-body { background: #0b0a16; }
 .arcadia .app-icosaria .game-frame { flex: 1; width: 100%; min-height: 0; border: 0; display: block; background: #0b0a16; }
+
+/* 各アプリが自分で描くボタン（.flat）は、95.css の決まった高さと折り返しなしを外す */
+.arcadia button.flat { height: auto; white-space: normal; }
+
+/* ===== 電卓（2026-11-17） ===== */
+.arcadia .app-calc .calc-main { flex: 1; min-height: 0; display: flex; gap: 10px; padding: 10px; container-type: inline-size; }
+.arcadia .app-calc .calc-left { flex: 1 1 220px; min-width: 200px; display: flex; flex-direction: column; gap: 10px; }
+.arcadia .app-calc .calc-display {
+  padding: 6px 12px 8px; text-align: right; font-family: var(--fos-mono);
+  background: var(--fos-paper); border: 2px solid var(--fos-ink); border-radius: 10px; box-shadow: inset 2px 2px 0 rgb(45 27 70 / 0.12);
+}
+.arcadia .app-calc .calc-sub { min-height: 1.5em; font-size: 13px; color: var(--fos-ink-muted); overflow-wrap: anywhere; }
+.arcadia .app-calc .calc-expr { font: 700 28px/1.25 var(--fos-mono); white-space: nowrap; overflow-x: auto; scrollbar-width: none; }
+.arcadia .app-calc.calc-error .calc-sub { color: #b0245e; font-weight: 700; }
+.arcadia .app-calc .calc-keys { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: minmax(32px, 1fr); gap: 7px; }
+.arcadia .app-calc .key {
+  min-width: 0; min-height: 0; padding: 0; font: 700 17px/1 var(--fos-mono); color: var(--fos-ink);
+  border: 2px solid var(--fos-ink); border-radius: 10px; box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.85), 2px 2px 0 var(--fos-ink);
+  background: linear-gradient(180deg, #fff, var(--fos-marble));
+}
+.arcadia .app-calc .key.op { background: linear-gradient(180deg, #fff, var(--fos-lavender)); }
+.arcadia .app-calc .key.fn { background: linear-gradient(180deg, #fff, #c9f8f1); }
+.arcadia .app-calc .key.eq { grid-column: span 3; background: linear-gradient(180deg, #fff7c2, var(--fos-apricot) 50%, #ff9ecf); }
+.arcadia .app-calc .key:is(:active, .down) { translate: 2px 2px; box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.6); }
+.arcadia .app-calc .key:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+/* 計算テープは、窓が広いときだけ横に出す（狭いときは隠す） */
+.arcadia .app-calc .calc-tape-wrap { display: none; flex: 0 1 190px; min-width: 150px; flex-direction: column; border: 2px solid var(--fos-ink); border-radius: 10px; background: var(--fos-paper); overflow: hidden; }
+@container (min-width: 420px) {
+  .arcadia .app-calc .calc-tape-wrap { display: flex; }
+}
+.arcadia .app-calc .no-tape .calc-tape-wrap { display: none; }
+.arcadia .app-calc .calc-tape-head { padding: 4px 10px; font-weight: 700; font-size: 12px; background: var(--fos-marble); border-bottom: 1.5px solid var(--fos-marble-lo); }
+.arcadia .app-calc .calc-tape { flex: 1; min-height: 0; margin: 0; padding: 4px; list-style: none; overflow: auto; }
+.arcadia .app-calc .tape-row {
+  display: grid; width: 100%; min-width: 0; min-height: 0; padding: 4px 8px; gap: 1px; text-align: right;
+  font: 12px/1.35 var(--fos-mono); color: var(--fos-ink); background: none; border: 0; border-radius: 6px; box-shadow: none;
+}
+.arcadia .app-calc .tape-row .t-expr { color: var(--fos-ink-muted); overflow-wrap: anywhere; }
+.arcadia .app-calc .tape-row .t-val { font-weight: 700; font-size: 14px; }
+.arcadia .app-calc .tape-row:hover { background: #e8fcf9; }
+.arcadia .app-calc .tape-row:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: -2px; }
+.arcadia .app-calc .tape-empty { padding: 8px; color: var(--fos-ink-muted); font-size: 12px; }
+
+/* ===== 付箋（作業面は無地の淡い色。網点は入れない） ===== */
+.arcadia .app-sticky .app-body { --sticky: var(--fos-paper); }
+.arcadia .app-sticky[data-sticky="mint"] .app-body { --sticky: #e3fbf7; }
+.arcadia .app-sticky[data-sticky="lavender"] .app-body { --sticky: #f1e8ff; }
+.arcadia .app-sticky[data-sticky="apricot"] .app-body { --sticky: #fff3da; }
+.arcadia .app-sticky .menu-bar { min-height: 24px; padding: 1px 4px; }
+.arcadia .app-sticky .menu-title { padding: 1px 8px; font-size: 12px; }
+.arcadia .app-sticky .sticky-text {
+  flex: 1; min-height: 0; resize: none; padding: 10px 12px; font: 14px/1.7 var(--fos-font);
+  background: var(--sticky); border: 0; border-radius: 0 0 4px 4px; box-shadow: none;
+}
+.arcadia .app-sticky .sticky-text:focus-visible { box-shadow: inset 0 0 0 2px var(--fos-cobalt); }
+/* 手前に固定している付箋は、題名の前に水晶の印を出す（長い題名で省略されても隠れないように） */
+.arcadia .app-sticky.pinned > .title-bar .title-bar-text::before {
+  content: "◆ 固定"; margin-right: 6px; padding: 1px 6px; font-size: 11px; font-weight: 700;
+  background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 999px;
+}
+
+/* ===== 時計とタイマー ===== */
+.arcadia .app-clock .clock-wrap { flex: 1; min-height: 0; padding: 8px; overflow: auto; }
+.arcadia .app-clock .tabs { display: flex; flex-direction: column; min-height: 100%; }
+.arcadia .app-clock .clock-page { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 12px; }
+.arcadia .app-clock .clock-page[hidden] { display: none; }
+.arcadia .app-clock .clock-face { width: 220px; height: 220px; }
+.arcadia .app-clock .big-time { font: 700 34px/1.1 var(--fos-mono); letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
+.arcadia .app-clock .clock-date { font-size: 14px; color: var(--fos-ink-muted); }
+.arcadia .app-clock .meter { width: 100%; max-width: 300px; position: relative; }
+.arcadia .app-clock .meter > i { position: absolute; }
+.arcadia .app-clock .timer-set { display: flex; align-items: center; gap: 6px; }
+.arcadia .app-clock .timer-set input { width: 64px; text-align: right; }
+.arcadia .app-clock .preset-row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.arcadia .app-clock .preset {
+  min-width: 52px; min-height: 28px; padding: 0 10px; font: 700 12.5px/1 var(--fos-font); color: var(--fos-ink);
+  background: linear-gradient(180deg, #fff, #c9f8f1); border: 2px solid var(--fos-ink); border-radius: 999px; box-shadow: 2px 2px 0 var(--fos-ink);
+}
+.arcadia .app-clock .preset:active:not(:disabled) { translate: 1px 1px; box-shadow: none; }
+.arcadia .app-clock .preset:disabled { background: #e5e0ec; border-color: #8e7fa3; color: #8e7fa3; box-shadow: none; }
+.arcadia .app-clock .preset:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+.arcadia .app-clock .button-row { justify-content: center; gap: 8px; flex-wrap: wrap; }
+.arcadia .app-clock .lap-head { width: 100%; display: flex; align-items: center; justify-content: space-between; font-weight: 700; }
+.arcadia .app-clock .lap-box { width: 100%; flex: 1; min-height: 90px; overflow: auto; border: 2px solid var(--fos-ink); border-radius: 6px; background: var(--fos-paper); }
+.arcadia .app-clock table.laps { width: 100%; font-family: var(--fos-mono); font-variant-numeric: tabular-nums; }
+.arcadia .app-clock table.laps td, .arcadia .app-clock table.laps th { padding: 2px 10px; text-align: right; }
+.arcadia .app-clock table.laps tr.best td { background: #e8fcf9; font-weight: 700; }

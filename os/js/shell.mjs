@@ -18,6 +18,9 @@ export const APPS = {
   viewer: { name: '画像と音のビューア', icon: 'icons/viewer.svg' },
   settings: { name: '設定', icon: 'icons/settings.svg' },
   icosaria: { name: '蒼海と白柱のイコサリア', icon: 'icons/icosaria.svg' },
+  calc: { name: '電卓', icon: 'icons/calc.svg' },
+  stickies: { name: '付箋', icon: 'icons/stickies.svg' },
+  clock: { name: '時計とタイマー', icon: 'icons/clock.svg' },
 };
 
 /* ---------- 設定 ---------- */
@@ -153,6 +156,9 @@ const SYS = [
   { key: 'app:synth', name: 'SID 風シンセ', icon: APPS.synth.icon, open: () => launch('synth') },
   { key: 'app:settings', name: '設定', icon: APPS.settings.icon, open: () => launch('settings') },
   { key: 'app:icosaria', name: 'イコサリア', icon: APPS.icosaria.icon, open: () => launch('icosaria') },
+  { key: 'app:calc', name: '電卓', icon: APPS.calc.icon, open: () => launch('calc') },
+  { key: 'app:stickies', name: '付箋', icon: APPS.stickies.icon, open: () => launch('stickies') },
+  { key: 'app:clock', name: '時計', icon: APPS.clock.icon, open: () => launch('clock') },
 ];
 let deskItems = [], pos = {};
 try { pos = JSON.parse(localStorage.getItem('fos-icons') || '{}'); } catch { pos = {}; }
@@ -315,7 +321,7 @@ export function initDesktop() {
 function tick() {
   const d = new Date();
   $('#clock').textContent = d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-  $('#clock').title = d.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+  $('#clock').title = d.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }) + '（押すと時計とタイマーを開きます）';
 }
 function syncVolume() {
   const r = $('#volRange'), m = $('#volMute');
@@ -324,6 +330,7 @@ function syncVolume() {
 }
 export function initTaskbar() {
   tick(); setInterval(tick, 5000);
+  $('#clock').addEventListener('click', () => launch('clock', { tab: 0 }));
   syncVolume();
   const pop = $('#volPop');
   $('#volBtn').addEventListener('click', (e) => { e.stopPropagation(); pop.hidden = !pop.hidden; sound.play('click'); });

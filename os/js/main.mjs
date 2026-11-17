@@ -32,7 +32,8 @@ async function info() {
 function wireSounds() {
   document.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
-    if (e.target.closest('button:not(:disabled), .menu-title, select, .tab')) sound.play('click');
+    // 自分で音を鳴らす部品（電卓のボタンなど）は、ここでは鳴らさない
+    if (e.target.closest('button:not(:disabled), .menu-title, select, .tab') && !e.target.closest('[data-own-sound]')) sound.play('click');
   }, true);
   // チェックを入れる・外す音と、スライダーの刻みの音（値が 5% 動くごとに1回）
   document.addEventListener('change', (e) => { if (e.target.matches('input[type=checkbox], input[type=radio]')) sound.play(e.target.checked ? 'toggleOn' : 'toggleOff'); }, true);
