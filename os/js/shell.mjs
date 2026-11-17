@@ -6,6 +6,7 @@ import { drawWallpaper, forgetWall } from './boot.mjs';
 import { appFor, typeName } from './core/assoc.mjs';
 import { basename, dirname, extname, normalize } from './core/path.mjs';
 import { openKey } from './core/winfind.mjs';
+import { loadRegistry } from './userhost.mjs';
 
 const $ = (s) => document.querySelector(s);
 const log = (...a) => (window.dlog || (() => {}))(...a);
@@ -71,7 +72,17 @@ export async function msgbox(o) {
 }
 export const os = { fs, wm, sound, launch, openFile, fileDialog, msgbox, getSettings, saveSettings, recent, addRecent, iconFor, esc, APPS, events, log };
 
+// 作ったアプリ（コードの作業場で OS に登録したもの）。名前は user:<id> で開く
+let userApps = [];
+export const userAppList = () => userApps;
+async function refreshUserApps() { userApps = await loadRegistry(fs); log('shell.userapps', { count: userApps.length }, 'ok'); }
+events.addEventListener('userapps', refreshUserApps);
 export async function launch(app, args = {}, rect = {}) {
+  if (typeof app === 'string' && app.startsWith('user:')) {
+    const id = app.slice(5), name = userApps.find((u) => u.id === id)?.name || id;
+    try { const mod = await import('./apps/userapp.mjs'); const win = await mod.launch(os, { ...args, id }, rect); log('app.launch', { app }, 'ok'); return win; }
+    catch (e) { log('app.launch', { app }, 'error: ' + e.message); msgbox({ title: name, text: `${name} を開けませんでした。\n\n${e.message}`, icon: 'error' }); return null; }
+  }
   if (!APPS[app]) throw new Error('知らないアプリです: ' + app);
   try {
     const mod = await import(`./apps/${app}.mjs`);
@@ -361,6 +372,7 @@ function syncVolume() {
   if (m) m.checked = settings.mute;
 }
 export function initTaskbar() {
+  refreshUserApps();
   tick(); setInterval(tick, 5000);
   $('#clock').addEventListener('click', () => launch('clock', { tab: 0 }));
   syncVolume();
@@ -379,7 +391,7 @@ let subEl = null;
 function closeSub() { if (subEl) { subEl.remove(); subEl = null; } }
 function startItems() {
   return [
-    { label: 'プログラム(<u>P</u>)', icon: 'icons/app.svg', sub: () => Object.entries(APPS).map(([id, a]) => ({ label: esc(a.name), icon: a.icon, run: () => launch(id) })) },
+    { label: 'プログラム(<u>P</u>)', icon: 'icons/app.svg', sub: () => [...Object.entries(APPS).map(([id, a]) => ({ label: esc(a.name), icon: a.icon, run: () => launch(id) })), ...userApps.map((u) => ({ label: esc(u.name) + '（作ったアプリ）', icon: 'icons/userapp.svg', run: () => launch('user:' + u.id) }))] },
     { label: '最近使ったファイル(<u>D</u>)', icon: 'icons/document.svg', sub: () => recent().map((p) => ({ label: esc(basename(p)), icon: iconFor({ kind: 'file', name: p }), run: () => openFile(p) })) },
     { label: 'ファイル マネージャ(<u>F</u>)', icon: APPS.filer.icon, run: () => launch('filer', { path: '/' }) },
     { label: '設定(<u>S</u>)', icon: APPS.settings.icon, run: () => launch('settings') },
@@ -425,7 +437,8 @@ let searchSeq = 0;
 async function search(q) {
   const id = ++searchSeq, s = q.trim().toLowerCase();
   if (!s) { renderStart(startItems()); return; }
-  const apps = Object.entries(APPS).filter(([, a]) => a.name.toLowerCase().includes(s)).map(([id2, a]) => ({ label: esc(a.name), icon: a.icon, run: () => launch(id2) }));
+  const apps = [...Object.entries(APPS).filter(([, a]) => a.name.toLowerCase().includes(s)).map(([id2, a]) => ({ label: esc(a.name), icon: a.icon, run: () => launch(id2) })),
+    ...userApps.filter((u) => u.name.toLowerCase().includes(s)).map((u) => ({ label: esc(u.name) + '（作ったアプリ）', icon: 'icons/userapp.svg', run: () => launch('user:' + u.id) }))];
   const files = (await fs.walk('/')).filter((p) => basename(p).toLowerCase().includes(s) && !p.startsWith(fs.TRASH + '/')).slice(0, 12)
     .map((p) => ({ label: `${esc(basename(p))} <span style="color:var(--GrayText)">${esc(dirname(p))}</span>`, icon: extname(p) ? iconFor({ kind: 'file', name: p }) : 'icons/folder.svg', run: () => openFile(p) }));
   if (id !== searchSeq) return;
