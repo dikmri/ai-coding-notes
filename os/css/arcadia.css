@@ -1004,3 +1004,8 @@
 .arcadia .ws-dlg .ws-choice span { grid-column: 2; font-size: 12px; color: var(--fos-ink-muted); }
 .arcadia .ws-dlg .ws-askrow { display: flex; align-items: center; gap: 6px; }
 .arcadia .ws-dlg .ws-askrow input { flex: 1; }
+
+/* ===== 作ったアプリの窓（2026-11-17） ===== */
+.arcadia .app-user .ua-main { flex: 1; min-height: 0; display: flex; background: #fff; }
+.arcadia .app-user .ua-frame { flex: 1; width: 100%; border: 0; background: #fff; }
+.arcadia .app-user .status-field[data-kind="error"] { box-shadow: inset 4px 0 0 var(--fos-sunset); }

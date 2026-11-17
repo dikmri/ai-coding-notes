@@ -3,18 +3,17 @@
 // プレビューは allow-same-origin を付けない sandbox の iframe で動かし、OS とは MessageChannel の専用の口だけでやり取りする。
 // 計算（字句、import の書き換え、プレビューの文書、ZIP、ひな形、橋渡し）は core/workshop.mjs。
 import * as W from '../core/workshop.mjs';
+import { createHost, build, walk as walkDir, isText as isTextFile, loadRegistry, saveRegistry } from '../userhost.mjs';
 
-const ROOT = '/プロジェクト', DATA = '/アプリデータ';
-const TEXT_RE = /\.(html?|css|m?js|json|txt|md|svg|csv|xml)$/i;
+const ROOT = '/プロジェクト';
 const COLORED = ['keyword', 'string', 'comment', 'number', 'regexp', 'tag', 'attr', 'selector', 'property', 'atrule', 'doctype'];
-const SOUNDS = new Set(['click', 'select', 'op', 'pin', 'notify', 'error', 'key', 'prism', 'crystal', 'solve', 'shutter', 'chime', 'equals', 'count']);
 const PREVIEW_SANDBOX = 'allow-scripts allow-modals';
 
 export async function launch(os, args = {}, rect = {}) {
   const { fs, wm, log, sound, esc } = os;
   const one = wm.list().find((w) => w.app === 'workshop');
   if (one) { one.focus(); if (args.path) one.openProject?.(args.path); return one; }
-  let project = null, files = [], cur = null, texts = {}, saved = {}, autoRun = true, port = null, sources = {}, entry = null, lastMsg = '', findHits = [], findAt = -1, escTab = false;
+  let project = null, files = [], cur = null, texts = {}, saved = {}, autoRun = true, sources = {}, entry = null, lastMsg = '', findHits = [], findAt = -1, escTab = false;
   const win = wm.open({
     app: 'workshop', icon: 'icons/workshop.svg', className: 'app-workshop', title: 'コードの作業場', w: 1180, h: 720, ...rect, args: {},
     render(w) {
@@ -27,6 +26,8 @@ export async function launch(os, args = {}, rect = {}) {
           <label class="ws-check"><input type="checkbox" data-auto checked> 保存したら動かす(<u>U</u>)</label>
           <button type="button" class="flat ws-btn" data-a="stop" disabled>止める(<u>T</u>)</button>
           <button type="button" class="flat ws-btn" data-a="zip" disabled>ZIP で書き出す(<u>E</u>)</button>
+          <button type="button" class="flat ws-btn" data-a="register" disabled>OS に登録(<u>A</u>)...</button>
+          <button type="button" class="flat ws-btn" data-a="browse" disabled>ブラウザで開く(<u>B</u>)</button>
         </div>
         <div class="ws-body">
           <nav class="ws-tree" aria-label="プロジェクトのファイル">
@@ -64,7 +65,7 @@ export async function launch(os, args = {}, rect = {}) {
   const q = (s) => win.body.querySelector(s);
   const ta = q('[data-ta]'), hl = q('[data-hl]'), pre = q('.ws-pre'), gutter = q('[data-gutter]'), frameEl = () => q('[data-frame]');
   function say(t, kind = '') { let m = t; if (m === lastMsg) m += ' '; lastMsg = m; const f = q('.status-field[data-status]'); f.textContent = m; f.dataset.kind = kind; }
-  const isText = (p) => TEXT_RE.test(p);
+  const isText = isTextFile;
   const rel = (p) => p.slice(project.length + 1);
 
   /* ---------- プロジェクト ---------- */
@@ -73,7 +74,7 @@ export async function launch(os, args = {}, rect = {}) {
     const list = await projects();
     q('[data-proj]').innerHTML = `<option value="">（選んでください）</option>` + list.map((p) => `<option value="${esc(p)}"${p === project ? ' selected' : ''}>${esc(p.split('/').pop())}</option>`).join('');
   }
-  async function walk(dir) { const out = []; for (const e of await fs.list(dir)) { if (e.kind === 'dir') out.push(...(await walk(e.path))); else out.push(e.path); } return out; }
+  const walk = (dir) => walkDir(fs, dir);
   async function openProject(path) {
     keep();
     project = path; files = (await walk(path)).sort((a, b) => a.localeCompare(b, 'ja')); texts = {}; saved = {}; cur = null;
@@ -81,8 +82,9 @@ export async function launch(os, args = {}, rect = {}) {
     await drawProjects(); drawFiles();
     const first = files.find((p) => /\/index\.html$/.test(p)) || files.find(isText);
     if (first) await openFile(first); else showEditor(false);
-    for (const b of ['save', 'run', 'stop', 'zip', 'newfile', 'rename', 'del']) q(`[data-a="${b}"]`).disabled = false;
+    for (const b of ['save', 'run', 'stop', 'zip', 'browse', 'newfile', 'rename', 'del']) q(`[data-a="${b}"]`).disabled = false;
     log('workshop.open', { project: path, files: files.length }, 'ok');
+    syncRegister();
     say(`プロジェクト「${path.split('/').pop()}」を開きました。Ctrl+S で保存、Ctrl+Enter で動かします。`);
     run();
   }
@@ -205,76 +207,61 @@ export async function launch(os, args = {}, rect = {}) {
     if (n && autoRun) run();
   }
 
-  /* ---------- プレビュー ---------- */
-  async function collect() {
-    const out = {};
-    for (const p of files) {
-      if (isText(p)) out[p] = { text: texts[p] !== undefined ? texts[p] : await fs.readText(p) };
-      else out[p] = { dataUrl: await new Promise((ok) => { fs.readBlob(p).then((b) => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(b); }); }) };
-    }
-    return out;
-  }
+  /* ---------- プレビュー（共通の部品 userhost.mjs が、橋渡しの口と操作を受け持つ） ---------- */
+  // 設定の入れ物はそのまま持ち、プロジェクトを切り替えたら root と dataName を書き換える
+  const hostOpts = {
+    root: '', dataName: '', entry: () => entry, files: () => files,
+    readText: (p) => (texts[p] !== undefined ? texts[p] : fs.readText(p)),
+    onConsole: (level, text, file, line) => conLine(level, text, file, line),
+    onTitle: (t) => { q('[data-ptitle]').textContent = t; },
+    onStatus: (t) => say('プレビュー: ' + t),
+    onNavigate: (p) => run(p),
+  };
+  const host = createHost(os, hostOpts);
   async function manifest() { const m = files.find((p) => p === project + '/app.json'); if (!m) return {}; try { return JSON.parse(texts[m] ?? (await fs.readText(m))); } catch { return {}; } }
+  function newFrame() { const f = document.createElement('iframe'); f.className = 'ws-frame'; f.dataset.frame = ''; f.setAttribute('sandbox', PREVIEW_SANDBOX); f.title = 'プレビュー'; frameEl().replaceWith(f); return f; }
   async function run(target) {
     if (!project) return;
     keep();
     const man = await manifest();
     entry = target || (cur && /\.html?$/i.test(cur) ? cur : project + '/' + (man.entry || 'index.html'));
     if (!files.includes(entry)) { conLine('warn', `「${rel(entry)}」がないので動かせません。index.html を作ってください。`); return; }
-    const built = W.buildPreview(await collect(), project, entry, { runtime: W.RUNTIME });
+    const built = await build(fs, project, entry, files, (p) => (texts[p] !== undefined ? texts[p] : fs.readText(p)));
     sources = built.sources;
-    clearConsole(); port = null;
-    const old = frameEl(), f = document.createElement('iframe');
-    f.className = 'ws-frame'; f.dataset.frame = ''; f.setAttribute('sandbox', PREVIEW_SANDBOX); f.title = 'プレビュー';
-    f.srcdoc = built.html; old.replaceWith(f);
+    clearConsole();
+    const f = newFrame();
+    hostOpts.root = project; hostOpts.dataName = project.split('/').pop();
+    host.attach(f); f.srcdoc = built.html;
     for (const m of built.missing) conLine('warn', `見つかりません: ${rel(m)}`);
     q('[data-ptitle]').textContent = rel(entry);
     say(`「${rel(entry)}」を動かしています。`); sound.play('select');
     log('workshop.run', { project, entry: rel(entry), missing: built.missing.length }, 'ok');
   }
-  function stop() { const f = frameEl(), b = document.createElement('iframe'); b.className = 'ws-frame'; b.dataset.frame = ''; b.setAttribute('sandbox', PREVIEW_SANDBOX); b.title = 'プレビュー'; f.replaceWith(b); port = null; say('プレビューを止めました。'); }
-  // プレビューの橋渡しからの「口をください」に答える。送り主がプレビューの iframe かを source で確かめる
-  function onMessage(e) {
-    const f = frameEl();
-    if (!f || e.source !== f.contentWindow || e.data?.type !== 'arcadia-hello' || port) return;
-    const ch = new MessageChannel();
-    port = ch.port1; port.onmessage = (m) => handle(m.data, ch.port1);
-    f.contentWindow.postMessage({ type: 'arcadia-port' }, '*', [ch.port2]);
-  }
-  addEventListener('message', onMessage);
-  const dataFile = () => `${DATA}/${project.split('/').pop().replace(/[\\/:*?"<>|]/g, '_')}/data.json`;
-  async function handle(d, p) {
-    if (!d || typeof d.op !== 'string' || p !== port) return;
-    const reply = (result) => d.id && p.postMessage({ id: d.id, result });
-    const fail = (error) => d.id && p.postMessage({ id: d.id, error });
-    const a = d.args || {};
-    try {
-      switch (d.op) {
-        case 'console': conLine(['log', 'info', 'warn', 'error', 'debug'].includes(a.level) ? a.level : 'log', String(a.text ?? '').slice(0, 4000), a.file, a.line); return;
-        case 'read': {
-          const path = W.resolveIn(project, entry, String(a.path || ''));
-          if (!path || !files.includes(path)) return fail(`プロジェクトの中に「${a.path}」がありません`);
-          if (isText(path)) return reply({ text: texts[path] !== undefined ? texts[path] : await fs.readText(path), type: W.mimeOf(path) });
-          const buf = new Uint8Array(await (await fs.readBlob(path)).arrayBuffer());
-          let s = ''; for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-          return reply({ base64: btoa(s), type: W.mimeOf(path) });
-        }
-        case 'navigate': { const path = W.resolveIn(project, entry, String(a.href || '')); if (path && /\.html?$/i.test(path) && files.includes(path)) run(path); else conLine('warn', `プロジェクトの中のページではありません: ${a.href}`); return; }
-        case 'link': if (/^https?:\/\//i.test(a.href || '')) { os.launch('browser', { url: a.href }); conLine('info', `OS のブラウザで開きました: ${a.href}`); } return;
-        case 'setTitle': q('[data-ptitle]').textContent = String(a.text).slice(0, 80); return reply(true);
-        case 'setStatus': say('プレビュー: ' + String(a.text).slice(0, 200)); return reply(true);
-        case 'sound': if (SOUNDS.has(a.name)) sound.play(a.name); return reply(true);
-        case 'notify': os.notify?.({ title: String(a.title).slice(0, 60) || project.split('/').pop(), text: String(a.text).slice(0, 200) }); return reply(true);
-        case 'loadData': { let all = {}; try { all = await fs.readJSON(dataFile()); } catch { /* まだない */ } return reply(all[a.key] ?? null); }
-        case 'saveData': {
-          let all = {}; try { all = await fs.readJSON(dataFile()); } catch { /* まだない */ }
-          all[a.key] = a.value; const json = JSON.stringify(all);
-          if (json.length > 1e6) return fail('保存できるのは 1MB までです');
-          await fs.write(dataFile(), json, 'application/json'); return reply(true);
-        }
-        default: return fail(`知らない操作です: ${d.op}`);
-      }
-    } catch (err) { fail(err.message); }
+  function stop() { host.attach(newFrame()); say('プレビューを止めました。'); }
+
+  /* ---------- OS のアプリとして登録 ---------- */
+  const appId = () => project.split('/').pop();
+  async function registered() { return (await loadRegistry(fs)).some((r) => r.id === appId()); }
+  async function syncRegister() { const b = q('[data-a="register"]'); if (!project) { b.disabled = true; return; } b.disabled = false; b.innerHTML = (await registered()) ? 'OS の登録を外す(<u>A</u>)' : 'OS に登録(<u>A</u>)...'; }
+  async function register() {
+    keep();
+    const list = await loadRegistry(fs), id = appId();
+    if (list.some((r) => r.id === id)) {
+      await saveRegistry(fs, list.filter((r) => r.id !== id));
+      os.events.dispatchEvent(new CustomEvent('userapps'));
+      say(`「${id}」を OS の登録から外しました。`); sound.play('op'); log('workshop.unregister', { id }, 'ok');
+      syncRegister(); return;
+    }
+    const man = await manifest();
+    const r = await ask({ title: 'OS に登録', label: 'スタート メニューに出す名前', value: man.name || id });
+    if (!r || !r.name) return;
+    await saveAll();
+    list.push({ id, name: r.name.slice(0, 40), root: project, entry: man.entry || 'index.html', w: Math.min(1600, Math.max(240, man.w | 0 || 640)), h: Math.min(1200, Math.max(160, man.h | 0 || 480)) });
+    await saveRegistry(fs, list);
+    os.events.dispatchEvent(new CustomEvent('userapps'));
+    say(`「${r.name}」を OS に登録しました。スタート メニューの「プログラム」から開けます。`); sound.play('pin');
+    log('workshop.register', { id, name: r.name }, 'ok');
+    syncRegister();
   }
 
   /* ---------- コンソール ---------- */
@@ -385,7 +372,7 @@ export async function launch(os, args = {}, rect = {}) {
       <p><button type="button" class="flat ws-btn ws-run" data-a="newproj">新しいプロジェクトを作る...</button></p>
       ${list.length ? `<h3>今あるプロジェクト</h3><ul>${list.map((p) => `<li><button type="button" class="flat ws-mini" data-openproj="${esc(p)}">${esc(p.split('/').pop())}</button></li>`).join('')}</ul>` : ''}</div>`;
   }
-  const acts = { newproj: newProject, save: saveAll, run: () => run(), stop, zip: exportZip, newfile: newFile, rename: renameFile, del: deleteFile, findnext: findNext, findclose: closeFind, clear: clearConsole };
+  const acts = { newproj: newProject, save: saveAll, run: () => run(), stop, zip: exportZip, register, browse: async () => { await saveAll(); os.launch('browser', { path: entry || project + '/index.html' }); }, newfile: newFile, rename: renameFile, del: deleteFile, findnext: findNext, findclose: closeFind, clear: clearConsole };
   win.body.addEventListener('click', (e) => {
     const a = e.target.closest('[data-a]'); if (a && !a.disabled) { acts[a.dataset.a](); return; }
     const f = e.target.closest('[data-file]'); if (f) { openFile(f.dataset.file); return; }
@@ -409,7 +396,7 @@ export async function launch(os, args = {}, rect = {}) {
     else if (k === 'f' && cur) { e.preventDefault(); openFind(); }
   });
   win.openProject = openProject;
-  win.cleanup = () => { removeEventListener('message', onMessage); for (const t of [...COLORED, 'find']) CSS.highlights?.delete('ws-' + t); };
+  win.cleanup = () => { host.dispose(); for (const t of [...COLORED, 'find']) CSS.highlights?.delete('ws-' + t); };
 
   showEditor(false); await drawStart(); await drawProjects();
   if (args.path) await openProject(args.path);

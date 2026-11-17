@@ -5,6 +5,7 @@
 // 中継したページと仮想ドライブの HTML は allow-same-origin を付けない iframe に出し、OS の保存場所に触れさせない。
 // 計算（住所の読み取り、見出しの判断、ページの書き換え）は core/browser.mjs。
 import * as B from '../core/browser.mjs';
+import { createHost, build, walk } from '../userhost.mjs';
 
 const RELAY = '/__arcadia/relay';
 const DIR = '/ネット', BOOKMARKS = DIR + '/ブックマーク.json', HISTORY = DIR + '/履歴.json', PREFS = DIR + '/設定.json';
@@ -95,7 +96,7 @@ export async function launch(os, args = {}, rect = {}) {
   function closeTab(t) {
     if (tabs.length === 1) { navigate(t, 'arcadia://start'); return; }
     const i = tabs.indexOf(t);
-    t.ctrl?.abort(); t.panel.remove(); tabs.splice(i, 1);
+    t.ctrl?.abort(); t.host?.dispose(); t.panel.remove(); tabs.splice(i, 1);
     if (cur === t) selectTab(tabs[Math.min(i, tabs.length - 1)]); else drawTabs();
     sound.play('close');
   }
@@ -114,6 +115,7 @@ export async function launch(os, args = {}, rect = {}) {
     const address = B.toAddress(p);
     t.ctrl?.abort();
     const ctrl = (t.ctrl = new AbortController());
+    t.host?.dispose(); t.host = null; // 前のページの橋渡しは外す
     if (push) { t.entries.splice(t.index + 1); t.entries.push({ address, title: address }); t.index = t.entries.length - 1; }
     loading(t, true);
     if (t === cur) { addr.value = address; syncBar(); }
@@ -277,8 +279,23 @@ export async function launch(os, args = {}, rect = {}) {
   async function renderVfs(t, path) {
     const st = await fs.stat(path);
     if (!st || st.kind !== 'file') throw new Error(`「${path}」が仮想ドライブにありません`);
-    frame(t, ISOLATED_SANDBOX).srcdoc = await fs.readText(path);
-    say(`仮想ドライブの「${path}」を開いています（OS の保存場所には触れない、隔てた表示です）。`, t);
+    // 読み込むファイルの範囲: /プロジェクト/<名前>/ の中ならそのプロジェクト全体、ほかはそのフォルダの直下だけ
+    const proj = /^\/プロジェクト\/[^/]+/.exec(path);
+    const root = proj ? proj[0] : path.slice(0, path.lastIndexOf('/')) || '/';
+    const files = proj ? await walk(fs, root) : (await fs.list(root)).filter((e) => e.kind === 'file').map((e) => e.path);
+    let entry = path;
+    t.host?.dispose();
+    t.host = createHost(os, {
+      root, dataName: root.split('/').pop() || 'ドライブ', entry: () => entry, files: () => files, readText: (x) => fs.readText(x),
+      onConsole: (level, text) => { if (level === 'error' && t === cur) say('ページの誤り: ' + text.split('\n')[0].slice(0, 100), t); },
+      onTitle: (x) => setTitle(t, x || entry.split('/').pop(), 'vfs'),
+      onStatus: (x) => say(x, t),
+      onNavigate: (x) => navigate(t, x),
+    });
+    const built = await build(fs, root, entry, files);
+    const f = frame(t, ISOLATED_SANDBOX);
+    t.host.attach(f); f.srcdoc = built.html;
+    say(`仮想ドライブの「${path}」を開いています（OS の保存場所には触れない、隔てた表示です）。${built.missing.length ? ` 見つからないファイル: ${built.missing.length} 個` : ''}`, t);
   }
   function renderError(t, p, message) {
     const url = p.url;
@@ -411,7 +428,7 @@ export async function launch(os, args = {}, rect = {}) {
     } else if (e.key === 'Delete') { e.preventDefault(); closeTab(tabs[i]); tabsEl.querySelector('[aria-selected="true"]')?.focus(); }
   });
   win.openInTab = (target) => newTab(target);
-  win.cleanup = () => { removeEventListener('message', onMessage); for (const t of tabs) t.ctrl?.abort(); };
+  win.cleanup = () => { removeEventListener('message', onMessage); for (const t of tabs) { t.ctrl?.abort(); t.host?.dispose(); } };
 
   await loadData();
   newTab(target || 'arcadia://start');
