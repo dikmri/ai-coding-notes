@@ -1,0 +1,11 @@
+{
+  "id": "voice-shore",
+  "rate": 11025,
+  "credit": "声: Irodori-TTS-v4.1-Anime（phasefield-audio、MIT。元は Aratako/Irodori-TTS-v4.1-Small）でキャプションから設計した声を合成し、8 ビットに変換",
+  "lines": [
+    { "name": "walk", "src": "runtime/assets/voice/shore-lines/walk-2.wav", "text": "あっ、来てくれたんだ！", "kana": "あっ、きてくれたんだ！" },
+    { "name": "call", "src": "runtime/assets/voice/shore-voices/voice-b.wav", "phrase": 0, "text": "おーい！ こっちだよー！", "kana": "おーい！こっちだよー！" },
+    { "name": "thanks", "src": "runtime/assets/voice/shore-voices/voice-b.wav", "phrase": [1, 2], "text": "今日も来てくれて、ありがとう。", "kana": "きょうもきてくれて、ありがとう。" },
+    { "name": "bye", "src": "runtime/assets/voice/shore-voices/voice-b.wav", "phrase": 3, "text": "またね！", "kana": "またね！" }
+  ]
+}
