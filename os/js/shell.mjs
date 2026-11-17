@@ -23,6 +23,7 @@ export const APPS = {
   stickies: { name: '付箋', icon: 'icons/stickies.svg' },
   clock: { name: '時計とタイマー', icon: 'icons/clock.svg' },
   charmap: { name: '文字と色の見本帳', icon: 'icons/charmap.svg' },
+  player: { name: '音楽プレーヤー', icon: 'icons/player.svg' },
 };
 
 /* ---------- 設定 ---------- */
@@ -173,6 +174,7 @@ const SYS = [
   { key: 'app:calc', name: '電卓', icon: APPS.calc.icon, open: () => launch('calc') },
   { key: 'app:stickies', name: '付箋', icon: APPS.stickies.icon, open: () => launch('stickies') },
   { key: 'app:clock', name: '時計', icon: APPS.clock.icon, open: () => launch('clock') },
+  { key: 'app:player', name: '音楽', icon: APPS.player.icon, open: () => launch('player') },
 ];
 let deskItems = [], pos = {};
 try { pos = JSON.parse(localStorage.getItem('fos-icons') || '{}'); } catch { pos = {}; }

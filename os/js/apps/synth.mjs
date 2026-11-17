@@ -1,6 +1,6 @@
 // SID 風シンセ: 3つの声部の音色、共通のフィルター、16ステップのパターンを並び順でつなぐ打ち込み、
 // パソコンの鍵盤で弾く・打ち込む、波形の表示、.sng の保存、WAV の書き出し
-import { SidEngine, defaultSong, defaultVoice, keyToNote } from '../core/sidengine.mjs';
+import { SidEngine, defaultSong, defaultVoice, keyToNote, normalizeSong } from '../core/sidengine.mjs';
 import { noteName, TRI, SAW, PUL, NOI } from '../core/sid.mjs';
 import { emptyPattern, songLength } from '../core/song.mjs';
 import { encodeWAV } from '../core/wav.mjs';
@@ -90,17 +90,8 @@ const KNOBS = [
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 let moduleFor = null; // AudioWorklet の読み込みは、音の文脈ごとに1回
 
-function normalize(d) {
-  const s = { ...defaultSong(), ...d };
-  s.voices = [0, 1, 2].map((i) => ({ ...defaultVoice(), ...(d.voices?.[i] || {}) }));
-  s.filter = { ...defaultSong().filter, ...(d.filter || {}) };
-  s.patterns = {};
-  for (const [k, p] of Object.entries(d.patterns || { A: emptyPattern() })) s.patterns[k] = [0, 1, 2].map((v) => Array.from({ length: 16 }, (_, i) => (typeof p?.[v]?.[i] === 'number' ? p[v][i] : null)));
-  s.order = (d.order || []).filter((k) => s.patterns[k]);
-  if (!s.order.length) s.order = [Object.keys(s.patterns)[0]];
-  s.bpm = Math.max(40, Math.min(300, +s.bpm || 120));
-  return s;
-}
+// 曲のデータを整える処理は core/sidengine.mjs の normalizeSong（音楽プレーヤーと共通）
+const normalize = normalizeSong;
 
 export async function launch(os, args = {}, rect = {}) {
   const { fs, wm, log } = os;
