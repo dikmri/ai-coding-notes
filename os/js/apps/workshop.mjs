@@ -45,7 +45,7 @@ export async function launch(os, args = {}, rect = {}) {
           </section>
           <section class="ws-right" aria-label="プレビューとコンソール">
             <div class="ws-preview-head"><span>プレビュー</span><span class="ws-dim" data-ptitle></span></div>
-            <div class="ws-preview"><iframe class="ws-frame" data-frame sandbox="${PREVIEW_SANDBOX}" title="プレビュー"></iframe></div>
+            <div class="ws-preview"><iframe class="ws-frame" data-frame sandbox="${PREVIEW_SANDBOX}" aria-label="プレビュー"></iframe></div>
             <div class="ws-console-head"><span>コンソール</span><button type="button" class="flat ws-mini" data-a="clear">消す(<u>L</u>)</button></div>
             <ol class="ws-console" data-console aria-live="polite"></ol>
           </section>
@@ -220,7 +220,7 @@ export async function launch(os, args = {}, rect = {}) {
   };
   const host = createHost(os, hostOpts);
   async function manifest() { const m = files.find((p) => p === project + '/app.json'); if (!m) return {}; try { return JSON.parse(texts[m] ?? (await fs.readText(m))); } catch { return {}; } }
-  function newFrame() { const f = document.createElement('iframe'); f.className = 'ws-frame'; f.dataset.frame = ''; f.setAttribute('sandbox', PREVIEW_SANDBOX); f.title = 'プレビュー'; frameEl().replaceWith(f); return f; }
+  function newFrame() { const f = document.createElement('iframe'); f.className = 'ws-frame'; f.dataset.frame = ''; f.setAttribute('sandbox', PREVIEW_SANDBOX); f.setAttribute('aria-label', 'プレビュー'); frameEl().replaceWith(f); return f; }
   async function run(target) {
     if (!project) return;
     keep();

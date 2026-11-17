@@ -174,7 +174,7 @@ export async function launch(os, args = {}, rect = {}) {
   function frame(t, sandbox) {
     const f = document.createElement('iframe');
     f.className = 'bw-frame'; f.setAttribute('sandbox', sandbox); f.referrerPolicy = 'strict-origin-when-cross-origin';
-    f.title = 'ページの中身';
+    f.setAttribute('aria-label', 'ページの中身'); // title だとマウスを乗せたときに吹き出しが出るので、読み上げの名前は aria-label にする
     // 2回目からの読み込みは、ページの中での移動（相手のサイトの中の住所は、ブラウザの決まりで OS から見えない）
     let loads = 0;
     f.addEventListener('load', () => {
