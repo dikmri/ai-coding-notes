@@ -75,6 +75,7 @@ async function start() {
   const first = await seed(fs);
   shell.initDesktop();
   shell.initTaskbar();
+  shell.initReminders();
   wireSounds();
   // 前回開いていた窓を、同じ場所・同じファイルで開き直す
   for (const s of shot ? [] : wm.loadSession()) {
