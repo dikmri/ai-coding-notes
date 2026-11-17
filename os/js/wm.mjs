@@ -137,6 +137,12 @@ export async function raise(win) {
   if (target) target.focus({ preventScroll: true });
   log('wm.raise', { app: win.app, title: win.title }, 'ok');
 }
+// 窓の位置と大きさを変える（AI アシスタントの道具が使う）。最大化していれば元に戻してから
+export function setRect(win, r) {
+  if (win.max) maximize(win, true);
+  place(win, { ...win.rect, ...Object.fromEntries(Object.entries(r).filter(([, v]) => typeof v === 'number')) });
+  saveSession();
+}
 export function maximize(win, quiet) {
   if (win.max) return restore(win);
   win.max = true; win.el.classList.add('maximized'); maxBtn(win);
