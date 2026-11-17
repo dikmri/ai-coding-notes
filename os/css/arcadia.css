@@ -420,7 +420,7 @@
 .arcadia .app-settings .preview { border: 2px solid var(--fos-ink); border-radius: 6px; box-shadow: none; }
 .arcadia .meter { height: 18px; border: 2px solid var(--fos-ink); border-radius: 999px; background: var(--fos-paper); box-shadow: none; overflow: hidden; }
 .arcadia .meter > i { left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, var(--fos-aqua), var(--fos-sunset)); }
-.arcadia .app-settings .tab-page { height: 280px; }
+.arcadia .app-settings .tab-page { height: 352px; }
 .arcadia .window.dialog:not(.vol-pop) .window-body { padding: 12px; }
 .arcadia select:is([size], [multiple]) { padding: 4px; }
 .arcadia select:is([size], [multiple]) option { padding: 3px 8px; border-radius: 4px; line-height: 1.5; }
@@ -1059,4 +1059,27 @@
 .arcadia .app-assistant .as-copy .as-btn { min-block-size: 28px; }
 .arcadia .app-assistant .as-copy .as-btn[data-copied] { background: linear-gradient(180deg, #fff, var(--fos-aqua)); }
 .arcadia .app-assistant .as-tip { font-size: 12px; color: var(--fos-ink); }
+.arcadia .app-assistant .as-tabs { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.arcadia .app-assistant .as-tabs > .tab-page { flex: 1; min-height: 0; overflow: auto; padding: 10px; }
+.arcadia .app-assistant .as-tabs > .tab-page:not([hidden]) { display: flex; flex-direction: column; gap: 8px; }
+.arcadia .app-assistant .as-ai { display: flex; gap: 8px; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 700; }
+.arcadia .app-assistant .as-log { flex: 1; min-height: 120px; overflow: auto; margin: 0; padding: 8px; list-style: none; display: flex; flex-direction: column; gap: 8px; background: #fff; border: 1.5px solid var(--fos-marble-lo); border-radius: 8px; }
+.arcadia .app-assistant .as-msg { max-width: 92%; padding: 6px 10px; border: 1.5px solid var(--fos-ink); border-radius: 10px; line-height: 1.6; }
+.arcadia .app-assistant .as-msg b { display: block; font-size: 11px; }
+.arcadia .app-assistant .as-msg p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.arcadia .app-assistant .as-msg.me { align-self: flex-end; background: #e6fbf8; }
+.arcadia .app-assistant .as-msg.ai { align-self: flex-start; background: var(--fos-paper); }
+.arcadia .app-assistant .as-msg.note { align-self: center; border-style: dashed; font-size: 12px; }
+.arcadia .app-assistant .as-msg.err { align-self: stretch; max-width: none; background: #ffe9f2; border-color: #b0245f; }
+.arcadia .app-assistant .as-ops { font-size: 12px; }
+.arcadia .app-assistant .as-ops ul { margin: 4px 0 0; padding-left: 1.2em; }
+.arcadia .app-assistant .as-mark { display: inline-block; min-width: 2.6em; padding: 0 4px; text-align: center; font-weight: 700; border: 1px solid currentColor; border-radius: 4px; }
+.arcadia .app-assistant .as-mark.ok { color: #1d6b5f; }
+.arcadia .app-assistant .as-mark.ng { color: #b0245f; }
+.arcadia .app-assistant .as-empty { color: var(--fos-ink-muted); line-height: 1.7; }
+.arcadia .app-assistant .as-empty p { margin: 0 0 6px; }
+.arcadia .app-assistant .as-ask { display: flex; gap: 8px; align-items: stretch; }
+.arcadia .app-assistant .as-ask textarea { flex: 1; min-width: 0; resize: none; }
+.arcadia .app-assistant .as-foot { display: flex; gap: 8px; align-items: center; justify-content: space-between; font-size: 12px; color: var(--fos-ink-muted); }
+.arcadia .app-assistant .as-hello p { font-size: 12px; }
 .arcadia .app-assistant .as-mcp-state { margin: 4px 0 0; font-size: 12px; font-weight: 700; }

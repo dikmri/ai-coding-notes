@@ -160,6 +160,8 @@ export async function openBrowser({ width = 1280, height = 800, dark = false, pr
     // sandbox の iframe は Chrome が別の処理に分けるので、Target.attachToTarget でつないでから raw で調べる
     send: s,
     raw: (method, params, sessionId) => send(method, params, sessionId),
+    // このページの DevTools Protocol の知らせ（Fetch.requestPaused など）を受ける。fn は { method, params } を受け取る
+    on: (fn) => listeners.push((m) => { if (m.sessionId === sessionId) fn(m); }),
     url: () => evaluate('location.href'),
     move: (x, y) => mouse('mouseMoved', x, y),
     async down(x, y, button = 'left') { buttons |= BTN[button]; await mouse('mousePressed', x, y, { button, clickCount: 1 }); },
