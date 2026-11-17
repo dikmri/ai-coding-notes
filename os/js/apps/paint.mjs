@@ -78,7 +78,7 @@ export async function launch(os, args = {}, rect = {}) {
   });
   const q = (s) => win.body.querySelector(s);
   const cv = q('[data-canvas]'), pv = q('[data-preview]'), stage = q('[data-stage]'), ctx = cv.getContext('2d'), pctx = pv.getContext('2d');
-  const say = (t) => { q('[data-status]').textContent = t; };
+  const say = (t) => { q('.status-field[data-status]').textContent = t; };
   const setTitle = () => win.setTitle(`${dirty ? '*' : ''}${path ? basename(path) : '無題'} - お絵かき`);
 
   /* ---------- 表示 ---------- */

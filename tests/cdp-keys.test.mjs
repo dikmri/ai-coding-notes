@@ -50,7 +50,10 @@ test('キーの組み合わせ: 「+」そのものと、修飾キーを別に�
   assert.deepEqual(parseCombo('Shift++'), { modifiers: 8, mods: ['Shift'], main: '+' });
   assert.deepEqual(parseCombo(withModifiers('a', ['Control'])), { modifiers: 2, mods: ['Control'], main: 'a' });
   assert.equal(parseCombo(withModifiers('+', ['Shift'])).main, '+');
-  assert.deepEqual(withModifiers('Enter'), ['Enter']);
+  assert.equal(withModifiers('Enter'), 'Enter');
+  // 修飾キーの欄がないときの「Control+z」は、区切って読む（配列に包むと1つの知らないキーになっていた）
+  assert.deepEqual(parseCombo(withModifiers('Control+z')), { modifiers: 2, mods: ['Control'], main: 'z' });
+  assert.deepEqual(parseCombo(withModifiers('Shift+a', ['Control'])), { modifiers: 10, mods: ['Control', 'Shift'], main: 'a' });
   // 打たれる文字: Ctrl などが付けば打たない。Shift と英字は大文字
   assert.equal(typedText('a', ['Control']), null);
   assert.equal(typedText('u', ['Shift']), 'U');

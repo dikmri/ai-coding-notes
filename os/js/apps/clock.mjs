@@ -53,7 +53,7 @@ export async function launch(os, args = {}, rect = {}) {
   const q = (s) => win.body.querySelector(s);
   const tabs = [...win.body.querySelectorAll('.tab')];
   win.selectTab = (i) => { if (tabs[i]) w95.selectTab(tabs[i]); };
-  const say = (t) => { q('[data-status]').textContent = t; };
+  const say = (t) => { q('.status-field[data-status]').textContent = t; };
   const face = q('.clock-face'), ctx = face.getContext('2d');
   const reduce = matchMedia('(prefers-reduced-motion: reduce)');
 

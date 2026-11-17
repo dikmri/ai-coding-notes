@@ -62,7 +62,12 @@ export function parseCombo(keys) {
   return { modifiers: mods.reduce((s, m) => s | MOD_BIT[m], 0), mods, main };
 }
 // Gemini の press_key は、修飾キーを別の欄（modifiers: ['Control']）で送ってくる。parseCombo に渡せる並びにする
-export const withModifiers = (key, modifiers = []) => [...(Array.isArray(modifiers) ? modifiers : [modifiers]).filter(Boolean), key];
+export function withModifiers(key, modifiers = []) {
+  const mods = (Array.isArray(modifiers) ? modifiers : [modifiers]).filter(Boolean);
+  if (!mods.length) return key; // 「Control+z」のような文字列は、そのまま parseCombo に区切らせる
+  const k = String(key);
+  return [...mods, ...(k.length > 1 && k.includes('+') ? k.split('+') : [k])];
+}
 // キーを押したときに打たれる文字。Shift 以外の修飾キーが付けば打たない。Shift と英字は大文字にする
 export function typedText(main, mods = []) {
   if (mods.some((m) => m !== 'Shift')) return null;
@@ -94,7 +99,7 @@ export async function openBrowser({ width = 1280, height = 800, dark = false, pr
   for (let i = 0; i < 50; i++) { try { rmSync(portFile, { force: true }); break; } catch { await sleep(200); } }
   const proc = spawn(exe, [
     '--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`, `--window-size=${width},${height}`,
-    '--hide-scrollbars', '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--autoplay-policy=no-user-gesture-required',
+    '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--autoplay-policy=no-user-gesture-required',
     `--blink-settings=preferredColorScheme=${dark ? 0 : 1}`, ...(dark ? ['--force-dark-mode'] : []), 'about:blank',
   ], { stdio: 'ignore', windowsHide: true });
   // 終わるまで最大 3 秒待ち、残っていれば子プロセスごと止める（Chrome は複数のプロセスで動くため）

@@ -129,7 +129,9 @@
   padding: 4px; background: var(--fos-paper); color: var(--fos-ink);
   border: 2px solid var(--fos-ink); border-radius: 8px; box-shadow: 4px 4px 0 var(--fos-shadow);
 }
-.arcadia .menu-item { min-height: 26px; padding: 0 12px; border-radius: 5px; align-items: center; color: var(--fos-ink); }
+.arcadia .menu-item { min-height: 26px; padding: 0 12px 0 4px; border-radius: 5px; align-items: center; color: var(--fos-ink); }
+/* 1列目はチェックと丸の印の列。項目の左の余白でこの列が狭くなり、印が文字に重なっていた（Gemini の操作の確認で見つけた） */
+.arcadia .menu { grid-template-columns: 26px auto auto 18px; }
 .arcadia .menu-item:hover, .arcadia .menu-item.active, .arcadia .menu-item.open { background: linear-gradient(90deg, var(--fos-aqua), var(--fos-lavender)); color: var(--fos-ink); }
 .arcadia .menu-item.disabled, .arcadia .menu-item[aria-disabled="true"] { color: #a799ba; background: none; }
 .arcadia .menu-separator, .arcadia .menu-sep {
