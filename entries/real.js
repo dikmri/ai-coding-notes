@@ -624,7 +624,7 @@ void main() {
   }
   // 地平線の木立のシルエット
   float hz = -.36 + noise3(vec3(p.x * 9., 1., 2.)) * .04 + noise3(vec3(p.x * 40., 3., 2.)) * .012;
-  col = mix(col, vec3(.02, .015, .02), smoothstep(.003, -.003, p.y - hz));
+  col = mix(col, vec3(.02, .015, .02), smoothstep(1.5 / R.y, -1.5 / R.y, p.y - hz));   // 境目を画素1つ半ぶんぼかす（引き伸ばしたときのギザギザを抑える）
   O = vec4(film(col * .9), 1.);
 }`;
     const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
@@ -848,7 +848,7 @@ float trees(vec2 p, float seed, float dens, float px) {
     if (h < .15) continue;
     float cx = (id + .2 + .6 * hash(vec2(id, seed + 1.))) / dens;
     float top = .35 + .55 * hash(vec2(id, seed + 2.)), y = p.y + .5, tip = top - y, dx = abs(p.x - cx);
-    float trunk = smoothstep(px, 0., dx - .004 - .006 * h) * step(y, top);
+    float trunk = smoothstep(px, 0., dx - (.004 + .006 * h) * clamp(tip * 8., 0., 1.)) * step(y, top);   // 幹は梢に向かって細くなる
     float tier = fract(tip * (9. + 4. * h) + h * 7.);                     // 枝の段（段ごとに下が広く垂れる）
     float side = p.x > cx ? 3.1 : 0.;
     float w = tip * (.16 + .06 * h) * (.65 + .45 * smoothstep(0., .85, tier)) * (.8 + .4 * noise(vec2(y * 30., id + side)));
