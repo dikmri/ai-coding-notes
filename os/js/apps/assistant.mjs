@@ -47,6 +47,7 @@ export async function launch(os, args = {}, rect = {}) {
         <section class="as-sec"><h3>使い方ガイド</h3><ul class="as-guides">${guides.map((g) => `<li><button type="button" class="flat as-btn" data-run="${esc(g.id)}">見る</button><div><b>${esc(g.title)}</b><span>${esc(g.summary || '')}</span></div></li>`).join('')}</ul></section>
         <section class="as-sec as-mcp"><h3>AI の道具とつなぐ（MCP）</h3>
           <label><input type="checkbox" data-mcp> MCP からの操作を受け付ける(<u>M</u>)</label>
+          <p class="as-mcp-state" data-mcp-state role="status"></p>
           <p class="as-note" data-mcp-note></p>
           <details class="as-how"><summary>つなぎ方</summary>
             <ol>
@@ -67,7 +68,7 @@ export async function launch(os, args = {}, rect = {}) {
   });
   const q = (s) => win.body.querySelector(s);
   const say = (t) => { const f = q('.status-field[data-status]'); f.textContent = t; f.title = t; };
-  const showConn = (s = mcp.status()) => { const f = q('[data-conn]'); f.textContent = mcp.label(s); f.title = f.textContent; };
+  const showConn = (s = mcp.status()) => { const t = mcp.label(s), f = q('[data-conn]'); f.textContent = t.short; f.title = t.long; q('[data-mcp-state]').textContent = t.long; };
   q(`input[value="${pref.speed}"]`).checked = true;
   q('[data-visible]').checked = pref.visible;
   const mcpBox = q('[data-mcp]');

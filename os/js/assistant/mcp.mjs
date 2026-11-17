@@ -73,14 +73,15 @@ async function connect() {
   });
 }
 
-// 状態を、窓の下の欄に出す短い文にする
+// 状態を文にする。short は窓の下の欄（幅が狭い）に出す短い文、long は MCP の欄に出す詳しい文
 export function label(s = status()) {
+  const who = s.clients.length ? s.clients.join('、') : 'AI の道具';
   return {
-    off: 'MCP: 受け付けていません',
-    unavailable: 'MCP: 使えません',
-    connecting: 'MCP: つないでいます…',
-    waiting: 'MCP: AI の道具を待っています',
-    linked: `MCP: つながっています${s.clients.length ? `（${s.clients.join('、')}）` : ''}`,
-    retry: 'MCP: つなぎ直しています…',
-  }[s.state] || 'MCP: ' + s.state;
+    off: { short: 'MCP: 受け付けていません', long: 'MCP からの操作は受け付けていません。' },
+    unavailable: { short: 'MCP: 使えません', long: 'この開き方では、MCP は使えません。' },
+    connecting: { short: 'MCP: つないでいます…', long: '配信の中継点とつないでいます。' },
+    waiting: { short: 'MCP: 待っています', long: 'AI の道具がつながるのを待っています。' },
+    linked: { short: 'MCP: つながっています', long: `${who}とつながっています。` },
+    retry: { short: 'MCP: つなぎ直しています…', long: '配信とのつながりが切れたので、つなぎ直しています。' },
+  }[s.state] || { short: 'MCP: ' + s.state, long: s.state };
 }
