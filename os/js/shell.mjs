@@ -31,6 +31,7 @@ export const APPS = {
   recorder: { name: '音声レコーダー', icon: 'icons/recorder.svg' },
   capture: { name: '画面キャプチャ', icon: 'icons/capture.svg' },
   puzzle: { name: 'プリズム回廊', icon: 'icons/puzzle.svg' },
+  browser: { name: 'ウェブブラウザ', icon: 'icons/browser.svg' },
 };
 
 /* ---------- 設定 ---------- */
@@ -187,6 +188,7 @@ const SYS = [
   { key: 'app:clock', name: '時計', icon: APPS.clock.icon, open: () => launch('clock') },
   { key: 'app:paint', name: 'お絵かき', icon: APPS.paint.icon, open: () => launch('paint') },
   { key: 'app:player', name: '音楽', icon: APPS.player.icon, open: () => launch('player') },
+  { key: 'app:browser', name: 'ネット', icon: APPS.browser.icon, open: () => launch('browser') },
 ];
 let deskItems = [], pos = {};
 try { pos = JSON.parse(localStorage.getItem('fos-icons') || '{}'); } catch { pos = {}; }

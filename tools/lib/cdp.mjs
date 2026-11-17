@@ -156,6 +156,10 @@ export async function openBrowser({ width = 1280, height = 800, dark = false, pr
     },
     async screenshot() { return (await s('Page.captureScreenshot', { format: 'png' })).data; },
     evaluate,
+    // 生の DevTools Protocol の命令を送る。send はこのページへ、raw は session を選んで（省くとブラウザ全体へ）送る。
+    // sandbox の iframe は Chrome が別の処理に分けるので、Target.attachToTarget でつないでから raw で調べる
+    send: s,
+    raw: (method, params, sessionId) => send(method, params, sessionId),
     url: () => evaluate('location.href'),
     move: (x, y) => mouse('mouseMoved', x, y),
     async down(x, y, button = 'left') { buttons |= BTN[button]; await mouse('mousePressed', x, y, { button, clickCount: 1 }); },
