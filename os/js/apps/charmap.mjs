@@ -39,7 +39,7 @@ export async function launch(os, args = {}, rect = {}) {
         </div>
         <div class="tab-page cm-page" hidden>
           <div class="cm-colors">
-            <div class="cm-swatches" role="listbox" aria-label="ARCADIA-91 の16色" data-swatches>${K.ARCADIA.map((c) => `<div class="sw" role="option" tabindex="-1" data-hex="${c.hex}" aria-label="${c.name}（${c.role}）" title="${c.name}（${c.role}）" style="--c:${c.hex}"></div>`).join('')}</div>
+            <div class="cm-swatches" role="listbox" aria-label="ARCADIA-91 の16色" data-swatches>${K.ARCADIA.map((c) => `<div class="cm-sw" role="option" tabindex="-1" data-hex="${c.hex}" aria-label="${c.name}（${c.role}）" title="${c.name}（${c.role}）" style="--c:${c.hex}"></div>`).join('')}</div>
             <div class="cm-free"><label for="cmColor">自由な色(<u>P</u>):</label><input type="color" id="cmColor"><input type="text" id="cmHex" maxlength="7" spellcheck="false" aria-label="HEX の値"></div>
             <div class="cm-cinfo">
               <div class="cm-cname" data-cname></div>
@@ -131,11 +131,11 @@ export async function launch(os, args = {}, rect = {}) {
     q('[data-near]').innerHTML = official ? '' : `いちばん近い ARCADIA-91 の色: <button type="button" class="flat near-btn" data-near-hex="${near.hex}"><i style="background:${near.hex}"></i>${esc(near.name)}（${near.hex}）</button>`;
     if (from !== 'picker') q('#cmColor').value = color;
     if (from !== 'hex') q('#cmHex').value = color;
-    sws.querySelectorAll('.sw').forEach((s) => s.setAttribute('aria-selected', String(s.dataset.hex === color)));
+    sws.querySelectorAll('.cm-sw').forEach((s) => s.setAttribute('aria-selected', String(s.dataset.hex === color)));
   }
-  function pickSwatch(el) { rove(sws, '.sw', el); showColor(el.dataset.hex); sound.play('key', Math.round(K.rgbToHsl(K.parseHex(el.dataset.hex)).l / 11)); }
-  sws.addEventListener('click', (e) => { const el = e.target.closest('.sw'); if (el) { el.focus(); pickSwatch(el); } });
-  spatialKeys(sws, '.sw', pickSwatch);
+  function pickSwatch(el) { rove(sws, '.cm-sw', el); showColor(el.dataset.hex); sound.play('key', Math.round(K.rgbToHsl(K.parseHex(el.dataset.hex)).l / 11)); }
+  sws.addEventListener('click', (e) => { const el = e.target.closest('.cm-sw'); if (el) { el.focus(); pickSwatch(el); } });
+  spatialKeys(sws, '.cm-sw', pickSwatch);
   q('#cmColor').addEventListener('input', (e) => showColor(e.target.value, 'picker'));
   q('#cmHex').addEventListener('input', (e) => { if (K.parseHex(e.target.value)) showColor(e.target.value, 'hex'); });
   win.body.addEventListener('click', (e) => {
@@ -145,7 +145,7 @@ export async function launch(os, args = {}, rect = {}) {
 
   catSel.value = cat;
   showGrid();
-  const firstSw = sws.querySelector('.sw'); rove(sws, '.sw', sws.querySelector(`[data-hex="${color}"]`) || firstSw);
+  const firstSw = sws.querySelector('.cm-sw'); rove(sws, '.cm-sw', sws.querySelector(`[data-hex="${color}"]`) || firstSw);
   showColor(color);
   log('charmap.open', { recent: recent.length }, 'ok');
   return win;

@@ -50,7 +50,9 @@ export function keyInfo(name) {
 }
 // 'Control+A' や ['ctrl','shift','s'] を、修飾キー（印の合計）と本体のキーに分ける
 export function parseCombo(keys) {
-  const parts = (Array.isArray(keys) ? keys : String(keys).split('+')).map((s) => String(s).trim()).filter(Boolean);
+  // 文字列は + で区切る。ただし「+」そのものと、末尾の「++」（Shift++ など）は + のキーとして読む
+  const str = String(keys);
+  const parts = (Array.isArray(keys) ? keys : str === '+' ? ['+'] : str.endsWith('++') ? [...str.slice(0, -2).split('+'), '+'] : str.split('+')).map((s) => String(s).trim()).filter(Boolean);
   const mods = [], rest = [];
   for (const p of parts) {
     const a = p.length > 1 ? ALIAS[p.toLowerCase()] ?? p : p;
@@ -58,6 +60,15 @@ export function parseCombo(keys) {
   }
   const main = rest.length ? (rest[rest.length - 1].length === 1 ? rest[rest.length - 1].toLowerCase() : rest[rest.length - 1]) : null;
   return { modifiers: mods.reduce((s, m) => s | MOD_BIT[m], 0), mods, main };
+}
+// Gemini の press_key は、修飾キーを別の欄（modifiers: ['Control']）で送ってくる。parseCombo に渡せる並びにする
+export const withModifiers = (key, modifiers = []) => [...(Array.isArray(modifiers) ? modifiers : [modifiers]).filter(Boolean), key];
+// キーを押したときに打たれる文字。Shift 以外の修飾キーが付けば打たない。Shift と英字は大文字にする
+export function typedText(main, mods = []) {
+  if (mods.some((m) => m !== 'Shift')) return null;
+  const t = keyInfo(main).text;
+  if (!t || t === '\r') return t ?? null;
+  return mods.includes('Shift') && /^[a-z]$/.test(t) ? t.toUpperCase() : t;
 }
 // Gemini の座標（0〜999）を画素にする
 export const toPixel = (v, size) => Math.min(size - 1, Math.max(0, Math.round((Number(v) / 1000) * size)));
@@ -158,11 +169,12 @@ export async function openBrowser({ width = 1280, height = 800, dark = false, pr
     async key(combo, type = 'press') {
       const { modifiers, mods, main } = parseCombo(combo);
       const keyEvent = (t, info, mod) => s('Input.dispatchKeyEvent', { type: t, modifiers: mod, key: info.key, code: info.code, windowsVirtualKeyCode: info.keyCode, nativeVirtualKeyCode: info.keyCode, ...(t === 'keyDown' && info.text ? { text: info.text, unmodifiedText: info.text } : {}) });
-      const typing = (modifiers & ~MOD_BIT.Shift) === 0;
+      const text = main ? typedText(main, mods) : null;
       if (type !== 'up') { let m = 0; for (const md of mods) { m |= MOD_BIT[md]; await keyEvent('rawKeyDown', keyInfo(md), m); } }
       if (main) {
         const info = keyInfo(main);
-        if (type !== 'up') await keyEvent(typing && info.text ? 'keyDown' : 'rawKeyDown', info, modifiers);
+        if (text && text !== info.text) { info.text = text; info.key = text; }
+        if (type !== 'up') await keyEvent(text ? 'keyDown' : 'rawKeyDown', info, modifiers);
         if (type !== 'down') await keyEvent('keyUp', info, modifiers);
       }
       if (type !== 'down') { let m = modifiers; for (const md of [...mods].reverse()) { m &= ~MOD_BIT[md]; await keyEvent('keyUp', keyInfo(md), m); } }

@@ -599,9 +599,9 @@
 .arcadia .app-charmap .cm-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .arcadia .app-charmap .cm-colors { flex: 1; min-height: 0; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto 1fr; gap: 10px; overflow: auto; }
 .arcadia .app-charmap .cm-swatches { display: grid; grid-template-columns: repeat(4, 40px); gap: 6px; align-content: start; }
-.arcadia .app-charmap .sw { width: 40px; height: 40px; background: var(--c); border: 2px solid var(--fos-ink); border-radius: 8px; box-shadow: 2px 2px 0 var(--fos-ink); }
-.arcadia .app-charmap .sw[aria-selected="true"] { outline: 3px solid var(--fos-cobalt); outline-offset: 2px; }
-.arcadia .app-charmap .sw:focus-visible { outline: 3px solid var(--fos-cobalt); outline-offset: 2px; }
+.arcadia .app-charmap .cm-sw { width: 40px; height: 40px; background: var(--c); border: 2px solid var(--fos-ink); border-radius: 8px; box-shadow: 2px 2px 0 var(--fos-ink); }
+.arcadia .app-charmap .cm-sw[aria-selected="true"] { outline: 3px solid var(--fos-cobalt); outline-offset: 2px; }
+.arcadia .app-charmap .cm-sw:focus-visible { outline: 3px solid var(--fos-cobalt); outline-offset: 2px; }
 .arcadia .app-charmap .cm-free { grid-column: 1; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .arcadia .app-charmap #cmColor { width: 44px; height: 30px; padding: 0; border: 2px solid var(--fos-ink); border-radius: 6px; background: none; }
 .arcadia .app-charmap #cmHex { width: 90px; font-family: var(--fos-mono); }
