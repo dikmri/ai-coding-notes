@@ -16,6 +16,7 @@ dekiru.add({
     const tr = mk(1, 1), tx = tr.getContext('2d');   // 火花の光跡（少しずつ消す）
     const sk = mk(1, 1), kx = sk.getContext('2d');   // 街のシルエット（一度だけ描く）
     const b1 = mk(1, 1), b2 = mk(1, 1);              // にじみ（縮めて引き伸ばすとぼける）
+    const rf = mk(1, 1), rx = rf.getContext('2d');   // 映り込みの元（水平線より上を一度だけ写す）
     const gr = mk(128, 128);                         // フィルムの粒子
     { const g = gr.getContext('2d'), d = g.createImageData(128, 128); for (let i = 0; i < d.data.length; i += 4) { d.data[i] = d.data[i + 1] = d.data[i + 2] = Math.random() * 255; d.data[i + 3] = 255; } g.putImageData(d, 0, 0); }
     const grain = x.createPattern(gr, 'repeat');
@@ -24,7 +25,7 @@ dekiru.add({
     function fit() {
       const q = window.THUMB ? 0.5 : Math.min(1, 1600 / innerWidth);
       W = Math.max(1, Math.round(innerWidth * q)); H = Math.max(1, Math.round(innerHeight * q));
-      for (const k of [c, tr, sk]) { k.width = W; k.height = H; }
+      for (const k of [c, tr, sk, rf]) { k.width = W; k.height = H; }
       b1.width = Math.ceil(W / 6); b1.height = Math.ceil(H / 6); b2.width = Math.ceil(W / 20); b2.height = Math.ceil(H / 20);
       hz = Math.round(H * 0.68); S = H / 700;
       // 向こう岸の街。奥の列はかすみで少し明るく、手前の列は暗い。窓の灯りは小さな点にする
@@ -61,19 +62,19 @@ dekiru.add({
     // 花火の色（炎色反応の色）。燃え始めは白く、燃え尽きる前は橙になる
     const PAL = [[255, 60, 45], [80, 255, 120], [90, 140, 255], [255, 200, 100], [255, 245, 235], [205, 105, 255]];
     const shells = [], sparks = [], smoke = [], flash = [0, 0, 0];
-    const G = 0.045, WIND = 0.12;
+    const G = 0.07, WIND = 0.12;
     function launch(px, py) {
       const ty = py ?? H * (0.16 + Math.random() * 0.2), sx = px ?? W * (0.15 + Math.random() * 0.7);
       const vy = -Math.sqrt(2 * G * S * (hz - ty)), frames = -vy / (G * S);
       for (let i = 0; i < 2; i++) smoke.push({ x: sx, y: hz - Math.random() * 30 * S, r: (20 + Math.random() * 20) * S, a: 0.5, lit: [0.5, 0.35, 0.2] });
       const r = Math.random();
-      shells.push({ x: sx + (Math.random() - 0.5) * 40 * S, y: hz, vx: (Math.random() - 0.5) * 0.3 * S, vy, frames, type: r < 0.28 ? 'willow' : r < 0.36 ? 'ring' : r < 0.68 ? 'chrys' : 'peony', col: PAL[Math.random() * PAL.length | 0] });
+      shells.push({ x: sx + (Math.random() - 0.5) * 40 * S, y: hz, vx: (Math.random() - 0.5) * 0.3 * S, vy, frames, type: r < 0.28 ? 'willow' : r < 0.33 ? 'ring' : r < 0.66 ? 'chrys' : 'peony', col: PAL[Math.random() * PAL.length | 0] });
     }
     function ember(x0, y0, col, life, v = 0.3) {
       sparks.push({ x: x0, y: y0, px: x0, py: y0, vx: (Math.random() - 0.5) * v * S, vy: (Math.random() - 0.5) * v * S, life, dec: 0.03 + Math.random() * 0.03, drag: 0.92, col, small: true });
     }
     function burst(s) {
-      const willow = s.type === 'willow', n = willow ? 170 : 230, sp = (willow ? 3.4 : 4.6) * S * (0.75 + Math.random() * 0.5);
+      const willow = s.type === 'willow', n = willow ? 130 : 170, sp = (willow ? 3.4 : 4.6) * S * (0.75 + Math.random() * 0.5);
       const tilt = Math.random() * Math.PI, col = willow ? [255, 175, 70] : s.col;
       for (let i = 0; i < n; i++) {
         // 球の表面に均等に散らす。画面に映すと縁が濃くなる
@@ -84,7 +85,7 @@ dekiru.add({
         sparks.push({ x: s.x, y: s.y, px: s.x, py: s.y, vx: vx * v, vy: vy * v, life: 1, dec: willow ? 0.0045 : 0.008 + Math.random() * 0.004, drag: willow ? 0.972 : 0.965, col, tail: willow || s.type === 'chrys' });
       }
       const L = col.map((v) => v / 255);
-      for (let k = 0; k < 3; k++) flash[k] += L[k] * 0.8;
+      for (let k = 0; k < 3; k++) flash[k] += L[k] * 1.1;
       for (let i = 0; i < 9; i++) smoke.push({ x: s.x + (Math.random() - 0.5) * 120 * S, y: s.y + (Math.random() - 0.5) * 120 * S, r: (40 + Math.random() * 60) * S, a: 0.8, lit: [0, 0, 0] });
       // 近くの煙ほど強く照らす
       for (const m of smoke) { const d = Math.hypot(m.x - s.x, m.y - s.y) / (110 * S), k = 1.4 / (1 + d * d); for (let j = 0; j < 3; j++) m.lit[j] += L[j] * k; }
@@ -96,13 +97,14 @@ dekiru.add({
       return c0;
     }
     addEventListener('pointerdown', (e) => { const r = c.getBoundingClientRect(), py = (e.clientY - r.top) / r.height * H; launch((e.clientX - r.left) / r.width * W, Math.min(py, hz - 60 * S)); });
-    let next = 0;
+    let next = performance.now() + 900;
+    for (let i = 0; i < 3; i++) setTimeout(launch, 80 + i * 260);   // 開いた直後から花火が見えるように
     const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
     let last = performance.now();
     (function loop(now) {
       const dt = Math.min(3, (now - last) / 16.7); last = now;
       const t = now / 1000;
-      if (now > next) { const salvo = Math.random() < 0.12 ? 5 : 1; for (let i = 0; i < salvo; i++) setTimeout(launch, i * 220); next = now + 700 + Math.random() * 1600 + (salvo > 1 ? 3000 : 0); }
+      if (now > next) { const salvo = Math.random() < 0.2 ? 4 + (Math.random() * 3 | 0) : 1 + (Math.random() < 0.4); for (let i = 0; i < salvo; i++) setTimeout(launch, i * 200); next = now + 450 + Math.random() * 900 + (salvo > 2 ? 1800 : 0); }
       // 空。花火が開いた瞬間は、空がその色に染まる
       const f = flash.map((v) => Math.min(1.2, v));
       const sky = x.createLinearGradient(0, 0, 0, hz);
@@ -140,12 +142,12 @@ dekiru.add({
         p.vx = p.vx * dr + WIND * 0.02 * S * dt; p.vy = p.vy * dr + G * S * 0.55 * dt;
         p.x += p.vx * dt; p.y += p.vy * dt; p.life -= p.dec * dt;
         if (p.life <= 0) { sparks.splice(i, 1); continue; }
-        if (p.tail && Math.random() < 0.25 * dt) ember(p.x, p.y, [255, 150, 60], 0.55, 0.15);
+        if (p.tail && Math.random() < 0.12 * dt) ember(p.x, p.y, [255, 150, 60], 0.55, 0.15);
         const [r, g, b] = colorOf(p);
         let a = Math.min(1, p.life * 1.8);
         if (p.life < 0.35 && Math.random() < 0.45) a *= 0.15;   // 燃え尽きる前のちらつき
         tx.strokeStyle = `rgba(${r | 0},${g | 0},${b | 0},${a})`;
-        tx.lineWidth = (p.small ? 0.7 : 1 + p.life * 1.6) * S;
+        tx.lineWidth = (p.small ? 0.8 : 1.3 + p.life * 2) * S;
         tx.beginPath(); tx.moveTo(p.px, p.py); tx.lineTo(p.x + 0.01, p.y); tx.stroke();
       }
       x.globalCompositeOperation = 'lighter'; x.drawImage(tr, 0, 0);
@@ -156,13 +158,14 @@ dekiru.add({
       x.fillStyle = lit; x.fillRect(0, hz - 140 * S, W, 140 * S);
       for (const [lx, ly, ph] of towers) if ((t + ph) % 1.6 < 0.8) { x.fillStyle = '#ff3a2a'; x.fillRect(lx - S, ly - S, 2.2 * S, 2.2 * S); }
       // 川面の映り込み。水平線より上の1行ずつを、波で横にずらして下へ写す
+      rx.clearRect(0, 0, W, hz); rx.drawImage(c, 0, 0, W, hz, 0, 0, W, hz);   // 自分自身から何度も写すと遅いので、先に1回だけ写しておく
       x.globalAlpha = 0.6;
       for (let y = hz; y < H; y += 2) {
         // 遠くの水面ほど波が細かく、近いほど大きく揺れる。縦にもずらすと、映り込みが縦の筋に崩れる
         const d = y - hz, sy = hz - 2 - d * 1.2 + Math.sin(d * 0.9 + t * 3.1) * Math.min(14, d * 0.12) * S;
         if (sy < 0) break;
         const off = (Math.sin(d * 0.23 + t * 1.8) * (0.6 + d * 0.04) + Math.sin(d * 0.061 - t * 1.2) * 1.4) * S;
-        x.drawImage(c, 0, sy, W, 2, off, y, W, 2);
+        x.drawImage(rf, 0, sy, W, 2, off, y, W, 2);
       }
       x.globalAlpha = 1;
       const water = x.createLinearGradient(0, hz, 0, H);
