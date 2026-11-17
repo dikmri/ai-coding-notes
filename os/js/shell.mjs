@@ -117,7 +117,7 @@ export function fileDialog({ mode = 'open', title, dir = '/ドキュメント', 
         <div class="button-row"><button type="button" class="default" data-ok>${mode === 'save' ? '保存(<u>S</u>)' : '開く(<u>O</u>)'}</button><button type="button" data-close="">キャンセル</button></div>
       </div>`;
     dlg.querySelector('.title-bar-text').textContent = title || (mode === 'save' ? '名前を付けて保存' : '開く');
-    dlg.querySelector('.fd-type').textContent = `${typeLabel}${exts.length ? '（' + exts.map((e) => '*' + e).join(';') + '）' : ''}`;
+    dlg.querySelector('.fd-type').textContent = `${typeLabel}${exts.length ? '（' + exts.map((e) => '*' + e).join(';' + String.fromCharCode(0x200b)) + '）' : ''}`;
     document.body.append(dlg);
     const ul = dlg.querySelector('.fd-list'), nameIn = dlg.querySelector('#fdName'), dirSel = dlg.querySelector('#fdDir');
     nameIn.value = name;
