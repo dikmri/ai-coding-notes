@@ -17,7 +17,7 @@ export async function launch(os, args = {}, rect = {}) {
   if (one) { one.focus(); return one; }
   let lv = Math.max(0, Math.min(P.LEVELS.length - 1, (args.lv | 0) || 0)), b, state, moves = 0, done = false, hintOn = 0, hintAt = -1, cur = 0, best = loadBest(), lastMsg = '', lastLit = 0;
   const win = wm.open({
-    app: 'puzzle', icon: 'icons/puzzle.svg', className: 'app-puzzle', title: 'プリズム回廊', w: 780, h: 600, ...rect, args: { lv },
+    app: 'puzzle', icon: 'icons/puzzle.svg', className: 'app-puzzle', title: 'プリズム回廊', w: 820, h: 600, ...rect, args: { lv },
     render(w) {
       w.body.innerHTML = `<div class="pz-main">
         <nav class="pz-side" aria-label="面の一覧"><ol class="pz-levels" data-levels></ol></nav>
@@ -105,7 +105,8 @@ export async function launch(os, args = {}, rect = {}) {
         parts += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#241734" stroke-width="9" stroke-linecap="round"/><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#eef6ff" stroke-width="4" stroke-linecap="round"/>`;
       } else if (pi !== undefined) {
         // プリズム: 平らな面（白い線）が正面。正面から入った白い光だけを分ける
-        parts += `<g transform="rotate(${state[pi] * 90} ${cx} ${cy})"><path d="M${x + 9} ${y + 12}h${S - 18}l${-(S - 18) / 2} ${S - 20}z" fill="#cfaeff" stroke="#241734" stroke-width="2.5" stroke-linejoin="round"/><path d="M${x + 15} ${y + 16}l9 14" stroke="#fff" stroke-width="2" stroke-linecap="round"/><line x1="${x + 11}" y1="${y + 12}" x2="${x + S - 11}" y2="${y + 12}" stroke="#ffffff" stroke-width="3.5"/></g>`;
+        // 上向きの形を描いてから回す。上の辺に白い窓（光を受ける正面）、下に向かって細くなる三角
+        parts += `<g transform="rotate(${state[pi] * 90} ${cx} ${cy})"><path d="M${x + 9} ${y + 11}h${S - 18}l${-(S - 18) / 2} ${S - 19}z" fill="#cfaeff" stroke="#241734" stroke-width="2.5" stroke-linejoin="round"/><path d="M${x + 17} ${y + 19}l7 11" stroke="#fff" stroke-width="2" stroke-linecap="round"/><rect x="${x + 8}" y="${y + 6}" width="${S - 16}" height="7" rx="2" fill="#ffffff" stroke="#241734" stroke-width="2"/></g>`;
       } else if (hit.has(i)) {
         const h = hit.get(i), f = HEX[h.color];
         parts += `${h.full ? `<circle cx="${cx}" cy="${cy}" r="21" fill="${f}" fill-opacity="0.45"/>` : ''}<path d="M${cx} ${cy - 16}l14 8v16l-14 8l-14-8v-16z" fill="${f}" fill-opacity="${h.full ? 1 : 0.55}" stroke="#241734" stroke-width="2.5" stroke-linejoin="round"${h.full ? '' : ' stroke-dasharray="4 3"'}/><path d="M${cx} ${cy - 16}v12l14-4M${cx} ${cy - 4}l-14-4M${cx} ${cy - 4}v20" fill="none" stroke="#241734" stroke-width="1.2" stroke-opacity="0.6"/>${h.full ? star(cx + 10, cy - 12, 6, '#ffffff') : ''}`;
