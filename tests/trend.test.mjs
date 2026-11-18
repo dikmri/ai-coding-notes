@@ -274,3 +274,106 @@ test('光の速さ: 観測が少ないうちや距離がほとんど変わらな
   assert.deepEqual(Array.from(X.solve([[0, 1], [2, 0]], [3, 4])), [2, 3]);
   assert.equal(X.speedKms(0), Infinity);
 });
+
+// シグナル（Solid 2.0 の反応の仕組み）
+const SOLID = 'tr-20261118-solid-signals';
+const tick = () => new Promise((r) => setImmediate(r));
+
+test('シグナル: 道が2本ある所でも1回だけ計算し、同じ値になった所から先へは伝えない', () => {
+  const { createGraph } = trendCore(SOLID, ['createGraph']);
+  const G = createGraph({ schedule() {} });
+  const a = G.signal('a', 1);
+  const dbl = G.memo('dbl', () => G.get(a) * 2);
+  const inc = G.memo('inc', () => G.get(a) + 1);
+  const sum = G.memo('sum', () => G.get(dbl) + G.get(inc));
+  const odd = G.memo('odd', () => G.get(a) % 2);
+  const label = G.memo('label', () => 'odd' + G.get(odd));
+  const seen = [];
+  const eff = G.effect('e', () => { seen.push(G.get(sum) + '/' + G.get(label)); });
+  G.flush();
+  assert.deepEqual(seen, ['4/odd1']);
+  G.set(a, 3); G.flush();
+  assert.deepEqual(seen, ['4/odd1', '10/odd1']);
+  assert.equal(sum.runs, 2);
+  assert.equal(odd.runs, 2);
+  assert.equal(label.runs, 1);
+  // 続けて2回書き込んでも、エフェクトは1回だけ走る
+  G.set(a, 4); G.set(a, 5); G.flush();
+  assert.equal(eff.runs, 3);
+  assert.equal(seen.at(-1), '16/odd1');
+  // 同じ値を書いても何も起きない
+  assert.equal(G.set(a, 5), false);
+  G.flush();
+  assert.equal(eff.runs, 3);
+  assert.throws(() => G.set(sum, 1));
+});
+
+test('シグナル: 読んだ値だけを覚え、今読んでいない値が変わっても計算しない', () => {
+  const { createGraph } = trendCore(SOLID, ['createGraph']);
+  const G = createGraph({ schedule() {} });
+  const on = G.signal('on', false), x = G.signal('x', 1);
+  const m = G.memo('m', () => (G.get(on) ? G.get(x) * 10 : 0));
+  const eff = G.effect('e', () => G.get(m));
+  G.flush();
+  assert.deepEqual(Array.from(m.sources, (s) => s.name), ['on']);
+  G.set(x, 2); G.flush();
+  assert.equal(m.runs, 1);
+  assert.equal(eff.runs, 1);
+  G.set(on, true); G.flush();
+  assert.equal(m.value, 20);
+  assert.deepEqual(Array.from(m.sources, (s) => s.name), ['on', 'x']);
+  G.set(x, 3); G.flush();
+  assert.equal(m.value, 30);
+  assert.equal(eff.runs, 3);
+});
+
+test('シグナル: Promise を返す計算は、いちばん新しい問い合わせの答えだけを使う', async () => {
+  const { createGraph, buildShop, SHIP } = trendCore(SOLID, ['createGraph', 'buildShop', 'SHIP']);
+  const asks = [];
+  const drops = [];
+  const G = createGraph({ schedule() {}, onEvent(e) { if (e.type === 'drop') drops.push(e.value); } });
+  const s = buildShop(G, (area) => new Promise((ok) => asks.push(() => ok(SHIP[area]))));
+  const seen = [];
+  G.effect('画面', () => { const t = G.get(s.total); seen.push(t + (G.isPending(s.ship) ? '…' : '')); });
+  G.flush();
+  assert.deepEqual(seen, ['null…']);
+  assert.equal(asks.length, 1);
+  // 答えが来る前に配送先を変えると、問い合わせ直す
+  G.set(s.area, 'hokkaido'); G.flush();
+  assert.equal(asks.length, 2);
+  asks[0](); await tick();
+  assert.deepEqual(drops, [SHIP.honshu]);
+  assert.equal(s.ship.value, undefined);
+  asks[1](); await tick(); G.flush();
+  assert.equal(s.ship.value, SHIP.hokkaido);
+  assert.equal(seen.at(-1), String(3600 + 360 + SHIP.hokkaido));
+  // 送料無料かどうかが変わらなければ、送料は問い合わせ直さない
+  G.set(s.qty, 2); G.flush();
+  assert.equal(asks.length, 2);
+  assert.equal(seen.at(-1), String(2400 + 240 + SHIP.hokkaido));
+  // 割引後が 5,000 円以上なら送料は 0 円。そのあと配送先を変えても、送料は計算し直さない
+  G.set(s.qty, 9); G.flush();
+  assert.equal(seen.at(-1), String(10800 + 1080));
+  const runs = s.ship.runs;
+  G.set(s.area, 'okinawa'); G.flush();
+  assert.equal(s.ship.runs, runs);
+  assert.equal(asks.length, 2);
+});
+
+test('シグナル: 待っている間に送料無料になったら、届いた古い答えは捨てる', async () => {
+  const { createGraph, buildShop, SHIP } = trendCore(SOLID, ['createGraph', 'buildShop', 'SHIP']);
+  const asks = [];
+  let drops = 0;
+  const G = createGraph({ schedule() {}, onEvent(e) { if (e.type === 'drop') drops++; } });
+  const s = buildShop(G, (area) => new Promise((ok) => asks.push(() => ok(SHIP[area]))));
+  let busy = null;
+  G.effect('画面', () => { G.get(s.total); busy = G.isPending(s.ship); });
+  G.flush();
+  assert.equal(busy, true);
+  G.set(s.qty, 9); G.flush();
+  assert.equal(busy, false);
+  assert.equal(s.total.value, 10800 + 1080);
+  asks[0](); await tick(); G.flush();
+  assert.equal(drops, 1);
+  assert.equal(s.ship.value, 0);
+});

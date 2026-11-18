@@ -1128,3 +1128,488 @@ dekiru.add({
     requestAnimationFrame(frame);
   },
 });
+
+dekiru.add({
+  id: 'tr-20261118-solid-signals', c: 'trend', lv: 3, date: '2026-11-18',
+  t: 'シグナルで、変わった所だけを計算し直す（Solid 2.0 の反応の仕組み）', y: 'しぐなるでかわったところだけをけいさんしなおす',
+  tags: ['Solid 2.0', 'シグナル', 'リアクティブ', '依存グラフ', 'Promise', 'SVG'],
+  d: '2026年11月16日、画面を作るための JavaScript のライブラリ Solid の 2.0 が公開され、Hacker News で話題になった。Solid は「シグナル」という値の入れ物を使い、値が変わったときに、その値を使っている計算と画面の部分だけを計算し直す。2.0 では、計算が Promise を返しても依存の図にそのまま組み込めるようになり、答えを待っている間かどうかを isPending で調べられるようになった。この見本では、シグナル（入力の値）・メモ（計算した値を覚えておく節）・エフェクト（画面を書き換える節）を一から作り、買い物の合計を計算する図にした。入力を変えると、計算し直した節が白い枠になり、計算した回数が増える。送料は、0.3〜1.8秒かかる「問い合わせ」を Promise で返す。答えが届く前に配送先を変えると、古い問い合わせの答えは捨てる。Solid そのもののコードは使っていない。2.0 のサーバー関数、Loading の境界、先に見せた値の巻き戻し、書き込んだ値がいつ読めるようになるかといった細かい決まりは再現していない。',
+  p: '値を書き込んだときは、すぐには計算しない。その値を読んでいる節に「計算し直す」、さらにその先の節に「確かめる」という印を付けるだけにする。エフェクトを走らせるときに、印の付いた節を元の方からたどり、必要な物だけを計算し直す。こうすると「割引後 → 税 → 合計」と「割引後 → 合計」のように道が2本ある所でも、合計は1回しか計算しない。計算し直した値が前と同じなら、その先へは伝えない（送料無料かどうかが変わらない限り、送料は問い合わせ直さない）。どの値を読んだかは計算のたびに記録し直すので、税を足さないときは割引後を読まず、図の線も薄い点線に変わる。Promise を返した計算には問い合わせごとに番号を付け、いちばん新しい番号の答えだけを受け取る。続けて書き込んだ値は、次のマイクロタスクでまとめて1回だけエフェクトを走らせる。',
+  refs: [
+    { title: 'Solid 2.0（Solid の公式ブログ）', url: 'https://www.solidjs.com/blog/solid-2-0-the-long-hold/' },
+    { title: 'Hacker News: Solid 2.0', url: 'https://news.ycombinator.com/item?id=50536387' },
+    { title: 'solidjs/solid（GitHub）', url: 'https://github.com/solidjs/solid' },
+  ],
+  html: `<div class="wrap">
+  <figure>
+    <svg id="g" role="img" aria-labelledby="gt"><title id="gt">買い物の合計を計算する依存の図。左（または上）の入力から、小計・割引後・税・送料無料・送料・合計を通って、画面へ値が伝わる。値を変えると、計算し直した所が白い枠になる。</title></svg>
+    <figcaption>
+      <span class="sw s">■</span> 入力（シグナル）　<span class="sw m">■</span> 計算（メモ）　<span class="sw a">■</span> Promise を返す計算　<span class="sw e">■</span> 画面を書き換える（エフェクト）<br>
+      白い枠: 今の変更で計算し直した　黄色の点線の枠: 計算したが値が同じなので先へ伝えなかった　動く点線の枠: 答えを待っている　薄い点線: 前は読んでいたが今は読んでいない値
+    </figcaption>
+  </figure>
+  <form class="side" id="f">
+    <p class="total">合計 <output id="total">—</output></p>
+    <p id="busy"></p>
+    <div class="row"><label for="price">単価（円）</label><input id="price" name="price" type="number" min="100" max="5000" step="100" value="1200"></div>
+    <div class="row"><label for="qty">個数</label><input id="qty" name="qty" type="range" min="1" max="9" value="3"><output id="qtyOut" for="qty">3</output></div>
+    <fieldset>
+      <legend>割引</legend>
+      <span><input type="radio" id="off0" name="off" value="0" checked><label for="off0">なし</label></span>
+      <span><input type="radio" id="off10" name="off" value="10"><label for="off10">10%</label></span>
+      <span><input type="radio" id="off30" name="off" value="30"><label for="off30">30%</label></span>
+    </fieldset>
+    <div class="row"><input type="checkbox" id="taxOn" name="taxOn" checked><label for="taxOn">消費税（10%）を足す</label></div>
+    <fieldset aria-describedby="areaHint">
+      <legend>配送先</legend>
+      <p class="hint" id="areaHint">送料は問い合わせて決まる（答えが届くまで0.3〜1.8秒）。割引後が5,000円以上なら無料。</p>
+      <span><input type="radio" id="aNear" name="area" value="near"><label for="aNear">近く</label></span>
+      <span><input type="radio" id="aHonshu" name="area" value="honshu" checked><label for="aHonshu">本州</label></span>
+      <span><input type="radio" id="aHokkaido" name="area" value="hokkaido"><label for="aHokkaido">北海道</label></span>
+      <span><input type="radio" id="aOkinawa" name="area" value="okinawa"><label for="aOkinawa">沖縄・離島</label></span>
+    </fieldset>
+    <div class="row"><button type="button" id="auto">自動で値を変える</button><button type="button" id="reset">回数を0に戻す</button></div>
+    <p id="count"></p>
+    <h2>計算の記録（新しい順）</h2>
+    <ul id="log"></ul>
+  </form>
+</div>`,
+  css: `:root { color-scheme: dark; --bg: #0e1118; --fg: #dfe5f2; --mut: #97a3bf; --line: #2a3348; --sig: #4ea1ff; --memo: #46d39a; --async: #b48cff; --eff: #ffad4d; --same: #ffe066; --drop: #ff9090; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 13px/1.5 system-ui, sans-serif; }
+    .wrap { display: grid; grid-template-columns: minmax(0, 1fr); }
+    figure { margin: 0; padding: 6px; min-width: 0; display: flex; flex-direction: column; gap: 4px; box-sizing: border-box; }
+    #g { display: block; width: 100%; height: auto; }
+    figcaption { color: var(--mut); font-size: 11px; }
+    .sw.s { color: var(--sig); } .sw.m { color: var(--memo); } .sw.a { color: var(--async); } .sw.e { color: var(--eff); }
+    .side { padding: 6px 10px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; box-sizing: border-box; }
+    .side p { margin: 0; }
+    .row { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+    fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 0; padding: 2px 8px 6px; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+    legend { color: var(--mut); padding: 0 4px; }
+    .hint { flex-basis: 100%; color: var(--mut); font-size: 11px; }
+    input, button, output { font: inherit; }
+    input[type="number"] { width: 6em; }
+    input[type="range"] { flex: 1; min-width: 100px; }
+    button { min-block-size: 28px; padding: 2px 10px; }
+    .total { font-size: 20px; font-variant-numeric: tabular-nums; }
+    #busy { color: var(--async); min-height: 1.5em; }
+    #count { color: var(--mut); font-size: 12px; font-variant-numeric: tabular-nums; }
+    h2 { font-size: 12px; margin: 0; color: var(--mut); font-weight: 600; }
+    #log { margin: 0; padding-left: 1.2em; font-size: 12px; color: var(--mut); }
+    #log li:first-child { color: var(--fg); }
+    #log li.drop { color: var(--drop); }
+    .node .box { stroke-width: 1.5; }
+    .k-signal .box { stroke: var(--sig); fill: #102540; }
+    .k-memo .box { stroke: var(--memo); fill: #0f2c22; }
+    .k-async .box { stroke: var(--async); fill: #221a3a; }
+    .k-effect .box { stroke: var(--eff); fill: #33210f; }
+    .node.ran .box { stroke: #fff; stroke-width: 3; }
+    .node.same .box { stroke: var(--same); stroke-width: 2.5; stroke-dasharray: 3 3; }
+    .node.pending .box { stroke-dasharray: 6 4; stroke-width: 2.5; }
+    .node.pending .box {
+      @media (prefers-reduced-motion: no-preference) { animation: march 0.8s linear infinite; }
+    }
+    @keyframes march { to { stroke-dashoffset: -10; } }
+    .node .glow { fill: #fff; opacity: 0; pointer-events: none; }
+    .node text { fill: var(--fg); text-anchor: middle; }
+    .node .nm { font-size: 11px; fill: var(--mut); }
+    .node .val { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .v .node .val { font-size: 12px; }
+    .node .cnt { font-size: 9.5px; fill: var(--mut); }
+    .edge { fill: none; stroke: #4a5672; stroke-width: 1.5; }
+    .edge.off { stroke-dasharray: 2 4; opacity: 0.5; }
+    .edge.pend { stroke: var(--async); stroke-dasharray: 1 3; }
+    .edge.hot { stroke: #fff; stroke-width: 2.5; opacity: 1; }
+    @media (min-width: 640px) {
+      .wrap { grid-template-columns: minmax(0, 1fr) 270px; height: 100vh; }
+      figure { height: 100vh; }
+      #g { flex: 1 1 0; min-height: 0; height: 100%; }
+      .side { height: 100vh; overflow: auto; }
+    }
+    .thumb .wrap { grid-template-columns: minmax(0, 1fr); height: 100vh; }
+    .thumb figure { height: 100vh; }
+    .thumb #g { flex: 1 1 0; min-height: 0; height: 100%; }
+    .thumb .side, .thumb figcaption { display: none; }`,
+  core() {
+    // 送料の表（円）。問い合わせると、この値が少し後に返ってくる
+    const SHIP = { near: 500, honshu: 800, hokkaido: 1200, okinawa: 1600 };
+    // 小さな反応の仕組み。シグナル（入力の値）・メモ（計算した値を覚える節）・エフェクト（画面を書き換える節）
+    // 書き込んだときは印を付けるだけにし、エフェクトを走らせるときに、印の付いた所のうち必要な物だけを計算し直す
+    function createGraph(opt) {
+      const o = opt || {};
+      const emit = o.onEvent || function () {};
+      const later = o.schedule || function (f) { Promise.resolve().then(f); };
+      const CLEAN = 0, CHECK = 1, DIRTY = 2; // そのまま使える / 元の値が変わったか確かめる / 計算し直す
+      const nodes = [];
+      let current = null;  // 今計算している節。ここで読んだ値を「この節が読んだ値」として覚える
+      const queue = [];    // 走らせるエフェクト
+      let planned = false, flushing = false;
+      function make(kind, name, fn, value) {
+        const n = { id: nodes.length, kind: kind, name: name, fn: fn, value: value, sources: [], observers: new Set(),
+          state: kind === 'signal' ? CLEAN : DIRTY, runs: 0, pending: false, token: 0, hidden: false, owner: null, pendingNode: null };
+        nodes.push(n);
+        return n;
+      }
+      function track(n) {
+        if (current && current.sources.indexOf(n) < 0) { current.sources.push(n); n.observers.add(current); }
+      }
+      function mark(n, st) {
+        if (n.state >= st) return;
+        const was = n.state;
+        n.state = st;
+        if (n.kind === 'effect' && queue.indexOf(n) < 0) queue.push(n);
+        if (was === CLEAN) for (const ob of n.observers) mark(ob, CHECK);
+      }
+      function plan() {
+        if (planned) return;
+        planned = true;
+        later(flush);
+      }
+      // 値を入れ替え、読んでいる節に「計算し直す」の印を付ける。前の値を返す
+      function replace(n, v) {
+        const old = n.value;
+        n.value = v;
+        for (const ob of Array.from(n.observers)) mark(ob, DIRTY);
+        return old;
+      }
+      function set(n, v) {
+        if (n.kind !== 'signal') throw new Error('書き込めるのはシグナルだけ: ' + n.name);
+        if (Object.is(n.value, v)) return false;
+        const old = replace(n, v);
+        emit({ type: 'write', node: n, old: old, value: v });
+        plan();
+        return true;
+      }
+      function setPending(n, flag) {
+        n.pending = flag;
+        if (n.pendingNode) set(n.pendingNode, flag);
+      }
+      function update(n) {
+        if (n.state === CHECK) {
+          for (const s of n.sources.slice()) {
+            if (s.kind === 'memo') update(s);
+            if (n.state === DIRTY) break;
+          }
+          if (n.state === CHECK) n.state = CLEAN;
+        }
+        if (n.state === DIRTY) run(n);
+      }
+      function run(n) {
+        for (const s of n.sources) s.observers.delete(n);
+        n.sources = [];
+        n.state = CLEAN;
+        const prev = current;
+        current = n;
+        let v;
+        try { v = n.fn(n.value); } finally { current = prev; }
+        n.runs++;
+        if (n.kind === 'effect') { emit({ type: 'run', node: n }); return; }
+        if (v && typeof v.then === 'function') {
+          // 問い合わせごとに番号を付け、いちばん新しい番号の答えだけを受け取る。待つ間は前の値のまま
+          const token = ++n.token;
+          emit({ type: 'run', node: n, pending: true });
+          setPending(n, true);
+          v.then(function (res) {
+            if (token !== n.token) { emit({ type: 'drop', node: n, value: res }); return; }
+            setPending(n, false);
+            const changed = !Object.is(n.value, res);
+            const old = changed ? replace(n, res) : n.value;
+            emit({ type: 'resolve', node: n, old: old, value: res, changed: changed });
+            plan();
+          }, function (err) {
+            if (token !== n.token) return;
+            setPending(n, false);
+            emit({ type: 'error', node: n, error: err });
+            plan();
+          });
+          return;
+        }
+        if (n.pending) { n.token++; setPending(n, false); } // 待っていた問い合わせの答えは、届いても捨てる
+        const changed = !Object.is(n.value, v);
+        const old = changed ? replace(n, v) : n.value;
+        emit({ type: 'run', node: n, old: old, value: v, changed: changed });
+      }
+      // 先に計算し直してから「読んだ」と覚える（逆にすると、計算中の自分に印が付いて2回計算する）
+      function get(n) {
+        if (n.kind === 'memo') update(n);
+        track(n);
+        return n.value;
+      }
+      // 答えを待っているかどうかも、隠れたシグナルとして読めるようにする
+      function isPending(n) {
+        if (!n.pendingNode) {
+          n.pendingNode = make('signal', n.name + 'を待っているか', null, n.pending);
+          n.pendingNode.hidden = true;
+          n.pendingNode.owner = n;
+        }
+        return get(n.pendingNode);
+      }
+      function flush() {
+        planned = false;
+        if (flushing) return;
+        flushing = true;
+        emit({ type: 'flush-start' });
+        try {
+          let guard = 0;
+          while (queue.length) {
+            if (++guard > 10000) throw new Error('エフェクトが止まらない');
+            update(queue.shift());
+          }
+        } finally { flushing = false; }
+        emit({ type: 'flush-end' });
+      }
+      return {
+        nodes: nodes,
+        signal: function (name, v) { return make('signal', name, null, v); },
+        memo: function (name, fn) { return make('memo', name, fn, undefined); },
+        effect: function (name, fn) { const n = make('effect', name, fn, undefined); queue.push(n); plan(); return n; },
+        get: get, set: set, isPending: isPending, flush: flush,
+      };
+    }
+    // 買い物の合計の図。ask(配送先) は送料を Promise で返す
+    function buildShop(G, ask) {
+      const price = G.signal('単価', 1200), qty = G.signal('個数', 3), off = G.signal('割引', 0);
+      const taxOn = G.signal('税込', true), area = G.signal('配送先', 'honshu');
+      const sub = G.memo('小計', () => G.get(price) * G.get(qty));
+      const net = G.memo('割引後', () => Math.round((G.get(sub) * (100 - G.get(off))) / 100));
+      const tax = G.memo('税', () => (G.get(taxOn) ? Math.floor(G.get(net) / 10) : 0));
+      const free = G.memo('送料無料', () => G.get(net) >= 5000);
+      const ship = G.memo('送料', () => (G.get(free) ? 0 : ask(G.get(area))));
+      const total = G.memo('合計', () => {
+        const a = G.get(net), b = G.get(tax), c = G.get(ship);
+        return c == null ? null : a + b + c;
+      });
+      return { price: price, qty: qty, off: off, taxOn: taxOn, area: area, sub: sub, net: net, tax: tax, free: free, ship: ship, total: total };
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const SVGNS = 'http://www.w3.org/2000/svg';
+    const AREA_NAME = { near: '近く', honshu: '本州', hokkaido: '北海道', okinawa: '沖縄・離島' };
+    const AREAS = Object.keys(AREA_NAME);
+    const calm = matchMedia('(prefers-reduced-motion: reduce)');
+    const yen = (v) => (v == null ? '—' : v.toLocaleString('ja-JP') + '円');
+    if (window.THUMB) document.documentElement.classList.add('thumb');
+
+    let batch = [];        // 前に描いてから起きた出来事
+    let plannedDelays = []; // 自動で動かすときに決めておく、問い合わせの答えが届くまでの時間
+    const G = createGraph({ onEvent: onEvent });
+    const shop = buildShop(G, (area) => new Promise((ok) => {
+      const ms = plannedDelays.length ? plannedDelays.shift() : 300 + Math.random() * 1500;
+      setTimeout(() => ok(SHIP[area]), ms);
+    }));
+    let shown = '—';
+    const viewEffect = G.effect('画面', () => {
+      const t = G.get(shop.total);           // 先に合計を読む（送料の問い合わせが始まるのはここ）
+      const busy = G.isPending(shop.ship);
+      shown = yen(t);
+      $('total').textContent = shown;
+      $('busy').textContent = busy ? (t == null ? '送料を問い合わせ中…' : '送料を問い合わせ中…（いまは前の合計）') : '';
+    });
+
+    const FMT = {
+      単価: yen, 個数: (v) => v + '個', 割引: (v) => (v ? v + '%引き' : 'なし'), 税込: (v) => (v ? '足す' : '足さない'), 配送先: (v) => AREA_NAME[v],
+      小計: yen, 割引後: yen, 税: yen, 送料無料: (v) => (v == null ? '—' : v ? 'はい' : 'いいえ'), 送料: yen, 合計: yen,
+    };
+    const fmt = (n, v) => (n.kind === 'effect' ? shown : (FMT[n.name] || String)(v));
+    const NODES = [shop.price, shop.qty, shop.off, shop.taxOn, shop.area, shop.sub, shop.net, shop.tax, shop.free, shop.ship, shop.total, viewEffect];
+    const COMPUTED = NODES.filter((n) => n.kind !== 'signal').length;
+    // 置き場所 [列, 行]。横長のときは列が左から右、縦長のときは列が上から下
+    const POS = { 単価: [0, 0], 個数: [0, 1], 割引: [0, 2], 税込: [0, 3], 配送先: [0, 4], 小計: [1, 0.5], 割引後: [2, 1.3], 税: [3, 2.5], 送料無料: [3, 3.4], 送料: [4, 3.9], 合計: [5, 2], 画面: [6, 2] };
+    const svg = $('g');
+    let vertical = null, edgeLayer = null;
+    let views = new Map(), edgeEls = new Map();
+    const seenEdges = new Map();
+    let lastRan = new Map(), lastSent = new Set();
+    const flashAt = new Map();
+    let started = false, runsSum = 0, fullSum = 0;
+
+    function el(tag, attrs, parent) {
+      const e = document.createElementNS(SVGNS, tag);
+      for (const k in attrs) e.setAttribute(k, attrs[k]);
+      if (parent) parent.appendChild(e);
+      return e;
+    }
+    function kindClass(n) { return n === shop.ship ? 'k-async' : 'k-' + n.kind; }
+    function chooseVertical() {
+      const w = Math.max(1, innerWidth), h = Math.max(1, innerHeight);
+      if (window.THUMB) return w / h < 1;
+      if (w >= 640) return (w - 270) / h < 1.05;
+      return w < 520;
+    }
+    // 縦長のときは横の間が狭いので、同じ段に並ぶ税と送料無料を少し離す
+    const VPOS = { 税: 2.2, 送料無料: 3.3 };
+    function geom() { return vertical ? { W: 392, H: 572, w: 64, h: 52 } : { W: 712, H: 342, w: 74, h: 52 }; }
+    function boxOf(n) {
+      const p = POS[n.name], g = geom();
+      if (vertical) return { x: 6 + (VPOS[n.name] ?? p[1]) * 76 + (76 - g.w) / 2, y: 6 + p[0] * 80 + 14 };
+      return { x: 6 + p[0] * 100 + (100 - g.w) / 2, y: 6 + p[1] * 66 + (66 - g.h) / 2 };
+    }
+    function pathOf(e) {
+      const a = boxOf(e.from), b = boxOf(e.to), g = geom();
+      if (vertical) {
+        const x1 = a.x + g.w / 2, y1 = a.y + g.h, x2 = b.x + g.w / 2, y2 = b.y, m = (y2 - y1) / 2;
+        return `M${x1} ${y1} C${x1} ${y1 + m} ${x2} ${y2 - m} ${x2} ${y2}`;
+      }
+      const x1 = a.x + g.w, y1 = a.y + g.h / 2, x2 = b.x, y2 = b.y + g.h / 2, m = (x2 - x1) / 2;
+      return `M${x1} ${y1} C${x1 + m} ${y1} ${x2 - m} ${y2} ${x2} ${y2}`;
+    }
+    function build() {
+      const v = chooseVertical();
+      if (v === vertical) return;
+      vertical = v;
+      const g = geom();
+      svg.setAttribute('viewBox', `0 0 ${g.W} ${g.H}`);
+      svg.classList.toggle('v', vertical);
+      for (const c of Array.from(svg.children)) if (c.tagName.toLowerCase() !== 'title') c.remove();
+      edgeLayer = el('g', {}, svg);
+      const nodeLayer = el('g', {}, svg);
+      edgeEls = new Map();
+      views = new Map();
+      for (const n of NODES) {
+        const b = boxOf(n);
+        const gr = el('g', { class: 'node ' + kindClass(n), transform: `translate(${b.x} ${b.y})` }, nodeLayer);
+        el('rect', { class: 'box', width: g.w, height: g.h, rx: 7 }, gr);
+        const glow = el('rect', { class: 'glow', width: g.w, height: g.h, rx: 7 }, gr);
+        el('text', { class: 'nm', x: g.w / 2, y: 14 }, gr).textContent = n.name;
+        const val = el('text', { class: 'val', x: g.w / 2, y: 32 }, gr);
+        const cnt = el('text', { class: 'cnt', x: g.w / 2, y: 46 }, gr);
+        views.set(n, { g: gr, glow: glow, val: val, cnt: cnt });
+      }
+      paint(false);
+    }
+    // 今それぞれの節が読んでいる値を線にする。前に読んでいた線も薄く残す
+    function currentEdges() {
+      const now = new Map();
+      for (const n of NODES) {
+        if (n.kind === 'signal') continue;
+        for (const s of n.sources) {
+          const from = s.hidden ? s.owner : s;
+          if (!from || !POS[from.name]) continue;
+          now.set(from.id + '>' + n.id + (s.hidden ? 'p' : ''), { from: from, to: n, pend: !!s.hidden });
+        }
+      }
+      for (const [k, e] of now) seenEdges.set(k, e);
+      return now;
+    }
+    function paint(doFlash) {
+      const now = currentEdges();
+      for (const [k, e] of seenEdges) {
+        let p = edgeEls.get(k);
+        if (!p) { p = el('path', { d: pathOf(e) }, edgeLayer); edgeEls.set(k, p); }
+        const live = now.has(k);
+        const hot = live && lastRan.has(e.to) && lastSent.has(e.from);
+        p.setAttribute('class', 'edge' + (e.pend ? ' pend' : '') + (live ? '' : ' off') + (hot ? ' hot' : ''));
+      }
+      const t = performance.now();
+      for (const [n, v] of views) {
+        const r = lastRan.get(n);
+        const same = !!r && r.changed === false;
+        v.g.classList.toggle('ran', (!!r && !same) || (n.kind === 'signal' && lastSent.has(n)));
+        v.g.classList.toggle('same', same);
+        v.g.classList.toggle('pending', !!n.pending);
+        v.val.textContent = n.pending && n.value == null ? '待ち…' : fmt(n, n.value);
+        v.cnt.textContent = n.kind === 'signal' ? '入力' : '×' + n.runs + (same ? ' 同じ' : '') + (n.pending ? ' 待ち' : '');
+        // 光らせるのは動きを減らす設定でないときだけ。同じ節は0.4秒に1回まで
+        if (doFlash && (r || lastSent.has(n)) && !calm.matches && t - (flashAt.get(n) || -1e9) > 400) {
+          flashAt.set(n, t);
+          v.glow.animate([{ opacity: 0.4 }, { opacity: 0 }], { duration: 650, easing: 'ease-out' });
+        }
+      }
+    }
+    function addLog(text, cls) {
+      const li = document.createElement('li');
+      li.textContent = text;
+      if (cls) li.className = cls;
+      const log = $('log');
+      log.prepend(li);
+      while (log.children.length > 8) log.lastElementChild.remove();
+    }
+    function render() {
+      const ev = batch;
+      batch = [];
+      const ran = new Map(), sent = new Set(), causes = [];
+      for (const e of ev) {
+        if (e.type === 'write') { sent.add(e.node); causes.push(`${e.node.name}を ${fmt(e.node, e.old)} → ${fmt(e.node, e.value)}`); }
+        else if (e.type === 'resolve') { if (e.changed) sent.add(e.node); causes.push(`送料の答えが届いた（${yen(e.value)}）`); }
+        else if (e.type === 'run') { ran.set(e.node, e); if (e.changed) sent.add(e.node); }
+      }
+      if (!causes.length && !ran.size) return;
+      lastRan = ran;
+      lastSent = sent;
+      paint(true);
+      const parts = NODES.filter((n) => ran.has(n)).map((n) => {
+        const r = ran.get(n);
+        return n.name + (r.pending ? `（${AREA_NAME[shop.area.value]}へ問い合わせ開始）` : r.changed === false ? '（同じ値なので先へ伝えない）' : '');
+      });
+      const head = started ? causes.join('、') : '最初の計算';
+      started = true;
+      runsSum += ran.size;
+      fullSum += COMPUTED;
+      addLog(`${head} → ${parts.length ? '計算: ' + parts.join('、') : '計算なし（今この値を読んでいる節が無い）'}［${ran.size}/${COMPUTED}］`);
+      $('count').textContent = `この変更で計算した節: ${ran.size} 個（全部やり直す方式なら ${COMPUTED} 個）。これまでの合計: ${runsSum} 回（全部やり直す方式なら ${fullSum} 回）`;
+    }
+    function onEvent(e) {
+      if (e.node && e.node.hidden) return;
+      if (e.type === 'drop') { addLog(`送料: 前の問い合わせの答え（${yen(e.value)}）が後から届いたが、もっと新しい問い合わせがあるので捨てた`, 'drop'); return; }
+      if (e.type === 'flush-end') { render(); return; }
+      if (e.type !== 'flush-start') batch.push(e);
+    }
+
+    // 入力欄とシグナルをつなぐ
+    function sync() {
+      $('price').value = shop.price.value;
+      $('qty').value = shop.qty.value;
+      $('qtyOut').textContent = shop.qty.value;
+      for (const r of document.querySelectorAll('input[name="off"]')) r.checked = Number(r.value) === shop.off.value;
+      $('taxOn').checked = shop.taxOn.value;
+      for (const r of document.querySelectorAll('input[name="area"]')) r.checked = r.value === shop.area.value;
+    }
+    function put(sig, v) { G.set(sig, v); sync(); }
+    $('f').addEventListener('submit', (e) => e.preventDefault());
+    $('price').addEventListener('input', () => {
+      const v = $('price').valueAsNumber;
+      if (Number.isFinite(v) && v >= 100 && v <= 5000) G.set(shop.price, Math.round(v));
+    });
+    $('qty').addEventListener('input', () => { G.set(shop.qty, $('qty').valueAsNumber); $('qtyOut').textContent = $('qty').value; });
+    for (const r of document.querySelectorAll('input[name="off"]')) r.addEventListener('change', () => G.set(shop.off, Number(r.value)));
+    $('taxOn').addEventListener('change', () => G.set(shop.taxOn, $('taxOn').checked));
+    for (const r of document.querySelectorAll('input[name="area"]')) r.addEventListener('change', () => { plannedDelays = []; G.set(shop.area, r.value); });
+
+    // 自動で値を変える（止めるボタン付き）
+    const nextArea = () => AREAS[(AREAS.indexOf(shop.area.value) + 1) % AREAS.length];
+    const STEPS = [
+      () => put(shop.qty, (shop.qty.value % 9) + 1),
+      () => put(shop.off, { 0: 10, 10: 30, 30: 0 }[shop.off.value]),
+      () => put(shop.taxOn, !shop.taxOn.value),
+      () => { plannedDelays = [700]; put(shop.area, nextArea()); },
+      () => put(shop.price, { 800: 1200, 1200: 2400, 2400: 800 }[shop.price.value] || 1200),
+      () => {
+        // 遅い問い合わせの後に速い問い合わせを出して、古い答えが後から届く様子を見せる
+        if (G.get(shop.free)) put(shop.qty, 2);
+        plannedDelays = [1500, 300];
+        put(shop.area, nextArea());
+        setTimeout(() => { if (auto) put(shop.area, nextArea()); }, 250);
+      },
+    ];
+    let auto = null, step = 0;
+    function setAuto(on) {
+      if (auto) { clearInterval(auto); auto = null; }
+      if (on) auto = setInterval(() => { STEPS[step % STEPS.length](); step++; }, window.THUMB ? 1500 : 1900);
+      $('auto').textContent = on ? '止める' : '自動で値を変える';
+      $('total').setAttribute('aria-live', on ? 'off' : 'polite');
+    }
+    $('auto').addEventListener('click', () => setAuto(!auto));
+    $('reset').addEventListener('click', () => {
+      for (const n of NODES) n.runs = 0;
+      runsSum = 0; fullSum = 0;
+      lastRan = new Map(); lastSent = new Set();
+      paint(false);
+      $('count').textContent = '計算した回数を0に戻した';
+    });
+    addEventListener('resize', build);
+    sync();
+    build();
+    setAuto(!!window.THUMB);
+  },
+});
