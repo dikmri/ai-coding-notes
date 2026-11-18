@@ -834,6 +834,60 @@
 .arcadia .app-recorder .rec-btn:active:not(:disabled) { translate: 1px 1px; box-shadow: 1px 1px 0 var(--fos-ink); }
 .arcadia .app-recorder .rec-btn:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
 
+/* ===== 音声エディタ（2026-11-19） ===== */
+.arcadia .app-wave .app-body { outline: none; }
+.arcadia .app-wave .wv-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.arcadia .app-wave .wv-tools { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 5px 6px; padding: 6px 8px; background: linear-gradient(180deg, #faf6ff 0%, #eae0f5 100%); border-bottom: 1.5px solid var(--fos-marble-lo); }
+.arcadia .app-wave .wv-group { display: flex; flex-wrap: wrap; gap: 4px; }
+/* 区切りは枠線で描く（強制カラーのときに背景だけだと消えるため） */
+.arcadia .app-wave .wv-sep { align-self: stretch; width: 0; margin: 2px 1px; border-left: 2px dotted var(--fos-marble-lo); }
+.arcadia .app-wave .wv-btn {
+  min-inline-size: 24px; min-block-size: 26px; padding: 0 9px; font: 700 12px/1 var(--fos-font); color: var(--fos-ink);
+  background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 7px; box-shadow: 2px 2px 0 var(--fos-ink);
+}
+.arcadia .app-wave .wv-play { background: linear-gradient(180deg, #fff7c2, var(--fos-apricot)); }
+.arcadia .app-wave .wv-btn[aria-pressed="true"] { background: var(--fos-aqua); translate: 1px 1px; box-shadow: inset 2px 2px 0 var(--fos-aqua-lo); }
+.arcadia .app-wave .wv-btn[aria-disabled="true"] { color: #8e7fa3; border-color: #a799ba; background: #f0ebf5; box-shadow: none; cursor: default; }
+@media (hover: hover) {
+  .arcadia .app-wave .wv-btn:hover:not([aria-disabled="true"], [aria-pressed="true"]) { background: var(--fos-cream); }
+}
+.arcadia .app-wave .wv-btn:active:not([aria-disabled="true"]) { translate: 1px 1px; box-shadow: 1px 1px 0 var(--fos-ink); }
+.arcadia .app-wave .wv-btn:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+@media (pointer: coarse) {
+  .arcadia .app-wave .wv-btn { min-block-size: 36px; }
+}
+@media (forced-colors: active) {
+  .arcadia .app-wave .wv-btn[aria-pressed="true"] { outline: 2px solid Highlight; }
+}
+.arcadia .app-wave .wv-area { position: relative; flex: 1; min-height: 120px; }
+.arcadia .app-wave .wv-stage { position: absolute; inset: 0; overflow: hidden; background: var(--fos-paper); touch-action: none; }
+.arcadia .app-wave .wv-stage.has-audio { cursor: text; }
+.arcadia .app-wave .wv-stage:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: -3px; }
+.arcadia .app-wave .wv-stage.drop-ok { box-shadow: inset 0 0 0 3px var(--fos-aqua), inset 0 0 0 5px var(--fos-ink); }
+.arcadia .app-wave .wv-canvas { position: absolute; inset: 0; display: block; }
+.arcadia .app-wave .wv-empty {
+  position: absolute; inset: 0; margin: auto; height: fit-content; max-width: min(32em, calc(100% - 32px)); padding: 14px 18px;
+  text-align: center; background: var(--fos-cream); border: 2px solid var(--fos-ink); border-radius: 10px; box-shadow: 4px 4px 0 var(--fos-shadow);
+}
+.arcadia .app-wave .wv-empty[hidden] { display: none; }
+.arcadia .app-wave .wv-empty p { margin: 0 0 10px; text-wrap: pretty; }
+.arcadia .app-wave .wv-empty .wv-empty-title { font: 700 14px/1.5 var(--fos-font); margin-bottom: 4px; }
+.arcadia .app-wave .wv-empty-btns { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.arcadia .app-wave .wv-empty-btns button { min-width: 0; padding: 0 14px; }
+.arcadia .app-wave .wv-scroll { flex: none; overflow-x: scroll; overflow-y: hidden; background: var(--fos-marble); border-top: 1.5px solid var(--fos-marble-lo); }
+.arcadia .app-wave .wv-spacer { height: 1px; }
+.arcadia .app-wave .wv-selfield { font-family: var(--fos-mono); white-space: nowrap; }
+.arcadia .app-wave .wv-fmtfield { white-space: nowrap; }
+.arcadia .wv-dlg .window-body { display: flex; flex-direction: column; gap: 8px; }
+.arcadia .wv-dlg .wv-note { margin: 0; text-wrap: pretty; }
+.arcadia .wv-dlg .wv-hint { margin: 0; font-size: 12px; color: var(--fos-ink-muted); text-wrap: pretty; }
+.arcadia .wv-dlg .wv-field { display: grid; grid-template-columns: 1fr 9.5em; align-items: center; gap: 4px 8px; }
+.arcadia .wv-dlg fieldset.wv-field { display: flex; gap: 14px; flex-wrap: wrap; }
+.arcadia .wv-dlg .button-row { margin-top: 4px; }
+/* モーダルの箱の中や背景でのスクロールが、後ろのページへ伝わらないようにする */
+.arcadia .wv-dlg:modal { overscroll-behavior: contain; }
+.arcadia .wv-dlg::backdrop { overflow: hidden; overscroll-behavior: contain; }
+
 /* ===== 画面キャプチャ（2026-11-17） ===== */
 .arcadia .app-capture .cap-main { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px; }
 .arcadia .app-capture .cap-bar, .arcadia .app-capture .cap-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
