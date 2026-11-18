@@ -357,12 +357,12 @@ dekiru.add({
     b.onclick = () => { A ??= new AudioContext(); if (src) { src.stop(); src = null; b.textContent = '▶ 鳴らす'; return; }
       play(); b.textContent = '■ 止める'; }; make();
     e.onkeydown = (v) => { if (v.key === 'Enter') { make(); if (src) play(); } };
-    (function f() { requestAnimationFrame(f); const w = c.width = innerWidth, h = c.height = innerHeight, cols = w / 2 | 0;
+    (function f() { requestAnimationFrame(f); const w = c.width = innerWidth, h = c.height = innerHeight, cols = w + 2 >> 1;
       const img = x.createImageData(cols, 256), u = new Uint32Array(img.data.buffer);
       const now = (src ? (A.currentTime - start) * 8000 | 0 : cols * 512) + D.length * 9;
       for (let i = 0; i < cols; i++) for (let k = 0; k < 256; k++) {
         const v = (D[(now - (cols - i) * 512 + k * 2) % D.length] + 1) * 127 | 0;
         u[k * cols + i] = 255 << 24 | (255 - v / 2) << 16 | v << 8 | v * .4; }
-      x.putImageData(img, 0, (h - 256) / 2); x.drawImage(c, 0, (h - 256) / 2, cols, 256, 0, 0, w, h); })();
+      x.putImageData(img, 0, (h - 256) / 2); w && x.drawImage(c, 0, (h - 256) / 2, cols, 256, 0, 0, w, h); })();
   },
 });
