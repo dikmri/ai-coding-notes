@@ -27,6 +27,7 @@ export const APPS = {
   charmap: { name: '文字と色の見本帳', icon: 'icons/charmap.svg' },
   paint: { name: 'お絵かき', icon: 'icons/paint.svg' },
   player: { name: '音楽プレーヤー', icon: 'icons/player.svg' },
+  livecode: { name: '音の実験室', icon: 'icons/livecode.svg' },
   terminal: { name: '端末', icon: 'icons/terminal.svg' },
   monitor: { name: 'システム モニタ', icon: 'icons/monitor.svg' },
   calendar: { name: 'カレンダー', icon: 'icons/calendar.svg' },
