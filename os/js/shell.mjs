@@ -17,6 +17,7 @@ export const APPS = {
   notepad: { name: 'メモ帳', icon: 'icons/notepad.svg' },
   modeler: { name: 'ローポリ モデラー', icon: 'icons/modeler.svg' },
   synth: { name: 'SID 風シンセ', icon: 'icons/synth.svg' },
+  drums: { name: 'リズムマシン', icon: 'icons/drums.svg' },
   viewer: { name: '画像と音のビューア', icon: 'icons/viewer.svg' },
   settings: { name: '設定', icon: 'icons/settings.svg' },
   icosaria: { name: '蒼海と白柱のイコサリア', icon: 'icons/icosaria.svg' },
