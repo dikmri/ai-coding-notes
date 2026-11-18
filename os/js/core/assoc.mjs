@@ -2,6 +2,7 @@
 import { extname } from './path.mjs';
 
 export const TYPES = {
+  '.fdev': ['photo', '写真の現像の設定'],
   '.txt': ['notepad', 'テキスト文書'], '.md': ['notepad', 'Markdown 文書'], '.log': ['notepad', 'ログ ファイル'],
   '.fdoc': ['writer', '文書'],
   '.json': ['notepad', 'JSON データ'], '.csv': ['notepad', 'CSV データ'], '.html': ['browser', 'HTML 文書'], '.htm': ['browser', 'HTML 文書'],
