@@ -806,3 +806,325 @@ dekiru.add({
     else runAll(true);
   },
 });
+
+dekiru.add({
+  id: 'tr-20261118-romer-light', c: 'trend', lv: 3, date: '2026-11-18',
+  t: '木星の衛星イオの時刻のずれから、光の速さを測る', y: 'もくせいのえいせいいおのじこくのずれからひかりのはやさをはかる',
+  tags: ['Ole Rømer', '光の速さ', '最小二乗法', '天体の軌道', 'canvas'],
+  d: '1676年、デンマークの天文学者オーレ・レーマーは、木星の衛星イオが木星の影に入る時刻や影から出る時刻が、地球が木星から遠ざかる時期には予定より遅れ、近づく時期には早まることに気づいた。その年の9月には「11月9日にイオが影から出るのは、予定より10分遅れる」と予言して当て、光の速さに限りがあることを示した。それから350年という記事が、2026年11月に Hacker News で話題になった。この見本では、地球と木星を太陽のまわりで動かし、イオが影に出入りする瞬間を、光が地球に届くまでの時間だけ遅らせて「観測」する。たまった観測の時刻を式に当てはめ、光の速さを推定する。光の速さや時計の誤差を変えると、推定がどう変わるかを確かめられる。軌道は円で近似しており、楕円の軌道、木星の影の広がり、イオの大きさ、昼と夜の区別は扱っていない。晴れた夜かどうかは乱数で決めている。',
+  p: 'イオは約1.77日ごとに木星の影に入るので、時計として使える。観測した時刻を「切片 ＋ 周期 × 回数 ＋ 遅れの係数 × 地球と木星の距離 ＋ 入るか出るかの補正」という式に当てはめ、4つの数を最小二乗法で同時に求める（正規方程式をガウスの消去法で解く）。遅れの係数は「光が1天文単位進むのにかかる時間」なので、1天文単位の長さをその秒数で割ると光の速さになる。係数の標準誤差も計算して ± で示す。グラフの点線は、求めた式から計算したこの先の予想で、レーマーの予言と同じ考え方である。',
+  refs: [
+    { title: '350 years ago, this man discovered that light has a finite speed（Science Norway）', url: 'https://www.sciencenorway.no/culture-history-history-of-science/350-years-ago-this-man-discovered-that-light-has-a-finite-speed/2737969' },
+    { title: 'Hacker News: 350 years ago, Ole Rømer discovered that light has a finite speed', url: 'https://news.ycombinator.com/item?id=50536813' },
+    { title: "Rømer's determination of the speed of light（Wikipedia）", url: 'https://en.wikipedia.org/wiki/R%C3%B8mer%27s_determination_of_the_speed_of_light' },
+  ],
+  html: `<div class="wrap">
+  <canvas id="orbit" role="img" aria-label="太陽のまわりを回る地球と木星の図。右上は、木星のまわりを回るイオと木星の影の拡大図"></canvas>
+  <div class="side">
+    <div class="ui">
+      <button type="button" id="play">止める</button>
+      <button type="button" id="skip">最後まで進める</button>
+      <button type="button" id="again">天気を変えてやり直す</button>
+      <label>進み方 <select id="speed"><option value="3">1秒で3日</option><option value="12" selected>1秒で12日</option><option value="45">1秒で45日</option></select></label>
+      <label>光の速さ <select id="light"><option value="1" selected>本当の速さ</option><option value="0.5">半分</option><option value="2">2倍</option><option value="inf">限りなく速い</option></select></label>
+      <label>時計の誤差 <select id="noise"><option value="0">なし</option><option value="1" selected>±1分くらい</option><option value="3">±3分くらい</option></select></label>
+    </div>
+    <p id="date"></p>
+    <canvas id="chart" role="img" aria-label="イオが影に入った時刻と影から出た時刻が、予定より何分ずれて見えたかのグラフ"></canvas>
+    <p class="legend"><span class="in">●</span> 影に入るのを見た　<span class="out">●</span> 影から出るのを見た　<span class="fit">━</span> 距離から計算したずれ（点線はこの先の予想）　<span class="band">■</span> 木星が太陽の近くに見えて観測できない時期</p>
+    <dl>
+      <dt>いま光が届くまで</dt><dd id="now"></dd>
+      <dt>推定した光の速さ</dt><dd id="est"></dd>
+      <dt>地球の軌道の直径を光が横切る時間</dt><dd id="cross"></dd>
+      <dt>比べる値</dt><dd id="ref"></dd>
+    </dl>
+  </div>
+</div>`,
+  css: `:root { color-scheme: dark; }
+    body { margin: 0; background: #0b1020; color: #d6defc; font: 12px/1.5 system-ui, sans-serif; }
+    .wrap { display: grid; grid-template-columns: minmax(0, 1fr); }
+    #orbit { width: 100%; height: 56vh; display: block; }
+    .side { padding: 6px 8px 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .ui { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+    p { margin: 0; }
+    #date { color: #9aa6d0; font-variant-numeric: tabular-nums; }
+    #chart { width: 100%; height: 190px; display: block; border-radius: 4px; }
+    .legend { color: #9aa6d0; }
+    .legend .in { color: #7fd1ff; } .legend .out { color: #ffb36b; } .legend .fit { color: #5ef0a0; } .legend .band { color: #2a335c; }
+    dl { margin: 0; font-variant-numeric: tabular-nums; }
+    dt { color: #9aa6d0; font-size: 11px; }
+    dd { margin: 0 0 4px; }
+    @media (min-width: 480px) and (min-aspect-ratio: 5 / 4) {
+      .wrap { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); height: 100vh; }
+      #orbit { height: 100vh; }
+      .side { overflow: auto; }
+      #chart { height: max(120px, 38vh); }
+    }`,
+  core() {
+    // 単位: 時間は日、距離は天文単位（地球と太陽の平均の距離。1天文単位 = 約1億4960万 km）
+    const AU_KM = 149597870.7, C_KMS = 299792.458;
+    const LIGHT_DAY_PER_AU = AU_KM / C_KMS / 86400; // 光が1天文単位進むのにかかる日数（約8.32分）
+    // 軌道は円で近似する。L0 は 2000年1月1日12時（世界時）の平均黄経（度）、P は公転周期（日）
+    const EARTH = { r: 1, P: 365.256, L0: 100.464 };
+    const JUPITER = { r: 5.2026, P: 4332.59, L0: 34.396 };
+    const IO_P = 1.769137786; // イオが木星のまわりを1周する日数（星に対して）
+    const IO_SYN = 1 / (1 / IO_P - 1 / JUPITER.P); // 影に入る間隔。木星も動くので少し長い（約1.76986日）
+    const SHADOW = Math.asin(71492 / 421700); // イオの軌道から見た、木星の影の幅の半分（ラジアン）
+    const HALF = (SHADOW / (2 * Math.PI)) * IO_SYN; // 影の真ん中から、入る・出る瞬間までの日数（約1.15時間）
+    const IO_OFF = 0.3; // イオが最初にどこにいるか（決まった値でなくてよい）
+    const START_MS = Date.UTC(1676, 0, 1), J2000_MS = Date.UTC(2000, 0, 1, 12);
+    const MIN_ELONG = (25 * Math.PI) / 180; // 太陽からこれより近くに見える木星は、空が明るくて観測できないことにする
+    // t は 1676年1月1日からの日数
+    function angleOf(b, t) { return (b.L0 * Math.PI) / 180 + (2 * Math.PI * ((START_MS - J2000_MS) / 864e5 + t)) / b.P; }
+    function posOf(b, t) { const a = angleOf(b, t); return [b.r * Math.cos(a), b.r * Math.sin(a)]; }
+    // 時刻 tE の地球と、時刻 tJ の木星の距離
+    function distAU(tE, tJ = tE) { const e = posOf(EARTH, tE), j = posOf(JUPITER, tJ); return Math.hypot(e[0] - j[0], e[1] - j[1]); }
+    // 地球から見て、太陽と木星が何ラジアン離れて見えるか
+    function elongation(t) {
+      const e = posOf(EARTH, t), j = posOf(JUPITER, t), ax = -e[0], ay = -e[1], bx = j[0] - e[0], by = j[1] - e[1];
+      return Math.acos(Math.max(-1, Math.min(1, (ax * bx + ay * by) / (Math.hypot(ax, ay) * Math.hypot(bx, by)))));
+    }
+    function observable(t) { return elongation(t) > MIN_ELONG; }
+    // 木星から見たイオの向き。木星の影は太陽と反対、つまり木星の黄経の向きにのびる
+    function ioAngle(t) { return angleOf(JUPITER, t) + 2 * Math.PI * (t / IO_SYN - IO_OFF); }
+    function ioInShadow(t) { let f = t / IO_SYN - IO_OFF; f -= Math.round(f); return Math.abs(f) * 2 * Math.PI < SHADOW; }
+    // 時刻 t に木星のそばで起きたことが、地球で見える時刻。lag は1天文単位あたりの遅れ（日）
+    function seenAt(t, lag) {
+      let o = t + distAU(t, t) * lag;
+      for (let i = 0; i < 2; i++) o = t + distAU(o, t) * lag;
+      return o;
+    }
+    function dateOf(t) { const d = new Date(START_MS + t * 864e5); return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate() }; }
+    // 決まった種から毎回同じ並びを出す乱数（天気と時計の誤差に使う）
+    function seeded(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+    // 観測の記録を作る。地球が木星に近づく時期は影に入る瞬間が、遠ざかる時期は影から出る瞬間が見える。
+    // 天気と誤差の乱数は毎回同じ順に引くので、光の速さだけ変えても同じ夜が晴れる
+    function simulate({ days, lag, noiseMin = 0, clear = 0.5, seed = 1 }) {
+      const rand = seeded(seed), list = [];
+      const gauss = () => { const u = Math.max(1e-12, rand()), v = rand(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+      for (let k = 0; (k + IO_OFF) * IO_SYN <= days; k++) {
+        const mid = (k + IO_OFF) * IO_SYN, sg = distAU(mid + 0.5) < distAU(mid - 0.5) ? -1 : 1;
+        const t = mid + sg * HALF, seen = seenAt(t, lag), sky = rand(), err = (gauss() * noiseMin) / 1440;
+        if (observable(seen) && sky < clear) { const o = seen + err; list.push({ k, sg, t, o, D: distAU(o) }); }
+      }
+      return list;
+    }
+    // 連立一次方程式 A x = b をガウスの消去法で解く。解けなければ null
+    function solve(A, b) {
+      const n = b.length, M = A.map((row, i) => [...row, b[i]]);
+      for (let c = 0; c < n; c++) {
+        let p = c;
+        for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+        if (!(Math.abs(M[p][c]) > 1e-12)) return null;
+        [M[c], M[p]] = [M[p], M[c]];
+        for (let r = c + 1; r < n; r++) { const f = M[r][c] / M[c][c]; for (let j = c; j <= n; j++) M[r][j] -= f * M[c][j]; }
+      }
+      const x = new Array(n).fill(0);
+      for (let r = n - 1; r >= 0; r--) { let s = M[r][n]; for (let j = r + 1; j < n; j++) s -= M[r][j] * x[j]; x[r] = s / M[r][r]; }
+      return x;
+    }
+    // 観測した時刻 o を「a ＋ P ×（回数 − 平均）＋ s ×（距離 − 平均）＋ h × 入る(-1)/出る(+1)」に当てはめる。
+    // s が1天文単位あたりの光の遅れ（日）。距離があまり変わっていないうちは求めない
+    function fitLight(obs) {
+      const n = obs.length;
+      if (n < 6) return null;
+      let kM = 0, dM = 0, lo = Infinity, hi = -Infinity, ins = 0;
+      for (const q of obs) { kM += q.k; dM += q.D; lo = Math.min(lo, q.D); hi = Math.max(hi, q.D); if (q.sg < 0) ins++; }
+      kM /= n; dM /= n;
+      if (hi - lo < 0.3) return null;
+      const both = ins > 0 && ins < n, m = both ? 4 : 3;
+      const row = (q) => (both ? [1, q.k - kM, q.D - dM, q.sg] : [1, q.k - kM, q.D - dM]);
+      const A = Array.from({ length: m }, () => new Array(m).fill(0)), b = new Array(m).fill(0);
+      for (const q of obs) { const x = row(q); for (let i = 0; i < m; i++) { b[i] += x[i] * q.o; for (let j = 0; j < m; j++) A[i][j] += x[i] * x[j]; } }
+      const beta = solve(A, b);
+      if (!beta) return null;
+      let rss = 0;
+      for (const q of obs) { const x = row(q); let f = 0; for (let i = 0; i < m; i++) f += x[i] * beta[i]; rss += (q.o - f) ** 2; }
+      const v = n > m ? rss / (n - m) : 0, unit = new Array(m).fill(0);
+      unit[2] = 1;
+      const col = solve(A, unit), se = col ? Math.sqrt(Math.max(0, v * col[2])) : NaN;
+      return { a: beta[0], P: beta[1], s: beta[2], h: both ? beta[3] : 0, kMean: kM, dMean: dM, se, n };
+    }
+    // 観測が、周期だけで決めた予定の時刻より何分遅れて見えたか
+    function lateMin(q, f) { return (q.o - f.a - f.P * (q.k - f.kMean) - f.h * q.sg) * 1440; }
+    // 1天文単位あたりの遅れ（日）から光の速さ（km/秒）へ
+    function speedKms(s) { return s > 0 ? AU_KM / (s * 86400) : Infinity; }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const oc = $('orbit'), ox = oc.getContext('2d'), cc = $('chart'), cx = cc.getContext('2d');
+    // 動きを減らす設定のときは、ボタンを押すまで時間を進めない
+    const calm = matchMedia('(prefers-reduced-motion: reduce)');
+    const END = 365.25 * 3, FONT = '11px system-ui, sans-serif';
+    const IN = '#7fd1ff', OUT = '#ffb36b', FIT = '#5ef0a0', DIM = '#9aa6d0';
+    const man = (v) => (v >= 1e3 ? `${(v / 1e4).toFixed(2)}万` : `${Math.round(v)}`);
+    let seed = 11, obs = [], shown = 0, fit = null, t = 0, last = 0, flash = -1, doneAt = -1;
+    let playing = !!window.THUMB || !calm.matches;
+    const said = {};
+    function say(id, text) { if (said[id] !== text) { $(id).textContent = text; said[id] = text; } }
+    function lagNow() { const v = $('light').value; return v === 'inf' ? 0 : LIGHT_DAY_PER_AU / Number(v); }
+    // 観測できない時期（太陽と木星が近くに見える時期）を、グラフの帯にするため先に求めておく
+    const bands = [];
+    for (let d = 0, from = -1; d <= END + 1; d += 0.5) {
+      const no = d <= END && !observable(d);
+      if (no && from < 0) from = d;
+      if (!no && from >= 0) { bands.push([from, d]); from = -1; }
+    }
+    function catchUp() {
+      let added = false;
+      while (shown < obs.length && obs[shown].o <= t) { shown++; added = true; }
+      if (added) fit = fitLight(obs.slice(0, shown));
+      return added;
+    }
+    function rebuild() { obs = simulate({ days: END, lag: lagNow(), noiseMin: Number($('noise').value), seed }); shown = 0; fit = null; catchUp(); }
+    function fitCanvas(cv, g) {
+      const W = Math.max(1, cv.clientWidth), H = Math.max(1, cv.clientHeight), dpr = Math.min(2, devicePixelRatio || 1);
+      const w = Math.max(1, Math.round(W * dpr)), h = Math.max(1, Math.round(H * dpr));
+      if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return [W, H];
+    }
+    function dot(g, p, r, color) { g.fillStyle = color; g.beginPath(); g.arc(p[0], p[1], r, 0, Math.PI * 2); g.fill(); }
+    function seg(g, a, b) { g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); }
+    function drawOrbit(now) {
+      const [W, H] = fitCanvas(oc, ox), g = ox;
+      g.fillStyle = '#0b1020'; g.fillRect(0, 0, W, H);
+      const R = Math.max(1, Math.min(W, H) / 2 - 14), k = R / 5.45, mx = W / 2, my = H / 2;
+      const P = (p) => [mx + p[0] * k, my - p[1] * k];
+      g.lineWidth = 1; g.strokeStyle = 'rgba(154,166,208,0.35)';
+      for (const b of [EARTH, JUPITER]) { g.beginPath(); g.arc(mx, my, b.r * k, 0, Math.PI * 2); g.stroke(); }
+      const e = posOf(EARTH, t), j = posOf(JUPITER, t), E = P(e), J = P(j), lag = lagNow(), D = distAU(t), ok = observable(t);
+      // 木星の影の向き（太陽と反対）
+      const u = [j[0] / JUPITER.r, j[1] / JUPITER.r];
+      g.setLineDash([2, 4]); g.strokeStyle = 'rgba(154,166,208,0.55)'; seg(g, J, P([j[0] + u[0] * 0.7, j[1] + u[1] * 0.7])); g.setLineDash([]);
+      // 木星から地球へ届く光の道
+      g.strokeStyle = ok ? 'rgba(127,209,255,0.75)' : 'rgba(154,166,208,0.22)'; g.lineWidth = ok ? 1.5 : 1; seg(g, J, E);
+      dot(g, [mx, my], 7, '#ffd34d');
+      if (flash >= 0 && now - flash < 450 && !calm.matches) {
+        const f = (now - flash) / 450;
+        g.strokeStyle = `rgba(127,209,255,${1 - f})`; g.lineWidth = 1.5; g.beginPath(); g.arc(E[0], E[1], 5 + f * 12, 0, Math.PI * 2); g.stroke();
+      }
+      dot(g, E, 4.5, '#5aa9ff');
+      dot(g, J, 6.5, '#e8b27a');
+      g.font = FONT; g.textBaseline = 'middle'; g.textAlign = 'left'; g.fillStyle = DIM;
+      // 地球と木星の名前は、太陽から離れる側（上か下）に書き、枠からはみ出さないようにする
+      g.fillText('太陽', mx + 10, my);
+      g.textAlign = 'center';
+      const inside = (v, max) => Math.max(16, Math.min(max - 16, v));
+      g.fillText('地球', inside(E[0], W), E[1] + (e[1] >= 0 ? -13 : 13));
+      g.fillText('木星', inside(J[0], W), inside(J[1] + (j[1] >= 0 ? -15 : 15), H));
+      g.fillStyle = ok ? IN : DIM;
+      g.fillText(ok ? (lag ? `光で ${(D * lag * 1440).toFixed(1)} 分` : '光は一瞬で届く') : '観測できない時期', (E[0] + J[0]) / 2, (E[1] + J[1]) / 2 - 10);
+      drawInset(W, H, e, j);
+    }
+    // 右上の拡大図: 木星・木星の影・イオ。黄色の点線は太陽の光、青の線は地球の向き
+    function drawInset(W, H, e, j) {
+      const g = ox, s = Math.max(60, Math.min(W, H) * 0.3), x0 = W - s - 6, y0 = 6, c = [x0 + s / 2, y0 + s / 2 + 4];
+      g.fillStyle = 'rgba(20,27,51,0.94)'; g.strokeStyle = 'rgba(154,166,208,0.45)'; g.lineWidth = 1;
+      g.beginPath(); g.rect(x0, y0, s, s); g.fill(); g.stroke();
+      g.save(); g.beginPath(); g.rect(x0, y0, s, s); g.clip();
+      const ri = s * 0.34, rj = ri * Math.sin(SHADOW), aJ = angleOf(JUPITER, t), u = [Math.cos(aJ), -Math.sin(aJ)], v = [-u[1], u[0]], L = s;
+      g.fillStyle = 'rgba(0,0,0,0.65)'; g.beginPath();
+      g.moveTo(c[0] + v[0] * rj, c[1] + v[1] * rj); g.lineTo(c[0] + v[0] * rj + u[0] * L, c[1] + v[1] * rj + u[1] * L);
+      g.lineTo(c[0] - v[0] * rj + u[0] * L, c[1] - v[1] * rj + u[1] * L); g.lineTo(c[0] - v[0] * rj, c[1] - v[1] * rj); g.closePath(); g.fill();
+      g.setLineDash([3, 4]); g.strokeStyle = 'rgba(255,211,77,0.7)'; seg(g, [c[0] - u[0] * s * 0.48, c[1] - u[1] * s * 0.48], [c[0] - u[0] * (rj + 3), c[1] - u[1] * (rj + 3)]);
+      g.strokeStyle = 'rgba(154,166,208,0.35)'; g.beginPath(); g.arc(c[0], c[1], ri, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
+      const ex = e[0] - j[0], ey = e[1] - j[1], el = Math.hypot(ex, ey) || 1;
+      g.strokeStyle = 'rgba(127,209,255,0.6)'; seg(g, [c[0] + (ex / el) * (rj + 3), c[1] - (ey / el) * (rj + 3)], [c[0] + (ex / el) * s * 0.48, c[1] - (ey / el) * s * 0.48]);
+      dot(g, c, rj, '#e8b27a');
+      const a = ioAngle(t), io = [c[0] + Math.cos(a) * ri, c[1] - Math.sin(a) * ri], dark = ioInShadow(t);
+      dot(g, io, 3.2, dark ? '#4a4f68' : '#f3e27a');
+      g.restore();
+      g.font = FONT; g.textAlign = 'left'; g.textBaseline = 'top'; g.fillStyle = DIM;
+      g.fillText('木星とイオ（拡大）', x0 + 5, y0 + 4);
+      g.textBaseline = 'bottom'; g.fillText(dark ? 'イオは影の中' : 'イオ（黄色の点）', x0 + 5, y0 + s - 3);
+    }
+    function drawChart() {
+      const [W, H] = fitCanvas(cc, cx), g = cx;
+      g.fillStyle = '#10163a'; g.fillRect(0, 0, W, H);
+      const L = 36, R = 8, T = 18, B = 18, pw = Math.max(1, W - L - R), ph = Math.max(1, H - T - B);
+      const pts = [];
+      let ymax = 6;
+      if (fit) for (let i = 0; i < shown; i++) { const q = obs[i], m = lateMin(q, fit); pts.push([q.o, m, q.sg]); ymax = Math.max(ymax, Math.abs(m) * 1.15); }
+      ymax = Math.min(60, Math.ceil(ymax / 5) * 5);
+      const X = (d) => L + (d / END) * pw, Y = (m) => T + (1 - (m + ymax) / (2 * ymax)) * ph;
+      g.fillStyle = '#2a335c';
+      for (const [a, b] of bands) g.fillRect(X(a), T, Math.max(1, X(b) - X(a)), ph);
+      g.font = FONT; g.lineWidth = 1; g.fillStyle = DIM; g.textBaseline = 'middle'; g.textAlign = 'right';
+      const step = ymax > 20 ? 10 : 5;
+      for (let m = -ymax; m <= ymax; m += step) {
+        g.strokeStyle = m === 0 ? 'rgba(214,222,252,0.45)' : 'rgba(154,166,208,0.15)';
+        seg(g, [L, Y(m)], [L + pw, Y(m)]);
+        g.fillText(`${m > 0 ? '+' : ''}${m}分`, L - 4, Y(m));
+      }
+      g.textAlign = 'left'; g.textBaseline = 'bottom';
+      for (let y = 1676; y <= 1679; y++) {
+        const d = (Date.UTC(y, 0, 1) - Date.UTC(1676, 0, 1)) / 864e5;
+        if (d > END) break;
+        g.strokeStyle = 'rgba(154,166,208,0.25)'; seg(g, [X(d), T], [X(d), T + ph]);
+        g.fillText(`${y}年`, X(d) + 3, H - 2);
+      }
+      g.textBaseline = 'top'; g.fillText('予定の時刻より何分遅れて見えたか（上ほど遅い）', L, 3);
+      g.save(); g.beginPath(); g.rect(L, T, pw, ph); g.clip();
+      // 曲線は、1天文単位あたりの遅れの誤差が0.75分より小さくなってから描く（観測が少ないうちは大きく外れるため）
+      if (fit && fit.se * 1440 < 0.75) {
+        g.strokeStyle = FIT; g.lineWidth = 1.5;
+        for (const [from, to, dash] of [[0, t, []], [t, END, [4, 4]]]) {
+          if (to <= from) continue;
+          g.setLineDash(dash); g.beginPath();
+          for (let d = from; ; d = Math.min(to, d + 2)) {
+            const p = [X(d), Y(fit.s * (distAU(d) - fit.dMean) * 1440)];
+            if (d === from) g.moveTo(p[0], p[1]); else g.lineTo(p[0], p[1]);
+            if (d >= to) break;
+          }
+          g.stroke();
+        }
+        g.setLineDash([]);
+      }
+      for (const [d, m, sg] of pts) dot(g, [X(d), Y(m)], 2.2, sg < 0 ? IN : OUT);
+      g.strokeStyle = 'rgba(255,255,255,0.5)'; seg(g, [X(t), T], [X(t), T + ph]);
+      g.restore();
+      if (!fit) {
+        g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#d6defc';
+        g.fillText(t === 0 && !playing ? '「動かす」か「最後まで進める」を押すと観測を始めます' : '観測がたまったらグラフを描きます', L + pw / 2, T + ph / 2);
+      }
+    }
+    function writeText() {
+      const d = dateOf(t), lag = lagNow(), D = distAU(t);
+      say('play', playing ? '止める' : t >= END ? 'はじめから' : '動かす');
+      say('date', `${d.y}年${d.m}月${d.d}日 ・ 観測できた回数 ${shown} 回` + (t >= END ? '（3年分の観測が終わりました）' : ''));
+      say('now', (lag ? `${(D * lag * 1440).toFixed(1)} 分` : '一瞬（遅れなし）') + `（地球と木星の距離 ${D.toFixed(2)} 天文単位）` + (observable(t) ? '' : '。いまは木星が太陽の近くに見えて観測できない'));
+      if (!fit) { say('est', shown < 6 ? 'まだ観測が足りません' : '地球と木星の距離がもう少し変わるまで観測を続けます'); say('cross', '—'); }
+      else {
+        say('cross', `${(2 * fit.s * 1440).toFixed(1)} 分 ± ${(2 * fit.se * 1440).toFixed(1)}`);
+        if (fit.s > 2 * fit.se && fit.s * 1440 > 0.05) { const v = speedKms(fit.s); say('est', `秒速 約${man(v)} km ± ${man((v * fit.se) / fit.s)}`); }
+        else say('est', 'はっきりした遅れは見えません（誤差の範囲で、遅れ0と区別できない）');
+      }
+      say('ref', `この見本の光は${lag ? `秒速 約${man(speedKms(lag))} km` : '限りなく速い'}。実際の光は秒速 約29.98万 km で、地球の軌道の直径を約16.6分で横切る。レーマーはこれを約22分と見積もった。`);
+    }
+    function frame(now) {
+      const dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
+      last = now;
+      if (playing) {
+        t = Math.min(END, t + dt * Number($('speed').value) * (window.THUMB ? 5 : 1));
+        if (t >= END) { playing = false; doneAt = now; }
+      }
+      // 一覧の小窓では、終わったら天気を変えて最初から観測し直す
+      if (window.THUMB && !playing && doneAt >= 0 && now - doneAt > 2500) { seed++; t = 0; doneAt = -1; playing = true; rebuild(); }
+      if (catchUp()) flash = now;
+      drawOrbit(now);
+      drawChart();
+      writeText();
+      requestAnimationFrame(frame);
+    }
+    $('play').addEventListener('click', () => {
+      if (t >= END) { t = 0; rebuild(); playing = true; } else playing = !playing;
+    });
+    $('skip').addEventListener('click', () => { t = END; playing = false; catchUp(); });
+    $('again').addEventListener('click', () => { seed++; t = 0; rebuild(); playing = true; });
+    $('light').addEventListener('change', rebuild);
+    $('noise').addEventListener('change', rebuild);
+    rebuild();
+    requestAnimationFrame(frame);
+  },
+});
