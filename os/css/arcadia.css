@@ -526,6 +526,102 @@
 .arcadia .app-calc .tape-row:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: -2px; }
 .arcadia .app-calc .tape-empty { padding: 8px; color: var(--fos-ink-muted); font-size: 12px; }
 
+/* ===== 文書（2026-11-19） ===== */
+/* 道具の帯: 段落の種類の選び箱と、書式のボタンの帯（role="toolbar"）。狭い窓では折り返す */
+.arcadia .app-writer .wr-bar { flex-wrap: wrap; row-gap: 4px; }
+.arcadia .app-writer .wr-blocklabel { white-space: nowrap; font-size: 12px; }
+.arcadia .app-writer .wr-block { min-height: 28px; width: 118px; padding-block: 1px; }
+.arcadia .app-writer .wr-tools { flex: 1 1 0; min-inline-size: 260px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; }
+.arcadia .app-writer .wr-group { display: flex; align-items: center; gap: 4px; }
+.arcadia .app-writer .wr-sep { inline-size: 0; block-size: 22px; border: 0; border-inline-start: 1.5px solid #b5a3ce; }
+.arcadia .app-writer .wr-tb { width: auto; min-inline-size: 28px; min-block-size: 28px; padding: 0 6px; font: 700 13px/1 var(--fos-font); color: var(--fos-ink); white-space: nowrap; }
+.arcadia .app-writer .wr-tb[aria-disabled="true"] { color: #a799ba; box-shadow: none; background: #f0ebf5; translate: none; }
+.arcadia .app-writer .wr-tb:focus-visible, .arcadia .app-writer .wr-pick:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+.arcadia .app-writer .wr-tb[data-cmd="fg"], .arcadia .app-writer .wr-tb[data-cmd="hl"] { display: inline-flex; flex-direction: column; justify-content: center; gap: 2px; }
+.arcadia .app-writer .wr-a { font-family: "BIZ UDPMincho", "Yu Mincho", serif; font-size: 13px; line-height: 1; }
+.arcadia .app-writer .wr-pen { font-family: var(--fos-font); font-size: 10.5px; }
+.arcadia .app-writer .wr-swatch { display: block; inline-size: 18px; block-size: 4px; border: 1px solid var(--fos-ink); border-radius: 1px; }
+.arcadia .app-writer .wr-pick { inline-size: 22px; block-size: 28px; min-height: 0; padding: 0; border: 1.5px solid var(--fos-ink); border-radius: 6px; background: var(--fos-paper); cursor: pointer; }
+.arcadia .app-writer .wr-pick::-webkit-color-swatch-wrapper { padding: 3px; }
+.arcadia .app-writer .wr-pick::-webkit-color-swatch { border: 1px solid var(--fos-ink); border-radius: 3px; }
+/* 揃えのボタンの絵（長さの違う 3 本の線） */
+.arcadia .app-writer .wr-al { display: block; inline-size: 14px; block-size: 11px; background:
+  linear-gradient(currentColor, currentColor) var(--a, left) 0 / 14px 2px no-repeat,
+  linear-gradient(currentColor, currentColor) var(--a, left) 4.5px / 9px 2px no-repeat,
+  linear-gradient(currentColor, currentColor) var(--a, left) 9px / 12px 2px no-repeat; }
+.arcadia .app-writer .wr-al-c { --a: center; }
+.arcadia .app-writer .wr-al-r { --a: right; }
+.arcadia .app-writer .wr-chip { display: inline-block; inline-size: 12px; block-size: 12px; margin-inline-end: 6px; vertical-align: -1px; background: var(--c); border: 1px solid var(--fos-ink); border-radius: 3px; }
+
+/* 検索と置換の帯 */
+.arcadia .app-writer .wr-find { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; padding: 5px 8px; background: #faf6ff; border-bottom: 1.5px solid var(--fos-marble-lo); font-size: 12px; }
+.arcadia .app-writer .wr-find[hidden] { display: none; }
+.arcadia .app-writer .wr-find input[type="search"], .arcadia .app-writer .wr-find input[type="text"] { inline-size: 150px; min-height: 26px; padding-block: 1px; }
+.arcadia .app-writer .wr-fcase { display: inline-flex; align-items: center; white-space: nowrap; }
+.arcadia .app-writer .wr-fcount { min-inline-size: 72px; color: var(--fos-ink-muted); font-variant-numeric: tabular-nums; }
+.arcadia .app-writer .wr-fbtn { min-height: 26px; padding: 0 10px; white-space: nowrap; font: 700 12px/1 var(--fos-font); color: var(--fos-ink); background: linear-gradient(180deg, #fff, var(--fos-cream)); border: 2px solid var(--fos-ink); border-radius: 999px; box-shadow: 2px 2px 0 var(--fos-ink); }
+.arcadia .app-writer .wr-fbtn:active { translate: 1px 1px; box-shadow: 1px 1px 0 var(--fos-ink); }
+.arcadia .app-writer .wr-fbtn:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+.arcadia .app-writer .wr-note { margin: 8px 0 0; font-size: 12px; color: var(--fos-ink-muted); }
+
+/* 紙を置く机（無地）と、A4 の縦の紙。紙の大きさと余白は mm で決め、拡大率は zoom で変える */
+.arcadia .app-writer .wr-stage { position: relative; flex: 1; min-height: 0; display: flex; overflow: hidden; }
+.arcadia .app-writer .wr-scroll { flex: 1; min-width: 0; overflow: auto; background: #e6e0ee; }
+.arcadia .app-writer .wr-scroll[data-writing="vertical"] { writing-mode: vertical-rl; }
+.arcadia .app-writer .wr-page {
+  --wr-guide: #d9cfe8;
+  box-sizing: border-box; margin-block: 20px; margin-inline: auto;
+  inline-size: 210mm; min-block-size: 297mm; padding: 20mm 22mm;
+  background: repeating-linear-gradient(to bottom, #fffefb 0 calc(297mm - 1px), var(--wr-guide) calc(297mm - 1px) 297mm);
+  border: 1px solid #c9bddb; box-shadow: 3px 3px 0 rgb(45 27 70 / 0.28);
+  font-family: "BIZ UDPMincho", "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", serif;
+  font-size: var(--wr-fs, 10.5pt); line-height: var(--wr-lh, 1.8); letter-spacing: 0; color: #1d1a22;
+  overflow-wrap: anywhere; line-break: strict; caret-color: var(--fos-cobalt); outline: none; cursor: text;
+}
+/* 縦書き: 紙は縦のまま。行は右から左へ進み、紙の区切りの線は 210mm ごとに縦に引く */
+.arcadia .app-writer .wr-scroll[data-writing="vertical"] .wr-page {
+  inline-size: 297mm; min-block-size: 210mm;
+  background: repeating-linear-gradient(to left, #fffefb 0 calc(210mm - 1px), var(--wr-guide) calc(210mm - 1px) 210mm);
+}
+.arcadia .app-writer .wr-page:focus-visible { box-shadow: 3px 3px 0 rgb(45 27 70 / 0.28), 0 0 0 3px rgb(75 95 232 / 0.35); }
+.arcadia .app-writer .wr-page ::selection { background: rgb(107 242 227 / 0.55); }
+.arcadia .app-writer .wr-page :is(h1, h2, h3) { font-family: "BIZ UDPGothic", "Yu Gothic", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif; line-height: 1.4; margin-block: 0.8em 0.4em; }
+.arcadia .app-writer .wr-page h1 { font-size: 1.8em; }
+.arcadia .app-writer .wr-page h2 { font-size: 1.4em; }
+.arcadia .app-writer .wr-page h3 { font-size: 1.15em; }
+.arcadia .app-writer .wr-page > :first-child { margin-block-start: 0; }
+.arcadia .app-writer .wr-page :is(p, ul, ol, blockquote, pre, table) { margin-block: 0 0.6em; }
+.arcadia .app-writer .wr-page :is(ul, ol) { padding-inline-start: 1.6em; }
+.arcadia .app-writer .wr-page blockquote { margin-inline: 1.5em 0; padding-inline-start: 1em; border-inline-start: 3px solid #b9a8d6; color: #4a4157; }
+.arcadia .app-writer .wr-page :is(pre, code) { font-family: "BIZ UDGothic", "MS Gothic", ui-monospace, monospace; font-size: 0.92em; }
+.arcadia .app-writer .wr-page pre { padding: 0.6em 0.8em; background: #f5f2f8; border: 1px solid #d9d0e6; white-space: pre-wrap; }
+.arcadia .app-writer .wr-page code { padding: 0 0.2em; background: #f2eef7; }
+.arcadia .app-writer .wr-page table { border-collapse: collapse; }
+.arcadia .app-writer .wr-page :is(td, th) { border: 1px solid #5d5468; padding: 0.2em 0.5em; min-inline-size: 3em; vertical-align: top; }
+.arcadia .app-writer .wr-page hr { height: auto; width: auto; block-size: 0; margin-block: 1em; margin-inline: 0; border: 0; border-block-start: 1px solid #5d5468; box-shadow: none; }
+.arcadia .app-writer .wr-page img { max-inline-size: 100%; block-size: auto; object-fit: contain; vertical-align: middle; }
+.arcadia .app-writer .wr-page mark { background-color: #fff27a; color: inherit; }
+/* 検索で見つかった所（CSS Custom Highlight API）。今の 1 つは濃い色と下線で分ける */
+.arcadia .app-writer ::highlight(wr-find) { background-color: #ffe08a; color: #1d1a22; }
+.arcadia .app-writer ::highlight(wr-find-cur) { background-color: #ff9ecf; color: #1d1a22; text-decoration: underline 2px; }
+/* 選んだ画像の枠と、大きさを変えるつまみ */
+.arcadia .app-writer .wr-imgbox { position: absolute; box-sizing: border-box; border: 2px dashed var(--fos-cobalt); pointer-events: none; }
+.arcadia .app-writer .wr-imgbox[hidden] { display: none; }
+.arcadia .app-writer .wr-imghandle {
+  position: absolute; right: -9px; bottom: -9px; inline-size: 16px; block-size: 16px; min-width: 0; min-height: 0; padding: 0;
+  background: var(--fos-aqua); border: 2px solid var(--fos-ink); border-radius: 4px; box-shadow: 1px 1px 0 var(--fos-ink);
+  cursor: nwse-resize; pointer-events: auto; touch-action: none; -webkit-user-select: none; user-select: none;
+}
+.arcadia .app-writer .wr-imghandle:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+@media (pointer: coarse) {
+  .arcadia .app-writer .wr-tb { min-inline-size: 36px; min-block-size: 36px; }
+  .arcadia .app-writer .wr-imghandle { inline-size: 24px; block-size: 24px; right: -13px; bottom: -13px; }
+}
+@media (forced-colors: active) {
+  .arcadia .app-writer .wr-tb[aria-pressed="true"] { outline: 2px solid Highlight; }
+  .arcadia .app-writer .wr-sep { border-color: ButtonText; }
+}
+
 /* ===== 付箋（作業面は無地の淡い色。網点は入れない） ===== */
 .arcadia .app-sticky .app-body { --sticky: var(--fos-paper); }
 .arcadia .app-sticky[data-sticky="mint"] .app-body { --sticky: #e3fbf7; }
