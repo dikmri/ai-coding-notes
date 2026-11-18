@@ -22,6 +22,7 @@ export const APPS = {
   icosaria: { name: '蒼海と白柱のイコサリア', icon: 'icons/icosaria.svg' },
   machiakari: { name: '街あかり', icon: 'icons/machiakari.svg' },
   calc: { name: '電卓', icon: 'icons/calc.svg' },
+  sheet: { name: '表計算', icon: 'icons/sheet.svg' },
   stickies: { name: '付箋', icon: 'icons/stickies.svg' },
   clock: { name: '時計とタイマー', icon: 'icons/clock.svg' },
   charmap: { name: '文字と色の見本帳', icon: 'icons/charmap.svg' },
