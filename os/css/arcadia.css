@@ -1063,6 +1063,87 @@
 .arcadia .app-terminal .term-in { flex: 1; min-width: 0; min-height: 0; padding: 0; font: inherit; color: var(--fos-ink); background: transparent; border: 0; border-radius: 0; box-shadow: none; }
 .arcadia .app-terminal .term-in:focus-visible { outline: none; box-shadow: none; border: 0; }
 .arcadia .app-terminal .term:focus-within .term-line { background: linear-gradient(90deg, rgb(107 242 227 / 0.18), transparent 70%); border-radius: 4px; }
+/* ===== 音の実験室（2026-11-19） ===== */
+/* 作業面（エディタ）は無地の真珠白。音の形の小さな画面だけ、夜の実験室のような濃い紫にする */
+.arcadia .app-livecode { --lc-screen: #1b1036; }
+.arcadia .app-livecode .lc-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 8px; background: var(--fos-paper); border-bottom: 1.5px solid var(--fos-marble-lo); }
+.arcadia .app-livecode .lc-btn { min-height: 28px; padding: 0 12px; white-space: nowrap; font: 700 12px/1 var(--fos-font); color: var(--fos-ink); background: linear-gradient(180deg, #fff, var(--fos-cream)); border: 2px solid var(--fos-ink); border-radius: 999px; box-shadow: 2px 2px 0 var(--fos-ink); }
+.arcadia .app-livecode .lc-run { min-width: 100px; background: linear-gradient(180deg, #fff, var(--fos-aqua)); }
+.arcadia .app-livecode .lc-run.on { background: linear-gradient(180deg, #fff7c2, var(--fos-apricot) 55%, #ff9ecf); }
+.arcadia .app-livecode .lc-btn:disabled { background: #e5e0ec; border-color: #8e7fa3; color: #8e7fa3; box-shadow: none; }
+.arcadia .app-livecode .lc-btn:active:not(:disabled) { translate: 1px 1px; box-shadow: 1px 1px 0 var(--fos-ink); }
+.arcadia .app-livecode :is(.lc-btn, .lc-mini, .lc-q):focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 1px; }
+.arcadia .app-livecode .lc-tempo { padding: 4px 8px; font: 700 12.5px/1 var(--fos-mono); font-variant-numeric: tabular-nums; background: var(--fos-marble); border: 1.5px solid var(--fos-ink); border-radius: 6px; }
+.arcadia .app-livecode .lc-vol { margin-left: 4px; }
+.arcadia .app-livecode [data-vol] { width: 110px; }
+.arcadia .app-livecode .lc-gap { flex: 1; }
+.arcadia .app-livecode .lc-mini { min-height: 22px; padding: 0 8px; font-size: 11.5px; color: var(--fos-ink); background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 999px; white-space: nowrap; box-shadow: none; }
+.arcadia .app-livecode .lc-err { display: flex; align-items: center; gap: 8px; padding: 5px 10px; font-size: 12.5px; background: #fff0f5; border-bottom: 2px solid var(--fos-rose); }
+.arcadia .app-livecode .lc-err[hidden] { display: none; }
+.arcadia .app-livecode .lc-err-mark { flex: none; display: grid; place-items: center; width: 18px; height: 18px; font-weight: 700; color: #fff; background: #b0245e; border: 1.5px solid var(--fos-ink); border-radius: 50%; }
+.arcadia .app-livecode .lc-err-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.arcadia .app-livecode .lc-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 250px; }
+.arcadia .app-livecode .lc-edit { display: flex; min-width: 0; min-height: 0; background: var(--fos-paper); }
+.arcadia .app-livecode :is(.lc-gutter, .lc-pre, .lc-ta) { margin: 0; font: 13px/20px var(--fos-mono); tab-size: 2; white-space: pre; letter-spacing: 0; }
+.arcadia .app-livecode .lc-gutter { flex: none; width: 44px; overflow: hidden; padding: 8px 0; text-align: right; color: var(--fos-ink-muted); background: var(--fos-marble); border-right: 1.5px solid var(--fos-marble-lo); user-select: none; }
+.arcadia .app-livecode .lc-gutter > div { height: 20px; padding-right: 6px; }
+.arcadia .app-livecode .lc-gutter > .now { font-weight: 700; color: var(--fos-ink); background: var(--fos-aqua); }
+.arcadia .app-livecode .lc-gutter > .err { font-weight: 700; color: #fff; background: #b0245e; }
+.arcadia .app-livecode .lc-code { position: relative; flex: 1; min-width: 0; overflow: hidden; }
+.arcadia .app-livecode .lc-marks { position: absolute; inset: 0; pointer-events: none; }
+.arcadia .app-livecode :is(.lc-bar-now, .lc-bar-err) { position: absolute; left: 0; right: 0; height: 20px; }
+.arcadia .app-livecode .lc-bar-now { background: rgb(107 242 227 / 0.3); box-shadow: inset 3px 0 0 var(--fos-aqua-lo); }
+.arcadia .app-livecode .lc-bar-err { background: rgb(255 92 151 / 0.14); box-shadow: inset 3px 0 0 #b0245e; }
+.arcadia .app-livecode :is(.lc-pre, .lc-ta) { position: absolute; inset: 0; box-sizing: border-box; width: 100%; height: 100%; padding: 8px 10px; overflow: hidden; border: 0; border-radius: 0; }
+.arcadia .app-livecode .lc-pre { padding-right: 48px; color: var(--fos-ink); background: transparent; pointer-events: none; }
+.arcadia .app-livecode .lc-ta { overflow: auto; resize: none; color: transparent; caret-color: var(--fos-ink); background: transparent; outline: none; box-shadow: none; }
+.arcadia .app-livecode .lc-ta::selection { color: transparent; background: rgb(207 174 255 / 0.5); }
+.arcadia .app-livecode .lc-ta:focus-visible { box-shadow: inset 0 0 0 2px var(--fos-cobalt); }
+::highlight(lc-kw) { color: #7a1fa2; }
+::highlight(lc-opt) { color: #1d6b74; }
+::highlight(lc-func) { color: #1f55a6; }
+::highlight(lc-builtin) { color: #a3305c; }
+::highlight(lc-note) { color: #2d7a2d; }
+::highlight(lc-num) { color: #9a4a00; }
+::highlight(lc-comment) { color: #6e5d85; }
+::highlight(lc-bad) { color: #fff; background-color: #b0245e; }
+::highlight(lc-err) { background-color: rgb(255 92 151 / 0.28); text-decoration: wavy underline #b0245e; }
+.arcadia .app-livecode .lc-side { display: flex; flex-direction: column; min-height: 0; overflow: auto; background: var(--fos-marble); border-left: 2px solid var(--fos-ink); }
+.arcadia .app-livecode .lc-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 4px 8px; font-size: 12.5px; font-weight: 700; border-bottom: 1.5px solid var(--fos-marble-lo); }
+.arcadia .app-livecode .lc-dim { font-size: 11.5px; font-weight: 400; color: var(--fos-ink-muted); }
+.arcadia .app-livecode .lc-scope { display: block; flex: none; width: calc(100% - 16px); height: 84px; margin: 6px 8px; background: var(--lc-screen); border: 2px solid var(--fos-ink); border-radius: 8px; }
+.arcadia .app-livecode :is(.lc-loops, .lc-quick) { display: grid; gap: 3px; margin: 0; padding: 4px 6px 6px; list-style: none; }
+.arcadia .app-livecode .lc-loop { display: grid; grid-template-columns: 1fr auto; gap: 0 6px; padding: 3px 8px; font-size: 12px; background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 6px; cursor: pointer; }
+.arcadia .app-livecode .lc-loop b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.arcadia .app-livecode .lc-loop b::before { content: "● "; color: var(--fos-aqua-lo); }
+.arcadia .app-livecode .lc-loop span { font-family: var(--fos-mono); font-variant-numeric: tabular-nums; }
+.arcadia .app-livecode .lc-loop span:last-child { grid-column: 1 / -1; font: 11px/1.4 var(--fos-font); color: var(--fos-ink-muted); }
+.arcadia .app-livecode .lc-loop.ending { border-style: dashed; }
+.arcadia .app-livecode .lc-loop.ending b::before { color: var(--fos-ink-muted); }
+.arcadia .app-livecode .lc-loop:hover { background: #e8fcf9; }
+.arcadia .app-livecode .lc-empty { padding: 2px 4px; font-size: 12px; color: var(--fos-ink-muted); }
+.arcadia .app-livecode .lc-q { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; width: 100%; min-height: 22px; padding: 1px 8px; font: 12px/1.3 var(--fos-font); color: var(--fos-ink); text-align: left; background: var(--fos-paper); border: 1.5px solid var(--fos-marble-lo); border-radius: 6px; box-shadow: none; }
+.arcadia .app-livecode .lc-q code { font: 12px var(--fos-mono); color: #7a1fa2; white-space: nowrap; }
+.arcadia .app-livecode .lc-q span { font-size: 11px; color: var(--fos-ink-muted); white-space: nowrap; }
+.arcadia .app-livecode .lc-q:hover { background: #e8fcf9; border-color: var(--fos-ink); }
+.arcadia .app-livecode .status-field[data-kind="error"] { color: #8a1846; background: #fff0f5; border-color: var(--fos-rose); }
+.arcadia .lc-dlg { min-width: 380px; }
+.arcadia .lc-dlg p { max-width: 30em; margin: 0 0 10px; }
+.arcadia .lc-dlg .lc-askrow { display: flex; align-items: center; gap: 6px; }
+.arcadia .lc-dlg .lc-askrow input { width: 72px; }
+.arcadia .lc-help { width: min(780px, 92vw); }
+.arcadia .lc-help .lc-help-body { max-height: min(62vh, 580px); overflow: auto; padding: 2px 14px 10px; line-height: 1.6; background: var(--fos-paper); border: 1.5px solid var(--fos-marble-lo); border-radius: 6px; }
+.arcadia .lc-help .lc-help-body:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 1px; }
+.arcadia .lc-help h2 { margin: 14px 0 6px; font-size: 15px; }
+.arcadia .lc-help ol { margin: 0; padding-left: 1.4em; }
+.arcadia .lc-help .lc-ref { width: 100%; font-size: 12.5px; border-collapse: collapse; }
+.arcadia .lc-help .lc-ref :is(th, td) { padding: 4px 6px; text-align: left; vertical-align: top; border-bottom: 1px solid #e6dcf0; }
+.arcadia .lc-help .lc-ref thead th { background: var(--fos-marble); }
+.arcadia .lc-help .lc-ref pre { margin: 0; font: 12px/1.45 var(--fos-mono); color: #7a1fa2; white-space: pre; }
+.arcadia .lc-help :is(code, kbd) { font-family: var(--fos-mono); }
+.arcadia .lc-help kbd { padding: 0 4px; font-size: 12px; background: var(--fos-marble); border: 1px solid var(--fos-ink); border-radius: 3px; }
+.arcadia .lc-help .lc-names { margin: 0; padding-left: 1.2em; font-size: 12.5px; columns: 2; }
+
 /* ===== システム モニタ（2026-11-17） ===== */
 .arcadia .app-monitor { --mon-c0: #6bf2e3; --mon-c1: #cfaeff; --mon-c2: #ff8ec7; --mon-c3: #ffd37a; --mon-c4: #4b5fe8; --mon-c5: #3ba89c; }
 .arcadia .app-monitor .mon-wrap { flex: 1; min-height: 0; padding: 8px; display: flex; }

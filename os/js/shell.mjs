@@ -32,6 +32,7 @@ export const APPS = {
   paint: { name: 'お絵かき', icon: 'icons/paint.svg' },
   pixel: { name: 'ドット絵エディタ', icon: 'icons/pixel.svg' },
   player: { name: '音楽プレーヤー', icon: 'icons/player.svg' },
+  livecode: { name: '音の実験室', icon: 'icons/livecode.svg' },
   terminal: { name: '端末', icon: 'icons/terminal.svg' },
   monitor: { name: 'システム モニタ', icon: 'icons/monitor.svg' },
   calendar: { name: 'カレンダー', icon: 'icons/calendar.svg' },
