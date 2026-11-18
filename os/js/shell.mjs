@@ -19,6 +19,7 @@ export const APPS = {
   synth: { name: 'SID 風シンセ', icon: 'icons/synth.svg' },
   viewer: { name: '画像と音のビューア', icon: 'icons/viewer.svg' },
   settings: { name: '設定', icon: 'icons/settings.svg' },
+  daw: { name: '多重録音スタジオ', icon: 'icons/daw.svg' },
   icosaria: { name: '蒼海と白柱のイコサリア', icon: 'icons/icosaria.svg' },
   machiakari: { name: '街あかり', icon: 'icons/machiakari.svg' },
   calc: { name: '電卓', icon: 'icons/calc.svg' },

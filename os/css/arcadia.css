@@ -487,6 +487,101 @@
 /* 各アプリが自分で描くボタン（.flat）は、95.css の決まった高さと折り返しなしを外す */
 .arcadia button.flat { height: auto; white-space: normal; }
 
+/* ===== 多重録音スタジオ（2026-11-19） ===== */
+/* 上に録音と再生の帯、左に段の欄、右に目盛りとクリップの欄（canvas）。作業面は無地で、段の色は左の細い帯とクリップにだけ使う */
+.arcadia .app-daw .daw-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 6px 8px; background: linear-gradient(180deg, #faf6ff, #eae0f5); border-bottom: 1.5px solid var(--fos-marble-lo); font-size: 12px; }
+.arcadia .app-daw .daw-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.arcadia .app-daw .daw-group label { display: inline-flex; align-items: center; white-space: nowrap; }
+.arcadia .app-daw .daw-btn {
+  min-height: 28px; padding: 0 10px; font: 700 12px/1 var(--fos-font); color: var(--fos-ink); white-space: nowrap;
+  background: linear-gradient(180deg, #fff, var(--fos-cream)); border: 2px solid var(--fos-ink); border-radius: 999px; box-shadow: 2px 2px 0 var(--fos-ink);
+}
+.arcadia .app-daw .daw-play[aria-pressed="true"] { background: var(--fos-aqua); }
+.arcadia .app-daw .daw-recbtn { background: linear-gradient(180deg, #fff, var(--fos-sunset)); }
+.arcadia .app-daw .daw-recbtn[aria-pressed="true"] { background: var(--fos-rose); }
+.arcadia .app-daw :is(.daw-btn, .daw-mini, .daw-add, .dh-tg, .dh-del, .dh-color):active { translate: 1px 1px; box-shadow: none; }
+.arcadia .app-daw :is(.daw-btn, .daw-mini, .daw-add, .dh-tg, .dh-del, .dh-color):focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+.arcadia .app-daw .daw-mini { min-width: 28px; min-height: 26px; padding: 0; font: 700 15px/1 var(--fos-mono); color: var(--fos-ink); background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 6px; box-shadow: 1px 1px 0 var(--fos-ink); }
+.arcadia .app-daw .daw-clock {
+  min-width: 120px; padding: 2px 10px; text-align: right; font-family: var(--fos-mono); font-variant-numeric: tabular-nums;
+  background: var(--fos-paper); border: 2px solid var(--fos-ink); border-radius: 8px; box-shadow: inset 2px 2px 0 rgb(45 27 70 / 0.12);
+}
+.arcadia .app-daw .daw-pos { font: 700 18px/1.15 var(--fos-mono); }
+.arcadia .app-daw .daw-sub { font-size: 11px; color: var(--fos-ink-muted); }
+.arcadia .app-daw.recording .daw-pos { color: #c2185b; }
+.arcadia .app-daw .daw-bar [data-bpm] { width: 64px; }
+.arcadia .app-daw .daw-master input[type="range"] { width: 110px; }
+.arcadia .app-daw .daw-master output { min-width: 58px; font: 11px/1 var(--fos-mono); }
+.arcadia .app-daw .daw-meter2 { display: grid; gap: 2px; width: 70px; }
+.arcadia .app-daw :is(.daw-meter2 i, .dh-meter) { position: relative; display: block; height: 7px; border: 1.5px solid var(--fos-ink); border-radius: 999px; background: var(--fos-paper); overflow: hidden; }
+.arcadia .app-daw :is(.daw-meter2 b, .dh-meter b) { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--fos-aqua); }
+.arcadia .app-daw :is(.daw-meter2 b, .dh-meter b)[data-kind="loud"] { background: var(--fos-apricot); }
+.arcadia .app-daw :is(.daw-meter2 b, .dh-meter b)[data-kind="clip"] { background: var(--fos-sunset); }
+
+.arcadia .app-daw .daw-main { --dh-w: 248px; position: relative; flex: 1; min-height: 0; display: grid; grid-template-rows: 34px minmax(0, 1fr) 24px; }
+.arcadia .app-daw .daw-main.drop-ok { outline: 3px dashed var(--fos-cobalt); outline-offset: -3px; }
+.arcadia .app-daw :is(.daw-top, .daw-bottom, .daw-rows) { display: grid; grid-template-columns: var(--dh-w) minmax(0, 1fr); min-width: 0; }
+.arcadia .app-daw .daw-corner { display: flex; align-items: center; padding: 0 6px; background: var(--fos-marble); border-right: 1.5px solid var(--fos-marble-lo); border-bottom: 1px solid var(--fos-marble-lo); }
+.arcadia .app-daw .daw-add { min-width: 0; min-height: 24px; padding: 0 10px; font: 700 12px/1 var(--fos-font); color: var(--fos-ink); background: linear-gradient(180deg, #fff, #c9f8f1); border: 1.5px solid var(--fos-ink); border-radius: 999px; box-shadow: 2px 2px 0 var(--fos-ink); }
+.arcadia .app-daw .daw-ruler { display: block; width: 100%; height: 34px; cursor: pointer; touch-action: none; -webkit-user-select: none; user-select: none; }
+.arcadia .app-daw .daw-body { min-height: 0; overflow: hidden auto; }
+.arcadia .app-daw .daw-heads { background: var(--fos-marble); border-right: 1.5px solid var(--fos-marble-lo); }
+.arcadia .app-daw .daw-lanecol { position: relative; min-width: 0; }
+.arcadia .app-daw .daw-lanes { display: block; width: 100%; touch-action: none; -webkit-user-select: none; user-select: none; }
+.arcadia .app-daw .daw-lanes:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: -2px; }
+.arcadia .app-daw .daw-playhead { position: absolute; left: 0; top: 0; width: 2px; background: var(--fos-rose); pointer-events: none; }
+.arcadia .app-daw .daw-zoom { display: flex; align-items: center; gap: 4px; padding: 0 6px; font-size: 11px; color: var(--fos-ink-muted); background: var(--fos-marble); border-right: 1.5px solid var(--fos-marble-lo); white-space: nowrap; overflow: hidden; }
+.arcadia .app-daw .daw-zoom .daw-mini { min-width: 22px; min-height: 19px; font-size: 13px; }
+.arcadia .app-daw .daw-zoom .daw-fit { padding: 0 6px; font: 700 11px/1 var(--fos-font); }
+.arcadia .app-daw .daw-hscroll { align-self: end; height: 24px; overflow: auto hidden; }
+.arcadia .app-daw .daw-hscroll > div { height: 1px; }
+
+/* 段の欄: 1 段 80px（canvas の段の高さと同じ） */
+.arcadia .app-daw .daw-head {
+  position: relative; box-sizing: border-box; height: 80px; display: grid; grid-template-rows: 26px 22px 22px; align-content: center; gap: 2px;
+  padding: 2px 6px 2px 12px; background: var(--fos-paper); border-bottom: 1px solid #e2d8ee;
+}
+.arcadia .app-daw .daw-head::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 6px; background: var(--c); border-right: 1px solid var(--fos-ink); }
+.arcadia .app-daw .daw-head.selected { background: #eefcf9; box-shadow: inset -3px 0 0 var(--fos-aqua-lo); }
+.arcadia .app-daw .dh-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.arcadia .app-daw .dh-color { flex: none; width: 20px; height: 20px; min-width: 0; min-height: 0; padding: 0; background: var(--c); border: 1.5px solid var(--fos-ink); border-radius: 50%; box-shadow: 1px 1px 0 var(--fos-ink); }
+.arcadia .app-daw .dh-name { flex: 1; min-width: 0; min-height: 24px; padding: 1px 6px; font-size: 12.5px; font-weight: 700; }
+.arcadia .app-daw .dh-del { flex: none; width: 22px; height: 22px; min-width: 0; min-height: 0; padding: 0; font: 700 14px/1 var(--fos-font); color: var(--fos-ink); background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 5px; }
+.arcadia .app-daw .dh-tg { flex: none; min-width: 0; min-height: 20px; padding: 0 6px; font: 700 11px/1 var(--fos-font); color: var(--fos-ink); background: linear-gradient(180deg, #fff, #eae0f5); border: 1.5px solid var(--fos-ink); border-radius: 5px; }
+.arcadia .app-daw .dh-tg[data-h="mute"][aria-pressed="true"] { background: var(--fos-apricot); }
+.arcadia .app-daw .dh-tg[data-h="solo"][aria-pressed="true"] { background: var(--fos-aqua); }
+.arcadia .app-daw .dh-arm[aria-pressed="true"] { background: var(--fos-rose); }
+.arcadia .app-daw .dh-meter { flex: 1; min-width: 16px; }
+.arcadia .app-daw .dh-sl label { font-size: 11px; color: var(--fos-ink-muted); white-space: nowrap; }
+.arcadia .app-daw .dh-sl input[type="range"] { --track: 6px; --thumb-w: 12px; --thumb-h: 16px; flex: 1 1 0; min-width: 0; min-height: 20px; }
+.arcadia .app-daw .dh-sl input[data-h="pan"] { flex-grow: 0.7; }
+
+/* はじめての方への案内（クリップが 1 つも無いとき、クリップの欄の上に出す） */
+.arcadia .app-daw .daw-guide {
+  position: absolute; left: calc(var(--dh-w) + 28px); top: 56px; max-width: min(540px, calc(100% - var(--dh-w) - 56px)); padding: 14px 18px;
+  font-size: 13px; line-height: 1.6; background: var(--fos-cream); border: 2px solid var(--fos-ink); border-radius: 12px; box-shadow: 4px 4px 0 var(--fos-shadow);
+}
+.arcadia .app-daw .daw-guide h2 { margin: 0 0 6px; font: 700 15px/1.3 var(--fos-font); }
+.arcadia .app-daw .daw-guide ol { margin: 0 0 6px; padding-left: 1.4em; }
+.arcadia .app-daw .daw-guide p { margin: 0 0 10px; color: var(--fos-ink-muted); }
+.arcadia .app-daw .daw-guide-btns { display: flex; flex-wrap: wrap; gap: 10px; }
+.arcadia .app-daw .daw-guide .daw-primary { background: linear-gradient(180deg, #fff7c2 0%, var(--fos-apricot) 45%, #ff9ecf 100%); }
+
+/* 状態の帯とミックスダウンの進み具合（標準の progress を、ふちと色だけ変える） */
+.arcadia .app-daw .daw-st-sel { max-width: 36%; }
+.arcadia .app-daw .daw-prog { --progress-bar-radius: 999px; flex: none; align-self: center; width: 120px; height: 12px; appearance: none; border: 0 solid; overflow: clip; border-radius: var(--progress-bar-radius); background: var(--fos-paper); box-shadow: inset 0 0 0 1.5px var(--fos-ink); }
+.arcadia .app-daw .daw-prog::-webkit-progress-bar { background: transparent; }
+.arcadia .app-daw .daw-prog::-webkit-progress-value { background: var(--fos-aqua); border-radius: var(--progress-bar-radius); }
+.arcadia .app-daw .daw-prog::-moz-progress-bar { background: var(--fos-aqua); border-radius: var(--progress-bar-radius); }
+
+/* ダイアログ（クリップの音量とフェード、録音の設定）と、段の色のメニュー */
+.arcadia .daw-dlg { width: 440px; }
+.arcadia .daw-dlg .fd-row { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: 6px; align-items: center; margin-top: 6px; }
+.arcadia .daw-dlg .fd-row output { min-width: 64px; font: 12px/1 var(--fos-mono); }
+.arcadia .daw-dlg .daw-hint { margin: 10px 0 8px; font-size: 12px; line-height: 1.6; color: var(--fos-ink-muted); }
+.arcadia .daw-dlg .button-row { flex-wrap: wrap; gap: 8px; }
+.arcadia .daw-swatch { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px; border: 1.5px solid var(--fos-ink); border-radius: 50%; }
+
 /* ===== 電卓（2026-11-17） ===== */
 .arcadia .app-calc .calc-main { flex: 1; min-height: 0; display: flex; gap: 10px; padding: 10px; container-type: inline-size; }
 .arcadia .app-calc .calc-left { flex: 1 1 220px; min-width: 200px; display: flex; flex-direction: column; gap: 10px; }
