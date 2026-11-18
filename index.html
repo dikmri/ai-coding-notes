@@ -109,7 +109,7 @@
             <option value="3">歯ごたえあり</option>
           </select>
         </label>
-        <label class="switch"><input type="checkbox" id="liveChk" role="switch"> 動くプレビュー</label>
+        <label class="switch" title="カードの絵は静止画です。マウスを乗せる（タッチの画面では ▶ を押す）と、その見本がその場で動きます"><input type="checkbox" id="liveChk" role="switch"> <span id="liveLabel">乗せると動く</span></label>
         <output id="countOut" aria-live="polite"></output>
       </div>
       <p id="searchNote" class="note" hidden></p>
@@ -332,6 +332,7 @@
 <script src="entries/more.js"></script>
 <script src="js/pipe-units.js"></script>
 <script src="js/pipe-ui.js"></script>
+<script src="js/thumbs.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

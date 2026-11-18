@@ -6,6 +6,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { entryHash, parseManifest } from './lib/thumbs-plan.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
@@ -61,8 +62,15 @@ for (const e of entries) {
   }
 }
 
+// 一覧のカードの静止画（tools/thumbs.mjs）: 無い項目と、コードが変わって古くなった項目を知らせる（失敗にはしない。頭の 1 文字のまま出る）
+const thumbsFile = join(ROOT, 'js/thumbs.js');
+const thumbs = existsSync(thumbsFile) ? parseManifest(readFileSync(thumbsFile, 'utf8')) : null;
+const stale = thumbs ? entries.filter((e) => !e.perm && (!thumbs.at[e.id] || thumbs.at[e.id][2] !== entryHash(e))).map((e) => e.id) : null;
+
 console.log(`項目数: ${entries.length}`);
 console.log([...cats].map(([c, n]) => `${c}:${n}`).join('  '));
+if (!thumbs) console.log('注意: 静止画の目録 js/thumbs.js がありません（node tools/thumbs.mjs で作る）');
+else if (stale.length) console.log(`注意: 静止画が無いか古い項目 ${stale.length} 件（node tools/thumbs.mjs で撮る）: ${stale.slice(0, 8).join(' ')}${stale.length > 8 ? ' …' : ''}`);
 if (errors.length) {
   console.log(`\n問題 ${errors.length} 件`);
   for (const e of errors) console.log(' - ' + e);

@@ -90,6 +90,8 @@ canvas, img, video { display: block; max-width: 100%; }
       `addEventListener('error',e=>send('error',{msg:e.message,line:e.lineno,col:e.colno}));` +
       `addEventListener('unhandledrejection',e=>send('error',{msg:'Promise: '+fmt(e.reason)}));` +
       `for(const k of['log','info','warn','error']){const o=console[k];console[k]=(...a)=>{send('console',{level:k,text:a.map(fmt).join(' ')});o.apply(console,a)}}` +
+      // 小さな絵: 読み込んで 2 フレーム描いたら知らせる。親はそれまで静止画を見せておく（描く前の白い面を見せない）
+      (mode === 'thumb' ? `addEventListener('load',()=>requestAnimationFrame(()=>requestAnimationFrame(()=>send('ready',0))));` : '') +
       `window.THUMB=${mode === 'thumb'};})();`;
   }
   // 項目の data に書いた大きなデータ（3D モデルなど）。iframe では住所で読み、HTML 1枚に書き出すときは中身を埋め込む
@@ -126,7 +128,9 @@ canvas, img, video { display: block; max-width: 100%; }
     const d = ev.data;
     if (!info || !d || d.__dk !== TOKEN) return;
     const e = info.entry;
-    if (d.type === 'error') {
+    if (d.type === 'ready') {
+      if (info.mode === 'thumb' && info.frame) { info.frame.classList.add('on'); log('preview.ready', { id: e.id, ms: Math.round(performance.now() - info.t0) }, 'ok'); }
+    } else if (d.type === 'error') {
       const line = d.data.line ? d.data.line - info.jsLine : 0;
       const where = line > 0 ? `JS ${line}行目: ` : '';
       if (info.mode === 'detail') consoleLine('error', where + d.data.msg);
@@ -206,9 +210,25 @@ canvas, img, video { display: block; max-width: 100%; }
   });
 
   /* ================= カード ================= */
+  // 一覧の絵は、あらかじめ撮った静止画（node tools/thumbs.mjs が作る thumbs/ のシートと、目録 js/thumbs.js）。
+  // 8 枚を 1 枚の画像に並べてあるので、カードの枠より大きな img をずらして 1 枚ぶんだけ見せる。暗い配色では暗い配色で撮った絵にする
+  // 目録に無い項目（撮る前の新しい項目や、許可の要る項目）は、見出しの頭の 1 文字のまま
+  const TH = window.DEKIRU_THUMBS && window.DEKIRU_THUMBS.v === 1 ? window.DEKIRU_THUMBS : null;
+  function shotHtml(e) {
+    const t = TH && TH.at[e.id];
+    if (!t) return '';
+    const [s, slot] = t;
+    const file = 'thumbs/s' + String(s).padStart(2, '0'), v = TH.sheets[s] ? '?v=' + TH.sheets[s] : '';
+    // 最初のシート（番号順で先頭の項目）は最初の画面に入るので、遅らせずに読む。ほかは画面に近づいてから読む
+    const lazy = s === 0 ? '' : ' loading="lazy"';
+    return `<picture class="shot"><source media="(prefers-color-scheme: dark)" srcset="${file}-d.webp${v}">` +
+      `<img src="${file}-l.webp${v}" alt=""${lazy} decoding="async" style="--x:${slot % TH.cols};--y:${Math.floor(slot / TH.cols)}"></picture>`;
+  }
   const grid = $('#grid');
+  if (TH) { grid.style.setProperty('--tc', TH.cols); grid.style.setProperty('--tr', TH.rows); }
   const cards = new Map();
   const byPrev = new Map();
+  const byLi = new Map();
   for (const e of entries) {
     const c = catOf(e.c);
     const li = document.createElement('li');
@@ -216,18 +236,25 @@ canvas, img, video { display: block; max-width: 100%; }
     li.style.setProperty('--h', c.hue);
     li.innerHTML =
       `<a href="#e=${encodeURIComponent(e.id)}" data-open="${escA(e.id)}">` +
-      `<div class="prev"><span class="ph" aria-hidden="true">${esc([...e.t][0])}${e.nt ? '<small>開くと起動します</small>' : ''}</span></div>` +
+      `<div class="prev"><span class="ph" aria-hidden="true">${esc([...e.t][0])}</span>${shotHtml(e)}${e.nt ? '<small class="nt-note" aria-hidden="true">開くと起動します</small>' : ''}</div>` +
       `<div class="body"><span class="no">No.${pad(e.no)}</span>${e.date ? `<span class="date">${esc(e.date)}</span>` : ''}${e.size ? `<span class="size">${e.size.toLocaleString('ja-JP')}バイト</span>` : ''}<h3 class="hw"></h3><span class="yomi">${esc(e.y)}</span><p class="desc"></p>` +
       `<span class="seal${/^[A-Za-z]/.test(c.seal) ? ' latin' : ''}" title="${escA(c.name)}">${esc(c.seal)}</span></div></a>` +
-      `<button type="button" class="fav" aria-pressed="${state.favs.has(e.id)}" aria-label="${escA(e.t)}をお気に入りにする" data-fav="${escA(e.id)}">★</button>`;
-    const card = { e, li, prev: $('.prev', li), hw: $('.hw', li), desc: $('.desc', li), favBtn: $('.fav', li), frame: null, leaveT: 0 };
+      `<button type="button" class="fav" aria-pressed="${state.favs.has(e.id)}" aria-label="${escA(e.t)}をお気に入りにする" data-fav="${escA(e.id)}">★</button>` +
+      // タッチの画面には「乗せる」が無いので、絵の上の ▶ で動かす（CSS で、マウスの無い画面にだけ出す）
+      (e.nt ? '' : `<button type="button" class="play" aria-pressed="false" aria-label="${escA(e.t)}の見本をここで動かす" data-play="${escA(e.id)}">▶</button>`);
+    const card = { e, li, prev: $('.prev', li), hw: $('.hw', li), desc: $('.desc', li), favBtn: $('.fav', li), playBtn: $('.play', li), frame: null };
     cards.set(e.id, card);
     byPrev.set(card.prev, card);
-    grid.append(li);
+    byLi.set(li, card);
   }
+  // 静止画が読めたら印を付ける（測定の道具 tools/perf.mjs が数える）。load は泡立たないので捕まえる側で受ける
+  grid.addEventListener('load', (ev) => { if (ev.target.tagName === 'IMG') ev.target.closest('.prev')?.classList.add('img-on'); }, true);
+  grid.addEventListener('error', (ev) => { if (ev.target.tagName === 'IMG') log('thumb.error', { src: ev.target.currentSrc || ev.target.src }, 'error'); }, true);
   grid.addEventListener('click', (ev) => {
     const f = ev.target.closest('[data-fav]');
     if (f) { toggleFav(f.dataset.fav); return; }
+    const p = ev.target.closest('[data-play]');
+    if (p) { const c = cards.get(p.dataset.play); if (liveCard === c) stop(c); else play(c, 'touch'); }
   });
 
   function toggleFav(id) {
@@ -243,30 +270,47 @@ canvas, img, video { display: block; max-width: 100%; }
     else renderChipsFromLast();
   }
 
-  /* ---- 生きたプレビュー（見えているカードだけ iframe を載せる） ---- */
-  const MAX_LIVE = 14;
-  const visible = new Set();
-  const io = new IntersectionObserver((list) => {
-    for (const it of list) {
-      const c = byPrev.get(it.target);
-      if (!c) continue;
-      if (it.isIntersecting) { visible.add(c); clearTimeout(c.leaveT); }
-      else { visible.delete(c); clearTimeout(c.leaveT); c.leaveT = setTimeout(() => { if (!visible.has(c)) unmount(c); }, 700); }
-    }
-    pump();
-  }, { rootMargin: '150px 0px' });
-  for (const c of cards.values()) io.observe(c.prev);
-
+  /* ---- 動くプレビュー（乗せたカードの 1 枚だけ iframe を載せる） ----
+     前は見えているカードの全部（14 枚まで）で見本を動かしていた。重いシェーダーの見本が重なると、
+     GPU の処理が詰まってスクロールが止まり、メモリも 400MB ほど増えていた（tools/perf.mjs で測った）ので、乗せた 1 枚だけにした */
+  let liveCard = null, liveVia = '', hoverT = 0;
   const overlayOpen = () => $('#detail').open || $('#flip').open;
-  function pump() {
-    if (!state.live || overlayOpen() || state.view !== 'book') return;
-    let mounted = 0;
-    for (const c of cards.values()) if (c.frame) mounted++;
-    for (const c of visible) {
-      if (mounted >= MAX_LIVE) break;
-      if (!c.frame && !c.e.nt && !c.li.hidden) { mount(c); mounted++; }
-    }
+  const cardOf = (el) => (el && el.closest ? byLi.get(el.closest('.card')) : null) || null;
+  function play(c, via) {
+    if (!c || !state.live || c.e.nt || c.li.hidden || overlayOpen() || state.view !== 'book') return;
+    if (liveCard && liveCard !== c) stop(liveCard);
+    liveCard = c; liveVia = via;
+    if (!c.frame) mount(c);
+    if (c.playBtn) { c.playBtn.setAttribute('aria-pressed', 'true'); c.playBtn.textContent = '■'; }
+    log('preview.play', { id: c.e.id, via }, 'ok');
   }
+  function stop(c) {
+    if (liveCard === c) liveCard = null;
+    if (c.playBtn) { c.playBtn.setAttribute('aria-pressed', 'false'); c.playBtn.textContent = '▶'; }
+    unmount(c);
+  }
+  // マウス: カードに入って少し留まったら動かし、出たら止める（横切っただけのカードは動かさない）
+  grid.addEventListener('pointerover', (ev) => {
+    if (ev.pointerType === 'touch') return;
+    const c = cardOf(ev.target);
+    if (!c || cardOf(ev.relatedTarget) === c) return;
+    clearTimeout(hoverT);
+    hoverT = setTimeout(() => play(c, 'hover'), 160);
+  });
+  grid.addEventListener('pointerout', (ev) => {
+    if (ev.pointerType === 'touch') return;
+    const c = cardOf(ev.target);
+    if (!c || cardOf(ev.relatedTarget) === c) return;
+    clearTimeout(hoverT);
+    if (liveCard === c && liveVia === 'hover') stop(c);
+  });
+  // キーボード: Tab で選んだカードを動かし、離れたら止める
+  grid.addEventListener('focusin', (ev) => { if (ev.target.matches('a:focus-visible')) play(cardOf(ev.target), 'focus'); });
+  grid.addEventListener('focusout', (ev) => { const c = cardOf(ev.target); if (c && liveCard === c && liveVia === 'focus' && cardOf(ev.relatedTarget) !== c) stop(c); });
+  // 動かしているカードが画面の外へ出たら止める（タッチで動かしたまま流したときなど）
+  const io = new IntersectionObserver((list) => {
+    for (const it of list) { const c = byPrev.get(it.target); if (c && !it.isIntersecting && liveCard === c) stop(c); }
+  });
   function mount(c) {
     const f = document.createElement('iframe');
     f.setAttribute('sandbox', sandboxFor(c.e));
@@ -275,27 +319,51 @@ canvas, img, video { display: block; max-width: 100%; }
     f.title = c.e.t + '（プレビュー）';
     const { doc, jsLine } = buildDoc(c.e, { mode: 'thumb' });
     f.srcdoc = doc;
-    f.addEventListener('load', () => f.classList.add('on'), { once: true });
+    // 見本が 2 フレーム描いたという知らせ（ready）で見せる。それまでは静止画のまま。知らせが来ないときも、読み込んで 1.5 秒で見せる
+    f.addEventListener('load', () => setTimeout(() => f.classList.add('on'), 1500), { once: true });
     c.prev.append(f);
-    frames.set(f.contentWindow, { entry: c.e, mode: 'thumb', jsLine });
+    frames.set(f.contentWindow, { entry: c.e, mode: 'thumb', jsLine, frame: f, t0: performance.now() });
     c.frame = f;
+    io.observe(c.prev);
   }
   function unmount(c) {
     if (!c.frame) return;
+    io.unobserve(c.prev);
     frames.delete(c.frame.contentWindow);
     c.frame.remove();
     c.frame = null;
   }
-  const unmountAll = () => { for (const c of cards.values()) unmount(c); };
+  const unmountAll = () => { clearTimeout(hoverT); if (liveCard) stop(liveCard); };
 
   const liveChk = $('#liveChk');
   liveChk.checked = state.live;
+  // マウスの無い画面では「乗せる」ができないので、言い方を変える
+  if (!matchMedia('(hover: hover)').matches) $('#liveLabel').textContent = '▶で動かす';
+  const syncLive = () => grid.classList.toggle('live', state.live);
+  syncLive();
   liveChk.addEventListener('change', () => {
     state.live = liveChk.checked;
     store.set('live', state.live);
+    syncLive();
     log('preview.live', { on: state.live }, 'ok');
-    if (state.live) pump(); else unmountAll();
+    if (!state.live) unmountAll();
   });
+
+  /* ---- 一覧へ入れる順番 ----
+     470 枚ほどのカードを一度に入れると、配置の計算で読み込みの途中に 0.4 秒ほど画面が止まり、しかもそれが 2 回起きていた（tools/perf.mjs）。
+     最初の画面に入る FIRST 枚だけを先に入れ、残りは最初に描いたあとで CHUNK 枚ずつ、描く合間に末尾へ足す。
+     （content-visibility: auto も試したが、この Chrome では読み込みの 1 秒ほどあとに全部を配置し直すので使わない） */
+  const FIRST = 24, CHUNK = 32;
+  let later = [];
+  function drainLater() {
+    if (!later) return;
+    const chunk = later.splice(0, CHUNK);
+    grid.append(...chunk);
+    if (later.length) setTimeout(() => requestAnimationFrame(drainLater), 0);
+    else { later = null; log('grid.ready', { cards: grid.childElementCount }, 'ok'); }
+  }
+  // 残りを今すぐ全部入れる（五十音の爪で、まだ入れていないカードへ飛ぶときなど）
+  const flushLater = () => { if (later) { grid.append(...later); later = null; } };
 
   /* ================= 絞り込みと並べ替え ================= */
   const isFn = (name, e) =>
@@ -333,11 +401,14 @@ canvas, img, video { display: block; max-width: 100%; }
     }
     for (const c of cards.values()) {
       const hide = !want.has(c.li);
-      if (c.li.hidden !== hide) { c.li.hidden = hide; if (hide) unmount(c); }
+      if (c.li.hidden !== hide) { c.li.hidden = hide; if (hide && liveCard === c) stop(c); }
     }
-    let ref = grid.firstChild;
+    // 起動の直後（later が配列の間）は、最初の FIRST 枚だけを入れ、残りは描いたあとで少しずつ末尾へ足す（drainLater）
+    if (later) later = [];
+    let ref = grid.firstChild, n = 0;
     for (const e of items) {
       const li = cards.get(e.id).li;
+      if (later && n++ >= FIRST) { later.push(li); continue; }
       if (li === ref) { ref = ref.nextSibling; continue; }
       try { if (grid.moveBefore) grid.moveBefore(li, ref); else grid.insertBefore(li, ref); }
       catch { grid.insertBefore(li, ref); }
@@ -355,7 +426,6 @@ canvas, img, video { display: block; max-width: 100%; }
     note.hidden = !msg;
     renderPipeHits();
     renderThumbIndex();
-    requestAnimationFrame(pump);
     return items.length;
   }
   $('#searchNote').addEventListener('click', (ev) => {
@@ -444,6 +514,7 @@ canvas, img, video { display: block; max-width: 100%; }
   thumbEl.addEventListener('click', (ev) => {
     const b = ev.target.closest('button[data-row]');
     if (!b) return;
+    flushLater();
     if (state.sort !== 'kana') { state.sort = 'kana'; $('#sortSel').value = 'kana'; applyFilters(); syncHash(); }
     const e = state.list.find((x) => rowOf(x.y) === b.dataset.row);
     log('thumbindex', { row: b.dataset.row }, e ? e.id : 'none');
@@ -539,6 +610,7 @@ canvas, img, video { display: block; max-width: 100%; }
     if (e.src.css.length > 40) return 'css';
     return 'html';
   }
+  let heroWake = () => {}; // 表紙の粒の動きを続ける（hero() が差し替える）。詳細やパラパラめくりを閉じたときに呼ぶ
   let closedAt = null; // × で閉じて history.back() した時刻（閉じていなければ null）。戻った先で別の項目を開き直さないために使う
   // このページの読み込みの中で、詳しい画面を開くときに履歴を積んだか。再読み込みのあとは history.state が残っていても積んでいないので、
   // 閉じるときは戻らずに #e= を消すだけにする（戻ると、前の一覧のページを読み込み直してしまう）
@@ -561,7 +633,7 @@ canvas, img, video { display: block; max-width: 100%; }
       if (pushedEntry && history.state && history.state.dk === 'entry') { pushedEntry = false; closedAt = performance.now(); history.back(); }
       else { p.delete('e'); setUrl('replaceState', null, p.toString() ? '#' + p.toString() : location.pathname + location.search); }
     }
-    requestAnimationFrame(pump);
+    heroWake();
   });
   $('#dClose').addEventListener('click', closeDetail);
   $('#dFav').addEventListener('click', () => toggleFav(state.current.id));
@@ -781,7 +853,7 @@ canvas, img, video { display: block; max-width: 100%; }
     clearTimeout(flipTimer);
     for (const p of $$('.page', book)) { if (p._frameInfo) frames.delete(p._frameInfo.f.contentWindow); p.remove(); }
     log('flip.stop', {}, 'ok');
-    requestAnimationFrame(pump);
+    heroWake();
   });
   flip.addEventListener('keydown', (ev) => {
     if (/SELECT|INPUT/.test(ev.target.tagName)) return;
@@ -914,7 +986,6 @@ canvas, img, video { display: block; max-width: 100%; }
     if (v === 'index') renderIndex();
     if (window.DekiruPipeUI) { if (v === 'pipe') window.DekiruPipeUI.show(); else if (prev === 'pipe') window.DekiruPipeUI.hide(); }
     if (prev !== v) { scrollTo(0, 0); log('view', { from: prev, to: v }, 'ok'); }
-    requestAnimationFrame(pump);
   }
   function route() {
     const p = hashParams();
@@ -998,6 +1069,9 @@ canvas, img, video { display: block; max-width: 100%; }
   });
 
   /* ================= 表紙の粒子文字 ================= */
+  // 重さを測ったら、何もしていないトップでも 5 秒で CPU を 3 秒ほど使っていた（tools/perf.mjs）。
+  // 1700 個の点を 1 つずつ塗っていたのを色ごとに 1 回の塗りにまとめ、粒が止まったら描くのをやめ、
+  // 詳細やパラパラめくりを開いている間（表紙が見えない間）も止める
   function hero() {
     const cv = $('#heroCanvas');
     const ctx = cv.getContext('2d');
@@ -1008,8 +1082,19 @@ canvas, img, video { display: block; max-width: 100%; }
     const mouse = { x: -1e4, y: -1e4 };
     let ink = '#222', shu = '#c23b22';
     const readColors = () => { const cs = getComputedStyle(document.body); ink = cs.color; shu = cs.getPropertyValue('--shu').trim() || shu; };
+    // 文字の形（点の並び）は、言葉と大きさごとに 1 回だけ数える（毎回 getImageData で読むと重い）
+    const shapeCache = new Map();
+    const STILL = 0.3; // 画素。どの粒の速さと的までの距離もこれより小さければ、止まったとみなす
 
     function targets(word) {
+      const key = word + '|' + W + 'x' + Hh;
+      if (shapeCache.has(key)) return shapeCache.get(key);
+      if (shapeCache.size > 20) shapeCache.clear();
+      const pts = readShape(word);
+      shapeCache.set(key, pts);
+      return pts;
+    }
+    function readShape(word) {
       const off = document.createElement('canvas');
       off.width = W; off.height = Hh;
       const o = off.getContext('2d', { willReadFrequently: true });
@@ -1025,6 +1110,7 @@ canvas, img, video { display: block; max-width: 100%; }
       return pts;
     }
     function assign(word) {
+      if (!parts.length) return; // まだ大きさが決まっていない（ResizeObserver の最初の知らせの前）
       const pts = targets(word);
       const m = pts.length / 2;
       if (!m) return;
@@ -1049,35 +1135,46 @@ canvas, img, video { display: block; max-width: 100%; }
     function draw() {
       ctx.clearRect(0, 0, W, Hh);
       const s = 1.6 * dpr;
-      ctx.fillStyle = ink;
-      for (const p of parts) if (!p.red) ctx.fillRect(p.x, p.y, s, s);
-      ctx.fillStyle = shu;
-      for (const p of parts) if (p.red) ctx.fillRect(p.x, p.y, s, s);
+      // 点を 1 つずつ塗らず、四角を道筋に足して色ごとに 1 回だけ塗る
+      for (const red of [false, true]) {
+        ctx.beginPath();
+        for (const p of parts) if (p.red === red) ctx.rect(p.x, p.y, s, s);
+        ctx.fillStyle = red ? shu : ink;
+        ctx.fill();
+      }
     }
     function tick() {
       raf = 0;
+      if (overlayOpen()) return; // 詳細などで覆われている。閉じたら heroWake() で続ける
       const R = 90 * dpr;
+      let moving = 0;
       for (const p of parts) {
         let ax = (p.tx - p.x) * 0.018, ay = (p.ty - p.y) * 0.018;
         const dx = p.x - mouse.x, dy = p.y - mouse.y, d2 = dx * dx + dy * dy;
         if (d2 < R * R) { const d = Math.sqrt(d2) || 1, f = (1 - d / R) * 3.2; ax += (dx / d) * f; ay += (dy / d) * f; }
         p.vx = (p.vx + ax) * 0.86; p.vy = (p.vy + ay) * 0.86;
         p.x += p.vx; p.y += p.vy;
+        if (moving < STILL) moving = Math.max(moving, Math.abs(p.vx) + Math.abs(p.vy), Math.abs(p.tx - p.x) + Math.abs(p.ty - p.y));
       }
       draw();
+      // どの粒もほぼ止まったら描くのをやめる。次の言葉へ移るときと、マウスが動いたときに start() でまた始める
+      if (moving < STILL) return;
       if (running && onScreen) raf = requestAnimationFrame(tick);
     }
     function cycle() {
       clearTimeout(timer);
       if (!running) return;
-      timer = setTimeout(() => { wi = (wi + 1) % WORDS.length; assign(WORDS[wi]); cycle(); }, wi === 0 ? 4200 : 2300);
+      timer = setTimeout(() => { wi = (wi + 1) % WORDS.length; assign(WORDS[wi]); start(); cycle(); }, wi === 0 ? 4200 : 2300);
     }
-    function start() { if (!raf && running && onScreen) raf = requestAnimationFrame(tick); }
-    cv.parentElement.addEventListener('pointermove', (e) => { const r = cv.getBoundingClientRect(); mouse.x = (e.clientX - r.left) * dpr; mouse.y = (e.clientY - r.top) * dpr; });
-    cv.parentElement.addEventListener('pointerleave', () => { mouse.x = mouse.y = -1e4; });
+    function start() { if (!raf && running && onScreen && !overlayOpen()) raf = requestAnimationFrame(tick); }
+    heroWake = start;
+    cv.parentElement.addEventListener('pointermove', (e) => { const r = cv.getBoundingClientRect(); mouse.x = (e.clientX - r.left) * dpr; mouse.y = (e.clientY - r.top) * dpr; start(); });
+    cv.parentElement.addEventListener('pointerleave', () => { mouse.x = mouse.y = -1e4; start(); });
     new IntersectionObserver(([it]) => { onScreen = it.isIntersecting; start(); }).observe(cv);
-    new ResizeObserver(() => resize()).observe(cv);
-    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { readColors(); if (!running) draw(); });
+    // 大きさが決まったら（最初の 1 回もここで）点を並べる。読み込みの途中で大きさを読んで、ページ全体の配置の計算を急がせないため
+    new ResizeObserver(() => { resize(); start(); }).observe(cv);
+    // 粒が止まっていると次の言葉まで描き直さないので、配色が変わったらその場で描き直す
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { readColors(); draw(); });
     const btn = $('#heroPause');
     const setBtn = () => { btn.textContent = running ? '動きを止める' : '動かす'; };
     btn.addEventListener('click', () => {
@@ -1089,15 +1186,14 @@ canvas, img, video { display: block; max-width: 100%; }
     });
     setBtn();
     readColors();
-    resize();
     cycle();
-    start();
   }
 
   function countUp(el, to) {
     if (reduceMotion.matches) { el.textContent = to; return; }
     const t0 = performance.now();
-    const f = (t) => { const k = Math.min(1, (t - t0) / 900); el.textContent = Math.round(to * (1 - (1 - k) ** 3)); if (k < 1) requestAnimationFrame(f); };
+    const f = (t) => { const k = Math.min(1, Math.max(0, (t - t0) / 900)); // 描く時刻 t は呼んだ時刻より前のことがある。負の数を出さない
+      el.textContent = Math.round(to * (1 - (1 - k) ** 3)); if (k < 1) requestAnimationFrame(f); };
     requestAnimationFrame(f);
   }
 
@@ -1111,6 +1207,8 @@ canvas, img, video { display: block; max-width: 100%; }
   qEl.value = state.q; $('#lvSel').value = state.lv; $('#sortSel').value = state.sort;
   applyFilters();
   route();
+  // 最初の画面を描いたあとで、残りのカードを少しずつ入れる
+  requestAnimationFrame(() => setTimeout(drainLater, 0));
   try { hero(); } catch (err) { log('hero.error', { msg: err.message }, 'exception'); }
   log('app.ready', { entries: entries.length, cats: D.cats.length }, 'ok');
 })();

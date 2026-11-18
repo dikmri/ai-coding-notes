@@ -491,13 +491,21 @@ async function shutdownDialog() {
   log('os.shutdown', { choice }, 'ok');
   wm.saveSession();
   sound.play('shutdown');
-  document.body.animate([{ filter: 'none' }, { filter: 'grayscale(1) brightness(.4)' }], { duration: 1200, fill: 'forwards' });
+  // 灰色にしてから真っ暗にする。図鑑へ戻るときと再起動のときは、暗いまま次のページへ移る。
+  // 動きを取り消してから移ると、取り消した時点で元の色に戻り、移った先が描かれるまでの間（図鑑なら JS を読む間）、元の色のデスクトップが一瞬見えてしまう
+  const fade = document.body.animate([{ filter: 'none' }, { filter: 'grayscale(1) brightness(.4)', offset: 0.55 }, { filter: 'grayscale(1) brightness(0)' }], { duration: 2000, fill: 'forwards' });
   await new Promise((ok) => setTimeout(ok, 2200));
-  document.body.getAnimations().forEach((a) => a.cancel());
-  if (choice === 'guide') { location.href = '../'; return; }
-  if (choice === 'reboot') { location.reload(); return; }
+  if (choice === 'guide' || choice === 'reboot') {
+    // ブラウザの「戻る」でこのページが前の状態のまま戻ってきたとき（bfcache）は、暗いままにせず電源の画面から始め直す
+    addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); }, { once: true });
+    log('os.leave', { to: choice === 'guide' ? '../' : 'reload' }, 'ok');
+    if (choice === 'guide') location.href = '../'; else location.reload();
+    return;
+  }
+  // 電源を切れる状態: 真っ暗な #off に替えてから動きを取り消す（同じ処理の中なので、元の色は描かれない）
   for (const id of ['#desk', '#taskbar', '#start']) $(id).hidden = true;
   $('#off').hidden = false;
+  fade.cancel();
 }
 
 /* ---------- 知らせ（トースト） ----------

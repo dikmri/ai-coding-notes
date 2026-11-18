@@ -32,6 +32,8 @@ const missing = referenced.filter((f) => !files.includes(f));
 if (missing.length) throw new Error('参照しているのに見つからないファイル: ' + missing.join(', '));
 // 項目が開いたときだけ読む大きなデータ（data/）も載せる。ページからは直接参照しないので、一覧に足す
 const dataFiles = existsSync(join(ROOT, 'data')) ? readdirSync(join(ROOT, 'data')).filter((f) => f.endsWith('.js')).map((f) => 'data/' + f) : [];
-const all = [...referenced, ...dataFiles];
+// 一覧のカードの静止画（tools/thumbs.mjs が作るシート）も、画面の JS が目録 js/thumbs.js から組み立てて読むので、一覧に足す
+const thumbFiles = existsSync(join(ROOT, 'thumbs')) ? readdirSync(join(ROOT, 'thumbs')).filter((f) => f.endsWith('.webp')).map((f) => 'thumbs/' + f) : [];
+const all = [...referenced, ...dataFiles, ...thumbFiles];
 writeFileSync(join(outDir, 'files.json'), JSON.stringify(Object.fromEntries(all.map((f) => [f, f])), null, 2));
-console.log(`build/artifact/index.html を作りました（${(out.length / 1024).toFixed(1)} KB、一緒に載せるファイル ${all.length} 個。うちデータ ${dataFiles.length} 個）`);
+console.log(`build/artifact/index.html を作りました（${(out.length / 1024).toFixed(1)} KB、一緒に載せるファイル ${all.length} 個。うちデータ ${dataFiles.length} 個、静止画 ${thumbFiles.length} 個）`);
