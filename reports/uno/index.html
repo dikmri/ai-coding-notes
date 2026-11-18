@@ -79,7 +79,7 @@ body { font-size: 0.9375rem; }
 <article>
   <p class="kicker">実験レポート ・ 2026 年 11 月 18 日</p>
   <h1>Uno com escada を土台にした 3 つの実験</h1>
-  <p class="lede">公開されている WebGPU のレースゲームを土台にして、AI のモデルにどこまで作らせられるかを試しました。終わった 2 つの実験は、このページから遊べます。</p>
+  <p class="lede">公開されている WebGPU のレースゲームを土台にして、AI のモデルにどこまで作らせられるかを試しました。3 つの実験のゲームは、どれもこのページから遊べます。</p>
 
   <figure>
     <img src="img/reuse-drive.webp" width="1280" height="720" fetchpriority="high"
@@ -99,7 +99,7 @@ body { font-size: 0.9375rem; }
       <caption id="cap-exp">3 つの実験</caption>
       <thead><tr><th scope="col">実験</th><th scope="col">やり方</th><th scope="col">受け持ったモデル</th><th scope="col">状態</th></tr></thead>
       <tbody>
-        <tr><th scope="row"><a href="#copy">1. 作り方をまねる</a></th><td data-label="やり方">元の作品と同じ作り方で、別の運転ゲームをゼロから作る</td><td data-label="モデル">GPT-6.2 Astra</td><td data-label="状態"><span class="tag wip">作業中</span></td></tr>
+        <tr><th scope="row"><a href="#copy">1. 作り方をまねる</a></th><td data-label="やり方">元の作品と同じ作り方で、別の運転ゲームをゼロから作る（元のコードは使わない）</td><td data-label="モデル">GPT-6.2 Astra</td><td data-label="状態"><span class="tag">終了</span></td></tr>
         <tr><th scope="row"><a href="#reuse">2. コードを流用する</a></th><td data-label="やり方">元のコードの車・コース・時刻・文字を差し替えて、別のゲームにする</td><td data-label="モデル">Claude Opus 5.5</td><td data-label="状態"><span class="tag">終了</span></td></tr>
         <tr><th scope="row"><a href="#polish">3. ブラッシュアップ</a></th><td data-label="やり方">元のコードの絵をよくして、軽くする</td><td data-label="モデル">Claude Opus 5.5、GPT-6.2 Astra、Claude Fable 5.2</td><td data-label="状態"><span class="tag">終了</span></td></tr>
       </tbody>
@@ -113,7 +113,7 @@ body { font-size: 0.9375rem; }
       <summary>キー操作</summary>
       <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cap-keys">
         <table>
-          <caption id="cap-keys">2 つのゲームで共通のキー</caption>
+          <caption id="cap-keys">実験 2 と実験 3 のゲームのキー（実験 1 は節の中に書いた）</caption>
           <thead><tr><th scope="col">キー</th><th scope="col">働き</th></tr></thead>
           <tbody>
             <tr><th scope="row"><kbd>W</kbd> または <kbd>↑</kbd></th><td>加速</td></tr>
@@ -131,6 +131,72 @@ body { font-size: 0.9375rem; }
       </div>
     </details>
   </div>
+
+  <section id="copy" aria-labelledby="h-copy">
+    <h2 id="h-copy">実験 1 作り方をまねる<small>Dusk Trace 薄明峠サーキット</small></h2>
+    <p>元の作品は、細かい指示書を書いて AI に 1 つの HTML ファイルを作らせる方法で作られています。同じ方法で、GPT-6.2 Astra に別の運転ゲームをゼロから作らせました。題材は、オリジナルの小型ハッチバックで夕暮れの山の周回コースを走るゲームです。元のゲームのコードは使っていません。</p>
+    <p>1 回の流れは次のとおりです。Astra が作り直し、Claude Opus 5.5 が撮影・速さの測定・操作のテストを行い、別の Astra（点検係）が絵だけを見て欠点を「重い・中くらい・軽い」で数えます。完成の条件は「中くらい以上の欠点が 0 件」で、条件に届かないまま上限の 5 回で止めました。</p>
+    <div class="play">
+      <a href="drive.html">薄明峠サーキットを遊ぶ</a>
+    </div>
+    <p class="small">開いてから画面を 1 回押すと始まります。音はそのあとに鳴ります。キーは W・S・A・D・Space・R のほか、C でカメラ（追いかけ・ボンネット・テレビ）、M で音の入り切りです。</p>
+
+    <div class="pair">
+      <figure>
+        <img src="img/drive-r1-car.webp" width="1280" height="720" loading="lazy" alt="第 1 回の版。青緑の小型車と、単純な形の木が並ぶ山道">
+        <figcaption>第 1 回</figcaption>
+      </figure>
+      <figure>
+        <img src="img/drive-r5-car.webp" width="1280" height="720" loading="lazy" alt="第 5 回の版。同じカメラの位置で、車に運転者が乗り、紅葉の木と山が細かくなった">
+        <figcaption>第 5 回（最後）</figcaption>
+      </figure>
+    </div>
+    <p class="pair-cap">同じ固定カメラで撮った。運転者が乗り、紅葉の木と遠くの山が細かくなった。</p>
+    <div class="pair">
+      <figure>
+        <img src="img/drive-r1-wet.webp" width="1280" height="720" loading="lazy" alt="第 1 回の版。夕日に向かう濡れた路面を車が走る">
+        <figcaption>第 1 回</figcaption>
+      </figure>
+      <figure>
+        <img src="img/drive-r5-wet.webp" width="1280" height="720" loading="lazy" alt="第 5 回の版。同じ場面に岩の切り通しと雪の残る山が加わり、路面に夕日と車が映る">
+        <figcaption>第 5 回（最後）</figcaption>
+      </figure>
+    </div>
+    <p class="pair-cap">夕日に向かう濡れた路面。岩の切り通しと遠くの山が加わった。</p>
+
+    <h3>回ごとの推移</h3>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cap-copy">
+      <table class="stack">
+        <caption id="cap-copy">作り直しの回ごとの記録</caption>
+        <thead><tr><th scope="col">回</th><th scope="col">作り直しの時間</th><th scope="col">作る係のトークン</th><th scope="col">欠点（重い・中くらい・軽い）</th><th scope="col">GPU 平均・最大</th><th scope="col">大きさ</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">第 1 回</th><td class="num" data-label="時間">71 分</td><td class="num" data-label="トークン">255,269</td><td class="num" data-label="欠点">7・14・6</td><td class="num" data-label="GPU">1.44・12.32 ms</td><td class="num" data-label="大きさ">88 KB</td></tr>
+          <tr><th scope="row">第 2 回</th><td class="num" data-label="時間">70 分</td><td class="num" data-label="トークン">492,149</td><td class="num" data-label="欠点">6・14・7</td><td class="num" data-label="GPU">2.22・9.04 ms</td><td class="num" data-label="大きさ">125 KB</td></tr>
+          <tr><th scope="row">第 3 回</th><td class="num" data-label="時間">67 分</td><td class="num" data-label="トークン">370,560</td><td class="num" data-label="欠点">6・16・6</td><td class="num" data-label="GPU">1.97・11.27 ms</td><td class="num" data-label="大きさ">160 KB</td></tr>
+          <tr><th scope="row">第 4 回</th><td class="num" data-label="時間">71 分</td><td class="num" data-label="トークン">398,603</td><td class="num" data-label="欠点">6・16・10</td><td class="num" data-label="GPU">3.05・6.55 ms</td><td class="num" data-label="大きさ">184 KB</td></tr>
+          <tr><th scope="row">第 5 回</th><td class="num" data-label="時間">62 分</td><td class="num" data-label="トークン">482,865</td><td class="num" data-label="欠点">6・15・7</td><td class="num" data-label="GPU">4.91・12.85 ms</td><td class="num" data-label="大きさ">205 KB</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">GPU の時間は、1920×1080 で決まった運転を 60 秒走らせて測った値です（RTX 5060 Ti）。目標の「平均 11 ms 以下、最大 16.7 ms 以下」は 5 回とも満たし、操作のテスト 14 項目も 5 回とも合格しました。</p>
+    <ul>
+      <li>トークン: 作る係 1,999,446、点検係 1,237,957、合計 3,237,403</li>
+      <li>時間: 作り直しが 1 回 62〜71 分、点検が 6〜10 分、撮影と測定が 4〜5 分</li>
+      <li>ChatGPT のプランの 5 時間の枠を 3 回使い切り、その後は残高（credits）を 2,120 使った</li>
+    </ul>
+
+    <h3>分かったこと</h3>
+    <ul>
+      <li>空・遠い山・観客席・岩の切り通しのような大きな物は、回を重ねるごとに目に見えて良くなった。スタートの直線の絵は、元の Opus 5.5 の版に近い水準になった。</li>
+      <li>木の葉・岩肌・水たまり・塗装・人の顔のように、細かい不規則さで質感を出す物は、5 回とも点検係に同じ欠点を指摘された。元の Fable 5.2 の版の細かさには届かなかった。</li>
+      <li>Astra が自分で確かめて「直した」と書いても、点検係の目では直っていないことが続いた。直すたびに新しい欠点も生まれ、中くらい以上の件数は 21・20・22・22・21 と、ほとんど減らなかった。</li>
+      <li>指示書の決まり（ライブラリなし、1 ファイル、撮影と測定の窓口、速さの目標）は、最初の回から最後まで守った。</li>
+    </ul>
+    <figure>
+      <img src="img/drive-r5-aerial.webp" width="1280" height="720" loading="lazy" alt="第 5 回の版を空から見た絵。紅葉の山の斜面をコースがうねって通る">
+      <figcaption>第 5 回の版を、空からのカメラで見たところ。</figcaption>
+    </figure>
+  </section>
 
   <section id="reuse" aria-labelledby="h-reuse">
     <h2 id="h-reuse">実験 2 コードを流用する<small>夕暮れ峠サーキット</small></h2>
@@ -277,26 +343,25 @@ body { font-size: 0.9375rem; }
     <p>どちらも改良前からあり、今回は直せませんでした。</p>
   </section>
 
-  <section id="copy" aria-labelledby="h-copy">
-    <h2 id="h-copy">実験 1 作り方をまねる<small>作業中</small></h2>
-    <p>元の作品と同じく、細かい指示書から AI に 1 ファイルで作らせる方法で、GPT-6.2 Astra が別の運転ゲームをゼロから作っています。題材は、オリジナルの小型ハッチバックで夕暮れの山の周回コースを走るゲームです。作り直すたびに、別の Astra が絵だけを見て欠点を数えます。</p>
-    <p>11 月 18 日 22 時 40 分の時点で第 3 回の点検まで終え、第 4 回を作っています。第 5 回で終える予定です。結果は、このページに書き足します。</p>
-    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cap-copy">
-      <table>
-        <caption id="cap-copy">点検で数えた欠点の件数</caption>
-        <thead><tr><th scope="col">回</th><th scope="col">重い</th><th scope="col">中くらい</th><th scope="col">軽い</th></tr></thead>
+  <section id="compare" aria-labelledby="h-compare">
+    <h2 id="h-compare">3 つの実験を比べて</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cap-compare">
+      <table class="stack">
+        <caption id="cap-compare">3 つの実験の結果</caption>
+        <thead><tr><th scope="col">実験</th><th scope="col">できた物</th><th scope="col">使った量</th><th scope="col">分かったこと</th></tr></thead>
         <tbody>
-          <tr><th scope="row">第 1 回</th><td class="num">7</td><td class="num">14</td><td class="num">6</td></tr>
-          <tr><th scope="row">第 2 回</th><td class="num">6</td><td class="num">14</td><td class="num">7</td></tr>
-          <tr><th scope="row">第 3 回</th><td class="num">6</td><td class="num">16</td><td class="num">6</td></tr>
+          <tr><th scope="row">1. 作り方をまねる</th><td data-label="できた物">ゼロから書いた別のゲーム（205 KB）</td><td data-label="使った量">Astra 324 万トークン、作り直し 5 回で約 5 時間半</td><td data-label="分かったこと">大きな物は回ごとに良くなる。細かい質感は、5 回では元の版に届かない</td></tr>
+          <tr><th scope="row">2. コードを流用する</th><td data-label="できた物">元のコードの約 100 行を書き換えた別のゲーム（627 KB）</td><td data-label="使った量">Opus 5.5 の 1 つのセッションの中で作った（量は測っていない）</td><td data-label="分かったこと">少ない書き換えで別のゲームになる。車の形の作りと、ライセンスに縛られる</td></tr>
+          <tr><th scope="row">3. ブラッシュアップ</th><td data-label="できた物">元の版を軽くし、絵の一部を良くした版（220 KB）</td><td data-label="使った量">Fable 52 万・Astra 93 万・点検係 43 万トークン</td><td data-label="分かったこと">軽くする効果は大きい（GPU の時間が約 3 割減）。見た目の欠点は一部しか直らない</td></tr>
         </tbody>
       </table>
     </div>
+    <p class="small">点検係が違う（実験 1 は Astra、実験 3 は Opus 5.5）ので、欠点の件数は実験どうしでは比べられません。GPU の時間も、場面と測り方が違うので、そのままでは比べられません。</p>
   </section>
 
   <section id="license" aria-labelledby="h-license">
     <h2 id="h-license">ライセンス</h2>
-    <p>このページの 2 つのゲームは、ViktorKav さんの「Uno com escada」を改変したものです。元の作品のライセンス（<a href="https://polyformproject.org/licenses/noncommercial/1.0.0">PolyForm Noncommercial 1.0.0</a>）に従い、非営利で公開しています。</p>
+    <p>実験 2 と実験 3 のゲームは、ViktorKav さんの「Uno com escada」を改変したものです。元の作品のライセンス（<a href="https://polyformproject.org/licenses/noncommercial/1.0.0">PolyForm Noncommercial 1.0.0</a>）に従い、非営利で公開しています。実験 1 のゲーム（drive.html）は、元のコードを使わずに Astra が書いたものです。</p>
     <p class="notice">Required Notice: Copyright (c) 2026 ViktorKav (https://github.com/viktorkav/uno-com-escada)</p>
   </section>
 
