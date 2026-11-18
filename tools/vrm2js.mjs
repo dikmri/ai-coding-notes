@@ -138,10 +138,13 @@ const sa = vrm.secondaryAnimation;
 const springs = sa.boneGroups.map((b) => ({ comment: b.comment, bones: b.bones, center: b.center, stiffness: b.stiffiness, gravityPower: b.gravityPower, gravityDir: [b.gravityDir.x, b.gravityDir.y, b.gravityDir.z], drag: b.dragForce, hitRadius: b.hitRadius, colliderGroups: b.colliderGroups }));
 const colliders = sa.colliderGroups.map((c) => ({ node: c.node, colliders: c.colliders.map((k) => ({ offset: [k.offset.x, k.offset.y, k.offset.z], radius: k.radius })) }));
 const humanoid = Object.fromEntries(vrm.humanoid.humanBones.map((h) => [h.bone, h.node]));
-const meta = { title: opt('title', vrm.meta.title), author: vrm.meta.author, terms: opt('terms', vrm.meta.otherPermissionUrl || ''), version: vrm.meta.version || '' };
+// 視線の縮め方（firstPerson の lookAt）: 視線の角度を目の骨の角度へ縮める曲線。これを使わずに目を回すと白目になる
+const fp = vrm.firstPerson || {}, lk = (k) => fp[k] && { curve: fp[k].curve, xRange: fp[k].xRange, yRange: fp[k].yRange };
+const lookAt = { type: fp.lookAtTypeName, horizontalInner: lk('lookAtHorizontalInner'), horizontalOuter: lk('lookAtHorizontalOuter'), verticalDown: lk('lookAtVerticalDown'), verticalUp: lk('lookAtVerticalUp') };
+const meta ={ title: opt('title', vrm.meta.title), author: vrm.meta.author, terms: opt('terms', vrm.meta.otherPermissionUrl || ''), version: vrm.meta.version || '' };
 
 const bytes = pk.bytes();
-const data = { meta, nodes, skins, meshes, materials, images, expressions, humanoid, springs, colliders, bin: M.toBase64(bytes) };
+const data = { meta, nodes, skins, meshes, materials, images, expressions, humanoid, lookAt, springs, colliders, bin: M.toBase64(bytes) };
 mkdirSync(join(ROOT, 'data'), { recursive: true });
 const out = join(ROOT, 'data', id + '.js');
 const head = `/* 3D モデル「${meta.title}」（作者: ${meta.author}）のデータ。図鑑の項目が、開いたときだけ読み込む。

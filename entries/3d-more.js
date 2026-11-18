@@ -1614,6 +1614,27 @@ canvas { display: block; width: 100vw; height: 100vh; }
       s.prev = s.cur; s.cur = nx;
       return qfromTo(rest, [nx[0] - pos[0], nx[1] - pos[1], nx[2] - pos[2]]);   // 元の向きから、いまの先端の向きへの回転
     }
+    // 視線の縮め方（VRM 0.x の firstPerson の lookAt）: 視線の角度（度）を xRange で割って曲線に通し、yRange を掛けて目の骨の角度（度）にする。
+    // curve は [時刻, 値, 入りの傾き, 出の傾き] を並べた曲線（間はエルミート補間）。VRoid は 90 度で 8〜12 度しか回さない
+    function lookAtMap(a, m) {
+      const k = m.curve || [], n = k.length / 4, x = Math.min(1, Math.max(0, a / m.xRange));
+      if (n < 2 || x <= k[0]) return (n ? k[1] : x) * m.yRange;
+      let j = 0; while (j < n - 2 && x > k[(j + 1) * 4]) j++;
+      const [t0, v0, , o0] = k.slice(j * 4, j * 4 + 4), [t1, v1, i1] = k.slice(j * 4 + 4, j * 4 + 7), d = t1 - t0;
+      if (x >= t1 || d <= 0) return v1 * m.yRange;
+      const s = (x - t0) / d, s2 = s * s, s3 = s2 * s;
+      return ((2 * s3 - 3 * s2 + 1) * v0 + (s3 - 2 * s2 + s) * d * o0 + (3 * s2 - 2 * s3) * v1 + (s3 - s2) * d * i1) * m.yRange;
+    }
+    // 目線: 頭から見た目標の向き v（VRM 0.x の顔は -Z、-X がキャラの左）から、目の骨の左右（+Y 軸まわり）と上下（+X 軸まわり）の角度（ラジアン）。
+    // キャラの左（+ の角度）を見るとき、左目は外側・右目は内側の縮め方を使う
+    function eyeAngles(v, side, la) {
+      const l = Math.hypot(v[0], v[1], v[2]) || 1, D2R = Math.PI / 180;
+      const yaw = Math.atan2(-v[0], -v[2]) / D2R, pit = Math.asin(Math.max(-1, Math.min(1, v[1] / l))) / D2R;
+      const outer = (yaw > 0) === (side === 'left');
+      const y = Math.sign(yaw) * lookAtMap(Math.abs(yaw), outer ? la.horizontalOuter : la.horizontalInner);
+      const p = Math.sign(pit) * lookAtMap(Math.abs(pit), pit > 0 ? la.verticalUp : la.verticalDown);
+      return [y * D2R, p * D2R];
+    }
     // 4x4 の行列（列の順）
     function trs(t, r) {
       const [x, y, z, w] = r, m = new Float32Array(16);
@@ -1713,6 +1734,8 @@ void main() {
     const order = []; (function walk(i) { order.push(i); kids[i].forEach(walk); })(0);
     N.forEach((n, i) => { if (n.parent < 0 && i !== 0) (function walk(j) { order.push(j); kids[j].forEach(walk); })(i); });
     const flipZ = (v) => [v[0], v[1], -v[2]];   // VRM 0.x の揺れものの向きと当たり判定の位置は、Z が逆向きで書かれている
+    // 視線の縮め方。VRM に書かれた値（tools/vrm2js.mjs が書き出す）を使い、無いときは VRoid の標準（90 度で 内側 8・外側 12・上下 10 度）
+    const LIN = [0, 0, 0, 1, 1, 1, 1, 0], LOOK = D.lookAt?.verticalUp ? D.lookAt : { horizontalInner: { curve: LIN, xRange: 90, yRange: 8 }, horizontalOuter: { curve: LIN, xRange: 90, yRange: 12 }, verticalDown: { curve: LIN, xRange: 90, yRange: 10 }, verticalUp: { curve: LIN, xRange: 90, yRange: 10 } };
     const springs = new Map();
     for (const g of D.springs) {
       const setup = (n) => {
@@ -1767,9 +1790,9 @@ void main() {
           for (const g of s.cols) for (const c2 of spheres[g]) sph.push(c2);
           Wq[i] = qmul(springStep(s, Wp[i], restDir, dt, sph), pq);
         } else if (i === H.leftEye || i === H.rightEye) {
-          // 目線: 頭から見たカメラの向きへ、上下左右に少しだけ回す（VRM 0.x の顔は -Z 向き）
-          const v = qrot(qconj(pq), [camModel[0] - Wp[i][0], camModel[1] - Wp[i][1], camModel[2] - Wp[i][2]]), l = Math.hypot(...v) || 1;
-          const yaw = Math.max(-.25, Math.min(.25, Math.atan2(-v[0], -v[2]))), pit = Math.max(-.18, Math.min(.18, Math.asin(v[1] / l)));
+          // 目線: 頭から見たカメラの向きへ。VRM の lookAt の決まりで角度を縮める（そのまま回すと、頭を下げたときに黒目がまぶたに隠れて白目になる）
+          const v = qrot(qconj(pq), [camModel[0] - Wp[i][0], camModel[1] - Wp[i][1], camModel[2] - Wp[i][2]]);
+          const [yaw, pit] = eyeAngles(v, i === H.leftEye ? 'left' : 'right', LOOK);
           Wq[i] = qmul(pq, qmul(qaxis([0, 1, 0], yaw), qaxis([1, 0, 0], pit)));
         } else Wq[i] = qmul(pq, local[i]);
       }
@@ -1967,6 +1990,24 @@ canvas { display: block; width: 100vw; height: 100vh; }
       }
       s.prev = s.cur; s.cur = nx;
       return qfromTo(rest, [nx[0] - pos[0], nx[1] - pos[1], nx[2] - pos[2]]);
+    }
+    // 視線の縮め方と目線（「VRoid のキャラを人の動きで動かす」と同じ。VRM の lookAt の決まりどおり、目は 8〜12 度までしか回さない）
+    function lookAtMap(a, m) {
+      const k = m.curve || [], n = k.length / 4, x = Math.min(1, Math.max(0, a / m.xRange));
+      if (n < 2 || x <= k[0]) return (n ? k[1] : x) * m.yRange;
+      let j = 0; while (j < n - 2 && x > k[(j + 1) * 4]) j++;
+      const [t0, v0, , o0] = k.slice(j * 4, j * 4 + 4), [t1, v1, i1] = k.slice(j * 4 + 4, j * 4 + 7), d = t1 - t0;
+      if (x >= t1 || d <= 0) return v1 * m.yRange;
+      const s = (x - t0) / d, s2 = s * s, s3 = s2 * s;
+      return ((2 * s3 - 3 * s2 + 1) * v0 + (s3 - 2 * s2 + s) * d * o0 + (3 * s2 - 2 * s3) * v1 + (s3 - s2) * d * i1) * m.yRange;
+    }
+    function eyeAngles(v, side, la) {
+      const l = Math.hypot(v[0], v[1], v[2]) || 1, D2R = Math.PI / 180;
+      const yaw = Math.atan2(-v[0], -v[2]) / D2R, pit = Math.asin(Math.max(-1, Math.min(1, v[1] / l))) / D2R;
+      const outer = (yaw > 0) === (side === 'left');
+      const y = Math.sign(yaw) * lookAtMap(Math.abs(yaw), outer ? la.horizontalOuter : la.horizontalInner);
+      const p = Math.sign(pit) * lookAtMap(Math.abs(pit), pit > 0 ? la.verticalUp : la.verticalDown);
+      return [y * D2R, p * D2R];
     }
     // 背景と同じカメラ: 高さ CH から +Z を水平に見る。焦点距離は画面の高さ 1、水平線は HZ だけ上。画面の右は世界の -X
     const HZ = .02, CH = .876;
@@ -2217,6 +2258,7 @@ void main() {
     const order = []; (function walk(i) { order.push(i); kids[i].forEach(walk); })(0);
     N.forEach((n, i) => { if (n.parent < 0 && i !== 0) (function walk(j) { order.push(j); kids[j].forEach(walk); })(i); });   // 根が分かれたデータでも全部の骨をたどる
     const flipZ = (v) => [v[0], v[1], -v[2]];
+    const LIN = [0, 0, 0, 1, 1, 1, 1, 0], LOOK = D.lookAt?.verticalUp ? D.lookAt : { horizontalInner: { curve: LIN, xRange: 90, yRange: 8 }, horizontalOuter: { curve: LIN, xRange: 90, yRange: 12 }, verticalDown: { curve: LIN, xRange: 90, yRange: 10 }, verticalUp: { curve: LIN, xRange: 90, yRange: 10 } };   // 視線の縮め方（無いときは VRoid の標準）
     const springs = new Map();
     for (const g of D.springs) {
       const setup = (n) => {
@@ -2328,8 +2370,9 @@ void main() {
           for (const g of s.cols) for (const c2 of spheres[g]) sph.push(c2);
           Wq[i] = qmul(springStep(s, Wp[i], restDir, dt, sph, wind), pq);
         } else if (i === H.leftEye || i === H.rightEye) {
-          const v = qrot(qconj(pq), [camModel[0] - Wp[i][0], camModel[1] - Wp[i][1], camModel[2] - Wp[i][2]]), l = Math.hypot(...v) || 1;
-          Wq[i] = qmul(pq, qmul(qaxis([0, 1, 0], Math.max(-.25, Math.min(.25, Math.atan2(-v[0], -v[2])))), qaxis([1, 0, 0], Math.max(-.18, Math.min(.18, Math.asin(v[1] / l))))));
+          const v = qrot(qconj(pq), [camModel[0] - Wp[i][0], camModel[1] - Wp[i][1], camModel[2] - Wp[i][2]]);
+          const [yaw, pit] = eyeAngles(v, i === H.leftEye ? 'left' : 'right', LOOK);   // VRM の lookAt の決まりで縮める（白目にならない）
+          Wq[i] = qmul(pq, qmul(qaxis([0, 1, 0], yaw), qaxis([1, 0, 0], pit)));
         } else Wq[i] = qmul(pq, local[i]);
       }
       spheres = D.colliders.map((cg) => cg.colliders.map((k) => { const o = qrot(Wq[cg.node], flipZ(k.offset)); return { p: [Wp[cg.node][0] + o[0], Wp[cg.node][1] + o[1], Wp[cg.node][2] + o[2]], r: k.radius }; }));
