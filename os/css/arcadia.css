@@ -480,6 +480,9 @@
 /* イコサリア（ゲーム）の窓: 中身はゲームの画面だけ */
 .arcadia .app-icosaria .app-body { background: #0b0a16; }
 .arcadia .app-icosaria .game-frame { flex: 1; width: 100%; min-height: 0; border: 0; display: block; background: #0b0a16; }
+/* 街あかり（街づくりゲーム）の窓も、中身はゲームの画面だけ */
+.arcadia .app-machiakari .app-body { background: #0b0c1a; }
+.arcadia .app-machiakari .game-frame { flex: 1; width: 100%; min-height: 0; border: 0; display: block; background: #0b0c1a; }
 
 /* 各アプリが自分で描くボタン（.flat）は、95.css の決まった高さと折り返しなしを外す */
 .arcadia button.flat { height: auto; white-space: normal; }
