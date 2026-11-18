@@ -145,6 +145,7 @@ export async function openBrowser({ width = 1280, height = 800, dark = false, pr
   const BTN = { left: 1, right: 2, middle: 4 };
   const page = {
     width, height, consoleErrors,
+    pid: proc.pid, // 測定の道具（tools/perf.mjs）が、この Chrome の子プロセスのメモリを数えるのに使う
     async navigate(url) {
       const loaded = new Promise((res) => { const f = (m) => { if (m.method === 'Page.loadEventFired' && m.sessionId === sessionId) res(); }; listeners.push(f); setTimeout(res, 30000); });
       await s('Page.navigate', { url });
