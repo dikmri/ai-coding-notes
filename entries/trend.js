@@ -1613,3 +1613,703 @@ dekiru.add({
     setAuto(!!window.THUMB);
   },
 });
+dekiru.add({
+  id: 'tr-20261119-partial-eval', c: 'trend', lv: 3, date: '2026-11-19',
+  t: '部分評価で、インタプリタからコンパイルしたコードを作る（二村射影）', y: 'ぶぶんひょうかでいんたぷりたからこんぱいるしたこーどをつくる',
+  tags: ['部分評価', '二村射影', 'インタプリタ', 'コンパイラ', 'new Function'],
+  d: '2026年11月18日、Jimmy Miller さんの記事「The Magic of Partial Evaluation」が Hacker News で話題になった。部分評価は、プログラムの入力の一部が先に分かっているとき、その値で決まる所を前もって計算し、残りの入力だけを受け取る専用のプログラムを作る技術である。記事は、べき乗の関数から始めて、brainfuck のインタプリタなどを部分評価し、「インタプリタに動かすプログラムを渡して部分評価すると、そのプログラムをコンパイルしたものが出来る」こと（第一の二村射影）を説明している。この見本では、数・if・let・配列の読み出し・関数の呼び出しだけの小さな言語と、その評価器と部分評価器を一から作った。べき乗では、n を先に決めると x だけを受け取る掛け算の式が出来る。小さな機械（レジスタ4つ、命令8種類）のインタプリタでは、命令の列を先に渡すと、命令を読んで種類で振り分ける部分が消え、ループ1つ分の関数だけが残る。出来たコードは new Function で本物の JavaScript として動かし、答えが同じことを確かめる（new Function が止められている所では省く）。記事の筆者が Rust で書いている JavaScript 用の部分評価器、部分評価器を自分自身に当てはめる第二・第三の二村射影、値が増え続けるときに打ち切る工夫（一般化）は再現していない。また、この部分評価器は「先に分かる値かどうか」を引数ごとに1通りだけ決めるので、「2 の n 乗」の b のように、いつも同じ値でもコードに埋め込めない所がある。',
+  p: '値を「先に分かっている値」と「実行するまで分からない値」の2種類に分けて式をたどる。両方とも分かっていればその場で計算し、そうでなければ式のまま残す。if の条件が分かっていれば、片方の枝だけを残す。関数の呼び出しは、先に分かっている引数の組ごとに専用の関数を1つ作り、同じ組がもう一度来たら作った関数を呼ぶので、ループのあるプログラムでも作業が終わる。どの引数が先に分かるかは、部分評価の前に呼び出しをたどって決めておく。最後に、1か所からしか呼ばれない関数と小さな関数を呼び出し元へ埋め込み、どこでも使われない引数を消す。インタプリタの「命令を読む・種類で振り分ける・レジスタを選ぶ」部分は、命令の列と今の位置が先に分かっているので全部消え、レジスタの計算だけが残る。',
+  refs: [
+    { title: 'The Magic of Partial Evaluation（Jimmy Miller）', url: 'https://jimmyhmiller.com/magic-of-partial-evaluation' },
+    { title: 'Hacker News: The Magic of Partial Evaluation', url: 'https://news.ycombinator.com/item?id=50550096' },
+    { title: 'Partial evaluation（Wikipedia）', url: 'https://en.wikipedia.org/wiki/Partial_evaluation' },
+  ],
+  html: `<div class="wrap">
+  <section class="cols" aria-label="部分評価の前と後">
+    <div class="pane">
+      <h2 id="leftTitle">機械の命令（インタプリタに渡すデータ）</h2>
+      <ol id="asm" start="0"></ol>
+      <pre id="powSrc" tabindex="0" aria-label="べき乗の元のプログラム" hidden></pre>
+      <details id="srcBox">
+        <summary>この命令を動かすインタプリタのコード</summary>
+        <pre id="src" tabindex="0" aria-label="インタプリタのコード"></pre>
+      </details>
+    </div>
+    <div class="pane">
+      <h2>部分評価で出来た JavaScript</h2>
+      <pre id="out" tabindex="0" aria-label="部分評価で出来た JavaScript"></pre>
+      <p id="info" class="mut"></p>
+    </div>
+  </section>
+  <section class="run" aria-labelledby="runH">
+    <h2 id="runH">同じ入力で動かして比べる（式を計算した回数）</h2>
+    <div class="bar"><span>そのまま動かす</span><span class="track"><span id="b1" class="fill"></span></span><output id="r1"></output></div>
+    <div class="bar"><span>部分評価した後</span><span class="track"><span id="b2" class="fill two"></span></span><output id="r2"></output></div>
+    <p id="real" role="status"></p>
+  </section>
+  <form id="f" class="ctl">
+    <fieldset>
+      <legend>例</legend>
+      <span><input type="radio" id="exM" name="ex" value="machine" checked><label for="exM">小さな機械のインタプリタ</label></span>
+      <span><input type="radio" id="exP" name="ex" value="pow"><label for="exP">べき乗 x の n 乗</label></span>
+    </fieldset>
+    <fieldset id="progSet">
+      <legend>機械で動かすプログラム（先に分かっている値）</legend>
+      <span><input type="radio" id="pgFact" name="prog" value="fact" checked><label for="pgFact">階乗</label></span>
+      <span><input type="radio" id="pgFib" name="prog" value="fib"><label for="pgFib">フィボナッチ数</label></span>
+      <span><input type="radio" id="pgSum" name="prog" value="sum"><label for="pgSum">1 から n までの和</label></span>
+      <span><input type="radio" id="pgPow2" name="prog" value="pow2"><label for="pgPow2">2 の n 乗</label></span>
+    </fieldset>
+    <div class="row" id="knownRow" hidden><label for="kn">先に分かっている n</label><input type="range" id="kn" name="kn" min="0" max="24" value="10"><output id="knOut" for="kn">10</output></div>
+    <div class="row"><label for="inp" id="inpLabel">実行するときの入力 n</label><input type="range" id="inp" name="inp" min="0" max="20" value="10"><output id="inpOut" for="inp">10</output></div>
+    <fieldset>
+      <legend>部分評価の途中の形</legend>
+      <span><input type="radio" id="st0" name="stage" value="0"><label for="st0">① 関数を作った直後</label></span>
+      <span><input type="radio" id="st1" name="stage" value="1"><label for="st1">② 埋め込んだ後</label></span>
+      <span><input type="radio" id="st2" name="stage" value="2" checked><label for="st2">③ 仕上げ</label></span>
+    </fieldset>
+  </form>
+</div>`,
+  css: `:root { color-scheme: dark; --bg: #10131a; --fg: #e2e6ef; --mut: #98a2b8; --line: #2b3346; --code: #0a0d13; --acc: #6fb3ff; --kw: #ff9e64; --nu: #9ece6a; --fn: #7dcfff; --one: #8b95ab; --two: #46d39a; --err: #ff8f8f; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 13px/1.5 system-ui, sans-serif; accent-color: var(--acc); }
+    [hidden] { display: none !important; }
+    .wrap { display: flex; flex-direction: column; gap: 8px; padding: 8px; box-sizing: border-box; }
+    .cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    @media (min-width: 380px) { .cols { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); } }
+    .pane { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    h2 { margin: 0; font-size: 12px; color: var(--mut); font-weight: 600; }
+    pre, #asm { margin: 0; background: var(--code); border: 1px solid var(--line); border-radius: 6px; font: 12px/1.5 ui-monospace, Consolas, monospace; }
+    pre { padding: 6px 8px; overflow: auto; max-height: 360px; }
+    #asm { padding: 4px 8px 4px 2.6em; }
+    #asm li.head { color: var(--two); }
+    #asm .tag { margin-inline-start: .5em; padding: 0 .4em; border: 1px solid currentColor; border-radius: 4px; font-size: 11px; }
+    details summary { cursor: pointer; color: var(--mut); font-size: 12px; }
+    details pre { margin-top: 4px; }
+    .kw { color: var(--kw); } .nu { color: var(--nu); } .fn { color: var(--fn); }
+    .mut { margin: 0; color: var(--mut); font-size: 12px; }
+    .err { margin: 0; color: var(--err); font-size: 12px; }
+    .run { display: flex; flex-direction: column; gap: 4px; }
+    .bar { display: grid; grid-template-columns: 7.5em minmax(0, 1fr) auto; align-items: center; gap: 6px; }
+    .track { height: 10px; background: #1b2130; border-radius: 5px; overflow: hidden; }
+    .fill { display: block; height: 100%; width: 0; background: var(--one); border-radius: 5px; transition: width .3s; }
+    .fill.two { background: var(--two); }
+    @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
+    output { font-variant-numeric: tabular-nums; }
+    #real { margin: 0; font-size: 12px; color: var(--mut); }
+    .ctl { display: flex; flex-direction: column; gap: 6px; }
+    fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 0; padding: 2px 8px 6px; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+    legend { color: var(--mut); padding: 0 4px; }
+    .row { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+    input, output, button { font: inherit; }
+    input[type="range"] { flex: 1; min-width: 120px; }
+    .thumb .ctl, .thumb details, .thumb .run h2 { display: none; }
+    @supports not (accent-color: red) {
+      input[type="range"] { appearance: none; background: transparent; }
+      input[type="range"]::-webkit-slider-runnable-track { height: 6px; background: var(--line); border-radius: 3px; }
+      input[type="range"]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; margin-top: -5px; border-radius: 50%; background: var(--acc); }
+      input[type="range"]::-moz-range-track { height: 6px; background: var(--line); border-radius: 3px; }
+      input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 50%; background: var(--acc); }
+    }`,
+  core() {
+    // ── 小さな言語の式（木）。数・変数・計算・if・let・配列の読み出し・関数の呼び出しだけ ──
+    const N = (v) => ({ k: 'num', v });
+    const V = (n) => ({ k: 'var', n });
+    const O = (o, a, b) => ({ k: 'op', o, a, b });
+    const IF = (c, t, e) => ({ k: 'if', c, t, e });
+    const LET = (n, v, body) => ({ k: 'let', n, v, body });
+    const CALL = (f, ...args) => ({ k: 'call', f, args });
+    const AT = (a, i) => ({ k: 'at', a, i });
+    const FN = (params, body) => ({ params, body });
+    const OPS = {
+      '+': (a, b) => a + b, '-': (a, b) => a - b, '*': (a, b) => a * b,
+      '/': (a, b) => Math.floor(a / b), '%': (a, b) => a % b,
+      '==': (a, b) => a === b, '<': (a, b) => a < b,
+    };
+    const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+    const clone = (x) => JSON.parse(JSON.stringify(x));
+    const kids = (e) => e.k === 'op' ? [e.a, e.b] : e.k === 'if' ? [e.c, e.t, e.e] : e.k === 'let' ? [e.v, e.body] : e.k === 'at' ? [e.a, e.i] : e.k === 'call' ? e.args : [];
+    const mapKids = (e, f) => {
+      switch (e.k) {
+        case 'op': return O(e.o, f(e.a), f(e.b));
+        case 'if': return IF(f(e.c), f(e.t), f(e.e));
+        case 'let': return LET(e.n, f(e.v), f(e.body));
+        case 'at': return AT(f(e.a), f(e.i));
+        case 'call': return CALL(e.f, ...e.args.map(f));
+        default: return e;
+      }
+    };
+    const walk = (e, f) => { f(e); for (const x of kids(e)) walk(x, f); };
+    const callsIn = (e) => { const out = []; walk(e, (x) => { if (x.k === 'call') out.push(x.f); }); return out; };
+    const sizeOf = (e) => { let n = 0; walk(e, () => { n++; }); return n; };
+    const countVar = (e, name) => { let n = 0; walk(e, (x) => { if (x.k === 'var' && x.n === name) n++; }); return n; };
+    const isNum = (e, v) => e.k === 'num' && e.v === v;
+    const bindArgs = (params, vals) => { const env = {}; params.forEach((p, i) => { env[p] = vals[i]; }); return env; };
+    function makeFresh() { let k = 0; return (s) => s.replace(/_\d+$/, '') + '_' + (++k); }
+    function readAt(arr, i) {
+      if (!Array.isArray(arr)) throw new Error('配列ではない値から読もうとしました');
+      if (!(Number.isInteger(i) && i >= 0 && i < arr.length)) throw new Error('配列の範囲の外（' + i + ' 番）を読もうとしました');
+      return arr[i];
+    }
+
+    // そのまま動かす評価器。式を1つ計算するたびに steps を1増やす
+    function evaluate(prog, fname, args, limit = 200000) {
+      let steps = 0, depth = 0;
+      const ev = (e, env) => {
+        if (++steps > limit) throw new Error('計算が ' + limit + ' 回を超えました');
+        switch (e.k) {
+          case 'num': return e.v;
+          case 'var':
+            if (!has(env, e.n)) throw new Error('変数 ' + e.n + ' がありません');
+            return env[e.n];
+          case 'op': return OPS[e.o](ev(e.a, env), ev(e.b, env));
+          case 'if': return ev(e.c, env) ? ev(e.t, env) : ev(e.e, env);
+          case 'let': return ev(e.body, { ...env, [e.n]: ev(e.v, env) });
+          case 'at': return readAt(ev(e.a, env), ev(e.i, env));
+          case 'call': {
+            if (!has(prog, e.f)) throw new Error('関数 ' + e.f + ' がありません');
+            const f = prog[e.f];
+            const vals = e.args.map((x) => ev(x, env));
+            if (++depth > 500) throw new Error('関数の呼び出しが深すぎます（500 段を超えました）');
+            const v = ev(f.body, bindArgs(f.params, vals));
+            depth--;
+            return v;
+          }
+        }
+        throw new Error('知らない式: ' + e.k);
+      };
+      if (!has(prog, fname)) throw new Error('関数 ' + fname + ' がありません');
+      const value = ev(prog[fname].body, bindArgs(prog[fname].params, args));
+      return { value, steps };
+    }
+
+    // 関数ごとに、どの引数が「先に分かっている値」かを決める。分からない値が1度でも流れ込んだ引数は「実行するまで分からない値」にする
+    function bindingTimes(prog, fname, known) {
+      const div = {};
+      for (const f of Object.keys(prog)) div[f] = prog[f].params.map(() => true);
+      div[fname] = prog[fname].params.map((p) => known.includes(p));
+      let changed = true;
+      const bt = (e, env) => {
+        switch (e.k) {
+          case 'num': return true;
+          case 'var': return env[e.n] === true;
+          case 'let': return bt(e.body, { ...env, [e.n]: bt(e.v, env) });
+          case 'call': {
+            const s = e.args.map((x) => bt(x, env));
+            const d = div[e.f];
+            if (!d) throw new Error('関数 ' + e.f + ' がありません');
+            s.forEach((ok, j) => { if (!ok && d[j]) { d[j] = false; changed = true; } });
+            return s.every(Boolean);
+          }
+          default: return kids(e).map((x) => bt(x, env)).every(Boolean);
+        }
+      };
+      while (changed) {
+        changed = false;
+        for (const f of Object.keys(prog)) bt(prog[f].body, bindArgs(prog[f].params, div[f]));
+      }
+      return div;
+    }
+
+    // 式の整理: 定数の計算、x*1 や x+0 を外す、let を外へ出す、1回しか使わない let を埋め込む
+    function subst(e, map, fresh) {
+      if (e.k === 'var') return has(map, e.n) ? map[e.n] : e;
+      if (e.k === 'let') {
+        const v = subst(e.v, map, fresh);
+        const n = fresh ? fresh(e.n) : e.n;
+        return LET(n, v, subst(e.body, { ...map, [e.n]: V(n) }, fresh));
+      }
+      return mapKids(e, (x) => subst(x, map, fresh));
+    }
+    function simplify(e) {
+      switch (e.k) {
+        case 'op': {
+          const a = simplify(e.a), b = simplify(e.b);
+          if (a.k === 'let') return LET(a.n, a.v, simplify(O(e.o, a.body, b)));
+          if (b.k === 'let') return LET(b.n, b.v, simplify(O(e.o, a, b.body)));
+          if (a.k === 'num' && b.k === 'num') return N(OPS[e.o](a.v, b.v));
+          if (e.o === '+' && isNum(a, 0)) return b;
+          if ((e.o === '+' || e.o === '-') && isNum(b, 0)) return a;
+          if (e.o === '*' && isNum(a, 1)) return b;
+          if (e.o === '*' && isNum(b, 1)) return a;
+          if (e.o === '*' && (isNum(a, 0) || isNum(b, 0))) return N(0);
+          return O(e.o, a, b);
+        }
+        case 'if': {
+          const c = simplify(e.c);
+          if (c.k === 'num') return simplify(c.v ? e.t : e.e);
+          if (c.k === 'let') return LET(c.n, c.v, simplify(IF(c.body, e.t, e.e)));
+          const t = simplify(e.t), f = simplify(e.e);
+          return JSON.stringify(t) === JSON.stringify(f) ? t : IF(c, t, f);
+        }
+        case 'let': {
+          const v = simplify(e.v);
+          if (v.k === 'let') return simplify(LET(v.n, v.v, LET(e.n, v.body, e.body)));
+          const uses = countVar(e.body, e.n);
+          if (uses === 0) return simplify(e.body);
+          if (v.k === 'num' || v.k === 'var' || uses === 1) return simplify(subst(e.body, { [e.n]: v }));
+          return LET(e.n, v, simplify(e.body));
+        }
+        case 'call': {
+          const args = e.args.map(simplify);
+          const i = args.findIndex((x) => x.k === 'let');
+          if (i < 0) return CALL(e.f, ...args);
+          const l = args[i];
+          args[i] = l.body;
+          return LET(l.n, l.v, simplify(CALL(e.f, ...args)));
+        }
+        default: return mapKids(e, simplify);
+      }
+    }
+
+    // 1か所からしか呼ばれない関数と、呼び出しを含まない小さな関数を、呼び出し元へ埋め込む
+    function inlineAll(fns0, entry, fresh) {
+      const fns = clone(fns0);
+      for (const f of Object.keys(fns)) fns[f].body = simplify(fns[f].body);
+      const replaceCalls = (e, g, make) => {
+        if (e.k !== 'call') return mapKids(e, (x) => replaceCalls(x, g, make));
+        const args = e.args.map((x) => replaceCalls(x, g, make));
+        return e.f === g ? make(args) : CALL(e.f, ...args);
+      };
+      const instantiate = (def, args) => {
+        const map = {}, binds = [];
+        def.params.forEach((p, i) => {
+          const a = args[i];
+          if (a.k === 'num' || a.k === 'var') map[p] = a;
+          else { const n = fresh(p); map[p] = V(n); binds.push([n, a]); }
+        });
+        let body = subst(def.body, map, fresh);
+        for (let i = binds.length - 1; i >= 0; i--) body = LET(binds[i][0], binds[i][1], body);
+        return body;
+      };
+      for (let guard = 0; guard < 2000; guard++) {
+        const seen = new Set([entry]), todo = [entry];
+        while (todo.length) for (const g of callsIn(fns[todo.pop()].body)) if (!seen.has(g)) { seen.add(g); todo.push(g); }
+        for (const g of Object.keys(fns)) if (!seen.has(g)) delete fns[g];
+        const sites = {};
+        for (const f of Object.keys(fns)) for (const g of callsIn(fns[f].body)) (sites[g] ||= []).push(f);
+        const target = Object.keys(fns).find((g) => g !== entry && (
+          (callsIn(fns[g].body).length === 0 && sizeOf(fns[g].body) <= 12) ||
+          (sites[g].length === 1 && sites[g][0] !== g)));
+        if (!target) break;
+        const def = fns[target];
+        delete fns[target];
+        for (const f of Object.keys(fns)) fns[f].body = simplify(replaceCalls(fns[f].body, target, (args) => instantiate(def, args)));
+      }
+      return fns;
+    }
+
+    // どこでも使われない引数を消す（自分自身へそのまま渡しているだけの引数も消える）
+    function dropDeadParams(fns0, entry) {
+      const fns = clone(fns0);
+      const live = new Set(fns[entry].params.map((p, i) => entry + '#' + i));
+      const uses = (e, n) => {
+        if (e.k === 'var') return e.n === n;
+        if (e.k === 'let') return uses(e.body, n) || (uses(e.v, n) && uses(e.body, e.n));
+        if (e.k === 'call') return e.args.some((x, j) => live.has(e.f + '#' + j) && uses(x, n));
+        return kids(e).some((x) => uses(x, n));
+      };
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const f of Object.keys(fns)) fns[f].params.forEach((p, i) => {
+          if (!live.has(f + '#' + i) && uses(fns[f].body, p)) { live.add(f + '#' + i); changed = true; }
+        });
+      }
+      const keep = {};
+      for (const f of Object.keys(fns)) keep[f] = fns[f].params.map((p, i) => live.has(f + '#' + i));
+      const dropArgs = (e) => e.k === 'call' && keep[e.f]
+        ? CALL(e.f, ...e.args.filter((x, j) => keep[e.f][j]).map(dropArgs))
+        : mapKids(e, dropArgs);
+      for (const f of Object.keys(fns)) {
+        fns[f].body = simplify(dropArgs(fns[f].body));
+        fns[f].params = fns[f].params.filter((p, i) => keep[f][i]);
+      }
+      return fns;
+    }
+
+    // 見せるための名前の付け直し（h_7 → h、v_3 と v_12 → v1 と v2）
+    function tidy(fns) {
+      const rename = (e, map) => e.k === 'var' ? (has(map, e.n) ? V(map[e.n]) : e)
+        : e.k === 'let' ? LET(has(map, e.n) ? map[e.n] : e.n, rename(e.v, map), rename(e.body, map))
+        : mapKids(e, (x) => rename(x, map));
+      for (const f of Object.keys(fns)) {
+        const lets = [];
+        walk(fns[f].body, (x) => { if (x.k === 'let') lets.push(x.n); });
+        const base = (s) => s.replace(/_\d+$/, '');
+        const total = {}, idx = {}, map = {};
+        for (const n of lets) total[base(n)] = (total[base(n)] || 0) + 1;
+        const used = new Set(fns[f].params);
+        for (const n of lets) {
+          const b = base(n);
+          idx[b] = (idx[b] || 0) + 1;
+          let c = total[b] === 1 ? b : b + idx[b];
+          while (used.has(c) || has(fns, c)) c += '_';
+          used.add(c);
+          map[n] = c;
+        }
+        fns[f].body = rename(fns[f].body, map);
+      }
+      return fns;
+    }
+
+    // 部分評価器。known に先に分かっている引数の値を入れる
+    function specialize(prog, fname, known, maxFns = 300) {
+      if (!has(prog, fname)) throw new Error('関数 ' + fname + ' がありません');
+      const div = bindingTimes(prog, fname, Object.keys(known));
+      const fresh = makeFresh();
+      const fns = {}, memo = new Map();
+      const S = (v) => ({ s: true, v }), D = (code) => ({ s: false, code });
+      const lift = (x) => {
+        if (!x.s) return x.code;
+        if (typeof x.v === 'number' || typeof x.v === 'boolean') return N(x.v);
+        throw new Error('配列を実行時のコードに書き込むことはできません');
+      };
+      const nameOf = (f, statics) => {
+        const parts = statics.filter((v) => typeof v === 'number' || typeof v === 'boolean').map((v) => String(v).replace(/[^A-Za-z0-9]/g, 'm'));
+        const b = parts.length ? f + '_' + parts.join('_') : f;
+        let name = b;
+        for (let i = 2; has(fns, name); i++) name = b + 'v' + i;
+        return name;
+      };
+      // 先に分かっている引数の組ごとに、専用の関数を1つだけ作る
+      const callSpec = (f, args) => {
+        const d = div[f];
+        args.forEach((x, j) => { if (d[j] && !x.s) throw new Error('内部の誤り: ' + f + ' の ' + j + ' 番の引数'); });
+        const key = f + JSON.stringify(args.map((x, j) => (d[j] ? x.v : null)));
+        let name = memo.get(key);
+        if (!name) {
+          if (memo.size >= maxFns) throw new Error('作る関数が ' + maxFns + ' 個を超えました（部分評価が終わりません）');
+          const def = prog[f];
+          name = nameOf(f, args.filter((x, j) => d[j]).map((x) => x.v));
+          memo.set(key, name);
+          fns[name] = { params: def.params.filter((p, j) => !d[j]), body: null };
+          const env = {};
+          def.params.forEach((p, j) => { env[p] = d[j] ? args[j] : D(V(p)); });
+          fns[name].body = lift(pe(def.body, env));
+        }
+        return CALL(name, ...args.filter((x, j) => !d[j]).map(lift));
+      };
+      const pe = (e, env) => {
+        switch (e.k) {
+          case 'num': return S(e.v);
+          case 'var':
+            if (!has(env, e.n)) throw new Error('変数 ' + e.n + ' がありません');
+            return env[e.n];
+          case 'op': {
+            const a = pe(e.a, env), b = pe(e.b, env);
+            return a.s && b.s ? S(OPS[e.o](a.v, b.v)) : D(O(e.o, lift(a), lift(b)));
+          }
+          case 'if': {
+            const c = pe(e.c, env);
+            if (c.s) return c.v ? pe(e.t, env) : pe(e.e, env);
+            return D(IF(c.code, lift(pe(e.t, env)), lift(pe(e.e, env))));
+          }
+          case 'let': {
+            const v = pe(e.v, env);
+            if (v.s || v.code.k === 'var' || v.code.k === 'num') return pe(e.body, { ...env, [e.n]: v });
+            const n = fresh(e.n);
+            return D(LET(n, v.code, lift(pe(e.body, { ...env, [e.n]: D(V(n)) }))));
+          }
+          case 'at': {
+            const a = pe(e.a, env), i = pe(e.i, env);
+            if (a.s && i.s) return S(readAt(a.v, i.v));
+            throw new Error('配列を読む位置が実行するまで分かりません');
+          }
+          case 'call': {
+            if (!has(prog, e.f)) throw new Error('関数 ' + e.f + ' がありません');
+            const args = e.args.map((x) => pe(x, env));
+            if (args.every((x) => x.s)) return S(evaluate(prog, e.f, args.map((x) => x.v)).value);
+            return D(callSpec(e.f, args));
+          }
+        }
+        throw new Error('知らない式: ' + e.k);
+      };
+      const top = callSpec(fname, prog[fname].params.map((p) => (has(known, p) ? S(known[p]) : D(V(p)))));
+      const entry = top.f;
+      const raw = clone(fns);
+      const inl = inlineAll(raw, entry, fresh);
+      const fin = dropDeadParams(inl, entry);
+      return {
+        entry, params: fns[entry].params.slice(), made: Object.keys(raw).length,
+        stages: [
+          { label: '関数を作った直後', fns: tidy(clone(raw)) },
+          { label: '埋め込んだ後', fns: tidy(clone(inl)) },
+          { label: '仕上げ', fns: tidy(clone(fin)) },
+        ],
+      };
+    }
+
+    // 式の木を JavaScript の文字列にする
+    const PREC = { '==': 9, '<': 10, '+': 12, '-': 12, '*': 13, '%': 13 };
+    function expr(e, p = 0) {
+      switch (e.k) {
+        case 'num': return e.v < 0 ? '(' + e.v + ')' : String(e.v);
+        case 'var': return e.n;
+        case 'op': {
+          if (e.o === '/') return 'Math.floor(' + expr(e.a, 13) + ' / ' + expr(e.b, 14) + ')';
+          const q = PREC[e.o];
+          const s = expr(e.a, q) + ' ' + (e.o === '==' ? '===' : e.o) + ' ' + expr(e.b, q + 1);
+          return q < p ? '(' + s + ')' : s;
+        }
+        case 'if': {
+          const s = expr(e.c, 4) + ' ? ' + expr(e.t, 3) + ' : ' + expr(e.e, 3);
+          return 3 < p ? '(' + s + ')' : s;
+        }
+        case 'let': return '(() => { ' + stmts(e, '').replace(/\n/g, ' ').trim() + ' })()';
+        case 'at': return expr(e.a, 20) + '[' + expr(e.i) + ']';
+        case 'call': return e.f + '(' + e.args.map((x) => expr(x)).join(', ') + ')';
+      }
+      throw new Error('知らない式: ' + e.k);
+    }
+    function stmts(e, ind) {
+      if (e.k === 'let') return ind + 'const ' + e.n + ' = ' + expr(e.v) + ';\n' + stmts(e.body, ind);
+      if (e.k === 'if') {
+        const head = ind + 'if (' + expr(e.c) + ') ';
+        const t = e.t.k === 'let' || e.t.k === 'if' ? head + '{\n' + stmts(e.t, ind + '  ') + ind + '}\n' : head + 'return ' + expr(e.t) + ';\n';
+        return t + stmts(e.e, ind);
+      }
+      return ind + 'return ' + expr(e) + ';\n';
+    }
+    function emitJS(fns, entry) {
+      const names = [entry, ...Object.keys(fns).filter((f) => f !== entry)];
+      return names.map((f) => 'function ' + f + '(' + fns[f].params.join(', ') + ') {\n' + stmts(fns[f].body, '  ') + '}\n').join('\n');
+    }
+
+    // 例1: べき乗（n が偶数なら半分の n で計算して2乗する）
+    const POW = {
+      pow: FN(['x', 'n'],
+        IF(O('==', V('n'), N(0)), N(1),
+          IF(O('==', O('%', V('n'), N(2)), N(0)),
+            LET('h', CALL('pow', V('x'), O('/', V('n'), N(2))), O('*', V('h'), V('h'))),
+            O('*', V('x'), CALL('pow', V('x'), O('-', V('n'), N(1))))))),
+    };
+
+    // 例2: 小さな機械。レジスタは a b c n の4つ（n に入力が入り、ほかは 0 から始まる）。命令は [種類, x, y] の3つ組
+    const OPC = { SET: 0, ADD: 1, MUL: 2, DEC: 3, JZ: 4, JMP: 5, MOV: 6, RET: 7 };
+    const REGS = ['a', 'b', 'c', 'n'];
+    const regVars = () => REGS.map(V);
+    const getR = (r) => CALL('get', r, ...regVars());
+    const putR = (r, v) => CALL('put', V('p'), O('+', V('pc'), N(1)), r, v, ...regVars());
+    const isOp = (name) => O('==', V('op'), N(OPC[name]));
+    const field = (k) => AT(V('p'), k ? O('+', O('*', V('pc'), N(3)), N(k)) : O('*', V('pc'), N(3)));
+    const INTERP = {
+      main: FN(['p', 'n'], CALL('run', V('p'), N(0), N(0), N(0), N(0), V('n'))),
+      run: FN(['p', 'pc', ...REGS],
+        LET('op', field(0), LET('x', field(1), LET('y', field(2),
+          IF(isOp('SET'), putR(V('x'), V('y')),
+          IF(isOp('ADD'), putR(V('x'), O('+', getR(V('x')), getR(V('y')))),
+          IF(isOp('MUL'), putR(V('x'), O('*', getR(V('x')), getR(V('y')))),
+          IF(isOp('DEC'), putR(V('x'), O('-', getR(V('x')), N(1))),
+          IF(isOp('JZ'), IF(O('==', getR(V('x')), N(0)),
+            CALL('run', V('p'), V('y'), ...regVars()),
+            CALL('run', V('p'), O('+', V('pc'), N(1)), ...regVars())),
+          IF(isOp('JMP'), CALL('run', V('p'), V('x'), ...regVars()),
+          IF(isOp('MOV'), putR(V('x'), getR(V('y'))),
+            getR(V('x'))))))))))))),
+      get: FN(['r', ...REGS],
+        IF(O('==', V('r'), N(0)), V('a'), IF(O('==', V('r'), N(1)), V('b'), IF(O('==', V('r'), N(2)), V('c'), V('n'))))),
+      put: FN(['p', 'pc', 'r', 'v', ...REGS],
+        IF(O('==', V('r'), N(0)), CALL('run', V('p'), V('pc'), V('v'), V('b'), V('c'), V('n')),
+        IF(O('==', V('r'), N(1)), CALL('run', V('p'), V('pc'), V('a'), V('v'), V('c'), V('n')),
+        IF(O('==', V('r'), N(2)), CALL('run', V('p'), V('pc'), V('a'), V('b'), V('v'), V('n')),
+          CALL('run', V('p'), V('pc'), V('a'), V('b'), V('c'), V('v')))))),
+    };
+    const MACHINE = {
+      fact: { title: '階乗', code: [['SET', 'a', 1], ['JZ', 'n', 5], ['MUL', 'a', 'n'], ['DEC', 'n'], ['JMP', 1], ['RET', 'a']] },
+      fib: { title: 'フィボナッチ数', code: [['SET', 'b', 1], ['JZ', 'n', 8], ['MOV', 'c', 'a'], ['ADD', 'c', 'b'], ['MOV', 'a', 'b'], ['MOV', 'b', 'c'], ['DEC', 'n'], ['JMP', 1], ['RET', 'a']] },
+      sum: { title: '1 から n までの和', code: [['JZ', 'n', 4], ['ADD', 'a', 'n'], ['DEC', 'n'], ['JMP', 0], ['RET', 'a']] },
+      pow2: { title: '2 の n 乗', code: [['SET', 'a', 1], ['SET', 'b', 2], ['JZ', 'n', 6], ['MUL', 'a', 'b'], ['DEC', 'n'], ['JMP', 2], ['RET', 'a']] },
+    };
+    // 命令を数の列にする（レジスタの名前は番号に）
+    function assemble(code) {
+      const out = [];
+      for (const [op, x = 0, y = 0] of code) {
+        if (!has(OPC, op)) throw new Error('知らない命令: ' + op);
+        const v = (o) => {
+          if (typeof o === 'number') return o;
+          if (REGS.includes(o)) return REGS.indexOf(o);
+          throw new Error('知らないレジスタ: ' + o);
+        };
+        out.push(OPC[op], v(x), v(y));
+      }
+      return out;
+    }
+    function describe([op, x, y]) {
+      switch (op) {
+        case 'SET': return x + ' ← ' + y;
+        case 'ADD': return x + ' ← ' + x + ' + ' + y;
+        case 'MUL': return x + ' ← ' + x + ' × ' + y;
+        case 'DEC': return x + ' ← ' + x + ' − 1';
+        case 'JZ': return x + ' が 0 なら ' + y + ' 番へ';
+        case 'JMP': return x + ' 番へ';
+        case 'MOV': return x + ' ← ' + y;
+        case 'RET': return x + ' を答えにする';
+      }
+      return op;
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const form = $('f');
+    const st = { ex: 'machine', prog: 'fact', stage: 2, known: 10, input: 10, P: null, res: null, err: '' };
+    const num = (v) => (typeof v !== 'number' ? String(v) : Math.abs(v) >= 1e15 ? v.toExponential(6) : v.toLocaleString('ja-JP'));
+
+    // コードを色分けして pre に入れる（文字列は textContent で入れる）
+    function paint(pre, code) {
+      pre.textContent = '';
+      const re = /\b(function|return|if|const)\b|\b(\d+)\b|([A-Za-z_]\w*)(?=\()/g;
+      let last = 0, m;
+      while ((m = re.exec(code))) {
+        if (m.index > last) pre.append(code.slice(last, m.index));
+        const s = document.createElement('span');
+        s.className = m[1] ? 'kw' : m[2] ? 'nu' : 'fn';
+        s.textContent = m[0];
+        pre.append(s);
+        last = re.lastIndex;
+      }
+      pre.append(code.slice(last));
+    }
+
+    function compute() {
+      st.err = '';
+      try {
+        if (st.ex === 'pow') st.res = specialize(POW, 'pow', { n: st.known });
+        else {
+          st.P = assemble(MACHINE[st.prog].code);
+          st.res = specialize(INTERP, 'main', { p: st.P });
+        }
+      } catch (err) {
+        st.res = null;
+        st.err = err.message;
+      }
+    }
+
+    function renderLeft() {
+      const isPow = st.ex === 'pow';
+      $('asm').hidden = isPow;
+      $('srcBox').hidden = isPow;
+      $('powSrc').hidden = !isPow;
+      $('progSet').hidden = isPow;
+      $('knownRow').hidden = !isPow;
+      $('leftTitle').textContent = isPow ? '元のプログラム（小さな言語。JavaScript の形で表示）' : '機械の命令（インタプリタに渡すデータ）';
+      if (isPow) { paint($('powSrc'), emitJS(POW, 'pow')); return; }
+      const fns = st.res ? st.res.stages[st.stage].fns : {};
+      const ol = $('asm');
+      ol.textContent = '';
+      MACHINE[st.prog].code.forEach((ins, i) => {
+        const li = document.createElement('li');
+        li.textContent = describe(ins);
+        const name = 'run_' + i;
+        if (Object.hasOwn(fns, name)) {
+          li.className = 'head';
+          const tag = document.createElement('span');
+          tag.className = 'tag';
+          tag.textContent = name;
+          li.append(tag);
+        }
+        ol.append(li);
+      });
+    }
+
+    const NOTE = [
+      '① 呼び出しのたびに、先に分かっている引数の組ごとの専用の関数を作った。',
+      '② 1か所からしか呼ばれない関数と、呼び出しを含まない小さな関数を呼び出し元へ埋め込んだ。',
+      '③ どこでも使われない引数を消した。',
+    ];
+    function renderOut() {
+      const info = $('info');
+      if (!st.res) {
+        $('out').textContent = '';
+        info.className = 'err';
+        info.textContent = '部分評価できませんでした: ' + st.err;
+        return;
+      }
+      const s = st.res.stages[st.stage];
+      paint($('out'), emitJS(s.fns, st.res.entry));
+      info.className = 'mut';
+      info.textContent = NOTE[st.stage] + ' 関数は ' + Object.keys(s.fns).length + ' 個（途中で作ったのは ' + st.res.made + ' 個）。';
+    }
+
+    function runCompare() {
+      const real = $('real');
+      if (!st.res) {
+        $('r1').value = '';
+        $('r2').value = '';
+        $('b1').style.width = '0';
+        $('b2').style.width = '0';
+        real.textContent = '';
+        return;
+      }
+      const isPow = st.ex === 'pow';
+      const inputs = isPow ? { x: st.input } : { n: st.input };
+      const s = st.res.stages[st.stage];
+      const args = st.res.params.map((p) => inputs[p]);
+      let a, b;
+      try {
+        a = isPow ? evaluate(POW, 'pow', [st.input, st.known]) : evaluate(INTERP, 'main', [st.P, st.input]);
+        b = evaluate(s.fns, st.res.entry, args);
+      } catch (err) {
+        real.textContent = '動かせませんでした: ' + err.message;
+        return;
+      }
+      $('r1').value = '答え ' + num(a.value) + '・' + num(a.steps) + ' 回';
+      $('r2').value = '答え ' + num(b.value) + '・' + num(b.steps) + ' 回';
+      const most = Math.max(a.steps, b.steps, 1);
+      $('b1').style.width = (a.steps / most * 100) + '%';
+      $('b2').style.width = (b.steps / most * 100) + '%';
+      let msg = '部分評価した後は、式を計算する回数が ' + (a.steps / Math.max(1, b.steps)).toFixed(1) + ' 分の 1 になった。';
+      try {
+        const f = new Function(emitJS(s.fns, st.res.entry) + '\nreturn ' + st.res.entry + ';')();
+        const v = f(...args);
+        msg += ' 出来たコードを new Function で JavaScript として動かした答えは ' + num(v) + (Object.is(v, a.value) ? '（同じ）。' : '（違う）。');
+      } catch (err) {
+        msg += ' ここでは new Function が使えないので、JavaScript としての実行は省いた。';
+      }
+      real.textContent = msg;
+    }
+
+    function render() {
+      renderLeft();
+      renderOut();
+      runCompare();
+    }
+
+    function setInputRange() {
+      const inp = $('inp');
+      const isPow = st.ex === 'pow';
+      inp.max = isPow ? 12 : 20;
+      st.input = isPow ? 3 : 10;
+      inp.value = st.input;
+      $('inpOut').value = st.input;
+      $('inpLabel').textContent = '実行するときの入力 ' + (isPow ? 'x' : 'n');
+    }
+
+    form.addEventListener('submit', (ev) => ev.preventDefault());
+    form.addEventListener('input', (ev) => {
+      const t = ev.target;
+      if (t.name === 'ex') { st.ex = t.value; setInputRange(); compute(); }
+      else if (t.name === 'prog') { st.prog = t.value; compute(); }
+      else if (t.name === 'kn') { st.known = Number(t.value); $('knOut').value = t.value; compute(); }
+      else if (t.name === 'inp') { st.input = Number(t.value); $('inpOut').value = t.value; }
+      else if (t.name === 'stage') st.stage = Number(t.value);
+      render();
+    });
+
+    paint($('src'), emitJS(INTERP, 'main'));
+    setInputRange();
+    compute();
+    render();
+
+    // 一覧の小窓では、途中の形と入力を自動で切り替えて見せる
+    if (window.THUMB) {
+      document.body.classList.add('thumb');
+      let k = 0;
+      setInterval(() => {
+        k++;
+        st.stage = (2 + k) % 3;
+        st.input = 3 + (k % 8);
+        render();
+      }, 1400);
+    }
+  },
+});

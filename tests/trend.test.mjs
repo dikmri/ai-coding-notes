@@ -377,3 +377,96 @@ test('シグナル: 待っている間に送料無料になったら、届いた
   assert.equal(drops, 1);
   assert.equal(s.ship.value, 0);
 });
+
+// ── 部分評価（2026-11-19） ──
+const PEVAL = 'tr-20261119-partial-eval';
+const PE_NAMES = ['evaluate', 'specialize', 'emitJS', 'assemble', 'describe', 'POW', 'INTERP', 'MACHINE'];
+const compile = (fns, entry, emitJS) => new Function(emitJS(fns, entry) + '\nreturn ' + entry + ';')();
+
+test('部分評価: べき乗の n を先に決めると、x だけを受け取る1つの関数になり、答えは変わらない', () => {
+  const { evaluate, specialize, emitJS, POW } = trendCore(PEVAL, PE_NAMES);
+  for (const n of [0, 1, 2, 5, 10, 13]) {
+    const r = specialize(POW, 'pow', { n });
+    const fin = r.stages.at(-1).fns;
+    assert.deepEqual(Array.from(r.params), ['x']);
+    assert.deepEqual(Object.keys(fin), [r.entry], 'n=' + n);
+    const js = emitJS(fin, r.entry);
+    assert.ok(!/\bn\b/.test(js), js);
+    const f = compile(fin, r.entry, emitJS);
+    for (const x of [0, 1, 2, 3, -2]) {
+      assert.equal(evaluate(POW, 'pow', [x, n]).value, x ** n);
+      assert.equal(evaluate(fin, r.entry, [x]).value, x ** n);
+      assert.equal(f(x), x ** n);
+    }
+  }
+});
+
+test('部分評価: x を先に決めて n を後で渡すときは、n で回る関数が残る', () => {
+  const { evaluate, specialize, POW } = trendCore(PEVAL, PE_NAMES);
+  const r = specialize(POW, 'pow', { x: 3 });
+  assert.deepEqual(Array.from(r.params), ['n']);
+  for (const st of r.stages) for (let n = 0; n <= 9; n++) assert.equal(evaluate(st.fns, r.entry, [n]).value, 3 ** n);
+});
+
+test('部分評価: インタプリタに命令の列を渡すと、命令を読む処理が消えたコードが出来る（第一の二村射影）', () => {
+  const { evaluate, specialize, emitJS, assemble, INTERP, MACHINE } = trendCore(PEVAL, PE_NAMES);
+  const REF = {
+    fact: (n) => { let a = 1; for (let i = 2; i <= n; i++) a *= i; return a; },
+    fib: (n) => { let a = 0, b = 1; for (let i = 0; i < n; i++) [a, b] = [b, a + b]; return a; },
+    sum: (n) => n * (n + 1) / 2,
+    pow2: (n) => 2 ** n,
+  };
+  assert.deepEqual(Object.keys(MACHINE).sort(), Object.keys(REF).sort());
+  for (const [key, ref] of Object.entries(REF)) {
+    const P = assemble(MACHINE[key].code);
+    const r = specialize(INTERP, 'main', { p: P });
+    const fin = r.stages.at(-1).fns;
+    assert.deepEqual(Array.from(r.params), ['n'], key);
+    assert.ok(Object.keys(fin).length <= 2, key + ': ' + Object.keys(fin));
+    const js = emitJS(fin, r.entry);
+    assert.ok(!/\b(p|pc|op|get|put)\b/.test(js), key + '\n' + js);
+    const f = compile(fin, r.entry, emitJS);
+    for (let n = 0; n <= 15; n++) {
+      const a = evaluate(INTERP, 'main', [P, n]);
+      const b = evaluate(fin, r.entry, [n]);
+      assert.equal(a.value, ref(n), key + ' n=' + n);
+      assert.equal(b.value, ref(n), key + ' n=' + n);
+      assert.equal(f(n), ref(n), key + ' n=' + n);
+      if (n >= 3) assert.ok(b.steps * 3 < a.steps, `${key} n=${n}: ${b.steps} / ${a.steps}`);
+    }
+    // 途中の形も、同じ答えを返すプログラムになっている
+    for (const st of r.stages) assert.equal(evaluate(st.fns, r.entry, [7]).value, ref(7), key + ' ' + st.label);
+  }
+});
+
+test('部分評価: 階乗のループは a と n だけを受け取り、使わないレジスタは引数から消える', () => {
+  const { specialize, assemble, INTERP, MACHINE } = trendCore(PEVAL, PE_NAMES);
+  const r = specialize(INTERP, 'main', { p: assemble(MACHINE.fact.code) });
+  const fin = r.stages.at(-1).fns;
+  const loop = Object.keys(fin).find((f) => f !== r.entry);
+  assert.equal(loop, 'run_1');
+  assert.deepEqual(Array.from(fin[loop].params), ['a', 'n']);
+  // 作った直後は、命令や呼び出しの組ごとに関数がたくさんある
+  assert.ok(Object.keys(r.stages[0].fns).length > 6);
+  assert.equal(r.made, Object.keys(r.stages[0].fns).length);
+});
+
+test('部分評価: 命令の説明は、レジスタの名前と行き先で書く', () => {
+  const { describe } = trendCore(PEVAL, PE_NAMES);
+  assert.equal(describe(['SET', 'a', 1]), 'a ← 1');
+  assert.equal(describe(['MUL', 'a', 'n']), 'a ← a × n');
+  assert.equal(describe(['JZ', 'n', 5]), 'n が 0 なら 5 番へ');
+  assert.equal(describe(['RET', 'a']), 'a を答えにする');
+});
+
+test('部分評価: 終わらない計算・範囲の外を読む命令の列・増え続ける静的な値はエラーにする', () => {
+  const { evaluate, specialize, assemble, INTERP } = trendCore(PEVAL, PE_NAMES);
+  // 0 番へ戻り続ける（入力に関係なく止まらない）
+  assert.throws(() => evaluate(INTERP, 'main', [assemble([['JMP', 0]]), 3]), /深すぎ|回を超え/);
+  // RET の無い命令の列は、最後の命令の次を読もうとする
+  assert.throws(() => specialize(INTERP, 'main', { p: assemble([['DEC', 'n']]) }), /範囲の外/);
+  assert.throws(() => assemble([['NOP']]), /知らない命令/);
+  // 先に分かる値が呼び出しのたびに増えると、作る関数が限りなく増える
+  const grow = { f: { params: ['k', 'x'], body: { k: 'call', f: 'f', args: [{ k: 'op', o: '+', a: { k: 'var', n: 'k' }, b: { k: 'num', v: 1 } }, { k: 'var', n: 'x' }] } } };
+  assert.throws(() => specialize(grow, 'f', { k: 0 }), /関数が/);
+});
