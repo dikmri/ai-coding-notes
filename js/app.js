@@ -320,7 +320,7 @@ canvas, img, video { display: block; max-width: 100%; }
     const { doc, jsLine } = buildDoc(c.e, { mode: 'thumb' });
     f.srcdoc = doc;
     // 見本が 2 フレーム描いたという知らせ（ready）で見せる。それまでは静止画のまま。知らせが来ないときも、読み込んで 1.5 秒で見せる
-    f.addEventListener('load', () => setTimeout(() => f.classList.add('on'), 1500), { once: true });
+    f.addEventListener('load', () => { c.onT = setTimeout(() => f.classList.add('on'), 1500); }, { once: true });
     c.prev.append(f);
     frames.set(f.contentWindow, { entry: c.e, mode: 'thumb', jsLine, frame: f, t0: performance.now() });
     c.frame = f;
@@ -329,6 +329,7 @@ canvas, img, video { display: block; max-width: 100%; }
   function unmount(c) {
     if (!c.frame) return;
     io.unobserve(c.prev);
+    clearTimeout(c.onT);
     frames.delete(c.frame.contentWindow);
     c.frame.remove();
     c.frame = null;
@@ -353,8 +354,10 @@ canvas, img, video { display: block; max-width: 100%; }
      470 枚ほどのカードを一度に入れると、配置の計算で読み込みの途中に 0.4 秒ほど画面が止まり、しかもそれが 2 回起きていた（tools/perf.mjs）。
      最初の画面に入る FIRST 枚だけを先に入れ、残りは最初に描いたあとで CHUNK 枚ずつ、描く合間に末尾へ足す。
      （content-visibility: auto も試したが、この Chrome では読み込みの 1 秒ほどあとに全部を配置し直すので使わない） */
+  // 少しずつ入れるのは起動の最初の 1 回だけ（booting の間）。そのあとの絞り込みや並べ替えでは、残りを先に全部入れてから並べ直す
+  // （起動の途中で絞り込むと、入れ残したカードが絞り込みを外したときにまとめて入り、並びも一時的に乱れるため。Gemini のレビュー）
   const FIRST = 24, CHUNK = 32;
-  let later = [];
+  let later = null, booting = true;
   function drainLater() {
     if (!later) return;
     const chunk = later.splice(0, CHUNK);
@@ -403,8 +406,8 @@ canvas, img, video { display: block; max-width: 100%; }
       const hide = !want.has(c.li);
       if (c.li.hidden !== hide) { c.li.hidden = hide; if (hide && liveCard === c) stop(c); }
     }
-    // 起動の直後（later が配列の間）は、最初の FIRST 枚だけを入れ、残りは描いたあとで少しずつ末尾へ足す（drainLater）
-    if (later) later = [];
+    // 起動の最初は、最初の FIRST 枚だけを入れ、残りは描いたあとで少しずつ末尾へ足す（drainLater）
+    if (booting) later = []; else flushLater();
     let ref = grid.firstChild, n = 0;
     for (const e of items) {
       const li = cards.get(e.id).li;
@@ -1207,6 +1210,7 @@ canvas, img, video { display: block; max-width: 100%; }
   qEl.value = state.q; $('#lvSel').value = state.lv; $('#sortSel').value = state.sort;
   applyFilters();
   route();
+  booting = false;
   // 最初の画面を描いたあとで、残りのカードを少しずつ入れる
   requestAnimationFrame(() => setTimeout(drainLater, 0));
   try { hero(); } catch (err) { log('hero.error', { msg: err.message }, 'exception'); }
