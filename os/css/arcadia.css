@@ -1787,6 +1787,98 @@ html.vd-dragging, html.vd-dragging * { cursor: grabbing !important; }
 .arcadia .app-browser .bw-read figcaption { font-size: 12px; color: var(--fos-ink-muted); }
 .arcadia .app-browser .bw-read pre { overflow-x: auto; background: var(--fos-marble); padding: 8px; }
 
+/* ===== 本棚（2026-11-19） ===== */
+.arcadia .app-books .bk-main { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.arcadia .app-books .bk-main.drop-ok { outline: 3px dashed var(--fos-aqua-lo); outline-offset: -6px; }
+.arcadia .app-books :is(.bk-shelf, .bk-reader) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.arcadia .app-books :is(.bk-shelf, .bk-reader, .bk-side, .bk-empty, .bk-books)[hidden] { display: none; }
+.arcadia .app-books .bk-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 6px 8px; background: var(--fos-paper); border-bottom: 1.5px solid var(--fos-marble-lo); }
+.arcadia .app-books .bk-gap { flex: 1; }
+.arcadia .app-books .bk-bar label { white-space: nowrap; }
+.arcadia .app-books .bk-q { width: 11em; height: 28px; }
+.arcadia .app-books .bk-btn { min-height: 28px; padding: 0 12px; white-space: nowrap; font: 700 12px/1 var(--fos-font); color: var(--fos-ink); background: linear-gradient(180deg, #fff, var(--fos-cream)); border: 2px solid var(--fos-ink); border-radius: 999px; box-shadow: 2px 2px 0 var(--fos-ink); }
+.arcadia .app-books .bk-btn.bk-add { background: linear-gradient(180deg, #fff, var(--fos-aqua)); }
+.arcadia .app-books .bk-btn[aria-pressed="true"] { background: linear-gradient(180deg, #fff, var(--fos-apricot)); }
+.arcadia .app-books .bk-btn:active:not(:disabled) { translate: 1px 1px; box-shadow: 1px 1px 0 var(--fos-ink); }
+.arcadia .app-books :is(.bk-btn, .bk-mini, .bk-link, .bk-turn) { min-width: 0; }
+.arcadia .app-books :is(.bk-mini, .bk-link, .bk-turn) { box-shadow: none; }
+.arcadia .app-books .bk-mini { min-height: 22px; padding: 0 8px; font-size: 11.5px; color: var(--fos-ink); background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 999px; white-space: nowrap; }
+.arcadia .app-books :is(.bk-btn, .bk-mini, .bk-link, .bk-turn, .bk-item):focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+.arcadia .app-books .bk-dim { color: var(--fos-ink-muted); font-size: 12px; }
+/* 本棚: 表紙の格子は、段ごとに棚の板（ラベンダーの帯）が通る。段の高さと板の位置をそろえる */
+.arcadia .app-books .bk-books { --row: 262px; flex: 1; min-height: 0; overflow: auto; background-color: var(--fos-cream); }
+.arcadia .app-books .bk-books.bk-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); grid-auto-rows: var(--row); column-gap: 18px; align-content: start; padding: 0 18px;
+  background-image: repeating-linear-gradient(to bottom, transparent 0 calc(var(--row) - 12px), var(--fos-ink) calc(var(--row) - 12px) calc(var(--row) - 10px), var(--fos-lavender) calc(var(--row) - 10px) var(--row));
+  background-attachment: local;
+}
+.arcadia .app-books .bk-grid .bk-item { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; padding: 10px 4px 16px; border-radius: 8px; cursor: default; min-width: 0; }
+.arcadia .app-books .bk-grid .bk-cover { inline-size: min(100%, 116px); aspect-ratio: 2 / 3; display: block; box-shadow: 3px 3px 0 var(--fos-shadow); border: 2px solid var(--fos-ink); border-radius: 3px 6px 6px 3px; overflow: hidden; background: #fff; }
+.arcadia .app-books .bk-grid .bk-meta { inline-size: 100%; display: grid; text-align: center; line-height: 1.35; }
+.arcadia .app-books .bk-grid .bk-title { font-weight: 700; font-size: 12.5px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.arcadia .app-books .bk-grid :is(.bk-author, .bk-note) { font-size: 11px; color: var(--fos-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arcadia .app-books .bk-grid .bk-when { display: none; }
+.arcadia .app-books .bk-grid .bk-meter { inline-size: min(100%, 116px); }
+.arcadia .app-books .bk-cover img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
+.arcadia .app-books .bk-nocover { display: grid; place-items: center; inline-size: 100%; block-size: 100%; padding: 8px; box-sizing: border-box; text-align: center; font: 700 12px/1.4 var(--fos-font); overflow-wrap: anywhere; color: var(--fos-ink);
+  background: linear-gradient(160deg, hsl(var(--h) 85% 82%), hsl(calc(var(--h) + 50) 80% 70%)); }
+.arcadia .app-books .bk-meter { display: block; block-size: 5px; border: 1px solid var(--fos-ink); border-radius: 999px; background: var(--fos-paper); overflow: hidden; }
+.arcadia .app-books .bk-meter > span { display: block; block-size: 100%; background: linear-gradient(90deg, var(--fos-aqua), var(--fos-sunset)); }
+.arcadia .app-books .bk-item[aria-selected="true"] { background: rgb(107 242 227 / 0.35); box-shadow: inset 0 0 0 2px var(--fos-ink); }
+.arcadia .app-books .bk-item.bk-bad .bk-cover { filter: grayscale(1); opacity: 0.6; }
+.arcadia .app-books .bk-books.bk-list { display: flex; flex-direction: column; background: var(--fos-paper); }
+.arcadia .app-books .bk-list .bk-item { display: grid; grid-template-columns: 40px minmax(0, 1fr) 120px; align-items: center; gap: 12px; padding: 6px 12px; border-bottom: 1px solid #efe8f5; }
+.arcadia .app-books .bk-list .bk-cover { inline-size: 40px; aspect-ratio: 2 / 3; display: block; border: 1.5px solid var(--fos-ink); border-radius: 2px 4px 4px 2px; overflow: hidden; background: #fff; }
+.arcadia .app-books .bk-list .bk-nocover { font-size: 0; padding: 0; }
+.arcadia .app-books .bk-list .bk-meta { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; gap: 12px; align-items: baseline; min-width: 0; }
+.arcadia .app-books .bk-list :is(.bk-title, .bk-author, .bk-note) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arcadia .app-books .bk-list .bk-title { font-weight: 700; }
+.arcadia .app-books .bk-list :is(.bk-author, .bk-note) { color: var(--fos-ink-muted); font-size: 12px; }
+.arcadia .app-books .bk-none { margin: 24px; color: var(--fos-ink-muted); grid-column: 1 / -1; }
+.arcadia .app-books .bk-empty { flex: 1; overflow: auto; padding: 32px 24px; text-align: center; line-height: 1.8; background: var(--fos-cream); }
+.arcadia .app-books .bk-empty h2 { margin: 0 0 8px; font-size: 20px; }
+.arcadia .app-books .bk-empty-acts { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 16px 0; }
+.arcadia .app-books .bk-empty-acts .bk-btn { min-height: 36px; padding: 0 20px; font-size: 13px; }
+.arcadia .app-books .bk-empty .bk-dim { max-width: 32rem; margin: 0 auto; }
+/* 読む画面: 左に目次・しおり・設定の欄、中央にページ、両側にめくるボタン */
+.arcadia .app-books .bk-booktitle { margin-left: auto; min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arcadia .app-books .bk-rbody { flex: 1; min-height: 0; display: flex; }
+.arcadia .app-books .bk-side { inline-size: 240px; flex: none; display: flex; flex-direction: column; min-height: 0; background: var(--fos-marble); border-right: 2px solid var(--fos-ink); }
+.arcadia .app-books .bk-side-title { margin: 0; padding: 6px 10px; font-size: 13.5px; border-bottom: 1.5px solid var(--fos-marble-lo); }
+.arcadia .app-books .bk-side-body { flex: 1; overflow: auto; padding: 6px; }
+.arcadia .app-books .bk-side-body p { margin: 4px 4px 10px; line-height: 1.6; }
+.arcadia .app-books :is(.bk-toc, .bk-marks) { list-style: none; margin: 0; padding: 0; }
+.arcadia .app-books .bk-link { display: block; inline-size: 100%; min-height: 28px; padding: 4px 8px; text-align: start; font: 13px/1.45 var(--fos-font); color: var(--fos-ink); background: none; border: 0; border-radius: 6px; }
+.arcadia .app-books .bk-link:hover:not(:disabled) { background: var(--fos-paper); }
+.arcadia .app-books .bk-link[aria-current="true"] { background: var(--fos-paper); box-shadow: inset 3px 0 0 var(--fos-sunset); font-weight: 700; }
+.arcadia .app-books .bk-link:disabled { color: var(--fos-ink-muted); }
+.arcadia .app-books .bk-marks li { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--fos-marble-lo); }
+.arcadia .app-books .bk-marks .bk-link { display: grid; }
+.arcadia .app-books .bk-mark-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.arcadia .app-books .bk-set { display: grid; gap: 6px; padding: 4px; }
+.arcadia .app-books .bk-row { display: flex; justify-content: space-between; align-items: baseline; }
+.arcadia .app-books .bk-set fieldset { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 8px 10px; margin: 4px 0 0; }
+.arcadia .app-books .bk-set fieldset label, .arcadia .app-books .bk-check { display: inline-flex; align-items: center; white-space: nowrap; }
+.arcadia .app-books .bk-set output { font-family: var(--fos-mono); font-size: 12px; }
+.arcadia .app-books .bk-stagewrap { flex: 1; min-width: 0; display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px; background: var(--fos-marble); }
+.arcadia .app-books .bk-turn { display: grid; place-items: center; min-width: 0; padding: 0; font: 700 30px/1 var(--fos-font); color: var(--fos-ink-muted); background: transparent; border: 0; }
+.arcadia .app-books .bk-turn.bk-next { color: var(--fos-ink); background: linear-gradient(90deg, transparent, rgb(107 242 227 / 0.35), transparent); }
+.arcadia .app-books .bk-turn:hover { background: rgb(255 142 199 / 0.25); color: var(--fos-ink); }
+.arcadia .app-books .bk-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--bk-bg, #fff); border-inline: 2px solid var(--fos-ink); }
+.arcadia .app-books .bk-frame { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; border: 0; display: block; background: transparent; }
+.arcadia .app-books .bk-stage::after { content: ""; position: absolute; inset: auto auto 0 0; block-size: 3px; inline-size: calc(var(--bk-progress, 0) * 100%); background: var(--fos-rainbow); pointer-events: none; }
+.arcadia .app-books .bk-stage:focus-visible { outline: none; }
+.arcadia .app-books .bk-stage:focus-visible::before { content: ""; position: absolute; inset: 0; z-index: 1; box-shadow: inset 0 0 0 3px var(--fos-cobalt); pointer-events: none; }
+.arcadia .app-books .bk-stage.bk-loading .bk-frame { opacity: 0.3; }
+@media (prefers-reduced-motion: no-preference) {
+  .arcadia .app-books .bk-frame { transition: opacity 120ms ease; }
+}
+.arcadia .app-books .status-field:is(.bk-sf-ch, .bk-sf-page, .bk-sf-pct) { flex: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arcadia .app-books .status-field[hidden] { display: none; }
+.arcadia .app-books .bk-sf-ch { inline-size: 170px; }
+.arcadia .app-books .bk-sf-page { inline-size: 180px; }
+.arcadia .app-books .bk-sf-pct { inline-size: 110px; }
+
 /* ===== コードの作業場（2026-11-17） ===== */
 .arcadia .app-workshop .ws-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .arcadia .app-workshop .ws-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 6px 8px; background: var(--fos-paper); border-bottom: 1.5px solid var(--fos-marble-lo); }
