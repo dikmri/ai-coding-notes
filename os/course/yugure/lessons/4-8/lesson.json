@@ -1,0 +1,37 @@
+{
+  "id": "4-8",
+  "title": "1 本目の完成",
+  "page": "game.html",
+  "checks": [
+    {
+      "label": "始めはタイトルの板が見え、結果の板は隠れている",
+      "code": "return !$('#title').hidden && $('#result').hidden && window.course.state.screen === 'title';"
+    },
+    {
+      "label": "Enter で走り始める（タイトルの板が隠れる）",
+      "code": "key('Enter', 'down'); key('Enter', 'up'); await wait(50); return window.course.state.screen === 'race' && $('#title').hidden;"
+    },
+    {
+      "label": "3 周すると結果の画面になり、合計と最速の周回が出る",
+      "code": "const s = window.course.state; window.course.startRace(); const C = (await module('game/course.js')).COURSE; const mid = C[Math.floor(C.length / 2)]; const last = C[C.length - 1]; for (let lap = 0; lap < 3; lap++) { s.car.x = mid[0]; s.car.y = mid[1]; await wait(60); s.car.x = last[0] * 0.2 + C[0][0] * 0.8; s.car.y = last[1] * 0.2 + C[0][1] * 0.8; await wait(60); s.car.x = C[0][0]; s.car.y = C[0][1] - 5; await wait(60); } return s.screen === 'result' && !$('#result').hidden && /\\d:\\d\\d\\.\\d\\d\\d/.test($('#total').textContent);"
+    }
+  ],
+  "complete": {
+    "registerApp": {
+      "id": "yugure-game",
+      "name": "夕暮れ峠（上から走る）",
+      "entry": "game.html",
+      "w": 980,
+      "h": 660
+    },
+    "message": "峠のゲームが OS のアプリになりました。デスクトップと、スタート メニューの「プログラム」に「夕暮れ峠（上から走る）」があります。第 1 章「起」はここまでです"
+  },
+  "files": {
+    "start": [],
+    "end": [
+      "game.css",
+      "game.html",
+      "game/main.js"
+    ]
+  }
+}

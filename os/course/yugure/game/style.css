@@ -1,0 +1,110 @@
+/* 夕暮れ峠をもう一度: 画面の見た目。色は夕暮れの空（藍と茜）から取る */
+:root {
+  color-scheme: dark;
+  --ink: #f4ede1;
+  --ink-soft: #c9bfae;
+  --panel: rgb(20 18 30 / 0.72);
+  --accent: #ff8a4c;
+  --accent-ink: #1b1010;
+  --sans: system-ui, "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+  --mono: ui-monospace, "Cascadia Code", "BIZ UDGothic", monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  overflow: hidden;
+  background: #1a1726;
+  color: var(--ink);
+  font: 1rem/1.6 var(--sans);
+}
+
+#stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* 画面に重ねる表示。下の絵を押せるように、表示そのものはマウスを受けない */
+.hud { position: fixed; inset: 0; pointer-events: none; }
+.hud p { margin: 0; }
+.hud-label { color: var(--ink-soft); font-size: 0.8rem; }
+.hud-lap, .hud-meter {
+  position: absolute;
+  padding: 0.6rem 0.9rem;
+  border-radius: 0.6rem;
+  background: var(--panel);
+  font-variant-numeric: tabular-nums;
+}
+.hud-lap { top: 1rem; left: 1rem; font-family: var(--mono); }
+.hud-meter { right: 1rem; bottom: 1rem; min-inline-size: 9rem; text-align: end; }
+.hud-speed { font: 700 2.6rem/1 var(--mono); }
+.hud-speed small { font-size: 0.9rem; margin-inline-start: 0.3rem; color: var(--ink-soft); }
+.hud-gear { font-family: var(--mono); }
+/* 回転数の帯。--rpm（0〜1）の割合だけ色を付け、上限に近いと赤くする */
+.hud-rpm {
+  --rpm: 0;
+  block-size: 0.4rem;
+  margin-top: 0.35rem;
+  border-radius: 0.2rem;
+  background: linear-gradient(to right, var(--accent) calc(var(--rpm) * 88%), #ff3b2f calc(var(--rpm) * 88%), #ff3b2f calc(var(--rpm) * 100%), rgb(255 255 255 / 0.15) calc(var(--rpm) * 100%));
+}
+.hud-message {
+  position: absolute;
+  inset: 30% 0 auto;
+  text-align: center;
+  font: 800 clamp(2rem, 1.2rem + 3vw, 3.6rem)/1.2 var(--sans);
+  text-shadow: 0 0.15rem 0.6rem rgb(0 0 0 / 0.6);
+}
+.hud-help {
+  position: absolute;
+  left: 1rem; bottom: 1rem; right: 12rem;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  text-shadow: 0 1px 2px #000;
+}
+
+/* タイトルと一時停止の窓 */
+dialog {
+  border: 0;
+  border-radius: 1rem;
+  padding: 1.6rem 2rem;
+  max-inline-size: min(36rem, 92vw);
+  background: rgb(24 20 36 / 0.94);
+  color: var(--ink);
+  text-align: center;
+}
+dialog::backdrop { background: linear-gradient(rgb(30 20 50 / 0.35), rgb(10 8 16 / 0.75)); }
+dialog:modal { overscroll-behavior: contain; }
+dialog::backdrop { overflow: hidden; overscroll-behavior: contain; }
+dialog h1 { margin: 0; font-size: clamp(1.8rem, 1.2rem + 2vw, 2.6rem); line-height: 1.2; text-wrap: balance; }
+dialog h2 { margin: 0 0 1rem; font-size: 1.4rem; }
+.subtitle { margin: 0.4rem 0 1.2rem; color: var(--ink-soft); }
+.keys { margin: 0 auto 1.4rem; border-collapse: collapse; text-align: start; font-size: 0.95rem; }
+.keys caption { color: var(--accent); font-weight: 700; padding-bottom: 0.3rem; }
+.keys th, .keys td { padding: 0.15rem 0.6rem; font-weight: 400; }
+.keys th { white-space: nowrap; }
+kbd {
+  display: inline-block;
+  min-inline-size: 1.6em;
+  padding: 0 0.35em;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  border-bottom-width: 2px;
+  border-radius: 0.3em;
+  font: 0.85em/1.5 var(--mono);
+  text-align: center;
+}
+dialog form { display: flex; gap: 0.8rem; justify-content: center; flex-wrap: wrap; }
+dialog button {
+  font: 700 1.1rem/1 var(--sans);
+  padding: 0.7rem 1.8rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+dialog button + button { background: rgb(255 255 255 / 0.14); color: var(--ink); }
+dialog button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+
+.load-error { position: fixed; inset: 40% 1rem auto; text-align: center; color: #ffb4a8; }
+
+@media (width < 40rem) {
+  .hud-help { display: none; }
+}

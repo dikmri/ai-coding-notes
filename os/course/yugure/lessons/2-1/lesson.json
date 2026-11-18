@@ -1,0 +1,30 @@
+{
+  "id": "2-1",
+  "title": "色と文字",
+  "page": "index.html",
+  "checks": [
+    {
+      "label": "見た目のファイル（style.css）をつないだ",
+      "code": "return /<link[^>]*rel=\"stylesheet\"[^>]*href=\"style\\.css\"/.test(await source('index.html')) && !!$('style[data-src=\"style.css\"]');"
+    },
+    {
+      "label": "大見出しの色を変えた（黒のままではない）",
+      "code": "return css('h1', 'color') !== 'rgb(0, 0, 0)';"
+    },
+    {
+      "label": "ページの背景の色を変えた（白のままではない）",
+      "code": "return !['rgba(0, 0, 0, 0)', 'rgb(255, 255, 255)'].includes(css('body', 'background-color'));"
+    },
+    {
+      "label": "文字の形（font-family）を決めた",
+      "code": "const f = css('body', 'font-family'); return /font-family\\s*:/.test(await source('style.css')) && !/^\"?Times New Roman\"?$/.test(f);"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "index.html",
+      "style.css"
+    ]
+  }
+}

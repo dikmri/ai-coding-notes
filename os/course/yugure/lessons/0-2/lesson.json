@@ -1,0 +1,21 @@
+{
+  "id": "0-2",
+  "title": "はじめての一文字",
+  "page": "index.html",
+  "checks": [
+    {
+      "label": "「？？？」を自分の名前に書き換えた",
+      "code": "return !document.body.innerText.includes('？？？');"
+    },
+    {
+      "label": "コンソールに「こんにちは」と出している",
+      "code": "return logs.some((line) => line.includes('こんにちは'));"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "index.html"
+    ]
+  }
+}

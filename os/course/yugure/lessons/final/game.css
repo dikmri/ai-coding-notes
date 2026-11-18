@@ -1,0 +1,48 @@
+/* ゲームの画面。キャンバスの上に、速度計（hud）と、始めと結果の板（panel）を重ねる */
+body {
+  margin: 0;
+  background: #1d1a24;
+  color: #efe6da;
+  font-family: system-ui, sans-serif;
+}
+
+.stage {
+  position: relative;
+  /* 窓の幅と高さに収める（絵の横と縦の比は 960 : 600 = 1.6 なので、幅は高さの 1.6 倍まで） */
+  width: min(100%, 960px, 160vh);
+  margin: 0 auto;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #3f5a33;
+}
+
+.hud {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  margin: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.55);
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel {
+  position: absolute;
+  inset: 25% 15%;
+  padding: 16px 24px;
+  border-radius: 16px;
+  background: rgb(20 16 28 / 0.85);
+  text-align: center;
+}
+
+kbd {
+  padding: 1px 6px;
+  border: 1px solid #8a7d99;
+  border-radius: 4px;
+}

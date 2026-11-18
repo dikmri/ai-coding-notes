@@ -1,0 +1,32 @@
+{
+  "id": "4-7",
+  "title": "周回を数える",
+  "page": "game.html",
+  "checks": [
+    {
+      "label": "進み具合 progressOf: 2 つ目の線分の真ん中は 1.5 くらい",
+      "code": "const m = await module('game/course.js'); const [a, b] = [m.COURSE[1], m.COURSE[2]]; return Math.abs(m.progressOf(m.COURSE, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2) - 1.5) < 0.01;"
+    },
+    {
+      "label": "速さ・周回・時間を、キャンバスの上に重ねて出している",
+      "code": "return !!$('.hud #speed') && !!$('.hud #lap') && !!$('.hud #time') && css('.hud', 'position') === 'absolute';"
+    },
+    {
+      "label": "時間が進んでいる",
+      "code": "const s = window.course?.state; if (!s) return false; const a = s.time; await wait(300); return s.time > a;"
+    },
+    {
+      "label": "コースの真ん中を通ってからスタートの線を越えると、1 周と数える",
+      "code": "const s = window.course.state; const half = Math.floor(s.progress) ; const C = (await module('game/course.js')).COURSE; const mid = C[Math.floor(C.length / 2)]; s.car.x = mid[0]; s.car.y = mid[1]; s.car.speed = 0; await wait(100); const last = C[C.length - 1]; s.car.x = last[0] * 0.2 + C[0][0] * 0.8; s.car.y = last[1] * 0.2 + C[0][1] * 0.8; await wait(100); s.car.x = C[0][0]; s.car.y = C[0][1] - 5; await wait(100); return s.lapTimes.length === 1;"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "game.css",
+      "game.html",
+      "game/course.js",
+      "game/main.js"
+    ]
+  }
+}

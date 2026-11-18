@@ -1,0 +1,34 @@
+{
+  "id": "2-6",
+  "title": "色を変数にする",
+  "page": "index.html",
+  "checks": [
+    {
+      "label": "色の変数（--color-accent）を :root に決めた",
+      "code": "return getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim().length > 0;"
+    },
+    {
+      "label": "大見出しの色が、変数の色になっている",
+      "code": "const probe = document.createElement('span'); probe.style.color = 'var(--color-accent)'; document.body.append(probe); const want = getComputedStyle(probe).color; probe.remove(); return css('h1', 'color') === want;"
+    },
+    {
+      "label": "暗い配色のときの色（prefers-color-scheme: dark）を用意した",
+      "code": "return [...document.styleSheets].some((sheet) => [...sheet.cssRules].some((rule) => rule.media && rule.media.mediaText.includes('prefers-color-scheme: dark')));"
+    },
+    {
+      "label": "明るい・暗いの両方に対応すると伝えている（color-scheme）",
+      "code": "return !!$('meta[name=\"color-scheme\"]') && css(':root', 'color-scheme').includes('dark');"
+    }
+  ],
+  "complete": {
+    "accentFrom": "style.css",
+    "message": "OS の差し色が、看板の色（--color-accent）に変わりました。講座の窓のメニュー「講座」の「OS の色を元に戻す」で戻せます"
+  },
+  "files": {
+    "start": [],
+    "end": [
+      "index.html",
+      "style.css"
+    ]
+  }
+}

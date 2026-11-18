@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>夕暮れ峠 ― 上から走る</title>
+  <link rel="stylesheet" href="game.css">
+  <script type="module" src="game/main.js"></script>
+</head>
+<body>
+  <main class="stage">
+    <canvas id="screen" width="960" height="600">上から見た峠と、走る車の絵</canvas>
+    <p class="hud"><output id="speed">0</output> km/h　周回 <output id="lap">1</output> / 3　<output id="time">0:00.000</output></p>
+    <section id="title" class="panel">
+      <h1>夕暮れ峠</h1>
+      <p>3 周の時間を競います。<kbd>↑</kbd> アクセル　<kbd>↓</kbd> ブレーキ　<kbd>←</kbd> <kbd>→</kbd> ハンドル</p>
+      <p><kbd>Enter</kbd> で始める</p>
+    </section>
+    <section id="result" class="panel" hidden>
+      <h2>ゴール</h2>
+      <p>合計 <output id="total">―</output>　最速の周回 <output id="best">―</output></p>
+      <p><kbd>Enter</kbd> でもう一度</p>
+    </section>
+  </main>
+</body>
+</html>

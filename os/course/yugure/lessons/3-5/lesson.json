@@ -1,0 +1,21 @@
+{
+  "id": "3-5",
+  "title": "まとめて持つ",
+  "page": "meter.html",
+  "checks": [
+    {
+      "label": "車のオブジェクトに、名前（文字）と速さ（数）がある",
+      "code": "const car = window.course?.car; return !!car && typeof car.name === 'string' && typeof car.speed === 'number';"
+    },
+    {
+      "label": "車の名前と時速（108）がコンソールに出ている",
+      "code": "return logs.some((line) => line.includes('ハッチバック') && line.includes('108'));"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "meter.js"
+    ]
+  }
+}

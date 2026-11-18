@@ -1,0 +1,29 @@
+{
+  "id": "2-4",
+  "title": "格子に置く",
+  "page": "index.html",
+  "checks": [
+    {
+      "label": "本体（main）が grid になっている",
+      "code": "return css('main', 'display') === 'grid';"
+    },
+    {
+      "label": "広い画面で 2 列になっている",
+      "code": "return css('main', 'grid-template-columns').trim().split(/\\s+/).length === 2;"
+    },
+    {
+      "label": "特徴と操作のまとまりが、横に並んでいる",
+      "code": "const a = $('.features').getBoundingClientRect(), b = $('.controls').getBoundingClientRect(); return Math.abs(a.top - b.top) < 2 && b.left > a.left;"
+    },
+    {
+      "label": "絵のまとまり（.hero）は 2 列にまたがっている",
+      "code": "return $('.hero').getBoundingClientRect().width > $('.features').getBoundingClientRect().width * 1.5;"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "style.css"
+    ]
+  }
+}

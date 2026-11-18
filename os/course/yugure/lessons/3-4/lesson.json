@@ -1,0 +1,25 @@
+{
+  "id": "3-4",
+  "title": "何度も",
+  "page": "meter.html",
+  "checks": [
+    {
+      "label": "関数 bestLap を作り、export した",
+      "code": "const m = await module('meter.js'); return typeof m.bestLap === 'function';"
+    },
+    {
+      "label": "[83456, 81002, 82500] から 81002 を選ぶ",
+      "code": "const m = await module('meter.js'); return m.bestLap([83456, 81002, 82500]) === 81002;"
+    },
+    {
+      "label": "並びの最後がいちばん短くても選べる",
+      "code": "const m = await module('meter.js'); return m.bestLap([90000, 85000, 70000]) === 70000;"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "meter.js"
+    ]
+  }
+}

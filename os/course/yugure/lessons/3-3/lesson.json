@@ -1,0 +1,25 @@
+{
+  "id": "3-3",
+  "title": "もし〜なら",
+  "page": "meter.html",
+  "checks": [
+    {
+      "label": "関数 gearFor を作り、export した",
+      "code": "const m = await module('meter.js'); return typeof m.gearFor === 'function';"
+    },
+    {
+      "label": "時速 10 km は 1 速、60 km は 3 速、150 km は 5 速",
+      "code": "const m = await module('meter.js'); return m.gearFor(10) === 1 && m.gearFor(60) === 3 && m.gearFor(150) === 5;"
+    },
+    {
+      "label": "境目（時速 20 km）は 2 速",
+      "code": "const m = await module('meter.js'); return m.gearFor(20) === 2;"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "meter.js"
+    ]
+  }
+}

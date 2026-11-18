@@ -1,0 +1,43 @@
+{
+  "id": "1-6",
+  "title": "意味で区切る",
+  "page": "index.html",
+  "checks": [
+    {
+      "label": "ページの頭（header）に大見出しがある",
+      "code": "return !!$('header h1');"
+    },
+    {
+      "label": "中身の本体（main）がちょうど 1 つ",
+      "code": "return $$('main').length === 1;"
+    },
+    {
+      "label": "まとまり（section）が 3 つ以上あり、それぞれに見出しか絵がある",
+      "code": "const s = $$('main section'); return s.length >= 3 && s.every((x) => x.querySelector('h2, figure'));"
+    },
+    {
+      "label": "ページの終わり（footer）がある",
+      "code": "return !!$('footer');"
+    },
+    {
+      "label": "名札（class）が付いている（第 2 部で色を塗るときに使う）",
+      "code": "return !!$('.cards') && !!$('.photo');"
+    }
+  ],
+  "complete": {
+    "registerApp": {
+      "id": "yugure-kanban",
+      "name": "夕暮れ峠の看板",
+      "entry": "index.html",
+      "w": 900,
+      "h": 640
+    },
+    "message": "看板が OS のアプリになりました。デスクトップと、スタート メニューの「プログラム」に「夕暮れ峠の看板」があります"
+  },
+  "files": {
+    "start": [],
+    "end": [
+      "index.html"
+    ]
+  }
+}

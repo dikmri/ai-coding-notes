@@ -1,0 +1,31 @@
+{
+  "id": "1-3",
+  "title": "写真を貼る",
+  "page": "index.html",
+  "checks": [
+    {
+      "label": "峠の絵（img/toge.svg）を貼った",
+      "code": "return /<img[^>]*src=[\"']img\\/toge\\.svg[\"']/.test(await source('index.html'));"
+    },
+    {
+      "label": "絵が読み込めている（ファイルの住所が正しい）",
+      "code": "const img = $('img'); return !!img && img.complete && img.naturalWidth > 0;"
+    },
+    {
+      "label": "絵の中身を文字で伝える alt がある（5 文字以上）",
+      "code": "return ($('img')?.getAttribute('alt') || '').length >= 5;"
+    },
+    {
+      "label": "絵の説明（figcaption）がある",
+      "code": "return !!$('figure figcaption');"
+    }
+  ],
+  "files": {
+    "start": [
+      "img/toge.svg"
+    ],
+    "end": [
+      "index.html"
+    ]
+  }
+}

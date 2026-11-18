@@ -1,0 +1,26 @@
+{
+  "id": "2-5",
+  "title": "重ねる",
+  "page": "index.html",
+  "checks": [
+    {
+      "label": "速度の札（.meter）を絵の中に足した",
+      "code": "return !!$('.photo .meter');"
+    },
+    {
+      "label": "札が absolute で、絵の箱（.photo）が relative",
+      "code": "return css('.meter', 'position') === 'absolute' && css('.photo', 'position') === 'relative';"
+    },
+    {
+      "label": "札が絵の右上に重なっている",
+      "code": "const p = $('.photo img').getBoundingClientRect(), m = $('.meter').getBoundingClientRect(); return m.top >= p.top && m.top < p.top + 60 && m.right <= p.right && m.right > p.right - 60;"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "index.html",
+      "style.css"
+    ]
+  }
+}

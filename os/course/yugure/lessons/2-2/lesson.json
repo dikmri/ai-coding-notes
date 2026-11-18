@@ -1,0 +1,29 @@
+{
+  "id": "2-2",
+  "title": "余白と箱",
+  "page": "index.html",
+  "checks": [
+    {
+      "label": "まとまり（section）に中の余白（padding）がある",
+      "code": "return parseFloat(css('section', 'padding-top')) >= 8;"
+    },
+    {
+      "label": "まとまりに枠（border）がある",
+      "code": "return parseFloat(css('section', 'border-top-width')) >= 1;"
+    },
+    {
+      "label": "まとまりの下に外の余白（margin）がある",
+      "code": "return parseFloat(css('section', 'margin-bottom')) >= 8;"
+    },
+    {
+      "label": "本体の幅に上限（max-width）があり、真ん中に寄っている",
+      "code": "return css('main', 'max-width') !== 'none' && $('main').getBoundingClientRect().left > 0;"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "style.css"
+    ]
+  }
+}

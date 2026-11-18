@@ -1,0 +1,33 @@
+{
+  "id": "4-1",
+  "title": "キャンバスに描く",
+  "page": "game.html",
+  "checks": [
+    {
+      "label": "キャンバス（#screen）が 960 × 600",
+      "code": "const c = $('#screen'); return !!c && c.width === 960 && c.height === 600;"
+    },
+    {
+      "label": "左上が草の色で塗られている（何も描かない白や透明ではない）",
+      "code": "const pixel = (x, y) => [...$('#screen').getContext('2d').getImageData(x, y, 1, 1).data].slice(0, 3); const [r, g, b] = pixel(10, 10); return g > r && g > b && g > 40;"
+    },
+    {
+      "label": "画面の真ん中の縦の帯（道）が、草と違う色",
+      "code": "const pixel = (x, y) => [...$('#screen').getContext('2d').getImageData(x, y, 1, 1).data].slice(0, 3); const road = pixel(480, 100), grass = pixel(10, 100); return road.join() !== grass.join();"
+    },
+    {
+      "label": "丸（arc）を描いた",
+      "code": "return /\\.arc\\(/.test(await source('game/main.js'));"
+    }
+  ],
+  "files": {
+    "start": [
+      "game.css",
+      "game.html",
+      "game/main.js"
+    ],
+    "end": [
+      "game/main.js"
+    ]
+  }
+}

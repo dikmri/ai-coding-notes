@@ -1,0 +1,26 @@
+{
+  "id": "4-2",
+  "title": "動き続ける絵",
+  "page": "game.html",
+  "checks": [
+    {
+      "label": "ループの関数 startLoop を作り、export した",
+      "code": "const m = await module('game/loop.js'); return typeof m.startLoop === 'function';"
+    },
+    {
+      "label": "計算の刻みが 1/60 秒（STEP_SECONDS）",
+      "code": "const m = await module('game/loop.js'); return Math.abs(m.STEP_SECONDS - 1 / 60) < 1e-9;"
+    },
+    {
+      "label": "車が時間とともに動いている",
+      "code": "const s = window.course?.state; if (!s) return false; const a = s.y; await wait(300); return s.y !== a;"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "game/loop.js",
+      "game/main.js"
+    ]
+  }
+}

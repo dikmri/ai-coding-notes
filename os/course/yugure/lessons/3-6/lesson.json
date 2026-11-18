@@ -1,0 +1,26 @@
+{
+  "id": "3-6",
+  "title": "ボタンが押されたら",
+  "page": "meter.html",
+  "checks": [
+    {
+      "label": "速さと変速の段を書く場所（#speed と #gear）がある",
+      "code": "return !!$('#speed') && !!$('#gear');"
+    },
+    {
+      "label": "アクセルを 3 回押すと、時速 54 km・3 速になる",
+      "code": "click('#accelerate'); click('#accelerate'); click('#accelerate'); await wait(50); return $('#speed').textContent.trim() === '54' && $('#gear').textContent.trim() === '3';"
+    },
+    {
+      "label": "ブレーキを押すと遅くなり、0 より下にはならない",
+      "code": "for (let i = 0; i < 20; i++) click('#brake'); await wait(50); return $('#speed').textContent.trim() === '0';"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "meter.html",
+      "meter.js"
+    ]
+  }
+}

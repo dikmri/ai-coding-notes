@@ -36,6 +36,7 @@ export const APPS = {
   browser: { name: 'ウェブブラウザ', icon: 'icons/browser.svg' },
   workshop: { name: 'コードの作業場', icon: 'icons/workshop.svg' },
   assistant: { name: 'AI アシスタント', icon: 'icons/assistant.svg' },
+  course: { name: '講座 夕暮れ峠をもう一度', icon: 'icons/course.svg' },
 };
 
 /* ---------- 設定 ---------- */
@@ -44,9 +45,16 @@ let settings = { ...DEFAULTS };
 try { settings = { ...DEFAULTS, ...JSON.parse(localStorage.getItem('fos-settings') || '{}') }; } catch { /* 読めない */ }
 export const getSettings = () => ({ ...settings });
 export const events = new EventTarget();
+// 講座の第 2 部を終えると、学ぶ人が看板に決めた色（courseAccent）を、OS の差し色にする（空にすれば元へ戻る）
+const applyCourseAccent = () => {
+  const ok = /^#[0-9a-f]{3,8}$/i.test(settings.courseAccent || '');
+  if (ok) document.body.style.setProperty('--fos-sunset', settings.courseAccent); else document.body.style.removeProperty('--fos-sunset');
+};
+applyCourseAccent();
 export function saveSettings(patch) {
   settings = { ...settings, ...patch };
   try { localStorage.setItem('fos-settings', JSON.stringify(settings)); } catch { /* 保存できない */ }
+  if ('courseAccent' in patch) applyCourseAccent();
   sound.configure({ volume: settings.volume, mute: settings.mute, ui: settings.ui, keys: settings.keys });
   if ('wallpaper' in patch) {
     // 仮想ドライブの画像は、描き直して保存されているかもしれないので、前に読んだ絵を捨ててから描く
@@ -77,7 +85,8 @@ export const os = { fs, wm, sound, launch, openFile, fileDialog, msgbox, getSett
 // 作ったアプリ（コードの作業場で OS に登録したもの）。名前は user:<id> で開く
 let userApps = [];
 export const userAppList = () => userApps;
-async function refreshUserApps() { userApps = await loadRegistry(fs); log('shell.userapps', { count: userApps.length }, 'ok'); }
+// 作ったアプリはデスクトップにも並べる（講座で作った看板やゲームが、デスクトップに立つ）
+async function refreshUserApps() { userApps = await loadRegistry(fs); log('shell.userapps', { count: userApps.length }, 'ok'); renderDesktop().catch(() => {}); }
 events.addEventListener('userapps', refreshUserApps);
 export async function launch(app, args = {}, rect = {}) {
   if (typeof app === 'string' && app.startsWith('user:')) {
@@ -206,6 +215,7 @@ const SYS = [
   { key: 'app:browser', name: 'ネット', icon: APPS.browser.icon, open: () => launch('browser') },
   { key: 'app:workshop', name: '作業場', icon: APPS.workshop.icon, open: () => launch('workshop') },
   { key: 'app:assistant', name: 'イコちゃん', icon: APPS.assistant.icon, open: () => launch('assistant') },
+  { key: 'app:course', name: '講座', icon: APPS.course.icon, open: () => launch('course') },
 ];
 let deskItems = [], pos = {};
 try { pos = JSON.parse(localStorage.getItem('fos-icons') || '{}'); } catch { pos = {}; }
@@ -219,6 +229,7 @@ export async function renderDesktop() {
   const files = await fs.list('/デスクトップ');
   const trashFull = (await fs.list(fs.TRASH)).length > 0;
   deskItems = [...SYS.map((s) => ({ ...s, icon: s.key === 'sys:trash' && trashFull ? 'icons/trash-full.svg' : s.icon })),
+    ...userApps.map((u) => ({ key: 'user:' + u.id, name: u.name, icon: 'icons/userapp.svg', open: () => launch('user:' + u.id) })),
     ...files.map((f) => ({ key: 'file:' + f.path, name: f.name, icon: iconFor(f), path: f.path, entry: f, open: () => openFile(f.path) }))];
   const used = new Set(deskItems.filter((d) => pos[d.key]).map((d) => pos[d.key].x + ',' + pos[d.key].y));
   for (const d of deskItems) if (!pos[d.key]) { pos[d.key] = freeCell(used); used.add(pos[d.key].x + ',' + pos[d.key].y); }

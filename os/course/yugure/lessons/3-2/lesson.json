@@ -1,0 +1,25 @@
+{
+  "id": "3-2",
+  "title": "秒速を時速に",
+  "page": "meter.html",
+  "checks": [
+    {
+      "label": "関数 toKmh を作り、外から使えるように export した",
+      "code": "const m = await module('meter.js'); return typeof m.toKmh === 'function';"
+    },
+    {
+      "label": "toKmh(10) が 36 を返す",
+      "code": "const m = await module('meter.js'); return m.toKmh(10) === 36;"
+    },
+    {
+      "label": "ゲンさんの車の速さ（171）がコンソールに出ている",
+      "code": "return logs.some((line) => line.includes('171'));"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "meter.js"
+    ]
+  }
+}
