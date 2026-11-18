@@ -16,8 +16,10 @@ if (!head || !body) throw new Error('index.html から head と body を取り�
 const headOut = head.split('\n')
   .filter((l) => !/<meta (charset|name="viewport"|name="color-scheme")/.test(l))
   .join('\n').trim();
-// Future OS（os/）は共有ページに載せないので、公開版へのリンクにする
-const bodyOut = body.trim().replace('href="os/"', 'href="https://dikmri.github.io/dekiru-html/os/" target="_blank" rel="noopener"');
+// Future OS（os/）と実験レポート（reports/）は共有ページに載せないので、公開版へのリンクにする
+const bodyOut = body.trim()
+  .replace('href="os/"', 'href="https://dikmri.github.io/dekiru-html/os/" target="_blank" rel="noopener"')
+  .replace('href="reports/uno/"', 'href="https://dikmri.github.io/dekiru-html/reports/uno/" target="_blank" rel="noopener"');
 const out = `${headOut}\n<script>window.DEKIRU_SHARED = true;</script>\n${bodyOut}\n`;
 
 const outDir = join(ROOT, 'build', 'artifact');
