@@ -48,7 +48,7 @@ export function retarget({ rest, parent, map, bvh }) {
     if (!map[v]) { Wv0[v] = pw; continue; }   // BVH にない骨（上の胸など）は親と同じ向き
     if (v === 'head') {
       // 頭: BVH の「頭の先」は顔の向きと合っていないことがある（後ろへ傾いていると、あごが上がる）。
-      // 最初のコマの俳優は正面を見ている前提で、顔を水平にし、腰と同じ向きへ向ける
+      // ひとまず最初のコマで顔を水平・腰の向きにしておき、下の 1b で基準のコマを選び直す
       const f = Q.rotate(Wv0.hips, [0, 0, 1]);
       Wv0[v] = Q.fromAxis([0, 1, 0], Math.atan2(f[0], f[2]));
       continue;
@@ -57,10 +57,25 @@ export function retarget({ rest, parent, map, bvh }) {
   }
   for (const v of Object.keys(map)) C[v] = Q.mul(Q.conj(w0.rot[J(v)]), Wv0[v]);
 
+  // 1b. 頭の基準のコマ: 最初のコマの俳優が正面を見ているとは限らない（踊りは頭を深く下げた構えから始まり、そこを水平とすると踊りの間ずっと空を見上げた）。
+  // 首に対する頭の向きが、動き全体の平均にいちばん近い「ふだんどおり」のコマを選び、そのコマで顔を水平・腰の向きにする
+  const W = bvh.frames.map((_, f) => (f === 0 ? w0 : world(f)));
+  if (map.head && map.neck) {
+    const headLocal = W.map((w) => Q.mul(Q.conj(Q.mul(w.rot[J('neck')], C.neck)), Q.mul(w.rot[J('head')], C.head)));
+    let sum = [0, 0, 0, 0];
+    for (const q of headLocal) { const sg = Math.sign(Q.dot4(q, headLocal[0])) || 1; sum = sum.map((x, i) => x + q[i] * sg); }
+    const mean = Q.normalize(sum);
+    let fs = 0;
+    headLocal.forEach((q, f) => { if (Math.abs(Q.dot4(q, mean)) > Math.abs(Q.dot4(headLocal[fs], mean))) fs = f; });
+    const hipsF = Q.rotate(Q.mul(W[fs].rot[J('hips')], C.hips), [0, 0, 1]);
+    const level = Q.fromAxis([0, 1, 0], Math.atan2(hipsF[0], hipsF[2]));
+    C.head = Q.mul(C.head, Q.mul(Q.conj(Q.mul(W[fs].rot[J('head')], C.head)), level));   // 基準のコマで、頭の世界の回転が level になる
+  }
+
   // 2. どのコマも BVH の回転 × C。局所の回転は「親の世界の回転の逆 × 自分の世界の回転」
   const s = rest.hips[1] / w0.pos[J('hips')][1], h0 = w0.pos[J('hips')], out = [], prev = {};
   for (let f = 0; f < bvh.frames.length; f++) {
-    const w = f === 0 ? w0 : world(f), Wv = {}, rot = {};
+    const w = W[f], Wv = {}, rot = {};
     for (const v of names) {
       Wv[v] = map[v] ? Q.normalize(Q.mul(w.rot[J(v)], C[v])) : Wv[parent[v]];
       let q = parent[v] ? Q.mul(Q.conj(Wv[parent[v]]), Wv[v]) : Wv[v];

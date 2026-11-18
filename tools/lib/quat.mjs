@@ -9,6 +9,7 @@ export const conj = (q) => [-q[0], -q[1], -q[2], q[3]];
 export const normalize = (q) => { const l = Math.hypot(...q) || 1; return q.map((v) => v / l); };
 export const normalize3 = (v) => { const l = Math.hypot(...v) || 1; return v.map((x) => x / l); };
 export const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+export const dot4 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];   // 四元数どうしの近さ（絶対値が 1 に近いほど同じ回転）
 export const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 export const fromAxis = (ax, ang) => { const a = normalize3(ax), s = Math.sin(ang / 2); return [a[0] * s, a[1] * s, a[2] * s, Math.cos(ang / 2)]; };
 export function rotate(q, v) {

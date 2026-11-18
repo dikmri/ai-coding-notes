@@ -198,3 +198,79 @@ test('変異: 見つけた入力をテストに足していくと、等価の変
     assert.equal(sc.equiv, s.key === 'gap' ? 1 : 0, s.key);
   }
 });
+
+const ROMER = 'tr-20261118-romer-light';
+const ROMER_NAMES = ['distAU', 'observable', 'seenAt', 'simulate', 'solve', 'fitLight', 'lateMin', 'speedKms', 'dateOf', 'LIGHT_DAY_PER_AU', 'IO_SYN', 'HALF'];
+const THREE_YEARS = 365.25 * 3;
+const noDelay = (f) => !(f.s > 2 * f.se && f.s * 1440 > 0.05);
+
+test('光の速さ: イオが影に入る間隔、1天文単位を光が進む時間、地球と木星の距離', () => {
+  const X = trendCore(ROMER, ROMER_NAMES);
+  assert.ok(near(X.IO_SYN, 1.76986, 1e-4));
+  assert.ok(near(X.LIGHT_DAY_PER_AU * 1440, 8.3167, 1e-3));
+  assert.ok(near(X.HALF * 24, 1.15, 0.01));
+  let lo = Infinity, hi = -Infinity;
+  for (let d = 0; d <= 400; d += 0.5) { const v = X.distAU(d); lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  assert.ok(near(lo, 4.2026, 0.01) && near(hi, 6.2026, 0.01), `${lo} ${hi}`);
+  assert.deepEqual({ ...X.dateOf(0) }, { y: 1676, m: 1, d: 1 });
+  assert.deepEqual({ ...X.dateOf(366) }, { y: 1677, m: 1, d: 1 }); // 1676年はうるう年
+});
+
+test('光の速さ: 見える時刻は、距離 × 1天文単位あたりの遅れだけ遅れる', () => {
+  const X = trendCore(ROMER, ROMER_NAMES);
+  assert.equal(X.seenAt(100, 0), 100);
+  const lag = X.LIGHT_DAY_PER_AU, o = X.seenAt(100, lag);
+  assert.ok(near(o - 100, X.distAU(o, 100) * lag, 1e-9));
+  assert.ok((o - 100) * 1440 > 30 && (o - 100) * 1440 < 55);
+});
+
+test('光の速さ: 近づく時期は影に入る瞬間、遠ざかる時期は影から出る瞬間を、観測できる時期だけ記録する', () => {
+  const X = trendCore(ROMER, ROMER_NAMES);
+  const obs = X.simulate({ days: THREE_YEARS, lag: X.LIGHT_DAY_PER_AU, seed: 4 });
+  assert.ok(obs.length > 200);
+  for (const q of obs) {
+    assert.ok(X.observable(q.o));
+    const a = X.distAU(q.o + 3), b = X.distAU(q.o - 3);
+    if (Math.abs(a - b) > 1e-3) assert.equal(q.sg, a < b ? -1 : 1);
+  }
+  // 種が同じなら、光の速さを変えても晴れる夜はほぼ同じ（観測できる時期の境目だけ違ってよい）
+  const half = X.simulate({ days: THREE_YEARS, lag: X.LIGHT_DAY_PER_AU * 2, seed: 4 });
+  const ks = new Set(obs.map((q) => q.k));
+  assert.ok(half.filter((q) => !ks.has(q.k)).length <= 2);
+});
+
+test('光の速さ: 誤差がなければ、当てはめた式から光の速さがほぼぴったり出る', () => {
+  const X = trendCore(ROMER, ROMER_NAMES);
+  for (const [k, want] of [[1, 299792.458], [0.5, 149896.229], [2, 599584.916]]) {
+    const f = X.fitLight(X.simulate({ days: THREE_YEARS, lag: X.LIGHT_DAY_PER_AU / k, seed: 1 }));
+    assert.ok(Math.abs(X.speedKms(f.s) / want - 1) < 0.002, `${k}: ${X.speedKms(f.s)}`);
+    assert.ok(near(f.P, X.IO_SYN, 1e-6));
+    assert.ok(near(f.h, X.HALF, 1e-4));
+    for (const q of X.simulate({ days: 300, lag: X.LIGHT_DAY_PER_AU / k, seed: 1 })) {
+      assert.ok(near(X.lateMin(q, f), f.s * (q.D - f.dMean) * 1440, 0.01));
+    }
+  }
+});
+
+test('光の速さ: 時計の誤差が±1分なら3年分で数%以内、光が一瞬なら遅れは見えない', () => {
+  const X = trendCore(ROMER, ROMER_NAMES);
+  for (const seed of [1, 2, 3]) {
+    const f = X.fitLight(X.simulate({ days: THREE_YEARS, lag: X.LIGHT_DAY_PER_AU, noiseMin: 1, seed }));
+    assert.ok(Math.abs(X.speedKms(f.s) / 299792.458 - 1) < 0.05, `${seed}: ${X.speedKms(f.s)}`);
+    assert.ok(f.se > 0 && !noDelay(f));
+    const g = X.fitLight(X.simulate({ days: THREE_YEARS, lag: 0, noiseMin: 1, seed }));
+    assert.ok(noDelay(g), `${seed}: ${g.s} ± ${g.se}`);
+  }
+});
+
+test('光の速さ: 観測が少ないうちや距離がほとんど変わらないうちは求めず、解けない式は null', () => {
+  const X = trendCore(ROMER, ROMER_NAMES);
+  const obs = X.simulate({ days: THREE_YEARS, lag: X.LIGHT_DAY_PER_AU, seed: 1 });
+  assert.equal(X.fitLight(obs.slice(0, 5)), null);
+  const close = obs.filter((q) => q.o > 180 && q.o < 215);
+  assert.ok(close.length >= 6);
+  assert.equal(X.fitLight(close), null);
+  assert.equal(X.solve([[1, 2], [2, 4]], [3, 6]), null);
+  assert.deepEqual(Array.from(X.solve([[0, 1], [2, 0]], [3, 4])), [2, 3]);
+  assert.equal(X.speedKms(0), Infinity);
+});

@@ -668,3 +668,312 @@ dekiru.add({
     })(0);
   },
 });
+
+// ---- 数式で動く、見て美しい作品（2026-11-18 追加） ----
+dekiru.add({
+  id: 'mt-clifford', c: 'math', lv: 3,
+  t: 'ストレンジ・アトラクターの光の雲', y: 'すとれんじあとらくたーのひかりのくも',
+  tags: ['アトラクター', 'カオス', '反復写像', '密度', '対数'],
+  d: '2 行の式「x ← sin(a·y) + c·cos(a·x)、y ← sin(b·x) + d·cos(b·y)」（クリフォード・アトラクター）を、1 つの点に何百万回もくり返し当てはめる。点は決まった形の上を、でたらめのように飛び回る。点が通った回数を光の濃さにし、飛んだ向きで色を付けると、絹の布のような模様が浮かぶ。4 つの係数をゆっくり変えるので、模様が流れるように形を変えていく。',
+  p: '1 つ 1 つの点の行き先は予測できないのに、たくさん集めると同じ形が現れる（カオスの中の秩序）。通った回数は場所によって何千倍も違うので、そのままでは明るい所しか見えない。対数で明るさに直すと、薄い所の細い糸まで見える。',
+  html: `<canvas id="c" role="img" aria-label="細い光の糸が何層にも重なった、絹の布のような模様がゆっくり形を変える"></canvas>
+<div class="bar"><button id="pause" type="button">❚❚ 止める</button><button id="jump" type="button">別の形へ</button><span id="eq"></span></div>`,
+  css: `body { margin: 0; background: #04050c; color: #cfd6ff; overflow: hidden; }
+canvas { display: block; width: 100vw; height: 100vh; }
+.bar { position: fixed; left: 10px; top: 8px; right: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; }
+.bar button { color: #fff; background: #ffffff1a; border: 1px solid #ffffff33; border-radius: 4px; padding: 2px 8px; font-size: 12px; }
+.bar button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+#eq { font-family: ui-monospace, monospace; opacity: .75; white-space: pre; }`,
+  core() {
+    // クリフォード・アトラクターの 1 歩
+    const clifford = (p, x, y) => [Math.sin(p.a * y) + p.c * Math.cos(p.a * x), Math.sin(p.b * x) + p.d * Math.cos(p.b * y)];
+    // 通った回数 v を明るさ 0〜1 に。対数にして、薄い所を持ち上げる
+    const toneMap = (v, max) => (v <= 0 || max <= 0 ? 0 : Math.min(1, Math.log1p(v) / Math.log1p(max)));
+    // 0〜1 の値から色（余弦の重ね合わせで作る、青・紫・金の帯）
+    const palette = (t) => [0, 1, 2].map((k) => Math.min(1, Math.max(0, 0.5 + 0.5 * Math.cos(6.2832 * (t + [0.0, 0.15, 0.32][k] + 0.55)))));
+  },
+  js() {
+    const c = document.getElementById('c'), x = c.getContext('2d');
+    const pauseBtn = document.getElementById('pause'), eqEl = document.getElementById('eq');
+    let W = 0, H = 0, R, G, B, img, t = 0, phase = 0, px = 0.1, py = 0.1, last = 0, still = 0;
+    let paused = matchMedia('(prefers-reduced-motion: reduce)').matches;   // 動きを減らす設定なら、止めた形から始める
+    pauseBtn.textContent = paused ? '▶ 動かす' : '❚❚ 止める';
+    // 飛んだ向き（64 段）ごとの色
+    const COL = Array.from({ length: 64 }, (_, i) => palette(i / 64));
+    const CR = Float32Array.from(COL, (v) => v[0]), CG = Float32Array.from(COL, (v) => v[1]), CB = Float32Array.from(COL, (v) => v[2]);
+    const LUT = new Float32Array(1024);   // 明るさの表（濃さの平方根の段 → 対数の明るさ）。1 コマに 1 回だけ作り直す
+    let peak = 0;
+    function size() {
+      const dpr = Math.min(1.5, devicePixelRatio || 1), k = Math.min(1, Math.sqrt(450000 / (innerWidth * innerHeight * dpr * dpr)));   // 画素は 45 万までに抑える
+      W = Math.max(2, Math.round(innerWidth * dpr * k)); H = Math.max(2, Math.round(innerHeight * dpr * k));
+      c.width = W; c.height = H; R = new Float32Array(W * H); G = new Float32Array(W * H); B = new Float32Array(W * H); img = x.createImageData(W, H); still = 0; peak = 0;
+    }
+    addEventListener('resize', size); size();
+    // 係数は、形のきれいな範囲をゆっくり巡る
+    const params = (t) => ({ a: -1.55 + 0.35 * Math.sin(0.071 * t + phase), b: 1.6 + 0.3 * Math.sin(0.053 * t + 1 + phase * 1.3), c: 1.0 + 0.45 * Math.sin(0.061 * t + 2 + phase * 0.7), d: 0.8 + 0.3 * Math.sin(0.083 * t + 3 + phase * 1.9) });
+    // 止めたらその場で描くのをやめる（形はもう出来ている）。止めたまま「別の形へ」を押したときや、動きを減らす設定で始めたときだけ、形が出来るまで描く
+    pauseBtn.addEventListener('click', () => { paused = !paused; pauseBtn.textContent = paused ? '▶ 動かす' : '❚❚ 止める'; still = paused ? 999 : 0; });
+    document.getElementById('jump').addEventListener('click', () => { phase += 1.7 + Math.random() * 2; R.fill(0); G.fill(0); B.fill(0); still = 0; });
+    function frame(now) {
+      requestAnimationFrame(frame);
+      const dt = last ? Math.min(0.05, (now - last) / 1000) : 0; last = now;
+      if (paused && still > 90) return;   // 止めている間は、形が出来上がったら計算を休む
+      if (!paused) t += dt;
+      still++;
+      const p = params(t), N = 120000, pa = p.a, pb = p.b, pc = p.c, pd = p.d;
+      const sc = Math.min(W / (2 * (1 + Math.abs(pc))), H / (2 * (1 + Math.abs(pd)))) * 0.94, cx = W / 2, cy = H / 2;
+      for (let k = 0; k < N; k++) {
+        const nx = Math.sin(pa * py) + pc * Math.cos(pa * px), ny = Math.sin(pb * px) + pd * Math.cos(pb * py);   // clifford と同じ式
+        // 飛んだ向き: atan2 の代わりに「菱形の角度」（0〜4、向きと同じ順に増える）で色の段を決める
+        const dx = nx - px, dy = ny - py, q = dy / (Math.abs(dx) + Math.abs(dy) + 1e-12), ci = ((dx >= 0 ? (q >= 0 ? q : 4 + q) : 2 - q) * 16) & 63;
+        const ix = (cx + nx * sc) | 0, iy = (cy - ny * sc) | 0;
+        px = nx; py = ny;
+        if (ix < 0 || iy < 0 || ix >= W || iy >= H) continue;
+        const i = iy * W + ix; R[i] += CR[ci]; G[i] += CG[ci]; B[i] += CB[ci];
+      }
+      // 明るさの表: 前のコマのいちばん濃い所の 35% を「真っ白」の手前にする（中くらいの濃さを持ち上げる）
+      for (let u = 0; u < 1024; u++) { const v = (u / 1023) * (u / 1023) * peak; LUT[u] = toneMap(v, peak); }
+      // 1 回の繰り返しで、色を塗り、いちばん濃い所を探し、少し消す（形が変わっても、前の形がすぐ消える）
+      const d = img.data;
+      let max = 0;
+      for (let i = 0, j = 0; i < R.length; i++, j += 4) {
+        const s = R[i] + G[i] + B[i];
+        if (s > max) max = s;
+        if (s <= 1e-3 || peak <= 0) { d[j] = 4; d[j + 1] = 5; d[j + 2] = 12; d[j + 3] = 255; }
+        else {
+          const L = LUT[Math.min(1023, (Math.sqrt(s / peak) * 1023) | 0)], w = L * L * L * L, k = L / s;   // とても濃い所は白へ近づける
+          d[j] = 4 + (R[i] * k * (1 - w) + w * L) * 251; d[j + 1] = 5 + (G[i] * k * (1 - w) + w * L) * 250; d[j + 2] = 12 + (B[i] * k * (1 - w) + w * L) * 243; d[j + 3] = 255;
+        }
+        R[i] *= 0.965; G[i] *= 0.965; B[i] *= 0.965;
+      }
+      peak = max * 0.35;
+      x.putImageData(img, 0, 0);
+      eqEl.textContent = `x ← sin(${p.a.toFixed(2)}·y) + ${p.c.toFixed(2)}·cos(${p.a.toFixed(2)}·x)\ny ← sin(${p.b.toFixed(2)}·x) + ${p.d.toFixed(2)}·cos(${p.b.toFixed(2)}·y)`;
+    }
+    requestAnimationFrame(frame);
+  },
+}, {
+  id: 'mt-domain-coloring', c: 'math', lv: 3,
+  t: '複素関数の色の地図', y: 'ふくそかんすうのいろのちず',
+  tags: ['複素数', '零点', '極', '偏角', 'WebGL'],
+  d: '複素数の関数 f(z) = (z−a)(z−b)(z−c) / ((z−d)(z−e)) の値を、平面の 1 点ごとに塗る。値の向き（偏角）を色の環、大きさを 2 倍ごとに繰り返す濃淡の縞で表す。色の環が 1 周する点が零点（白い輪、値が 0）と極（黒い輪、値が無限大）で、零点のまわりでは色が反時計回り、極のまわりでは時計回りに並ぶ。5 つの点はゆっくり巡り、指やマウスでつかんで動かすこともできる。',
+  p: '複素関数は「入力も出力も平面」なので、そのままではグラフを描けない。出力を色と明るさに置き換えると、零点と極の位置と重なり（色が何周するか）が 1 枚の絵で読める。',
+  html: `<canvas id="c" role="img" aria-label="虹色の渦が 5 つ並び、白い輪と黒い輪のまわりで色の環が回る。渦はゆっくり動く"></canvas>
+<div class="bar"><button id="pause" type="button">❚❚ 止める</button><button id="shuffle" type="button">点を並べ直す</button><span>f(z) = (z−a)(z−b)(z−c) / ((z−d)(z−e))</span></div>
+<p class="legend">色＝値の向き（偏角）・縞＝大きさ（2 倍ごと）・白い輪＝零点・黒い輪＝極。輪はつかんで動かせる</p>`,
+  css: `body { margin: 0; background: #000; color: #fff; overflow: hidden; }
+canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+.bar { position: fixed; left: 10px; top: 8px; right: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; }
+.bar span, .legend { background: #000a; padding: 2px 8px; border-radius: 4px; }
+.bar button { color: #fff; background: #000a; border: 1px solid #ffffff55; border-radius: 4px; padding: 2px 8px; font-size: 12px; }
+.bar button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.legend { position: fixed; left: 10px; bottom: 8px; margin: 0; font-size: 11px; }`,
+  core() {
+    const cmul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
+    const cdiv = (a, b) => { const d = b[0] * b[0] + b[1] * b[1]; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
+    // f(z) = Π(z − 零点) / Π(z − 極)
+    function evalF(z, roots, poles) {
+      let f = [1, 0];
+      for (const r of roots) f = cmul(f, [z[0] - r[0], z[1] - r[1]]);
+      for (const p of poles) f = cdiv(f, [z[0] - p[0], z[1] - p[1]]);
+      return f;
+    }
+    // 偏角を 0〜1 の色の向きに（正の実数が 0、反時計回りに増える）
+    const hueOf = (f) => (((Math.atan2(f[1], f[0]) / (2 * Math.PI)) % 1) + 1) % 1;
+  },
+  js() {
+    const c = document.getElementById('c'), gl = c.getContext('webgl2');
+    if (!gl) { document.body.textContent = 'この作品には WebGL2 が必要です。'; throw new Error('WebGL2 が使えません'); }
+    const pauseBtn = document.getElementById('pause');
+    const vs = `#version 300 es
+void main() { gl_Position = vec4(vec2(gl_VertexID & 1, gl_VertexID >> 1) * 4. - 1., 0, 1); }`;
+    const fs = `#version 300 es
+precision highp float;
+uniform vec2 R; uniform float S; uniform vec2 Z[3], P[2]; out vec4 O;
+vec2 cmul(vec2 a, vec2 b) { return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
+vec2 cdiv(vec2 a, vec2 b) { return vec2(a.x * b.x + a.y * b.y, a.y * b.x - a.x * b.y) / dot(b, b); }
+vec3 hue(float h) { return clamp(abs(mod(h * 6. + vec3(0, 4, 2), 6.) - 3.) - 1., 0., 1.); }
+void main() {
+  vec2 z = (gl_FragCoord.xy - .5 * R) / R.y * S, f = vec2(1, 0);
+  for (int i = 0; i < 3; i++) f = cmul(f, z - Z[i]);   // core の evalF と同じ式
+  for (int i = 0; i < 2; i++) f = cdiv(f, z - P[i]);
+  float h = fract(atan(f.y, f.x) / 6.2831853 + 1.), lm = log2(length(f) + 1e-30);
+  vec3 col = mix(vec3(1), hue(h), .82);
+  float band = fract(lm), aa = fwidth(lm);
+  col *= .62 + .38 * smoothstep(0., .9, band) * smoothstep(1., 1. - aa * 1.5, band);   // 2 倍ごとの縞（境目はなめらかに）
+  float ph = fract(h * 12.), pw = fwidth(h * 12.) * 1.2;
+  col *= 1. - .22 * (1. - smoothstep(0., pw, min(ph, 1. - ph)));                       // 30 度ごとの細い線
+  col *= .35 + .65 * (.5 + atan(lm * .35) / 3.14159);                                // 0 に近いほど暗く、大きいほど明るく
+  float px = S / R.y;
+  for (int i = 0; i < 3; i++) { float d = length(z - Z[i]); col = mix(col, vec3(1), smoothstep(px * 1.5, 0., abs(d - px * 9.))); }
+  for (int i = 0; i < 2; i++) { float d = length(z - P[i]); col = mix(col, vec3(0), smoothstep(px * 1.8, 0., abs(d - px * 9.))); }
+  O = vec4(pow(col, vec3(.95)), 1);
+}`;
+    const sh = (type, src) => { const o = gl.createShader(type); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+    const prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+    const u = (n) => gl.getUniformLocation(prog, n), S = 3.2;
+    // 5 つの点（3 つの零点・2 つの極）。それぞれ中心のまわりを、違う速さの楕円で巡る
+    const pts = Array.from({ length: 5 }, (_, i) => ({ zero: i < 3, base: [0, 0], amp: [0, 0], w: [0, 0], ph: Math.random() * 6.28, held: false, pos: [0, 0] }));
+    function shuffle() {
+      pts.forEach((p, i) => {
+        const a = i * 2.4 + Math.random() * 0.8, r = 0.35 + Math.random() * 0.75;
+        p.base = [Math.cos(a) * r * 1.4, Math.sin(a) * r]; p.amp = [0.15 + Math.random() * 0.25, 0.1 + Math.random() * 0.2]; p.w = [0.13 + Math.random() * 0.2, 0.11 + Math.random() * 0.2]; p.held = false;
+      });
+    }
+    shuffle();
+    let t = 0, last = 0, paused = matchMedia('(prefers-reduced-motion: reduce)').matches, dirty = true, drag = null;
+    pauseBtn.textContent = paused ? '▶ 動かす' : '❚❚ 止める';
+    pauseBtn.addEventListener('click', () => { paused = !paused; pauseBtn.textContent = paused ? '▶ 動かす' : '❚❚ 止める'; });
+    document.getElementById('shuffle').addEventListener('click', () => { shuffle(); dirty = true; });
+    // つかんで動かす: 画面の点を複素平面の点に直し、いちばん近い輪をつかむ
+    const toZ = (e) => { const r = c.getBoundingClientRect(); return [((e.clientX - r.left) / r.width - 0.5) * (r.width / r.height) * S, (0.5 - (e.clientY - r.top) / r.height) * S]; };
+    c.addEventListener('pointerdown', (e) => {
+      const z = toZ(e); let best = null, bd = 0.25;
+      for (const p of pts) { const d = Math.hypot(p.pos[0] - z[0], p.pos[1] - z[1]); if (d < bd) { bd = d; best = p; } }
+      if (best) { drag = best; best.held = true; c.setPointerCapture(e.pointerId); }
+    });
+    c.addEventListener('pointermove', (e) => { if (drag) { drag.pos = toZ(e); dirty = true; } });
+    const drop = () => { if (drag) { drag.base = drag.pos.slice(); drag.amp = [0, 0]; drag.held = false; drag = null; } };
+    c.addEventListener('pointerup', drop); c.addEventListener('pointercancel', drop);
+    function frame(now) {
+      requestAnimationFrame(frame);
+      const dt = last ? Math.min(0.05, (now - last) / 1000) : 0; last = now;
+      if (!paused) { t += dt; dirty = true; }
+      if (!dirty) return;
+      dirty = false;
+      for (const p of pts) if (!p.held) p.pos = [p.base[0] + p.amp[0] * Math.sin(t * p.w[0] + p.ph), p.base[1] + p.amp[1] * Math.cos(t * p.w[1] + p.ph * 1.3)];
+      const dpr = Math.min(2, devicePixelRatio || 1), w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr);
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+      gl.viewport(0, 0, w, h); gl.useProgram(prog);
+      gl.uniform2f(u('R'), w, h); gl.uniform1f(u('S'), S);
+      gl.uniform2fv(u('Z'), pts.slice(0, 3).flatMap((p) => p.pos)); gl.uniform2fv(u('P'), pts.slice(3).flatMap((p) => p.pos));
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
+    addEventListener('resize', () => { dirty = true; });
+    requestAnimationFrame(frame);
+  },
+}, {
+  id: 'mt-chladni', c: 'math', lv: 2,
+  t: 'クラドニ図形（振動する板と砂）', y: 'くらどにずけい',
+  tags: ['振動', '定在波', '節', '物理', 'パーティクル'],
+  d: '金属の板に砂を撒いて振動させると、砂は揺れの大きい所から跳ね飛ばされ、揺れない線（節）に集まって模様を描く（クラドニ図形）。正方形の板の揺れの形を cos(nπx)·cos(mπy) − cos(mπx)·cos(nπy) で表し、1 万 4 千粒の砂を、揺れの大きさに比例した歩幅でばらばらの向きに動かす。n と m が変わるたびに、砂が次の模様へ流れていく。',
+  p: '砂は「節へ向かえ」とは命令されていない。揺れの大きい所ほど大きく跳ねるだけで、跳ねにくい節に自然とたまる。1 粒ずつの単純な規則から、全体の模様が現れる。',
+  html: `<canvas id="c" role="img" aria-label="暗い板の上で、白い砂が幾何学模様の線に集まり、しばらくすると別の模様へ流れていく"></canvas>
+<div class="bar"><button id="pause" type="button">❚❚ 止める</button><button id="next" type="button">次の模様</button><span id="mode"></span></div>`,
+  css: `body { margin: 0; background: #0b0c10; color: #e8e2d4; overflow: hidden; }
+canvas { display: block; width: 100vw; height: 100vh; }
+.bar { position: fixed; left: 10px; top: 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; }
+.bar button { color: #fff; background: #ffffff14; border: 1px solid #ffffff33; border-radius: 4px; padding: 2px 8px; font-size: 12px; }
+.bar button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+#mode { font-family: ui-monospace, monospace; opacity: .8; }`,
+  core() {
+    // 正方形の板の揺れの形（x, y は 0〜1）。値が 0 の線が節
+    const chladni = (n, m, x, y) => Math.cos(n * Math.PI * x) * Math.cos(m * Math.PI * y) - Math.cos(m * Math.PI * x) * Math.cos(n * Math.PI * y);
+    // 砂 1 粒の 1 歩: 揺れが大きいほど大きな歩幅（揺れの 0.7 乗）で、でたらめな向きへ跳ねる（板の外へは落ちない）
+    function sandStep([x, y], n, m, rnd, k) {
+      const a = Math.pow(Math.abs(chladni(n, m, x, y)) / 2, 0.7), ang = rnd() * 2 * Math.PI, r = k * (a + 0.004);
+      return [Math.min(1, Math.max(0, x + Math.cos(ang) * r)), Math.min(1, Math.max(0, y + Math.sin(ang) * r))];
+    }
+  },
+  js() {
+    const c = document.getElementById('c'), x = c.getContext('2d'), modeEl = document.getElementById('mode'), pauseBtn = document.getElementById('pause');
+    const MODES = [[3, 5], [2, 5], [4, 7], [1, 4], [3, 4], [2, 7], [4, 5], [1, 6], [3, 7], [5, 6], [2, 3], [5, 8]];   // 細かい模様から始める
+    const N = 14000, sand = Float32Array.from({ length: N * 2 }, () => Math.random());
+    let mi = 0, since = 0, last = 0, paused = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const show = () => { modeEl.textContent = `n = ${MODES[mi][0]}、m = ${MODES[mi][1]}`; };
+    function step(times) {   // 全部の砂を times 歩進める（sandStep と同じ規則を、配列のまま計算する）
+      const [n, m] = MODES[mi], k = 0.02;
+      for (let s = 0; s < times; s++) for (let i = 0; i < N * 2; i += 2) {
+        const px = sand[i], py = sand[i + 1], a = Math.pow(Math.abs(chladni(n, m, px, py)) / 2, 0.7), ang = Math.random() * 6.2832, r = k * (a + 0.004);
+        sand[i] = Math.min(1, Math.max(0, px + Math.cos(ang) * r)); sand[i + 1] = Math.min(1, Math.max(0, py + Math.sin(ang) * r));
+      }
+    }
+    function next() { mi = (mi + 1) % MODES.length; since = 0; show(); }
+    pauseBtn.textContent = paused ? '▶ 動かす' : '❚❚ 止める';
+    if (paused) step(250);   // 動きを減らす設定では、模様が出来上がった姿から始める
+    pauseBtn.addEventListener('click', () => { paused = !paused; pauseBtn.textContent = paused ? '▶ 動かす' : '❚❚ 止める'; });
+    document.getElementById('next').addEventListener('click', () => { next(); if (paused) step(250); draw(); });
+    show();
+    function draw() {
+      const dpr = Math.min(2, devicePixelRatio || 1), w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr);
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+      const L = Math.min(w, h) * 0.86, ox = (w - L) / 2, oy = (h - L) / 2;
+      x.fillStyle = '#0b0c10'; x.fillRect(0, 0, w, h);
+      const g = x.createRadialGradient(w * 0.42, h * 0.38, L * 0.05, w / 2, h / 2, L * 0.75);
+      g.addColorStop(0, '#2a2e38'); g.addColorStop(1, '#14161c');
+      x.fillStyle = g; x.fillRect(ox, oy, L, L);
+      x.strokeStyle = '#3a3f4b'; x.lineWidth = dpr; x.strokeRect(ox, oy, L, L);
+      const s = Math.max(1, dpr * 1.1);
+      x.fillStyle = '#f3e6c8';
+      for (let i = 0; i < N * 2; i += 2) x.fillRect(ox + sand[i] * L, oy + sand[i + 1] * L, s, s);
+    }
+    function frame(now) {
+      requestAnimationFrame(frame);
+      const dt = last ? Math.min(0.05, (now - last) / 1000) : 0; last = now;
+      if (!paused) { step(3); since += dt; if (since > 7) next(); }
+      draw();
+    }
+    requestAnimationFrame(frame);
+  },
+}, {
+  id: 'mt-times-table', c: 'math', lv: 2,
+  t: '円の掛け算が描く曲線', y: 'えんのかけざんがえがくきょくせん',
+  tags: ['掛け算', '包絡線', 'カージオイド', 'エピサイクロイド', '余り'],
+  d: '円周に 360 個の点を並べ、点 i を点 k×i（360 で割った余り）と線で結ぶ。たくさんの線が重なった所に、線の包む曲線（包絡線）が浮かぶ。k = 2 で心臓の形（カージオイド）、k = 3 で腎臓の形（ネフロイド）、整数の k では尖りが k−1 個の曲線になる。k をゆっくり増やすと、曲線が次々に生まれては崩れる。',
+  p: '1 本 1 本はただの線分なのに、重なると曲線が見える。整数の k の包絡線は、円のまわりを転がる円の 1 点が描くエピサイクロイドと同じ形になる。',
+  html: `<canvas id="c" role="img" aria-label="円の中に光る線が何百本も重なり、心臓の形や花のような曲線が次々に現れる"></canvas>
+<div class="bar"><button id="pause" type="button">❚❚ 止める</button><label>k <input type="range" id="k" min="2" max="100" step="0.01" value="2"></label><output id="ko"></output></div>`,
+  css: `body { margin: 0; background: #05060a; color: #e6e9ff; overflow: hidden; }
+canvas { display: block; width: 100vw; height: 100vh; }
+.bar { position: fixed; left: 10px; top: 8px; right: 10px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; }
+.bar button { color: #fff; background: #ffffff14; border: 1px solid #ffffff33; border-radius: 4px; padding: 2px 8px; font-size: 12px; }
+.bar button:focus-visible, .bar input:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.bar input { width: min(320px, 50vw); }`,
+  core() {
+    // 点 i を結ぶ相手（点 k×i を N で割った余り。k が整数でなければ、点と点の間の位置になる）
+    const chord = (i, k, N) => [i, ((k * i) % N + N) % N];
+    // 整数の k の包絡線は、尖りが k − 1 個のエピサイクロイド。整数でなければ閉じた形にならない
+    const cusps = (k) => (Math.abs(k - Math.round(k)) < 1e-9 && Math.round(k) >= 2 ? Math.round(k) - 1 : null);
+  },
+  js() {
+    const c = document.getElementById('c'), x = c.getContext('2d'), kIn = document.getElementById('k'), kOut = document.getElementById('ko'), pauseBtn = document.getElementById('pause');
+    const N = 360, NAME = { 2: 'カージオイド（心臓形）', 3: 'ネフロイド（腎臓形）' };
+    let k = 2, last = 0, paused = matchMedia('(prefers-reduced-motion: reduce)').matches, dirty = true;
+    pauseBtn.textContent = paused ? '▶ 動かす' : '❚❚ 止める';
+    pauseBtn.addEventListener('click', () => { paused = !paused; pauseBtn.textContent = paused ? '▶ 動かす' : '❚❚ 止める'; });
+    kIn.addEventListener('input', () => { k = +kIn.value; dirty = true; });
+    function label() {
+      const n = cusps(+k.toFixed(2));
+      kOut.textContent = `k = ${k.toFixed(2)}${n ? `（${NAME[Math.round(k)] || `尖りが ${n} 個の曲線`}）` : ''}`;
+    }
+    function draw() {
+      const dpr = Math.min(2, devicePixelRatio || 1), w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr);
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+      const r = Math.min(w, h) * 0.42, cx = w / 2, cy = h / 2 + 10 * dpr;
+      x.globalCompositeOperation = 'source-over'; x.fillStyle = '#05060a'; x.fillRect(0, 0, w, h);
+      x.strokeStyle = '#ffffff22'; x.lineWidth = dpr; x.beginPath(); x.arc(cx, cy, r, 0, 7); x.stroke();
+      x.globalCompositeOperation = 'lighter'; x.lineWidth = dpr * 0.9;
+      const at = (j) => { const a = (j / N) * 2 * Math.PI - Math.PI / 2; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
+      for (let i = 0; i < N; i++) {
+        const [a, b] = chord(i, k, N), p = at(a), q = at(b);
+        x.strokeStyle = `hsla(${(i / N) * 300 + 200}, 85%, 62%, .32)`;
+        x.beginPath(); x.moveTo(p[0], p[1]); x.lineTo(q[0], q[1]); x.stroke();
+      }
+      label();
+    }
+    function frame(now) {
+      requestAnimationFrame(frame);
+      const dt = last ? Math.min(0.05, (now - last) / 1000) : 0; last = now;
+      if (!paused) {
+        // 整数の近くではゆっくり、間は少し速く進める（形がまとまる所をよく見せる）
+        const near = Math.abs(k - Math.round(k));
+        k += dt * (0.08 + 0.5 * near); if (k > 60) k = 2;
+        kIn.value = k.toFixed(2); dirty = true;
+      }
+      if (dirty) { dirty = false; draw(); }
+    }
+    addEventListener('resize', () => { dirty = true; });
+    requestAnimationFrame(frame);
+  },
+});

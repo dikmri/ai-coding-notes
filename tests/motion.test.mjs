@@ -86,7 +86,9 @@ const MAP = { hips: 'Hips', spine: 'Spine', chest: 'Chest', neck: 'Neck', head: 
   rightUpperLeg: 'UpperLeg_R', rightLowerLeg: 'LowerLeg_R', rightFoot: 'Foot_R', rightToes: 'Toes_R' };
 
 // BVH 側: 体の大きさが違い（1.1 倍、cm）、どの関節にも「骨の向きを決める回転」が埋め込まれていて、角度 0 の姿勢には意味がない
-function makeBvh(frameCount) {
+// animOf(f, k, name) を渡すと、コマ f の関節 k の動き（世界での回転）を決められる。省くと、毎コマ少しずつ回す
+const wobble = (f, k) => (f === 0 ? [0, 0, 0, 1] : Q.fromAxis(Q.normalize([Math.sin(k + f), 1, Math.cos(k * 2 - f)]), 0.4 * Math.sin(f * 0.7 + k)));
+function makeBvh(frameCount, animOf = wobble) {
   const names = Object.values(MAP), vOf = Object.fromEntries(Object.entries(MAP).map(([v, b]) => [b, v]));
   const parentB = (b) => { let p = VPARENT[vOf[b]]; while (p && !MAP[p]) p = VPARENT[p]; return p ? MAP[p] : null; };
   const orient = Object.fromEntries(names.map((n, i) => [n, Q.normalize([Math.sin(i * 1.3), Math.cos(i * 0.7), Math.sin(i * 2.1 + 1), 1.2])]));
@@ -102,7 +104,7 @@ function makeBvh(frameCount) {
   for (let f = 0; f < frameCount; f++) {
     const world = {}, row = [];
     for (const [k, j] of joints.entries()) {
-      const anim = f === 0 ? [0, 0, 0, 1] : Q.fromAxis(Q.normalize([Math.sin(k + f), 1, Math.cos(k * 2 - f)]), 0.4 * Math.sin(f * 0.7 + k));
+      const anim = animOf(f, k, j.name);
       const w = Q.mul(anim, orient[j.name]); world[k] = w;
       const local = j.parent < 0 ? w : Q.mul(Q.conj(world[j.parent]), w);
       const e = Q.toEuler(['Z', 'X', 'Y'], local);
@@ -152,14 +154,30 @@ test('VRM の向きへの移し方: VRM の骨（180 度回った基準の姿）
   assert.ok(close(dirGot, dirWant, 1e-9));
 });
 
-test('付け替え: 最初のコマの顔は水平で、腰と同じ向きを向く（BVH の頭の先の向きが傾いていても、あごが上がらない）', () => {
-  const bvh = makeBvh(2);
+// キャラの骨の世界での回転を、付け替えた局所の回転から組み立て、顔の前（+Z）の向きを返す
+const faceOf = (frame) => {
+  const W = {};
+  for (const v of Object.keys(VPARENT)) W[v] = VPARENT[v] ? Q.mul(W[VPARENT[v]], frame.rot[v] || [0, 0, 0, 1]) : frame.rot[v];
+  return { face: Q.rotate(W.head, [0, 0, 1]), hipsFwd: Q.rotate(W.hips, [0, 0, 1]) };
+};
+
+test('付け替え: 頭が動かない動きでは、顔は水平で腰と同じ向きを向く（BVH の頭の先の向きが傾いていても、あごが上がらない）', () => {
+  const bvh = makeBvh(3, () => [0, 0, 0, 1]);
   bvh.joints.find((j) => j.name === 'Head').end = [0, 13, -6];   // 頭の先が後ろへ傾いた BVH
   const out = retarget({ rest: VRM, parent: VPARENT, map: MAP, bvh });
-  const W = {};
-  for (const v of Object.keys(VPARENT)) W[v] = VPARENT[v] ? Q.mul(W[VPARENT[v]], out.frames[0].rot[v] || [0, 0, 0, 1]) : out.frames[0].rot[v];
-  const face = Q.rotate(W.head, [0, 0, 1]), hipsFwd = Q.rotate(W.hips, [0, 0, 1]);
-  assert.ok(Math.abs(face[1]) < 1e-6, `顔が上下を向いている: ${face}`);
-  const h = Q.normalize3([hipsFwd[0], 0, hipsFwd[2]]);
-  assert.ok(face[0] * h[0] + face[2] * h[2] > 0.9999, `顔が腰と違う向き: ${face} / ${h}`);
+  for (const fr of out.frames) {
+    const { face, hipsFwd } = faceOf(fr);
+    assert.ok(Math.abs(face[1]) < 1e-6, `顔が上下を向いている: ${face}`);
+    const h = Q.normalize3([hipsFwd[0], 0, hipsFwd[2]]);
+    assert.ok(face[0] * h[0] + face[2] * h[2] > 0.9999, `顔が腰と違う向き: ${face} / ${h}`);
+  }
+});
+
+test('付け替え: 最初のコマだけ頭を大きく下げた動きでも、ふだんのコマの顔は水平で、最初のコマはうつむく（踊りの最初の構え）', () => {
+  // 最初のコマだけ、頭を左右の軸で 0.7 ラジアン（40 度）前へ倒す。ほかのコマと関節はずっと動かない
+  const bvh = makeBvh(10, (f, k, name) => (f === 0 && name === 'Head' ? Q.fromAxis([1, 0, 0], 0.7) : [0, 0, 0, 1]));
+  const out = retarget({ rest: VRM, parent: VPARENT, map: MAP, bvh });
+  for (let f = 1; f < 10; f++) assert.ok(Math.abs(faceOf(out.frames[f]).face[1]) < 1e-6, `コマ ${f} の顔が上下を向いている: ${faceOf(out.frames[f]).face}`);
+  const f0 = faceOf(out.frames[0]).face;
+  assert.ok(Math.abs(f0[1] + Math.sin(0.7)) < 1e-6, `最初のコマがうつむいていない: ${f0}`);
 });
