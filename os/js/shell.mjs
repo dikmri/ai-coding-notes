@@ -34,6 +34,7 @@ export const APPS = {
   capture: { name: '画面キャプチャ', icon: 'icons/capture.svg' },
   puzzle: { name: 'プリズム回廊', icon: 'icons/puzzle.svg' },
   browser: { name: 'ウェブブラウザ', icon: 'icons/browser.svg' },
+  books: { name: '本棚', icon: 'icons/books.svg' },
   workshop: { name: 'コードの作業場', icon: 'icons/workshop.svg' },
   assistant: { name: 'AI アシスタント', icon: 'icons/assistant.svg' },
 };
