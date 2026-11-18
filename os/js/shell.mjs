@@ -40,6 +40,7 @@ export const APPS = {
   recorder: { name: '音声レコーダー', icon: 'icons/recorder.svg' },
   wave: { name: '音声エディタ', icon: 'icons/wave.svg' },
   capture: { name: '画面キャプチャ', icon: 'icons/capture.svg' },
+  video: { name: '動画の編集', icon: 'icons/video.svg' },
   puzzle: { name: 'プリズム回廊', icon: 'icons/puzzle.svg' },
   browser: { name: 'ウェブブラウザ', icon: 'icons/browser.svg' },
   workshop: { name: 'コードの作業場', icon: 'icons/workshop.svg' },
