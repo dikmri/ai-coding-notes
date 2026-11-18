@@ -571,6 +571,87 @@
 .arcadia .app-clock table.laps td, .arcadia .app-clock table.laps th { padding: 2px 10px; text-align: right; }
 .arcadia .app-clock table.laps tr.best td { background: #e8fcf9; font-weight: 700; }
 
+/* ===== リズムマシン（2026-11-19） ===== */
+.arcadia .app-drums .app-body:not(:focus-visible) { outline: none; }
+.arcadia .app-drums .dr-main { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 8px 10px 6px; }
+.arcadia .app-drums .dr-transport { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; }
+.arcadia .app-drums .dr-play { min-width: 108px; background: linear-gradient(180deg, #fff7c2, var(--fos-apricot) 55%, #ff9ecf); }
+.arcadia .app-drums .dr-play.playing { background: linear-gradient(180deg, #fff, var(--fos-aqua)); }
+.arcadia .app-drums .dr-modes { display: flex; gap: 12px; }
+.arcadia .app-drums :is(.dr-modes label, .dr-knob) { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; white-space: nowrap; }
+.arcadia .app-drums .dr-knob input[type="range"] { width: 100px; }
+.arcadia .app-drums .dr-bpmnum { width: 66px; text-align: right; font-family: var(--fos-mono); }
+.arcadia .app-drums :is(.dr-unit, .dr-knob output) { min-width: 3em; font: 12px/1 var(--fos-mono); font-variant-numeric: tabular-nums; }
+.arcadia .app-drums .dr-bars { display: flex; flex-direction: column; gap: 6px; padding: 6px 10px; background: var(--fos-marble); border: 1.5px solid var(--fos-marble-lo); border-radius: 10px; }
+.arcadia .app-drums :is(.dr-patbar, .dr-songbar) { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; font-size: 12.5px; }
+.arcadia .app-drums .dr-cap { font-weight: 700; }
+.arcadia .app-drums .dr-pats { display: flex; gap: 5px; margin-right: 6px; }
+.arcadia .app-drums .dr-pat {
+  position: relative; min-width: 32px; min-height: 28px; padding: 0; font: 700 14px/1 var(--fos-mono); color: var(--fos-ink);
+  background: var(--fos-paper); border: 2px solid var(--fos-ink); border-radius: 7px; box-shadow: 2px 2px 0 var(--fos-ink);
+}
+.arcadia .app-drums .dr-pat:hover { background: var(--fos-cream); }
+.arcadia .app-drums .dr-pat[aria-pressed="true"] { background: var(--fos-aqua); translate: 1px 1px; box-shadow: inset 2px 2px 0 var(--fos-aqua-lo); }
+/* 音が入っているパターンは、右上に桃色の点 */
+.arcadia .app-drums .dr-dot { position: absolute; top: 3px; right: 3px; width: 5px; height: 5px; border-radius: 50%; background: var(--fos-rose); box-shadow: 0 0 0 1px var(--fos-ink); visibility: hidden; }
+.arcadia .app-drums .dr-pat.used .dr-dot { visibility: visible; }
+.arcadia .app-drums .dr-tool { min-width: 0; min-height: 26px; padding: 0 12px; font-size: 12px; }
+.arcadia .app-drums .dr-song { width: 210px; font-family: var(--fos-mono); letter-spacing: 0.08em; }
+.arcadia .app-drums .dr-chips { display: flex; flex-wrap: wrap; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.arcadia .app-drums .dr-chip { min-width: 20px; padding: 1px 4px; text-align: center; font: 700 12px/1.4 var(--fos-mono); background: var(--fos-paper); border: 1.5px solid #b5a3ce; border-radius: 5px; }
+.arcadia .app-drums .dr-chip.cur { border-color: var(--fos-ink); }
+.arcadia .app-drums .dr-chip.now { background: var(--fos-apricot); border-color: var(--fos-ink); }
+.arcadia .app-drums .dr-hint { margin: 0; font-size: 11.5px; color: var(--fos-ink-muted); }
+.arcadia .app-drums .dr-rack {
+  flex: 1; min-height: 0; overflow: auto; display: flex; align-items: flex-start; padding: 6px 10px;
+  background: var(--fos-paper); border: 2px solid var(--fos-ink); border-radius: 10px; user-select: none;
+}
+.arcadia .app-drums .dr-grid { flex: none; }
+.arcadia .app-drums :is(.dr-row, .dr-mrow) { display: flex; align-items: center; height: 31px; }
+.arcadia .app-drums .dr-head { height: 24px; font: 11px/1 var(--fos-mono); color: var(--fos-ink-muted); }
+.arcadia .app-drums .dr-name { flex: none; width: 112px; padding-right: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 12.5px/1.2 var(--fos-font); }
+.arcadia .app-drums .dr-row:not(.dr-head) .dr-name { cursor: pointer; }
+.arcadia .app-drums .dr-row:not(.dr-head) .dr-name:hover { color: var(--fos-cobalt); }
+.arcadia .app-drums :is(.dr-cell, .dr-colnum) { flex: none; width: 28px; display: grid; place-items: center; }
+.arcadia .app-drums :is(.dr-cell, .dr-colnum).beat { margin-left: 7px; }
+.arcadia .app-drums .dr-colnum { height: 20px; border-radius: 5px; }
+.arcadia .app-drums .dr-colnum.beat { color: var(--fos-ink); font-weight: 700; }
+.arcadia .app-drums .dr-colnum.play { background: var(--fos-apricot); color: var(--fos-ink); }
+/* 1 ステップの升。4 つずつの組を、地の濃さを変えて見分ける */
+.arcadia .app-drums .dr-step {
+  width: 26px; min-width: 0; height: 26px; padding: 0; font: 700 11px/1 var(--fos-mono); color: var(--fos-ink);
+  background: var(--fos-paper); border: 1.5px solid #b5a3ce; border-radius: 6px; box-shadow: inset 0 -2px 0 #ebe3f4; outline: none;
+}
+.arcadia .app-drums .dr-cell.odd .dr-step { background: #f1eaf8; }
+.arcadia .app-drums .dr-step:hover { background: #e3fbf7; border-color: var(--fos-ink); }
+.arcadia .app-drums .dr-cell .dr-step.on { background: var(--fos-aqua); border-color: var(--fos-ink); box-shadow: inset 0 -3px 0 var(--fos-aqua-lo); }
+.arcadia .app-drums .dr-cell .dr-step.acc { background: var(--fos-sunset); border-color: var(--fos-ink); box-shadow: inset 0 -3px 0 #d15294; }
+/* 再生中のステップ: 杏色の輪。音のある升は少し明るく */
+.arcadia .app-drums .dr-cell .dr-step.play { box-shadow: 0 0 0 2px var(--fos-apricot), inset 0 -2px 0 #ebe3f4; }
+.arcadia .app-drums .dr-cell .dr-step.play:not(.on, .acc) { background: #fff3cf; }
+.arcadia .app-drums .dr-cell .dr-step.play:is(.on, .acc) { filter: brightness(1.12); box-shadow: 0 0 0 2px var(--fos-apricot), 0 0 8px 2px rgb(255 211 122 / 0.9); }
+.arcadia .app-drums .dr-step:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 1px; }
+.arcadia .app-drums .silent :is(.dr-step, .dr-name) { opacity: 0.45; }
+.arcadia .app-drums .dr-mixer { flex: none; margin-left: 12px; padding-left: 12px; border-left: 1.5px solid var(--fos-marble-lo); }
+.arcadia .app-drums .dr-mrow { gap: 5px; }
+.arcadia .app-drums .dr-mrow.dr-head > span { width: 26px; text-align: center; }
+.arcadia .app-drums .dr-mrow.dr-head > span:nth-child(n + 4) { width: 66px; }
+.arcadia .app-drums .dr-mini {
+  width: 26px; min-width: 0; height: 24px; padding: 0; font: 700 11.5px/1 var(--fos-mono); color: var(--fos-ink);
+  background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 6px; box-shadow: 1.5px 1.5px 0 var(--fos-ink); outline: none;
+}
+.arcadia .app-drums .dr-mini:hover { background: var(--fos-cream); }
+.arcadia .app-drums .dr-mini:active { translate: 1px 1px; box-shadow: none; }
+.arcadia .app-drums .dr-ms[data-mute][aria-pressed="true"] { background: var(--fos-sunset); }
+.arcadia .app-drums .dr-ms[data-solo][aria-pressed="true"] { background: var(--fos-apricot); }
+.arcadia .app-drums :is(.dr-mini, .dr-pat):focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+.arcadia .app-drums .dr-mrow input[type="range"] { --track: 6px; --thumb-w: 14px; --thumb-h: 18px; width: 66px; min-height: 22px; }
+.arcadia .app-drums .dr-s2 { width: 220px; }
+.arcadia .app-drums .dr-s3 { width: 210px; }
+@media (forced-colors: active) {
+  .arcadia .app-drums .dr-cell .dr-step:is(.on, .acc) { forced-color-adjust: none; background: Highlight; color: HighlightText; }
+}
+
 /* ===== 文字と色の見本帳（2026-11-17） ===== */
 .arcadia .app-charmap .cm-wrap { flex: 1; min-height: 0; padding: 8px; display: flex; }
 .arcadia .app-charmap .tabs { flex: 1; min-height: 0; display: flex; flex-direction: column; }
