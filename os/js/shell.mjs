@@ -16,6 +16,7 @@ export const APPS = {
   filer: { name: 'ファイル マネージャ', icon: 'icons/folder.svg' },
   notepad: { name: 'メモ帳', icon: 'icons/notepad.svg' },
   modeler: { name: 'ローポリ モデラー', icon: 'icons/modeler.svg' },
+  vector: { name: '図形エディタ', icon: 'icons/vector.svg' },
   synth: { name: 'SID 風シンセ', icon: 'icons/synth.svg' },
   viewer: { name: '画像と音のビューア', icon: 'icons/viewer.svg' },
   settings: { name: '設定', icon: 'icons/settings.svg' },
