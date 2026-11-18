@@ -665,6 +665,102 @@
 .arcadia .app-paint .pt-free input { width: 40px; height: 28px; padding: 0; border: 2px solid var(--fos-ink); border-radius: 6px; background: none; }
 .arcadia .app-settings [data-pickwall] { margin-top: 6px; min-width: 0; padding: 0 10px; }
 
+/* ===== ドット絵エディタ（2026-11-19） ===== */
+.arcadia .app-pixel .app-body { outline: none; }
+.arcadia .app-pixel .px-bar { flex-wrap: wrap; }
+.arcadia .app-pixel .px-bar label { display: inline-flex; align-items: center; font-size: 12px; }
+.arcadia .app-pixel .px-bar .px-toggle { padding: 0 10px; font: 700 12px/1 var(--fos-font); }
+.arcadia .app-pixel .px-zoomtxt { min-width: 40px; text-align: center; font: 12px/1 var(--fos-mono); font-variant-numeric: tabular-nums; }
+.arcadia .app-pixel .px-sep { align-self: stretch; margin: 2px 2px; border-left: 1.5px dashed var(--fos-marble-lo); }
+.arcadia .app-pixel .px-main { flex: 1; min-height: 0; display: flex; }
+.arcadia .app-pixel .px-tools { flex: none; width: 146px; padding: 8px 6px; display: flex; flex-direction: column; gap: 4px; background: var(--fos-marble); border-right: 1.5px solid var(--fos-marble-lo); overflow: auto; }
+.arcadia .app-pixel .px-tool {
+  display: flex; align-items: center; justify-content: space-between; gap: 4px; min-height: 26px; padding: 2px 8px;
+  font: 700 12px/1.2 var(--fos-font); color: var(--fos-ink); text-align: left;
+  background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 7px; box-shadow: 2px 2px 0 var(--fos-ink);
+}
+.arcadia .app-pixel .px-tool kbd { font: 10.5px/1 var(--fos-mono); letter-spacing: 0; color: var(--fos-ink-muted); white-space: nowrap; }
+.arcadia .app-pixel .px-tool[aria-pressed="true"] { background: var(--fos-aqua); translate: 1px 1px; box-shadow: inset 2px 2px 0 var(--fos-aqua-lo); }
+.arcadia .app-pixel .px-tool[aria-pressed="true"] kbd { color: var(--fos-ink); }
+@media (hover: hover) { .arcadia .app-pixel .px-tool:hover:not([aria-pressed="true"]) { background: var(--fos-cream); } }
+.arcadia .app-pixel :is(.px-tool, .px-btn, .px-sw, .px-c, .px-frames li):focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+/* キャンバスの場所: 中の絵を上下左右のまん中に置き、はみ出したらスクロールする */
+.arcadia .app-pixel .px-scroll { flex: 1; min-width: 0; display: grid; overflow: auto; padding: 20px; outline: none; background: repeating-conic-gradient(#f4eef8 0 25%, #e9e0f2 0 50%) 0 0 / 16px 16px; }
+.arcadia .app-pixel .px-scroll:focus-visible { box-shadow: inset 0 0 0 2px var(--fos-cobalt); }
+.arcadia .app-pixel .px-scroll.panning { cursor: grabbing; }
+.arcadia .app-pixel .px-stage {
+  position: relative; margin: auto; box-sizing: content-box; touch-action: none; cursor: crosshair;
+  border: 2px solid var(--fos-ink); box-shadow: 4px 4px 0 var(--fos-shadow);
+  background: repeating-conic-gradient(#ffffff 0 25%, #e3dcea 0 50%) 0 0 / calc(var(--ck) * 2) calc(var(--ck) * 2);
+}
+.arcadia .app-pixel .px-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+.arcadia .app-pixel .px-onion { opacity: 0.3; }
+.arcadia .app-pixel .px-stage[data-tool="select"] { cursor: cell; }
+.arcadia .app-pixel .px-stage[data-tool="pick"] { cursor: copy; }
+/* 方眼の線（拡大した大きさの CSS の背景。大きな canvas を作らない） */
+.arcadia .app-pixel .px-stage.grid::after {
+  content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background-image: linear-gradient(to right, rgb(36 23 52 / 0.3) 1px, transparent 1px), linear-gradient(to bottom, rgb(36 23 52 / 0.3) 1px, transparent 1px);
+  background-size: var(--z) var(--z);
+}
+.arcadia .app-pixel .px-sel { position: absolute; z-index: 3; pointer-events: none; border: 1px dashed var(--fos-ink); box-shadow: 0 0 0 1px #fff, inset 0 0 0 1px #fff; }
+.arcadia .app-pixel .px-sel[hidden] { display: none; }
+/* 右の欄: 色と見本 */
+.arcadia .app-pixel .px-side { flex: none; width: 184px; padding: 8px 10px; display: flex; flex-direction: column; gap: 5px; overflow: auto; font-size: 12px; background: var(--fos-marble); border-left: 1.5px solid var(--fos-marble-lo); }
+.arcadia .app-pixel .px-head { font-weight: 700; color: var(--fos-ink); }
+.arcadia .app-pixel .px-colors, .arcadia .app-pixel .px-row { display: flex; align-items: center; gap: 6px; }
+.arcadia .app-pixel .px-pair { position: relative; flex: none; width: 50px; height: 44px; }
+.arcadia .app-pixel .px-c { position: absolute; width: 30px; height: 30px; min-width: 0; min-height: 0; padding: 0; background: var(--c); border: 2px solid var(--fos-ink); border-radius: 5px; }
+.arcadia .app-pixel .px-c1 { right: 0; bottom: 0; }
+.arcadia .app-pixel .px-c0 { left: 0; top: 0; z-index: 1; box-shadow: 2px 2px 0 var(--fos-ink); }
+.arcadia .app-pixel .px-swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
+.arcadia .app-pixel .px-recent { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; min-height: 18px; }
+.arcadia .app-pixel .px-sw { aspect-ratio: 1; min-width: 0; min-height: 0; padding: 0; background: var(--c); border: 1.5px solid var(--fos-ink); border-radius: 4px; box-shadow: none; }
+.arcadia .app-pixel .px-colors .px-sw { flex: none; width: 28px; margin-left: auto; }
+.arcadia .app-pixel .px-sw.slot { border: 2px solid var(--fos-rose); box-shadow: inset 0 0 0 1.5px var(--fos-paper); }
+.arcadia .app-pixel :is(.px-sw, .px-c).clear { background: repeating-conic-gradient(#ffffff 0 25%, #d9d0e3 0 50%) 0 0 / 8px 8px; }
+.arcadia .app-pixel .px-none { grid-column: 1 / -1; color: var(--fos-ink-muted); }
+.arcadia .app-pixel .px-pick { flex: 1; }
+.arcadia .app-pixel .px-side input[type="color"] { width: 40px; height: 28px; padding: 0; border: 2px solid var(--fos-ink); border-radius: 6px; background: none; }
+.arcadia .app-pixel .px-btn { min-height: 24px; padding: 0 8px; font: 12px/1 var(--fos-font); color: var(--fos-ink); background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 6px; box-shadow: 1px 1px 0 var(--fos-ink); }
+.arcadia .app-pixel .px-btn[aria-pressed="true"] { background: var(--fos-aqua); }
+@media (hover: hover) { .arcadia .app-pixel .px-btn:hover:not([aria-pressed="true"]) { background: var(--fos-cream); } }
+.arcadia .app-pixel .px-btn:active { translate: 1px 1px; box-shadow: none; }
+.arcadia .app-pixel .px-preview { display: grid; place-items: center; flex: none; height: 100px; border: 2px solid var(--fos-ink); border-radius: 6px; background: repeating-conic-gradient(#ffffff 0 25%, #e3dcea 0 50%) 0 0 / 8px 8px; }
+.arcadia .app-pixel .px-pv { image-rendering: pixelated; }
+.arcadia .app-pixel [data-pvtxt] { font: 400 11.5px/1 var(--fos-mono); color: var(--fos-ink-muted); }
+.arcadia .app-pixel .px-headrow [data-pvtxt] { flex: 1; }
+.arcadia .app-pixel .px-fps { font-size: 11.5px; white-space: nowrap; }
+/* 下の帯: コマ */
+.arcadia .app-pixel .px-framebar { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--fos-marble); border-top: 1.5px solid var(--fos-marble-lo); }
+.arcadia .app-pixel .px-frames { position: relative; flex: 1; min-width: 0; display: flex; gap: 6px; margin: 0; padding: 4px; list-style: none; overflow-x: auto; }
+.arcadia .app-pixel .px-frames li {
+  flex: none; display: grid; justify-items: center; align-content: center; gap: 2px; min-width: 48px; min-height: 60px; padding: 3px;
+  font: 11px/1 var(--fos-mono); background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 6px;
+  cursor: grab; user-select: none; -webkit-user-select: none;
+}
+.arcadia .app-pixel .px-frames li canvas { image-rendering: pixelated; background: repeating-conic-gradient(#ffffff 0 25%, #e3dcea 0 50%) 0 0 / 6px 6px; }
+.arcadia .app-pixel .px-frames li[aria-selected="true"] { background: var(--fos-aqua); box-shadow: inset 0 0 0 1px var(--fos-ink); font-weight: 700; }
+.arcadia .app-pixel .px-frames li.lifted { opacity: 0.55; cursor: grabbing; }
+.arcadia .app-pixel .px-frames[data-drop]::after { content: ""; position: absolute; top: 2px; bottom: 2px; left: var(--drop-x); width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--fos-rose); pointer-events: none; }
+.arcadia .app-pixel .px-fbtns { display: flex; flex-wrap: wrap; gap: 4px; max-width: 250px; }
+.arcadia .app-pixel .px-sf { min-width: 64px; text-align: center; font-variant-numeric: tabular-nums; }
+/* 新規と書き出しの箱 */
+.arcadia .px-dlg { width: 360px; }
+.arcadia .px-dlg.px-dlg-wide { width: 500px; }
+/* 箱の中のスクロールが後ろへ伝わらないようにする */
+.arcadia .px-dlg:modal { overscroll-behavior: contain; }
+.arcadia .px-dlg::backdrop { overflow: hidden; overscroll-behavior: contain; }
+.arcadia .px-dlg .px-dlg-note { margin: 0 0 8px; }
+.arcadia .px-dlg .px-dlg-grid { display: grid; grid-template-columns: auto 90px auto; justify-content: start; align-items: center; gap: 6px 8px; margin: 8px 0; }
+.arcadia .px-dlg .px-dlg-presets { display: flex; flex-wrap: wrap; gap: 4px; }
+.arcadia .px-dlg .px-btn { min-height: 24px; padding: 0 8px; font: 12px/1 var(--fos-font); color: var(--fos-ink); background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 6px; }
+.arcadia .px-dlg .px-btn:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+.arcadia .px-dlg .button-row { margin-top: 12px; }
+@media (forced-colors: active) {
+  .arcadia .app-pixel :is(.px-tool, .px-btn)[aria-pressed="true"] { background: Highlight; color: HighlightText; }
+}
+
 /* ===== 音楽プレーヤー（2026-11-17） ===== */
 .arcadia .app-player .pl-main { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px; }
 .arcadia .app-player .pl-now { display: flex; flex-direction: column; gap: 6px; }
