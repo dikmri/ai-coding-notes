@@ -1,0 +1,27 @@
+{
+  "id": "4-5",
+  "title": "コースを点で書く",
+  "page": "game.html",
+  "checks": [
+    {
+      "label": "コースの点（COURSE）が 10 個以上ある",
+      "code": "const m = await module('game/course.js'); return Array.isArray(m.COURSE) && m.COURSE.length >= 10;"
+    },
+    {
+      "label": "1 周の長さを求める courseLength が、点と点の距離を足している",
+      "code": "const m = await module('game/course.js'); return Math.abs(m.courseLength([[0, 0], [3, 4], [3, 0]]) - 12) < 1e-9;"
+    },
+    {
+      "label": "画面の真ん中（車のいる所）が道の色で、車が見える",
+      "code": "const pixel = (x, y) => [...$('#screen').getContext('2d').getImageData(x, y, 1, 1).data].slice(0, 3); const [r, g, b] = pixel(480, 300 + 30); return Math.abs(r - g) < 20 && Math.abs(g - b) < 20;"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "game/course.js",
+      "game/draw.js",
+      "game/main.js"
+    ]
+  }
+}

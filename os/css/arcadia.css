@@ -1086,3 +1086,81 @@
 .arcadia .app-assistant .as-foot { display: flex; gap: 8px; align-items: center; justify-content: space-between; font-size: 12px; color: var(--fos-ink-muted); }
 .arcadia .app-assistant .as-hello p { font-size: 12px; }
 .arcadia .app-assistant .as-mcp-state { margin: 4px 0 0; font-size: 12px; font-weight: 700; }
+
+/* ---------- 講座の窓（apps/course.mjs） ---------- */
+.arcadia .app-course { --cr-font: 14px; }
+.arcadia .app-course .cr-main { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--fos-paper); }
+.arcadia .app-course .cr-bar { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 8px; background: var(--fos-paper); border-bottom: 1.5px solid var(--fos-marble-lo); }
+.arcadia .app-course .cr-btn { min-height: 28px; padding: 0 10px; white-space: nowrap; font: 700 12px/1 var(--fos-font); color: var(--fos-ink); background: linear-gradient(180deg, #fff, var(--fos-cream)); border: 2px solid var(--fos-ink); border-radius: 999px; box-shadow: 2px 2px 0 var(--fos-ink); }
+.arcadia .app-course .cr-btn.cr-go:not(:disabled) { background: linear-gradient(180deg, #fff, var(--fos-aqua)); }
+.arcadia .app-course .cr-btn:disabled, .arcadia .app-course .cr-mini:disabled { background: #e5e0ec; border-color: #8e7fa3; color: #8e7fa3; box-shadow: none; }
+.arcadia .app-course .cr-btn:active:not(:disabled) { translate: 1px 1px; box-shadow: 1px 1px 0 var(--fos-ink); }
+.arcadia .app-course .cr-mini { min-height: 24px; min-width: 24px; padding: 0 8px; font-size: 11.5px; color: var(--fos-ink); background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 999px; white-space: nowrap; }
+.arcadia .app-course :is(.cr-btn, .cr-mini, .cr-lesson, .cr-text):focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 1px; }
+.arcadia .app-course .cr-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 12px; font-size: 12px; background: var(--fos-marble); border-bottom: 1.5px solid var(--fos-marble-lo); }
+.arcadia .app-course .cr-head .cr-id { font: 700 12px var(--fos-mono); }
+.arcadia .app-course .cr-done, .arcadia .app-course .cr-mark { padding: 0 6px; font-size: 11px; font-weight: 700; border: 1.5px solid var(--fos-ink); border-radius: 999px; background: var(--fos-aqua); }
+.arcadia .app-course .cr-text { flex: 1; min-height: 0; overflow: auto; padding: 4px 16px 24px; font-size: var(--cr-font); line-height: 1.75; overflow-wrap: anywhere; }
+.arcadia .app-course .cr-text h1 { margin: 12px 0 8px; font-size: 1.45em; line-height: 1.35; }
+.arcadia .app-course .cr-text h2 { margin: 22px 0 6px; padding-bottom: 2px; font-size: 1.2em; border-bottom: 2px solid var(--fos-sunset); }
+.arcadia .app-course .cr-text h3 { margin: 16px 0 4px; font-size: 1.05em; }
+.arcadia .app-course .cr-text h4 { margin: 12px 0 4px; font-size: 1em; }
+.arcadia .app-course .cr-text p { margin: 6px 0; }
+.arcadia .app-course .cr-text :is(ul, ol) { margin: 6px 0; padding-left: 1.6em; }
+.arcadia .app-course .cr-text :not(pre) > code { padding: 0 3px; font: 0.92em var(--fos-mono); background: var(--fos-marble); border-radius: 3px; }
+.arcadia .app-course .cr-text pre.code { margin: 0 0 10px; padding: 8px 10px; overflow: auto; font: calc(var(--cr-font) - 1px)/1.55 var(--fos-mono); tab-size: 2; color: var(--fos-ink); background: #fffdf7; border: 1.5px solid var(--fos-ink); border-radius: 6px; }
+.arcadia .app-course .cr-copy { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin: 8px 0 3px; }
+.arcadia .app-course .cr-tip { font-size: 11.5px; color: var(--fos-ink-muted); }
+.arcadia .app-course .cr-text table { border-collapse: collapse; margin: 8px 0; }
+.arcadia .app-course .cr-text :is(th, td) { padding: 3px 8px; border: 1.5px solid var(--fos-marble-lo); text-align: left; vertical-align: top; }
+.arcadia .app-course .cr-text th { background: var(--fos-marble); }
+.arcadia .app-course .cr-text blockquote { margin: 8px 0; padding: 4px 12px; background: #fff7e0; border-left: 4px solid var(--fos-apricot); }
+.arcadia .app-course .cr-text details.answer { margin: 6px 0 10px; padding: 4px 10px; background: var(--fos-marble); border: 1.5px dashed var(--fos-marble-lo); border-radius: 6px; }
+.arcadia .app-course .cr-text details.answer > summary { font-weight: 700; cursor: default; }
+.arcadia .app-course .cr-dim { color: var(--fos-ink-muted); font-size: 0.92em; }
+.arcadia .app-course .cr-tpart h3 { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.arcadia .app-course .cr-list { list-style: none; padding: 0; margin: 4px 0 12px; display: grid; gap: 4px; }
+.arcadia .app-course .cr-list li { display: flex; align-items: center; gap: 6px; }
+.arcadia .app-course .cr-lesson { min-height: 26px; padding: 0 10px; text-align: left; font: 13px var(--fos-font); color: var(--fos-ink); background: #fff; border: 1.5px solid var(--fos-ink); border-radius: 6px; }
+.arcadia .app-course .cr-lesson.cur { box-shadow: inset 4px 0 0 var(--fos-sunset); font-weight: 700; }
+.arcadia .app-course .cr-lid { font-family: var(--fos-mono); }
+.arcadia .app-course .cr-crystal { font-size: 12px; color: #7a1fa2; }
+.arcadia .app-course .cr-result { flex: none; max-height: 55%; overflow: auto; padding: 6px 10px 10px; background: var(--fos-marble); border-top: 2px solid var(--fos-ink); }
+.arcadia .app-course .cr-result[hidden] { display: none; }
+.arcadia .app-course .cr-result-head { display: flex; align-items: center; gap: 8px; }
+.arcadia .app-course .cr-result-head h2 { margin: 0; font-size: 14px; }
+.arcadia .app-course .cr-verdict { flex: 1; font-weight: 700; }
+.arcadia .app-course .cr-verdict[data-kind="ok"] { color: #1d6b3a; }
+.arcadia .app-course .cr-verdict[data-kind="ng"] { color: #a3305c; }
+.arcadia .app-course .cr-checks { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 3px; font-size: 13px; }
+.arcadia .app-course .cr-check { display: flex; gap: 6px; align-items: baseline; }
+.arcadia .app-course .cr-ox { flex: none; width: 1.4em; text-align: center; font-weight: 700; }
+.arcadia .app-course .cr-check.ok .cr-ox { color: #1d6b3a; }
+.arcadia .app-course .cr-check.ng .cr-ox { color: #a3305c; }
+.arcadia .app-course .cr-err { display: block; font: 11.5px var(--fos-mono); color: #a3305c; }
+.arcadia .app-course .cr-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.arcadia .app-course .cr-hint { margin: 4px 0 6px; font-size: 12.5px; }
+.arcadia .app-course .cr-stage { position: relative; overflow: hidden; width: min(100%, 300px); height: 160px; background: #fff; border: 1.5px solid var(--fos-ink); }
+.arcadia .app-course .cr-stage iframe { position: absolute; left: 0; top: 0; border: 0; background: #fff; pointer-events: none; transform: scale(var(--cr-scale, 0.4)); transform-origin: 0 0; }
+.arcadia .app-course .status-field[data-kind="error"] { box-shadow: inset 4px 0 0 var(--fos-sunset); }
+::highlight(cr-keyword), ::highlight(cr-atrule) { color: #7a1fa2; }
+::highlight(cr-string), ::highlight(cr-regexp) { color: #a3305c; }
+::highlight(cr-comment) { color: #5d5170; }
+::highlight(cr-number) { color: #9a4a00; }
+::highlight(cr-tag), ::highlight(cr-selector), ::highlight(cr-doctype) { color: #1f55a6; }
+::highlight(cr-attr), ::highlight(cr-property) { color: #1d6b74; }
+.arcadia .cr-dlg { width: min(760px, 92vw); max-height: 86vh; }
+.arcadia .cr-dlg[open] { display: flex; flex-direction: column; }
+.arcadia .cr-dlg:modal { overscroll-behavior: contain; }
+.arcadia .cr-dlg::backdrop { overflow: hidden; overscroll-behavior: contain; }
+.arcadia .cr-dlg .window-body { display: flex; flex-direction: column; min-height: 0; }
+.arcadia .cr-dlg .cr-diffs { flex: 1; min-height: 0; overflow: auto; max-height: 60vh; }
+.arcadia .cr-dlg h3 { margin: 10px 0 4px; font: 700 13px var(--fos-mono); }
+.arcadia .cr-dlg .cr-diff { list-style: none; margin: 0; padding: 0; font: 12.5px/1.5 var(--fos-mono); border: 1.5px solid var(--fos-marble-lo); }
+.arcadia .cr-dlg .cr-d { display: flex; gap: 6px; padding: 0 6px; white-space: pre; }
+.arcadia .cr-dlg .cr-d code { font: inherit; }
+.arcadia .cr-dlg .cr-d.add { background: #e3f6e3; }
+.arcadia .cr-dlg .cr-d.remove { background: #fde4ec; }
+.arcadia .cr-dlg .cr-dm { flex: none; width: 1em; font-weight: 700; }
+.arcadia .cr-dlg .cr-skip { padding: 0 6px; color: var(--fos-ink-muted); }
+.arcadia .cr-dlg .cr-dim { font-size: 12px; color: var(--fos-ink-muted); }

@@ -14,6 +14,7 @@ export async function launch(os, args = {}, rect = {}) {
   const one = wm.list().find((w) => w.app === 'workshop');
   if (one) { one.focus(); if (args.path) one.openProject?.(args.path); return one; }
   let project = null, files = [], cur = null, texts = {}, saved = {}, autoRun = true, sources = {}, entry = null, lastMsg = '', findHits = [], findAt = -1, escTab = false;
+  let preferEntry = null; // 講座の窓が決める「動かすページ」。HTML でないファイルを開いているときは、index.html の代わりにこれを動かす
   const win = wm.open({
     app: 'workshop', icon: 'icons/workshop.svg', className: 'app-workshop', title: 'コードの作業場', w: 1040, h: 680, x: 24, y: 16, ...rect, args: {}, // 1つの窓だけなので、位置の指定がなければ左上寄せ（1280px の画面でもはみ出さない）
     render(w) {
@@ -80,7 +81,8 @@ export async function launch(os, args = {}, rect = {}) {
     project = path; files = (await walk(path)).sort((a, b) => a.localeCompare(b, 'ja')); texts = {}; saved = {}; cur = null;
     win.setArgs({ path }); win.setTitle(`${path.split('/').pop()} - コードの作業場`);
     await drawProjects(); drawFiles();
-    const first = files.find((p) => /\/index\.html$/.test(p)) || files.find(isText);
+    if (preferEntry && !preferEntry.startsWith(path + '/')) preferEntry = null;
+    const first = (preferEntry && files.includes(preferEntry) && preferEntry) || files.find((p) => /\/index\.html$/.test(p)) || files.find(isText);
     if (first) await openFile(first); else showEditor(false);
     for (const b of ['save', 'run', 'stop', 'zip', 'browse', 'newfile', 'rename', 'del']) q(`[data-a="${b}"]`).disabled = false;
     log('workshop.open', { project: path, files: files.length }, 'ok');
@@ -225,7 +227,7 @@ export async function launch(os, args = {}, rect = {}) {
     if (!project) return;
     keep();
     const man = await manifest();
-    entry = target || (cur && /\.html?$/i.test(cur) ? cur : project + '/' + (man.entry || 'index.html'));
+    entry = target || (cur && /\.html?$/i.test(cur) ? cur : preferEntry && files.includes(preferEntry) ? preferEntry : project + '/' + (man.entry || 'index.html'));
     if (!files.includes(entry)) { conLine('warn', `「${rel(entry)}」がないので動かせません。index.html を作ってください。`); return; }
     const built = await build(fs, project, entry, files, (p) => (texts[p] !== undefined ? texts[p] : fs.readText(p)));
     sources = built.sources;
@@ -399,6 +401,13 @@ export async function launch(os, args = {}, rect = {}) {
     else if (k === 'f' && cur) { e.preventDefault(); openFind(); }
   });
   win.openProject = openProject;
+  // 講座の窓が使う口: 答え合わせの前に保存する、講座が書き換えたファイルを読み直す
+  win.saveAll = async () => { if (project) await saveAll(); };
+  win.project = () => project;
+  // 講座の窓が使う口: この課で動かすページを決める（null で元の決め方に戻る）
+  win.setEntry = (p) => { preferEntry = p || null; };
+  // 講座の窓が使う口: ページのファイルを開いて動かす（課が変わってページが変わったとき）
+  win.openPage = async (p) => { if (project && files.includes(p)) { await openFile(p); run(); } };
   win.cleanup = () => { host.dispose(); for (const t of [...COLORED, 'find']) CSS.highlights?.delete('ws-' + t); };
 
   showEditor(false); await drawStart(); await drawProjects();

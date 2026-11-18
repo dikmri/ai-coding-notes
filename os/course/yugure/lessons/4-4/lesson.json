@@ -1,0 +1,29 @@
+{
+  "id": "4-4",
+  "title": "曲がる・止まる",
+  "page": "game.html",
+  "checks": [
+    {
+      "label": "ブレーキ（↓）で遅くなり、0 で止まる（後ろへは進まない）",
+      "code": "const m = await module('game/car.js'); const car = m.createCar(0, 0, 0); car.speed = 20; for (let i = 0; i < 300; i++) m.updateCar(car, { down: true }, 1 / 60); return car.speed === 0;"
+    },
+    {
+      "label": "何も踏まないと、少しずつ遅くなる",
+      "code": "const m = await module('game/car.js'); const car = m.createCar(0, 0, 0); car.speed = 20; m.updateCar(car, {}, 1); return car.speed < 20 && car.speed > 15;"
+    },
+    {
+      "label": "止まっているときは、ハンドルを切っても回らない",
+      "code": "const m = await module('game/car.js'); const car = m.createCar(0, 0, 0); m.updateCar(car, { right: true }, 1); return car.heading === 0;"
+    },
+    {
+      "label": "速いときほど、1 秒に回れる角度が小さい（タイヤの摩擦の上限）",
+      "code": "const m = await module('game/car.js'); const turn = (v) => { const car = m.createCar(0, 0, 0); car.speed = v; m.updateCar(car, { right: true }, 0.1); return car.heading; }; return turn(40) < turn(15);"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "game/car.js"
+    ]
+  }
+}

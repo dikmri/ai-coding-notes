@@ -1,0 +1,33 @@
+{
+  "id": "1-1",
+  "title": "看板の骨組み",
+  "page": "index.html",
+  "checks": [
+    {
+      "label": "html に lang=\"ja\" がある",
+      "code": "return document.documentElement.lang === 'ja';"
+    },
+    {
+      "label": "題名（title）が「夕暮れ峠をもう一度」",
+      "code": "return document.title === '夕暮れ峠をもう一度';"
+    },
+    {
+      "label": "大見出し（h1）がちょうど 1 つ",
+      "code": "return $$('h1').length === 1;"
+    },
+    {
+      "label": "段落（p）が 1 つ以上ある",
+      "code": "return $$('p').length >= 1;"
+    },
+    {
+      "label": "文字の形（meta charset）と画面の幅（viewport）の指定がある",
+      "code": "return !!$('meta[charset]') && !!$('meta[name=\"viewport\"]');"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "index.html"
+    ]
+  }
+}

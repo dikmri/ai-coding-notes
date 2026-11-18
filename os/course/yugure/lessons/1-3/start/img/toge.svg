@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360">
+  <!-- 夕暮れの峠の絵（講座のために描いたもの）。空・夕日・遠くの山・近くの山・折り返しのある道 -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3b5a8c"/>
+      <stop offset="0.55" stop-color="#e9a15b"/>
+      <stop offset="1" stop-color="#f6d58a"/>
+    </linearGradient>
+    <linearGradient id="far" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8a6f8f"/>
+      <stop offset="1" stop-color="#b38a7c"/>
+    </linearGradient>
+    <linearGradient id="near" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4f6b3a"/>
+      <stop offset="1" stop-color="#2c3d22"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="360" fill="url(#sky)"/>
+  <circle cx="470" cy="190" r="34" fill="#fff1c8"/>
+  <path d="M0 230 L80 170 L150 205 L230 140 L310 195 L390 150 L470 200 L560 160 L640 205 L640 360 L0 360 Z" fill="url(#far)"/>
+  <path d="M0 290 L110 210 L200 250 L300 190 L420 260 L520 220 L640 270 L640 360 L0 360 Z" fill="url(#near)"/>
+  <path d="M60 360 C120 320 260 330 250 290 C240 255 120 270 150 240 C180 210 330 230 320 200" fill="none" stroke="#d9c7a3" stroke-width="10" stroke-linecap="round"/>
+  <path d="M60 360 C120 320 260 330 250 290 C240 255 120 270 150 240 C180 210 330 230 320 200" fill="none" stroke="#f4ecd8" stroke-width="1.5" stroke-dasharray="8 8"/>
+</svg>

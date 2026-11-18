@@ -1,0 +1,29 @@
+{
+  "id": "1-2",
+  "title": "説明を並べる",
+  "page": "index.html",
+  "checks": [
+    {
+      "label": "中見出し（h2）がある",
+      "code": "return $$('h2').length >= 1;"
+    },
+    {
+      "label": "箇条書き（ul）に 3 つ以上の項目（li）がある",
+      "code": "return $$('ul li').length >= 3;"
+    },
+    {
+      "label": "強調（strong）がある",
+      "code": "return $$('strong').length >= 1;"
+    },
+    {
+      "label": "強め（em）がある",
+      "code": "return $$('em').length >= 1;"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "index.html"
+    ]
+  }
+}

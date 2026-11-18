@@ -1,0 +1,25 @@
+{
+  "id": "1-4",
+  "title": "操作の表",
+  "page": "index.html",
+  "checks": [
+    {
+      "label": "表（table）に説明（caption）がある",
+      "code": "return !!$('table caption');"
+    },
+    {
+      "label": "見出しのます（th）が 2 つ以上あり、scope が付いている",
+      "code": "const ths = $$('table th'); return ths.length >= 2 && ths.every((th) => th.hasAttribute('scope'));"
+    },
+    {
+      "label": "キーの名前を kbd で 4 つ以上書いた",
+      "code": "return $$('kbd').length >= 4;"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "index.html"
+    ]
+  }
+}

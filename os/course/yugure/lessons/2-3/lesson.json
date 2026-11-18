@@ -1,0 +1,29 @@
+{
+  "id": "2-3",
+  "title": "横に並べる",
+  "page": "index.html",
+  "checks": [
+    {
+      "label": "カードの並び（.cards）が flex になっている",
+      "code": "return css('.cards', 'display') === 'flex';"
+    },
+    {
+      "label": "広い画面で、最初の 2 枚のカードが横に並んでいる",
+      "code": "const items = $$('.cards li'); return items.length >= 2 && Math.abs(items[0].getBoundingClientRect().top - items[1].getBoundingClientRect().top) < 2;"
+    },
+    {
+      "label": "カードの間にすき間（gap）がある",
+      "code": "return parseFloat(css('.cards', 'column-gap')) > 0;"
+    },
+    {
+      "label": "箇条書きの点（list-style）を消した",
+      "code": "return css('.cards', 'list-style-type') === 'none';"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "style.css"
+    ]
+  }
+}

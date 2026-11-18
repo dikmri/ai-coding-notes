@@ -1,0 +1,21 @@
+{
+  "id": "0-1",
+  "title": "古いフォルダ",
+  "page": "index.html",
+  "checks": [
+    {
+      "label": "index.html があり、見出しに「夕暮れ峠」と書いてある",
+      "code": "return $('h1')?.textContent.includes('夕暮れ峠');"
+    },
+    {
+      "label": "プレビューのコンソールに、フォルダが開かれたことが出ている",
+      "code": "return logs.some((line) => line.includes('開かれました'));"
+    }
+  ],
+  "files": {
+    "start": [
+      "index.html"
+    ],
+    "end": []
+  }
+}

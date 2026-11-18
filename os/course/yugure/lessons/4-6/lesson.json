@@ -1,0 +1,27 @@
+{
+  "id": "4-6",
+  "title": "道から外れたら",
+  "page": "game.html",
+  "checks": [
+    {
+      "label": "点から線分までの距離: 真ん中の横は垂直の距離、端より外は端までの距離",
+      "code": "const m = await module('game/course.js'); return m.distanceToSegment(5, 3, 0, 0, 10, 0).distance === 3 && m.distanceToSegment(-4, 3, 0, 0, 10, 0).distance === 5;"
+    },
+    {
+      "label": "スタートの近くは道の上、道の幅より遠くは道の外",
+      "code": "const m = await module('game/course.js'); return m.isOnRoad(m.COURSE, 0, -40) === true && m.isOnRoad(m.COURSE, m.ROAD_WIDTH, -40) === false;"
+    },
+    {
+      "label": "草の上では、道の上より速く遅くなる",
+      "code": "const m = await module('game/car.js'); const a = m.createCar(0, 0, 0), b = m.createCar(0, 0, 0); a.speed = b.speed = 20; m.updateCar(a, {}, 1, true); m.updateCar(b, {}, 1, false); return b.speed < a.speed;"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "game/car.js",
+      "game/course.js",
+      "game/main.js"
+    ]
+  }
+}

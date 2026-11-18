@@ -1,0 +1,26 @@
+{
+  "id": "3-7",
+  "title": "キーで速度計を動かす",
+  "page": "meter.html",
+  "checks": [
+    {
+      "label": "↑ を押している間、速くなる（1 秒で時速 10 km 以上）",
+      "code": "key('ArrowUp', 'down'); await wait(1000); key('ArrowUp', 'up'); return Number($('#speed').textContent) >= 10;"
+    },
+    {
+      "label": "↑ を放すと、それ以上は速くならない",
+      "code": "key('ArrowUp', 'down'); await wait(400); key('ArrowUp', 'up'); await wait(100); const a = Number($('#speed').textContent); await wait(400); return Number($('#speed').textContent) <= a;"
+    },
+    {
+      "label": "↓ を押している間、遅くなる",
+      "code": "key('ArrowUp', 'down'); await wait(800); key('ArrowUp', 'up'); const a = Number($('#speed').textContent); key('ArrowDown', 'down'); await wait(300); key('ArrowDown', 'up'); return Number($('#speed').textContent) < a;"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "meter.html",
+      "meter.js"
+    ]
+  }
+}

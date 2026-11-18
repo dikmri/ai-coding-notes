@@ -1,0 +1,99 @@
+/* 看板の見た目 */
+body {
+  margin: 0;
+  background: #fbf6ec;
+  color: #2b2420;
+  font-family: system-ui, sans-serif;
+  line-height: 1.7;
+}
+
+h1 {
+  margin: 0;
+  color: #c8582a;
+  font-size: 2.2rem;
+}
+
+h2 {
+  border-bottom: 2px solid #c8582a;
+}
+
+.host {
+  margin: 0;
+  letter-spacing: 0.1em;
+}
+
+header,
+main,
+footer {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* 箱: 中の余白（padding）、枠（border）、外の余白（margin） */
+section {
+  margin-bottom: 24px;
+  padding: 16px;
+  border: 1px solid #e3d6c3;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+/* 特徴のカードを横に並べる（flex）。狭い画面では折り返す */
+.cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.cards li {
+  flex: 1 1 200px;
+  padding: 12px;
+  border: 1px solid #e3d6c3;
+  border-radius: 8px;
+}
+
+/* 看板の中身を格子に置く（grid）。広い画面では 2 列 */
+main {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0 24px;
+}
+
+@media (width >= 760px) {
+  main {
+    grid-template-columns: 3fr 2fr;
+  }
+
+  .hero,
+  .start {
+    grid-column: 1 / -1;
+  }
+}
+
+/* 絵の上に速度の札を重ねる（position） */
+.photo {
+  position: relative;
+  margin: 0;
+}
+
+.meter {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  margin: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.6);
+  color: #fff;
+  font-weight: bold;
+}

@@ -1,0 +1,27 @@
+{
+  "id": "4-3",
+  "title": "車を走らせる",
+  "page": "game.html",
+  "checks": [
+    {
+      "label": "アクセル（↑）を 1 秒押すと、北（画面の上、y が減る向き）へ進む",
+      "code": "const car = window.course?.state.car; if (!car) return false; key('ArrowUp', 'down'); await wait(1000); key('ArrowUp', 'up'); return car.y < -0.5 && Math.abs(car.x) < 0.5;"
+    },
+    {
+      "label": "右へ切ると向き（heading）が増える",
+      "code": "const car = window.course.state.car; const a = car.heading; key('ArrowRight', 'down'); await wait(300); key('ArrowRight', 'up'); return car.heading > a;"
+    },
+    {
+      "label": "東（向き π/2）を向いて進むと、x が増える",
+      "code": "const m = await module('game/car.js'); const car = m.createCar(0, 0, Math.PI / 2); car.speed = 10; m.updateCar(car, {}, 1); return car.x > 9.9 && Math.abs(car.y) < 0.01;"
+    }
+  ],
+  "files": {
+    "start": [],
+    "end": [
+      "game/car.js",
+      "game/input.js",
+      "game/main.js"
+    ]
+  }
+}

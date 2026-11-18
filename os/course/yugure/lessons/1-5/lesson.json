@@ -1,0 +1,32 @@
+{
+  "id": "1-5",
+  "title": "始めるボタン",
+  "page": "index.html",
+  "checks": [
+    {
+      "label": "ゲームのページ（game.html）へのリンクがある",
+      "code": "return !!$('a[href=\"game.html\"]');"
+    },
+    {
+      "label": "速度計のページ（meter.html）へのリンクがある",
+      "code": "return !!$('a[href=\"meter.html\"]');"
+    },
+    {
+      "label": "「作った人たち」のボタン（button）が、popover の箱を開く",
+      "code": "const button = $('button[popovertarget]'); const box = button && document.getElementById(button.getAttribute('popovertarget')); if (!box || !box.hasAttribute('popover')) return false; button.click(); await wait(50); return box.matches(':popover-open');"
+    },
+    {
+      "label": "ボタンに type=\"button\" が付いている",
+      "code": "return $$('button').every((b) => b.getAttribute('type') === 'button');"
+    }
+  ],
+  "files": {
+    "start": [
+      "game.html",
+      "meter.html"
+    ],
+    "end": [
+      "index.html"
+    ]
+  }
+}

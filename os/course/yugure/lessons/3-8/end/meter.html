@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>速度計とラップタイマー</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="meter.js"></script>
+</head>
+<body>
+  <header>
+    <h1>速度計とラップタイマー</h1>
+    <p><a href="index.html">看板へ戻る</a></p>
+  </header>
+  <main>
+    <section class="speed">
+      <h2>速度計</h2>
+      <p class="readout"><output id="speed">0</output> km/h　<output id="gear">1</output> 速</p>
+      <p>
+        <button type="button" id="accelerate">アクセル</button>
+        <button type="button" id="brake">ブレーキ</button>
+      </p>
+      <p><kbd>↑</kbd> を押している間は速くなり、<kbd>↓</kbd> で遅くなります。</p>
+    </section>
+    <section class="timer">
+      <h2>ラップタイマー</h2>
+      <p class="readout"><output id="clock">0:00.000</output></p>
+      <p>
+        <button type="button" id="start">スタート</button>
+        <button type="button" id="lap">ラップ</button>
+        <button type="button" id="reset">リセット</button>
+      </p>
+      <ol id="laps"></ol>
+      <p>最速: <output id="best">―</output></p>
+    </section>
+  </main>
+</body>
+</html>

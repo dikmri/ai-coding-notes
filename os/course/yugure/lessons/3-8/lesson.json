@@ -1,0 +1,44 @@
+{
+  "id": "3-8",
+  "title": "ラップタイマー",
+  "page": "meter.html",
+  "checks": [
+    {
+      "label": "formatTime(83456) が \"1:23.456\" を返す",
+      "code": "const m = await module('meter.js'); return m.formatTime(83456) === '1:23.456';"
+    },
+    {
+      "label": "formatTime(5007) が \"0:05.007\" を返す（0 を足して桁をそろえる）",
+      "code": "const m = await module('meter.js'); return m.formatTime(5007) === '0:05.007';"
+    },
+    {
+      "label": "スタートの後にラップを押すと、周回の時間が 1 つ並ぶ",
+      "code": "click('#start'); await wait(300); click('#lap'); await wait(50); return $$('#laps li').length === 1;"
+    },
+    {
+      "label": "最速の周回が「分:秒.ミリ秒」で出ている",
+      "code": "click('#start'); await wait(200); click('#lap'); await wait(50); return /^\\d+:\\d\\d\\.\\d\\d\\d$/.test($('#best').textContent.trim());"
+    },
+    {
+      "label": "時計が進んでいる",
+      "code": "click('#start'); await wait(300); return $('#clock').textContent.trim() !== '0:00.000';"
+    }
+  ],
+  "complete": {
+    "registerApp": {
+      "id": "yugure-timer",
+      "name": "速度計とラップタイマー",
+      "entry": "meter.html",
+      "w": 560,
+      "h": 680
+    },
+    "message": "ラップタイマーが OS のアプリになりました。デスクトップと、スタート メニューの「プログラム」に「速度計とラップタイマー」があります"
+  },
+  "files": {
+    "start": [],
+    "end": [
+      "meter.html",
+      "meter.js"
+    ]
+  }
+}
