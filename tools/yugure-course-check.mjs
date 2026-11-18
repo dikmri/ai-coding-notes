@@ -59,6 +59,9 @@ const wipe = () => ev("const fs = await import('./js/fs.mjs'); await fs.open(); 
 
 try {
   await page.navigate(URL0 + '?shot');
+  // 起動の途中で空にすると、起動の続きの見本の書き込みが残ることがある。デスクトップのアイコンが並ぶ（起動が終わる）のを待ってから空にする
+  await waitSel('#desk:not([hidden]) .desk-icon', 20000);
+  await sleep(500);
   await wipe();
   await page.navigate(URL0 + '?shot=course');
   ok('講座の窓が開く', await waitSel('.app-course [data-text] h1', 20000));
