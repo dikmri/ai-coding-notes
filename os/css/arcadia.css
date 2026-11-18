@@ -544,6 +544,92 @@
   background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 999px;
 }
 
+/* ===== 写真の現像（2026-11-19） ===== */
+.arcadia .app-photo .app-body { outline: none; }
+.arcadia .app-photo .ph-bar { flex: none; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 6px 8px; background: var(--fos-marble); border-bottom: 1.5px solid var(--fos-marble-lo); }
+.arcadia .app-photo .ph-gap { width: 6px; }
+.arcadia .app-photo :is(.ph-btn, .ph-small) {
+  min-width: 0; min-height: 28px; padding: 2px 10px; font: 700 12px/1.2 var(--fos-font); color: var(--fos-ink);
+  background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 7px; box-shadow: 2px 2px 0 var(--fos-ink);
+}
+.arcadia .app-photo .ph-small { min-height: 26px; border-radius: 999px; font-size: 11.5px; }
+.arcadia .app-photo :is(.ph-btn, .ph-small):hover:not(:disabled) { background: var(--fos-cream); }
+.arcadia .app-photo :is(.ph-btn, .ph-small):is(:active, .active, [aria-pressed="true"]):not(:disabled) { background: var(--fos-aqua); translate: 1px 1px; box-shadow: inset 2px 2px 0 var(--fos-aqua-lo); }
+.arcadia .app-photo :is(.ph-btn, .ph-small).ph-go { background: linear-gradient(180deg, #fff7c2, var(--fos-apricot) 55%, #ff9ecf); }
+.arcadia .app-photo :is(.ph-btn, .ph-small):disabled { background: #e5e0ec; border-color: #8e7fa3; color: #8e7fa3; box-shadow: none; }
+.arcadia .app-photo :is(.ph-btn, .ph-small, .ph-preset, .ph-del):focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+.arcadia .app-photo .ph-main { flex: 1; min-height: 0; display: flex; container-type: inline-size; }
+.arcadia .app-photo .ph-stage { position: relative; flex: 1; min-width: 0; display: grid; place-items: center; overflow: hidden; background: repeating-conic-gradient(#f4eef8 0 25%, #e9e0f2 0 50%) 0 0 / 16px 16px; }
+.arcadia .app-photo .ph-stage.drop-ok { box-shadow: inset 0 0 0 3px var(--fos-aqua); }
+.arcadia .app-photo .ph-view { position: relative; line-height: 0; overflow: hidden; outline: 2px solid var(--fos-ink); box-shadow: 5px 5px 0 var(--fos-shadow); background: repeating-conic-gradient(#ffffff 0 25%, #e6e0ec 0 50%) 0 0 / 12px 12px; }
+.arcadia .app-photo .ph-canvas { display: block; width: 100%; height: 100%; }
+.arcadia .app-photo .ph-cropbox {
+  position: absolute; cursor: move; touch-action: none; -webkit-user-select: none; user-select: none;
+  outline: 1.5px solid #fff; box-shadow: 0 0 0 1.5px var(--fos-ink), 0 0 0 9999px rgb(20 12 36 / 0.55);
+  background:
+    linear-gradient(to right, transparent calc(100% / 3 - 0.5px), rgb(255 255 255 / 0.6) 0 calc(100% / 3 + 0.5px), transparent 0 calc(200% / 3 - 0.5px), rgb(255 255 255 / 0.6) 0 calc(200% / 3 + 0.5px), transparent 0),
+    linear-gradient(to bottom, transparent calc(100% / 3 - 0.5px), rgb(255 255 255 / 0.6) 0 calc(100% / 3 + 0.5px), transparent 0 calc(200% / 3 - 0.5px), rgb(255 255 255 / 0.6) 0 calc(200% / 3 + 0.5px), transparent 0);
+}
+.arcadia .app-photo .ph-cropbox.dragging { cursor: grabbing; }
+.arcadia .app-photo .ph-cropbox:focus-visible { outline: 2px dashed var(--fos-aqua); outline-offset: 2px; }
+/* 四隅のつまみは枠の内側に置く（画像の端の外は .ph-view で切れて見えないため） */
+.arcadia .app-photo .ph-hd { position: absolute; width: 16px; height: 16px; border: 2px solid var(--fos-ink); border-radius: 3px; background: var(--fos-aqua); }
+.arcadia .app-photo .ph-hd[data-h="tl"] { left: -3px; top: -3px; cursor: nwse-resize; }
+.arcadia .app-photo .ph-hd[data-h="tr"] { right: -3px; top: -3px; cursor: nesw-resize; background: var(--fos-sunset); }
+.arcadia .app-photo .ph-hd[data-h="bl"] { left: -3px; bottom: -3px; cursor: nesw-resize; background: var(--fos-sunset); }
+.arcadia .app-photo .ph-hd[data-h="br"] { right: -3px; bottom: -3px; cursor: nwse-resize; }
+.arcadia .app-photo .ph-split { position: absolute; top: 0; bottom: 0; width: 4px; margin-left: -2px; background: var(--fos-paper); box-shadow: 0 0 0 1px var(--fos-ink); cursor: ew-resize; touch-action: none; }
+.arcadia .app-photo .ph-split::after { content: ""; position: absolute; left: 50%; top: 50%; width: 16px; height: 28px; translate: -50% -50%; border: 2px solid var(--fos-ink); border-radius: 999px; background: var(--fos-cream); }
+.arcadia .app-photo .ph-split:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+.arcadia .app-photo .ph-tag { position: absolute; top: 8px; padding: 2px 10px; font: 700 11.5px/1.5 var(--fos-font); color: var(--fos-paper); background: rgb(36 23 52 / 0.8); border-radius: 999px; pointer-events: none; }
+.arcadia .app-photo .ph-tag-l { left: 8px; }
+.arcadia .app-photo .ph-tag-r { right: 8px; }
+.arcadia .app-photo .ph-wait { position: absolute; margin: 0; padding: 8px 14px; font-weight: 700; background: var(--fos-paper); border: 2px solid var(--fos-ink); border-radius: 8px; box-shadow: 3px 3px 0 var(--fos-ink); }
+.arcadia .app-photo .ph-side { flex: none; width: 300px; min-height: 0; display: flex; flex-direction: column; background: var(--fos-marble); border-left: 1.5px solid var(--fos-marble-lo); }
+.arcadia .app-photo .ph-histbox { flex: none; padding: 8px 8px 6px; border-bottom: 1.5px solid var(--fos-marble-lo); }
+.arcadia .app-photo .ph-hist { display: block; width: 100%; height: 90px; background: var(--fos-paper); border: 2px solid var(--fos-ink); border-radius: 6px; }
+.arcadia .app-photo .ph-clip { margin-top: 4px; font: 11px/1.4 var(--fos-mono); color: var(--fos-ink-muted); }
+.arcadia .app-photo .ph-panel { flex: 1; min-height: 0; overflow: auto; padding: 6px 8px 12px; display: flex; flex-direction: column; gap: 6px; }
+.arcadia .app-photo .ph-sec { flex: none; padding: 0 8px 8px; background: var(--fos-paper); border: 1.5px solid #b5a3ce; border-radius: 8px; }
+.arcadia .app-photo .ph-sec > summary { padding: 6px 2px; font: 700 12.5px/1.3 var(--fos-font); cursor: pointer; }
+.arcadia .app-photo .ph-sec > summary:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 1px; border-radius: 4px; }
+.arcadia .app-photo .ph-row { display: grid; grid-template-columns: 7.4em minmax(0, 1fr) 4.4em; align-items: center; gap: 6px; min-height: 30px; font-size: 12px; }
+.arcadia .app-photo .ph-row label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.arcadia .app-photo .ph-row input[type="range"] { width: 100%; min-width: 0; }
+.arcadia .app-photo .ph-row input[type="number"] { width: 100%; min-width: 0; min-height: 24px; padding: 1px 4px; font: 12px/1.4 var(--fos-mono); text-align: right; }
+.arcadia .app-photo .ph-aspect { grid-template-columns: 7.4em minmax(0, 1fr); }
+.arcadia .app-photo .ph-aspect select { min-width: 0; font-size: 12px; }
+.arcadia .app-photo .ph-check { display: flex; align-items: center; gap: 2px; margin-top: 6px; font-size: 12px; }
+.arcadia .app-photo .ph-curve { display: block; width: 100%; max-width: 232px; height: auto; aspect-ratio: 1; margin: 2px auto 6px; border: 2px solid var(--fos-ink); border-radius: 6px; cursor: crosshair; touch-action: none; }
+.arcadia .app-photo .ph-curve.dragging { cursor: grabbing; }
+.arcadia .app-photo .ph-curve:focus-visible { outline: 2px solid var(--fos-cobalt); outline-offset: 2px; }
+.arcadia .app-photo .ph-cpoint { display: grid; grid-template-columns: auto 3.6em auto 3.6em 1fr; align-items: center; gap: 4px; font-size: 12px; }
+.arcadia .app-photo .ph-cpoint input { min-width: 0; min-height: 24px; padding: 1px 4px; font: 12px/1.4 var(--fos-mono); text-align: right; }
+.arcadia .app-photo .ph-cpoint button { justify-self: end; }
+.arcadia .app-photo .ph-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.arcadia .app-photo .ph-btns[hidden] { display: none; }
+.arcadia .app-photo :is(.ph-presets, .ph-userpresets) { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 6px; margin-bottom: 8px; }
+.arcadia .app-photo .ph-userpresets:empty { display: none; }
+.arcadia .app-photo .ph-pre { position: relative; display: block; min-width: 0; }
+.arcadia .app-photo .ph-preset {
+  width: 100%; min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px 3px 3px;
+  font: 700 11px/1.2 var(--fos-font); color: var(--fos-ink); background: var(--fos-paper); border: 1.5px solid var(--fos-ink); border-radius: 7px; box-shadow: 2px 2px 0 var(--fos-ink);
+}
+.arcadia .app-photo .ph-preset canvas { display: block; max-width: 100%; height: auto; border-radius: 3px; box-shadow: 0 0 0 1px rgb(36 23 52 / 0.3); }
+.arcadia .app-photo .ph-preset span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.arcadia .app-photo .ph-preset:hover { background: var(--fos-cream); }
+.arcadia .app-photo .ph-preset:active { translate: 1px 1px; box-shadow: 1px 1px 0 var(--fos-ink); }
+.arcadia .app-photo .ph-del { position: absolute; top: -7px; right: -5px; width: 20px; height: 20px; min-width: 0; min-height: 0; padding: 0; font: 700 12px/1 var(--fos-font); color: var(--fos-ink); background: var(--fos-sunset); border: 1.5px solid var(--fos-ink); border-radius: 50%; box-shadow: none; }
+@container (max-width: 640px) {
+  .arcadia .app-photo .ph-side { width: 236px; }
+  .arcadia .app-photo .ph-row { grid-template-columns: 5.4em minmax(0, 1fr) 4em; }
+  .arcadia .app-photo :is(.ph-presets, .ph-userpresets) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.arcadia .ph-export .ph-qrow { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.arcadia .ph-export .ph-qrow input { flex: 1; }
+.arcadia .ph-export .ph-qrow output { min-width: 2.4em; font: 700 13px/1 var(--fos-mono); text-align: right; }
+.arcadia .ph-export .ph-dlgnote { margin: 10px 0 0; font-size: 12px; color: var(--fos-ink-muted); }
+
 /* ===== 時計とタイマー ===== */
 .arcadia .app-clock .clock-wrap { flex: 1; min-height: 0; padding: 8px; overflow: auto; }
 .arcadia .app-clock .tabs { display: flex; flex-direction: column; min-height: 100%; }

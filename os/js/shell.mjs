@@ -18,6 +18,7 @@ export const APPS = {
   modeler: { name: 'ローポリ モデラー', icon: 'icons/modeler.svg' },
   synth: { name: 'SID 風シンセ', icon: 'icons/synth.svg' },
   viewer: { name: '画像と音のビューア', icon: 'icons/viewer.svg' },
+  photo: { name: '写真の現像', icon: 'icons/photo.svg' },
   settings: { name: '設定', icon: 'icons/settings.svg' },
   icosaria: { name: '蒼海と白柱のイコサリア', icon: 'icons/icosaria.svg' },
   machiakari: { name: '街あかり', icon: 'icons/machiakari.svg' },
