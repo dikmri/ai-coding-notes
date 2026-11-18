@@ -3,6 +3,7 @@ import { extname } from './path.mjs';
 
 export const TYPES = {
   '.txt': ['notepad', 'テキスト文書'], '.md': ['notepad', 'Markdown 文書'], '.log': ['notepad', 'ログ ファイル'],
+  '.fdoc': ['writer', '文書'],
   '.json': ['notepad', 'JSON データ'], '.csv': ['notepad', 'CSV データ'], '.html': ['browser', 'HTML 文書'], '.htm': ['browser', 'HTML 文書'],
   '.fsheet': ['sheet', '表計算の表'],
   '.lpm': ['modeler', 'ローポリ モデル'], '.obj': ['modeler', 'OBJ モデル'], '.mtl': ['notepad', 'OBJ の色の定義'],

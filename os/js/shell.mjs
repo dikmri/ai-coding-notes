@@ -15,6 +15,7 @@ export const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '
 export const APPS = {
   filer: { name: 'ファイル マネージャ', icon: 'icons/folder.svg' },
   notepad: { name: 'メモ帳', icon: 'icons/notepad.svg' },
+  writer: { name: '文書', icon: 'icons/writer.svg' },
   modeler: { name: 'ローポリ モデラー', icon: 'icons/modeler.svg' },
   vector: { name: '図形エディタ', icon: 'icons/vector.svg' },
   synth: { name: 'SID 風シンセ', icon: 'icons/synth.svg' },
