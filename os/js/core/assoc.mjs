@@ -4,6 +4,7 @@ import { extname } from './path.mjs';
 export const TYPES = {
   '.txt': ['notepad', 'テキスト文書'], '.md': ['notepad', 'Markdown 文書'], '.log': ['notepad', 'ログ ファイル'],
   '.json': ['notepad', 'JSON データ'], '.csv': ['notepad', 'CSV データ'], '.html': ['browser', 'HTML 文書'], '.htm': ['browser', 'HTML 文書'],
+  '.fsheet': ['sheet', '表計算の表'],
   '.lpm': ['modeler', 'ローポリ モデル'], '.obj': ['modeler', 'OBJ モデル'], '.mtl': ['notepad', 'OBJ の色の定義'],
   '.rhy': ['drums', 'リズムの並び'],
   '.sng': ['synth', 'SID 風の曲'], '.wav': ['player', 'WAV 音声'], '.mp3': ['player', 'MP3 音声'], '.ogg': ['player', 'Ogg 音声'], '.oga': ['player', 'Ogg 音声'], '.opus': ['player', 'Opus 音声'],
