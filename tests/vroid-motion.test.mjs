@@ -13,7 +13,7 @@ const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
 for (const [, f] of html.matchAll(/<script src="(entries\/[^"]+)"/g)) vm.runInContext(readFileSync(join(ROOT, f), 'utf8'), sb, { filename: f });
 const e = sb.dekiru.entries.find((x) => x.id === '3d-vroid-motion');
 const ctx = vm.createContext({});
-vm.runInContext(sb.dekiru.src(e.core) + '\n;globalThis.__x = { sampleClip, springStep, qslerp, qrot, qaxis };', ctx);
+vm.runInContext(sb.dekiru.src(e.core) + '\n;globalThis.__x = { sampleClip, springStep, qslerp, qrot, qaxis, lookAtMap, eyeAngles };', ctx);
 const C = ctx.__x;
 const near = (a, b, eps = 1e-4) => a.every((v, i) => Math.abs(v - b[i]) < eps);
 
@@ -40,4 +40,33 @@ test('揺れもの: 当たり判定の球の中には入らない', () => {
   for (let i = 0; i < 60; i++) C.springStep(s, [0, 0, 0], [1, 0, 0], 1 / 30, ball);
   const d = Math.hypot(s.cur[0] - 0.15, s.cur[1] + 0.1, s.cur[2]);
   assert.ok(d >= 0.09 - 1e-6, `球に入った: ${d}`);
+});
+
+// VRoid の AvatarSample_B の VRM に書かれている視線の縮め方（firstPerson の lookAt）
+const LA = {
+  horizontalInner: { curve: [0, 0, 0, 1, 1, 1, 1, 0], xRange: 90, yRange: 8 }, horizontalOuter: { curve: [0, 0, 0, 1, 1, 1, 1, 0], xRange: 90, yRange: 12 },
+  verticalDown: { curve: [0, 0, 0, 1, 1, 1, 1, 0], xRange: 90, yRange: 10 }, verticalUp: { curve: [0, 0, 0, 1, 1, 1, 1, 0], xRange: 90, yRange: 10 },
+};
+const deg = Math.PI / 180;
+
+test('視線の縮め方: VRM の曲線で、視線の角度（xRange まで）を目の骨の角度（yRange まで）に縮める', () => {
+  assert.ok(Math.abs(C.lookAtMap(45, LA.verticalUp) - 5) < 1e-9);
+  assert.ok(Math.abs(C.lookAtMap(120, LA.verticalUp) - 10) < 1e-9, 'xRange を超えたら yRange で止まる');
+  assert.equal(C.lookAtMap(0, LA.horizontalOuter), 0);
+  // 曲線が直線でないとき（ゆっくり始まる曲線: 両端の接線 0）は、3 分の 1 の角度で 3 分の 1 より小さい（10 × 0.259）
+  assert.ok(Math.abs(C.lookAtMap(30, { curve: [0, 0, 0, 0, 1, 1, 0, 0], xRange: 90, yRange: 10 }) - 10 * (3 / 9 - 2 / 27)) < 1e-9);
+});
+
+test('目線: 頭から見て正面なら回さず、上は verticalUp、左右は目ごとに外側・内側の縮め方を使う（VRM 0.x の顔は -Z）', () => {
+  assert.deepEqual([...C.eyeAngles([0, 0, -1], 'left', LA)].map((v) => Math.abs(v)), [0, 0]);
+  // 30 度上 → 10 × 30 / 90 = 3.33 度
+  const up = C.eyeAngles([0, Math.sin(30 * deg), -Math.cos(30 * deg)], 'left', LA);
+  assert.ok(Math.abs(up[1] - 10 / 3 * deg) < 1e-9 && Math.abs(up[0]) < 1e-12, JSON.stringify(up));
+  // キャラの左（-X）へ 45 度: 左目には外側（12 → 6 度）、右目には内側（8 → 4 度）。向きは + （+Y 軸まわりで -Z が -X へ回る）
+  const v = [-Math.sin(45 * deg), 0, -Math.cos(45 * deg)];
+  assert.ok(Math.abs(C.eyeAngles(v, 'left', LA)[0] - 6 * deg) < 1e-9);
+  assert.ok(Math.abs(C.eyeAngles(v, 'right', LA)[0] - 4 * deg) < 1e-9);
+  // 後ろ（顔から 90 度より外）にあっても、目は yRange までしか回らない（白目にならない）
+  const back = C.eyeAngles([0.2, -0.3, 0.9], 'left', LA);
+  assert.ok(Math.abs(back[0]) <= 12 * deg + 1e-12 && Math.abs(back[1]) <= 10 * deg + 1e-12, JSON.stringify(back));
 });
