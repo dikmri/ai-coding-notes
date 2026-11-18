@@ -32,7 +32,7 @@ test('1ファイルにまとめる: HTML・CSS・JS の順で、無い部分は�
 });
 
 test('メガデモは10本あり、どれも決めた上限（256・1024・4096 バイト）に収まる', () => {
-  const demos = D.entries.filter((e) => e.c === 'demo');
+  const demos = D.entries.filter((e) => e.c === 'demo' && e.size);   // 行数で制限する「20 行」の作品（tests/short20.test.mjs）は数えない
   assert.equal(demos.length, 10);
   for (const e of demos) {
     assert.ok([256, 1024, 4096].includes(e.size), `${e.id}: size`);

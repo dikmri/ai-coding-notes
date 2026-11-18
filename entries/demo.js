@@ -98,3 +98,271 @@ dekiru.add({
   html: "<canvas id=c style=position:fixed;inset:0;width:100%;height:100%></canvas><p id=m style=position:fixed;bottom:0;width:100%;text-align:center;color:#fff;font:14px/2 sans-serif>画面を押すと音が出ます</p>",
   js: "c.width=innerWidth/2;c.height=innerHeight/2;g=c.getContext`webgl2`;P=g.createProgram();k=35633;for(s of[`#version 300 es\r\nvoid main(){gl_Position=vec4(gl_VertexID%2*4-1,gl_VertexID/2*4-1,0,1);}`,`#version 300 es\r\nprecision highp float;uniform vec3 u;out vec4 o;\r\nfloat H(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}\r\nfloat hb(vec2 id){return id.x==0.?0.:3.+H(id)*16.*H(id+7.);}\r\nfloat M(vec3 p){vec2 id=floor(p.xz/6.),q=mod(p.xz,6.)-3.;float h=hb(id);vec3 d=abs(vec3(q.x,p.y-h*.5,q.y))-vec3(2.2,h*.5,2.2);return min(p.y,min(length(max(d,0.))+min(max(d.x,max(d.y,d.z)),0.),3.));}\r\nfloat T(vec3 r,vec3 d,float n){float z=.1,s;for(float i=0.;i<n;i++){s=M(r+d*z);if(s<.002*z||z>140.)break;z+=s*.8;}return z;}\r\nvec3 sky(vec3 d){return mix(vec3(.25,.05,.3),vec3(.02,.01,.08),sqrt(max(d.y,0.)))+step(.996,H(floor(d.xy*300.)))*step(.1,d.y)*.8;}\r\nvec3 S(vec3 r,vec3 d,float z){vec3 p=r+d*z;if(z>140.)return sky(d);vec2 e=vec2(.01,0);vec3 n=normalize(vec3(M(p+e.xyy)-M(p-e.xyy),M(p+e.yxy)-M(p-e.yxy),M(p+e.yyx)-M(p-e.yyx)));vec2 id=floor(p.xz/6.);float h=hb(id);vec3 c=vec3(.03,.03,.06)*(.5+.5*n.y);\r\nif(h>0.&&p.y>.05){vec2 w=vec2(abs(n.x)>.5?p.z:p.x,p.y)*vec2(1.6,1.3);vec2 f=fract(w);c+=step(.25,f.x)*step(.3,f.y)*step(.6,H(floor(w)+id*7.))*mix(vec3(1,.75,.4),vec3(.4,.8,1),H(id+3.))*.9+step(h-.25,p.y)*(.5+.5*cos(H(id)*6.+vec3(0,2,4)))*2.;}else c=vec3(.06,.05,.09)+step(.85,fract(p.z*.15))*step(abs(p.x-3.),.07)*vec3(1,.8,.3);\r\nreturn mix(c,vec3(.3,.08,.35),1.-exp(-z*.022));}\r\nvoid main(){float t=u.z;vec2 q=(gl_FragCoord.xy*2.-u.xy)/u.y;vec3 r=vec3(3.+sin(t*.4)*.9,2.5+sin(t*.6)*1.2,t*9.),d=normalize(vec3(q.x+sin(t*.3)*.15,q.y-.15,1.3));float z=T(r,d,110.);vec3 c=S(r,d,z),p=r+d*z;\r\nif(p.y<.02&&z<140.){vec3 d2=reflect(d,vec3(0,1,0));float z2=T(p+vec3(0,.01,0),d2,60.);c=mix(c,S(p,d2,z2),.55);}\r\no=vec4(pow(c,vec3(.8)),1);}`])S=g.createShader(k--),g.shaderSource(S,s),g.compileShader(S),g.attachShader(P,S);g.linkProgram(P);g.useProgram(P);L=T=>{g.uniform3f(g.getUniformLocation(P,`u`),c.width,c.height,T/1e3);g.drawArrays(4,0,3);requestAnimationFrame(L)};L(0);\r\nA=0;F=m=>440*2**((m-69)/12);\r\nV=(m,t,d,y,v,f)=>{o=A.createOscillator();l=A.createBiquadFilter();n=A.createGain();o.type=y;o.frequency.value=F(m);l.frequency.setValueAtTime(f,t);l.frequency.exponentialRampToValueAtTime(200,t+d);n.gain.setValueAtTime(v,t);n.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(l).connect(n).connect(O);n.connect(D);o.start(t);o.stop(t+d)};\r\nZ=(t,d,v,f)=>{b=A.createBufferSource();b.buffer=N;l=A.createBiquadFilter();l.type=`highpass`;l.frequency.value=f;n=A.createGain();n.gain.setValueAtTime(v,t);n.gain.exponentialRampToValueAtTime(.001,t+d);b.connect(l).connect(n).connect(O);b.start(t);b.stop(t+d)};\r\nK0=t=>{o=A.createOscillator();n=A.createGain();o.frequency.setValueAtTime(130,t);o.frequency.exponentialRampToValueAtTime(40,t+.12);n.gain.setValueAtTime(1,t);n.gain.exponentialRampToValueAtTime(.001,t+.3);o.connect(n).connect(O);o.start(t);o.stop(t+.3)};\r\nC=[45,41,48,43];Me=[69,72,76,74,72,69,67,64,69,72,76,79,81,79,76,74];\r\nPl=()=>{for(;Q<A.currentTime+.2;Q+=.134){j=K++;s=j&15;r=C[j>>4&3];s%4||K0(Q);s%8==4&&Z(Q,.2,.6,1200);s%2&&Z(Q,.05,.25,8e3);\r\nV(r-12+(s%2)*12,Q,.13,`sawtooth`,.3,1800);s%2||V(r+12+[0,3,7,12][s/2&3],Q,.12,`square`,.05,3e3);j>63&&s%4==0&&V(Me[(j>>2)&15],Q,.5,`sawtooth`,.08,4e3)}};\r\nonclick=_=>{if(A)return;A=new AudioContext;O=A.createGain();O.gain.value=.35;O.connect(A.destination);D=A.createDelay();D.delayTime.value=.402;G=A.createGain();G.gain.value=.35;D.connect(G).connect(D);G.connect(A.destination);N=A.createBuffer(1,9e3,9e3);for(i=9e3;i--;)N.getChannelData(0)[i]=Math.random()*2-1;K=0;Q=A.currentTime+.1;setInterval(Pl,50);m.remove()}",
 });
+
+/* 20 行のコード（2026-11-18 追加）
+ * 容量ではなく行数で制限する。HTML・CSS・JavaScript を合わせて 20 行以内、1 行は 120 文字まで、コメントは書かない（説明は説明文に書く）。
+ * どれも止めるか鳴らすボタンを 20 行の中に入れる。決まりは tests/short20.test.mjs が確かめる。 */
+dekiru.add({
+  id: 'demo-20-blackhole', c: 'demo', lv: 3,
+  t: '20行のブラックホールと光の輪', y: 'にじゅうぎょうのぶらっくほーるとひかりのわ',
+  tags: ['20行', 'ブラックホール', '重力レンズ', 'レイマーチング', 'WebGL2'],
+  d: '20 行のコードで、ブラックホールのまわりで光が曲がる様子を描く。画面の点ごとに光の道を少しずつ進め、そのたびに中心へ引く重力で向きを曲げる（距離の 2 乗に反比例）。道が円盤の面（y = 0）を横切れば円盤の光を足し、中心の 1 より内側に落ちれば真っ黒にする。円盤の奥側の光も上と下へ回り込んで見える。こちらへ近づいて回る側は明るく、遠ざかる側は暗い（ドップラー効果）。',
+  p: '光の道を「まっすぐ進む」から「毎歩、少し曲げる」に変えるだけで、重力レンズが現れる。曲げる強さを変えると、光の輪の大きさが変わる。',
+  html: '<canvas id=c></canvas><button id=b>止める</button>',
+  css: 'body{margin:0;background:#000}canvas{display:block;width:100vw;height:100vh}#b{position:fixed;left:8px;top:8px}',
+  js() {
+    const F = `uniform vec3 R;out vec4 O;float h(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5);}
+    void main(){vec2 u=(gl_FragCoord.xy-.5*R.xy)/R.y;float a=R.z*.05;vec3 o=vec3(22.*sin(a),2.2,-22.*cos(a));
+    vec3 f=normalize(-o),s=normalize(cross(f,vec3(0,1,0))),d=normalize(f*1.4+u.x*s+u.y*cross(s,f)),c=vec3(0);
+    float k=1.;for(int i=0;i<500;i++){float r=length(o),e=.02*r;vec3 q=o;d=normalize(d-o*e*1.5/(r*r*r));o+=d*e;
+    if(r<1.){k=0.;break;}if(q.y*o.y<0.){float x=length(o.xz),v=dot(normalize(vec3(o.z,0,-o.x)),d);
+    if(x>2.4&&x<9.){float g=pow(2.4/x,1.6)*(.88+.12*sin(x*5.-atan(o.z,o.x)*2.+R.z*2.))*(1.+.8*v);
+    c+=k*vec3(1.5,.75,.35)*g*g*2.;k*=.3;}}if(r>40.)break;}
+    c+=k*pow(h(floor(d*500.)),50.)*vec3(.8,.9,1)*3.;O=vec4(1.-exp(-c*1.5),1);}`;
+    const g = c.getContext('webgl2'), P = g.createProgram(), H = '#version 300 es\nprecision highp float;'; let l = 0;
+    for (const [k, s] of [[35633, 'void main(){gl_Position=vec4(gl_VertexID%2*4-1,gl_VertexID/2*4-1,0,1);}'], [35632, F]]) {
+      const o = g.createShader(k); g.shaderSource(o, H + s); g.compileShader(o); g.attachShader(P, o); }
+    g.linkProgram(P); g.useProgram(P); let t = 0, run = 1; b.onclick = () => b.textContent = (run ^= 1) ? '止める' : '動かす';
+    (function f(n) { requestAnimationFrame(f); t += run * (n - l) / 1e3; l = n; const w = innerWidth, h = innerHeight;
+      if (c.width - w || c.height - h) c.width = w, c.height = h; g.viewport(0, 0, w, h);
+      g.uniform3f(g.getUniformLocation(P, 'R'), w, h, t); g.drawArrays(4, 0, 3); })(0);
+  },
+}, {
+  id: 'demo-20-raytrace', c: 'demo', lv: 3,
+  t: '20行の鏡の球のレイトレーシング', y: 'にじゅうぎょうのかがみのたまのれいとれーしんぐ',
+  tags: ['20行', 'レイトレーシング', '反射', '影', 'WebGL2'],
+  d: '20 行のコードで、色の付いた鏡の球が回る部屋を描く。画面の点ごとに光の道を出し、球と床のどちらに先に当たるかを方程式で求める。球に当たれば反射して次の物を探し（5 回まで）、床に当たれば市松の色に、太陽が隠れていれば影にする。球は互いに映り込み、映り込みの中にさらに映り込みが見える。',
+  p: '球との交わりは 2 次方程式 1 つで求まる。反射の向きは reflect(向き, 面の法線) の 1 回だけ。あとは繰り返すほど、映り込みが深くなる。',
+  html: '<canvas id=c></canvas><button id=b>止める</button>',
+  css: 'body{margin:0;background:#000}canvas{display:block;width:100vw;height:100vh}#b{position:fixed;left:8px;top:8px}',
+  js() {
+    const F = `uniform vec3 R;out vec4 O;float T(vec3 o,vec3 d,out vec3 n,out int m){float b=1e9;m=-1;
+    if(d.y<0.){b=-o.y/d.y;n=vec3(0,1,0);m=4;}for(int i=0;i<4;i++){float a=R.z*.5+float(i)*2.1,r=i<3?1.:1.2;
+    vec3 q=o-(i<3?vec3(2.4*cos(a),1,2.4*sin(a)):vec3(0,1.4,0));float B=dot(q,d),D=B*B-dot(q,q)+r*r,t=-B-sqrt(D);
+    if(D>0.&&t>1e-3&&t<b){b=t;n=normalize(q+d*t);m=i;}}return b;}
+    void main(){vec2 u=(gl_FragCoord.xy-.5*R.xy)/R.y;float a=R.z*.15;vec3 o=vec3(8.*sin(a),3.5,8.*cos(a)),n,w;
+    vec3 f=normalize(vec3(0,1,0)-o),s=normalize(cross(f,vec3(0,1,0))),d=normalize(f*1.6+u.x*s+u.y*cross(s,f));
+    vec3 c=vec3(0),k=vec3(1),L=normalize(vec3(1,1.6,.6));for(int j=0;j<5;j++){int m,z;float t=T(o,d,n,m);
+    if(m<0){c+=k*(mix(vec3(.95,.8,.6),vec3(.2,.45,.9),d.y)+9.*pow(max(dot(d,L),0.),300.));break;}
+    o+=d*t+n*1e-3;float sh=T(o,L,w,z)<1e8?.25:1.;if(m==4){vec2 q=floor(o.xz);
+    c+=k*mix(vec3(.85),vec3(.08),mod(q.x+q.y,2.))*sh*max(dot(n,L),0.)*exp(-length(o.xz)*.06);break;}
+    k*=(m==3?vec3(1,.75,.35):vec3(m==0,m==1,m==2)*.45+.5)*.9;c+=k*sh*.04;d=reflect(d,n);}O=vec4(pow(c,vec3(.45)),1);}`;
+    const g = c.getContext('webgl2'), P = g.createProgram(), H = '#version 300 es\nprecision highp float;'; let l = 0;
+    for (const [k, s] of [[35633, 'void main(){gl_Position=vec4(gl_VertexID%2*4-1,gl_VertexID/2*4-1,0,1);}'], [35632, F]]) {
+      const o = g.createShader(k); g.shaderSource(o, H + s); g.compileShader(o); g.attachShader(P, o); }
+    g.linkProgram(P); g.useProgram(P); let t = 0, run = 1; b.onclick = () => b.textContent = (run ^= 1) ? '止める' : '動かす';
+    (function f(n) { requestAnimationFrame(f); t += run * (n - l) / 1e3; l = n; const w = innerWidth, h = innerHeight;
+      if (c.width - w || c.height - h) c.width = w, c.height = h; g.viewport(0, 0, w, h);
+      g.uniform3f(g.getUniformLocation(P, 'R'), w, h, t); g.drawArrays(4, 0, 3); })(0);
+  },
+}, {
+  id: 'demo-20-planet', c: 'demo', lv: 3,
+  t: '20行で作る惑星', y: 'にじゅうぎょうでつくるわくせい',
+  tags: ['20行', '惑星', 'ノイズ', '大気', 'WebGL2'],
+  d: '20 行のコードで、自転する惑星を 1 つ作る。球の表面の点ごとに 3 次元のノイズを 6 段重ね、値の低い所を海、高い所を陸・山にし、極に近い所は氷にする。雲は別のノイズで速く流し、縁には青い大気の光を足す。太陽の当たらない夜の側では、陸に街の灯りがともる。海だけ太陽の照り返しが光る。',
+  p: '地図のデータは 1 つもない。同じノイズの関数を、大きさを変えて何度も足すだけで、海岸線・山脈・雲の渦が現れる。',
+  html: '<canvas id=c></canvas><button id=b>止める</button>',
+  css: 'body{margin:0;background:#000}canvas{display:block;width:100vw;height:100vh}#b{position:fixed;left:8px;top:8px}',
+  js() {
+    const F = `uniform vec3 R;out vec4 O;vec4 H(float k){return fract(sin(k+vec4(0,1,57,58))*43758.5);}float n(vec3 x){
+    vec3 p=floor(x),f=fract(x);f*=f*(3.-2.*f);float k=p.x+p.y*57.+p.z*113.;vec4 a=mix(H(k),H(k+113.),f.z);
+    return mix(mix(a.x,a.y,f.x),mix(a.z,a.w,f.x),f.y);}float N(vec3 p){float s=0.,a=.5;for(int i=0;i<6;i++){s+=a*n(p);
+    p=p*2.03+1.7;a*=.5;}return s;}void main(){vec2 u=(gl_FragCoord.xy-.5*R.xy)/R.y;vec3 d=normalize(vec3(u,-2)),o=vec3(0,0,
+    3.3),L=normalize(vec3(1,.3,.5));float B=dot(o,d),D=B*B-dot(o,o)+1.,a=R.z*.1;vec3 c=vec3(pow(H(dot(floor(d*700.),vec3(1,
+    57,113))).x,80.)*2.);c+=vec3(.25,.45,1)*exp(-max(sqrt(dot(o,o)-B*B)-1.,0.)*14.)*.6;if(D>0.){vec3 p=o+d*(-B-sqrt(D)),q=p;
+    q.xz*=mat2(cos(a),sin(a),-sin(a),cos(a));float e=N(q*2.5),l=dot(p,L),C=smoothstep(.55,.75,N(q*4.+vec3(a*.6,0,0)));
+    vec3 g=e<.5?mix(vec3(.01,.05,.2),vec3(.03,.25,.45),e*2.):mix(vec3(.12,.3,.08),vec3(.5,.42,.3),e*3.-1.5);g=mix(g,
+    vec3(.95),smoothstep(.72,.8,abs(q.y)+e*.15));vec3 s=g*max(l,0.)+float(e<.5)*pow(max(dot(reflect(d,p),L),0.),40.)+vec3(1,
+    .65,.3)*float(e>.5)*step(.9,H(dot(floor(q*120.),vec3(1,57,113))).x)*smoothstep(0.,-.25,l);c=mix(s,vec3(max(l,0.)),
+    C*.85)+vec3(.3,.5,1)*pow(1.-dot(-d,p),3.)*max(l+.3,0.);}O=vec4(pow(c,vec3(.45)),1);}`;
+    const g = c.getContext('webgl2'), P = g.createProgram(), H = '#version 300 es\nprecision highp float;'; let l = 0;
+    for (const [k, s] of [[35633, 'void main(){gl_Position=vec4(gl_VertexID%2*4-1,gl_VertexID/2*4-1,0,1);}'], [35632, F]]) {
+      const o = g.createShader(k); g.shaderSource(o, H + s); g.compileShader(o); g.attachShader(P, o); }
+    g.linkProgram(P); g.useProgram(P); let t = 0, run = 1; b.onclick = () => b.textContent = (run ^= 1) ? '止める' : '動かす';
+    (function f(n) { requestAnimationFrame(f); t += run * (n - l) / 1e3; l = n; const w = innerWidth, h = innerHeight;
+      if (c.width - w || c.height - h) c.width = w, c.height = h; g.viewport(0, 0, w, h);
+      g.uniform3f(g.getUniformLocation(P, 'R'), w, h, t); g.drawArrays(4, 0, 3); })(0);
+  },
+}, {
+  id: 'demo-20-menger', c: 'demo', lv: 3,
+  t: '20行でメンガーのスポンジを飛ぶ', y: 'にじゅうぎょうでめんがーのすぽんじをとぶ',
+  tags: ['20行', 'フラクタル', 'メンガーのスポンジ', 'レイマーチング', 'WebGL2'],
+  d: '20 行のコードで、どこまでも入れ子になった立方体の迷宮（メンガーのスポンジ）の中を飛ぶ。立方体を 27 個に分けて、真ん中と面の中央の 7 個をくり抜く。これを 5 段くり返した形を、空間に敷き詰める。画面の点ごとに、形までの距離の分だけ進むことを繰り返して当たりを探す（レイマーチング）。進んだ回数で影を付け、遠い所は霧に溶かす。',
+  p: '「くり抜いた十字の穴」は、座標を 3 倍しながら畳み込む計算 1 つで全部の段が表せる。形のデータは持たず、距離の式だけで無限の迷宮になる。',
+  html: '<canvas id=c></canvas><button id=b>止める</button>',
+  css: 'body{margin:0;background:#000}canvas{display:block;width:100vw;height:100vh}#b{position:fixed;left:8px;top:8px}',
+  js() {
+    const F = `uniform vec3 R;out vec4 O;float M(vec3 p){p=mod(p+1.,2.)-1.;vec3 q=abs(p)-1.;
+    float d=max(q.x,max(q.y,q.z)),s=1.;for(int i=0;i<5;i++){vec3 a=mod(p*s,2.)-1.;s*=3.;vec3 r=abs(1.-3.*abs(a));
+    d=max(d,(min(max(r.x,r.y),min(max(r.y,r.z),max(r.z,r.x)))-1.)/s);}return d;}
+    void main(){vec2 u=(gl_FragCoord.xy-.5*R.xy)/R.y;float a=R.z*.1;u*=mat2(cos(a),sin(a),-sin(a),cos(a));
+    vec3 o=vec3(.02*sin(R.z*.3),.02*cos(R.z*.4),R.z*.25),d=normalize(vec3(u,1.)),p;float t=0.;int i;
+    for(i=0;i<160;i++){p=o+d*t;float h=M(p);if(h<.0004*t||t>9.)break;t+=h;}vec2 e=vec2(.0005,0);
+    vec3 n=normalize(vec3(M(p+e.xyy)-M(p-e.xyy),M(p+e.yxy)-M(p-e.yxy),M(p+e.yyx)-M(p-e.yyx)));
+    vec3 c=(.5+.5*cos(vec3(0,1.2,2.4)+p.z*.8+R.z*.2))*(.35+.65*max(dot(n,normalize(vec3(.6,.8,-.3))),0.));
+    c*=1.-float(i)/160.;O=vec4(pow(mix(c,vec3(.02,.01,.04),1.-exp(-t*.35)),vec3(.6)),1);}`;
+    const g = c.getContext('webgl2'), P = g.createProgram(), H = '#version 300 es\nprecision highp float;'; let l = 0;
+    for (const [k, s] of [[35633, 'void main(){gl_Position=vec4(gl_VertexID%2*4-1,gl_VertexID/2*4-1,0,1);}'], [35632, F]]) {
+      const o = g.createShader(k); g.shaderSource(o, H + s); g.compileShader(o); g.attachShader(P, o); }
+    g.linkProgram(P); g.useProgram(P); let t = 0, run = 1; b.onclick = () => b.textContent = (run ^= 1) ? '止める' : '動かす';
+    (function f(n) { requestAnimationFrame(f); t += run * (n - l) / 1e3; l = n; const w = innerWidth, h = innerHeight;
+      if (c.width - w || c.height - h) c.width = w, c.height = h; g.viewport(0, 0, w, h);
+      g.uniform3f(g.getUniformLocation(P, 'R'), w, h, t); g.drawArrays(4, 0, 3); })(0);
+  },
+}, {
+  id: 'demo-20-hyperbolic', c: 'demo', lv: 3,
+  t: '20行の双曲平面のタイル', y: 'にじゅうぎょうのそうきょくへいめんのたいる',
+  tags: ['20行', '双曲幾何', 'ポアンカレの円板', '鏡映', 'WebGL2'],
+  d: '20 行のコードで、双曲平面を 7 角形で敷き詰めた模様（{7,3} のタイル張り）を、ポアンカレの円板に描く。円板の中では、縁に近づくほど同じ大きさのタイルが小さく見え、縁までに無限個のタイルが並ぶ。画面の点ごとに、3 枚の鏡（2 本の直線と、縁に直交する円）で映し返すことを繰り返し、基本の三角形に戻るまでの回数の偶奇で色を塗る。円板の中を平行に移す変換（メビウス変換）で、模様がゆっくり流れる。',
+  p: '普通の平面では、正 7 角形を 1 つの頂点に 3 つ集めると角が余る。双曲平面では、それがすき間なく敷き詰められる。鏡の円は「縁の円に直交し、7 角形の角が 120 度になる」大きさを 2 つの式で決める。',
+  html: '<canvas id=c></canvas><button id=b>止める</button>',
+  css: 'body{margin:0;background:#000}canvas{display:block;width:100vw;height:100vh}#b{position:fixed;left:8px;top:8px}',
+  js() {
+    const F = `uniform vec3 R;out vec4 O;vec2 cm(vec2 a,vec2 b){return vec2(a.x*b.x-a.y*b.y,a.x*b.y+a.y*b.x);}
+    vec2 cd(vec2 a,vec2 b){return cm(a,vec2(b.x,-b.y))/dot(b,b);}
+    void main(){vec2 z=(gl_FragCoord.xy-.5*R.xy)/R.y*2.1;float r2=dot(z,z);if(r2>1.){O=vec4(0,0,0,1);return;}
+    vec2 w=.6*vec2(cos(R.z*.13),sin(R.z*.17));z=cd(z+w,vec2(1,0)+cm(vec2(w.x,-w.y),z));
+    float A=3.14159/7.,B=3.14159/3.,X=1./sqrt(1.-pow(sin(A)/cos(B),2.)),Q=X*sin(A)/cos(B),k=0.;
+    vec2 C=vec2(X,0),m=vec2(-sin(A),cos(A));for(int i=0;i<60;i++){bool f=false;
+    if(z.y<0.){z.y=-z.y;k++;f=true;}float s=dot(z,m);if(s>0.){z-=2.*s*m;k++;f=true;}
+    vec2 v=z-C;float l=dot(v,v);if(l<Q*Q){z=C+v*Q*Q/l;k++;f=true;}if(!f)break;}
+    float e=min(min(abs(z.y),abs(dot(z,m))),abs(length(z-C)-Q))/(1.-r2)*30.,p=mod(k,2.);
+    vec3 c=mix(vec3(.1,.15,.35),vec3(.95,.75,.35),p)*(1.-.6*r2)*smoothstep(0.,.6,e);O=vec4(pow(c,vec3(.8)),1);}`;
+    const g = c.getContext('webgl2'), P = g.createProgram(), H = '#version 300 es\nprecision highp float;'; let l = 0;
+    for (const [k, s] of [[35633, 'void main(){gl_Position=vec4(gl_VertexID%2*4-1,gl_VertexID/2*4-1,0,1);}'], [35632, F]]) {
+      const o = g.createShader(k); g.shaderSource(o, H + s); g.compileShader(o); g.attachShader(P, o); }
+    g.linkProgram(P); g.useProgram(P); let t = 0, run = 1; b.onclick = () => b.textContent = (run ^= 1) ? '止める' : '動かす';
+    (function f(n) { requestAnimationFrame(f); t += run * (n - l) / 1e3; l = n; const w = innerWidth, h = innerHeight;
+      if (c.width - w || c.height - h) c.width = w, c.height = h; g.viewport(0, 0, w, h);
+      g.uniform3f(g.getUniformLocation(P, 'R'), w, h, t); g.drawArrays(4, 0, 3); })(0);
+  },
+}, {
+  id: 'demo-20-life', c: 'demo', lv: 3,
+  t: '20行で400万セルのライフゲーム', y: 'にじゅうぎょうでよんひゃくまんせるのらいふげーむ',
+  tags: ['20行', 'ライフゲーム', 'セル・オートマトン', 'GPU', 'WebGL2'],
+  d: '20 行のコードで、2048 × 2048 ＝ 約 420 万個のセルのライフゲームを、毎コマ GPU で計算する。盤の状態を 2 枚の画像（テクスチャ）に持ち、片方を読んで次の世代をもう片方へ描く、を交互に繰り返す。生きているセルは白く、最近まで生きていた所は青く残る。画面は盤の全体から、1 セルが見える大きさまで、ゆっくり寄ったり引いたりする。',
+  p: '「隣の 8 マスの生き残りを数える」計算を、画像の 1 画素ごとに GPU が同時に行う。セルの数を 4 倍にしても、コードは 1 文字も増えない。',
+  html: '<canvas id=c></canvas><button id=b>止める</button>',
+  css: 'body{margin:0;background:#000}canvas{display:block;width:100vw;height:100vh}#b{position:fixed;left:8px;top:8px}',
+  js() {
+    const F = `uniform sampler2D T;uniform vec4 R;out vec4 O;float h(vec2 p){return fract(sin(dot(p,vec2(12.9,78.2)))*4e4);}
+    void main(){ivec2 q=ivec2(gl_FragCoord);vec4 s=texelFetch(T,q,0);if(R.w<1.){O=vec4(step(.7,
+    h(vec2(q)))*step(length(vec2(q)-1024.),300.));return;}if(R.w<2.){int n=0;for(int y=-1;y<2;y++)for(int x=-1;x<2;
+    x++)n+=int(texelFetch(T,(q+ivec2(x,y)+2048)%2048,0).r);float a=s.r>.5?float(n==3||n==4):float(n==3);O=vec4(a,max(a,
+    s.g*.985),0,1);return;}float z=mix(1.,R.y/4096.,.5+.5*cos(R.z*.15));vec4 v=texture(T,
+    .5+(gl_FragCoord.xy-.5*R.xy)/R.y*z);O=vec4(pow(vec3(v.g),vec3(3,1.6,.7))*.9+v.r,1);}`;
+    const g = c.getContext('webgl2'), P = g.createProgram(), H = '#version 300 es\nprecision highp float;'; let l = 0;
+    for (const [k, s] of [[35633, 'void main(){gl_Position=vec4(gl_VertexID%2*4-1,gl_VertexID/2*4-1,0,1);}'], [35632, F]]) {
+      const o = g.createShader(k); g.shaderSource(o, H + s); g.compileShader(o); g.attachShader(P, o); }
+    g.linkProgram(P); g.useProgram(P); let t = 0, run = 1; b.onclick = () => b.textContent = (run ^= 1) ? '止める' : '動かす';
+    const X = [0, 1].map(() => { const x = g.createTexture(), f = g.createFramebuffer(); g.bindTexture(3553, x);
+      g.texStorage2D(3553, 1, g.RGBA8, 2048, 2048); g.texParameteri(3553, 10241, 9729); g.bindFramebuffer(36160, f);
+      g.framebufferTexture2D(36160, 36064, 3553, x, 0); return [x, f]; });
+    const D = (f, m, w, h) => { g.bindFramebuffer(36160, f); g.viewport(0, 0, w, h);
+      g.uniform4f(g.getUniformLocation(P, 'R'), w, h, t, m); g.drawArrays(4, 0, 3); }; D(X[0][1], 0, 2048, 2048);
+    (function f(n) { requestAnimationFrame(f); t += run * (n - l) / 1e3; l = n; const w = innerWidth, h = innerHeight;
+      if (c.width - w || c.height - h) c.width = w, c.height = h; g.bindTexture(3553, X[0][0]);
+      if (run) D(X[1][1], 1, 2048, 2048), X.reverse(), g.bindTexture(3553, X[0][0]); D(null, 2, w, h); })(0);
+  },
+}, {
+  id: 'demo-20-galaxies', c: 'demo', lv: 3,
+  t: '20行の銀河の衝突', y: 'にじゅうぎょうのぎんがのしょうとつ',
+  tags: ['20行', '重力', '銀河', 'シミュレーション', 'Canvas'],
+  d: '20 行のコードで、2 つの渦巻き銀河がすれ違って引きちぎられる様子を計算する。それぞれの銀河の中心に重い核を置き、核どうしは互いの重力で引き合って回る。12000 個の星は、両方の核の重力を受けて動く（星どうしの重力は省く）。最初は核のまわりを整然と回っていた星が、すれ違いの潮の力で長い尾と橋になる。視点はゆっくり回る。',
+  p: '星どうしの重力を省くと、計算は「星の数 × 2」で済む。それでも、本物の銀河の衝突で見られる尾（潮汐の尾）がちゃんと現れる。',
+  html: '<canvas id=c></canvas><button id=b>止める</button>',
+  css: 'body{margin:0;background:#000}canvas{display:block;width:100vw;height:100vh}#b{position:fixed;left:8px;top:8px}',
+  js() {
+    const x = c.getContext('2d'), R = Math.random, C = Math.cos, S2 = Math.sin; let K, S, T, run = 1;
+    function init() { T = 0; K = [[-7, -2, 0, 0, .12, 0], [7, 2, 0, 0, -.12, 0]]; S = [];
+      for (let i = 0; i < 12000; i++) { const k = i % 2, r = 1 + 5 * R() ** 1.4, a = R() * 6.28, v = (k ? 1 : -1) / r ** .5;
+        const e = k * .9, p = K[k]; S.push([p[0] + C(a) * r, p[1] + S2(a) * r * C(e), S2(a) * r * S2(e),
+          p[3] - S2(a) * v, p[4] + C(a) * v * C(e), C(a) * v * S2(e), k]); } }
+    const pull = (s) => { for (const k of K) if (k !== s) { const X = k[0] - s[0], Y = k[1] - s[1], Z = k[2] - s[2];
+      const q = .05 / (X * X + Y * Y + Z * Z + .1) ** 1.5; s[3] += X * q; s[4] += Y * q; s[5] += Z * q; } };
+    const move = (s) => { s[0] += s[3] * .05; s[1] += s[4] * .05; s[2] += s[5] * .05; };
+    b.onclick = () => b.textContent = (run ^= 1) ? '止める' : '動かす'; init();
+    (function f() { requestAnimationFrame(f); const w = c.width = innerWidth, h = c.height = innerHeight, a = T * .003;
+      for (let j = 0; run && j < 4; j++, T++) { K.forEach(pull); K.forEach(move); S.forEach((s) => (pull(s), move(s))); }
+      x.globalCompositeOperation = 'lighter';
+      for (const s of S) { const Z = 30 + s[0] * S2(a) + s[2] * C(a), q = h * 1.2 / Z, X = s[0] * C(a) - s[2] * S2(a);
+        x.fillStyle = s[6] ? '#ffcf9a55' : '#9ccaff55'; x.fillRect(w / 2 + X * q, h / 2 - s[1] * q, 2, 2); }
+      if (T > 6000) init(); })();
+  },
+}, {
+  id: 'demo-20-penrose', c: 'demo', lv: 3,
+  t: '20行のペンローズ・タイル', y: 'にじゅうぎょうのぺんろーずたいる',
+  tags: ['20行', 'ペンローズ・タイル', '準周期', '黄金比', 'Canvas'],
+  d: '20 行のコードで、どこまで広げても同じ並びがくり返さない模様（ペンローズ・タイル）を作る。10 枚の二等辺三角形の車輪から始め、1 枚を黄金比で 2〜3 枚に分けることを繰り返す。三角形を 2 枚ずつ組むと、太いひし形と細いひし形の 2 種類だけで平面が埋まる。世代が進むたびに模様が細かくなり、5 回対称の花が何重にも現れる。',
+  p: '分け方の規則は「黄金比の点で切る」2 通りだけ。それだけで、周期を持たないのに秩序のある模様（準結晶と同じ性質）ができる。',
+  html: '<canvas id=c></canvas><button id=b>止める</button>',
+  css: 'body{margin:0;background:#0b0d14}canvas{display:block;width:100vw;height:100vh}#b{position:fixed;left:8px;top:8px}',
+  js() {
+    const x = c.getContext('2d'), G = 2 / (1 + 5 ** .5), P = (k) => [Math.cos(k *= Math.PI / 10), Math.sin(k)];
+    const L = (a, b) => [a[0] + (b[0] - a[0]) * G, a[1] + (b[1] - a[1]) * G]; let T = 0, run = 1;
+    const gen = [Array.from({ length: 10 }, (_, i, s = i % 2 ? -1 : 1) => [0, [0, 0], P(2 * i + s), P(2 * i - s)])];
+    for (let n = 1; n < 8; n++) gen[n] = gen[n - 1].flatMap(([k, A, B, C]) => k
+      ? [[1, L(B, C), C, A], [1, L(B, A), L(B, C), B], [0, L(B, C), L(B, A), A]]
+      : [[0, C, L(A, B), B], [1, L(A, B), C, A]]);
+    const tri = (A, B, C) => { x.beginPath(); x.moveTo(...A); x.lineTo(...B); x.lineTo(...C); };
+    b.onclick = () => b.textContent = (run ^= 1) ? '止める' : '動かす';
+    (function f() { requestAnimationFrame(f); const w = c.width = innerWidth, h = c.height = innerHeight;
+      const s = Math.max(w, h) * .62; T = (T + run / 60) % 16; const n = Math.min(7, T / 1.6 | 0);
+      x.translate(w / 2, h / 2); x.rotate(T * .05); x.scale(s, s);
+      for (const [k, A, B, C] of gen[n]) { tri(A, B, C); x.fillStyle = k ? '#2d4b8c' : '#e2a33b'; x.fill(); }
+      x.strokeStyle = '#0b0d14'; x.lineWidth = Math.max(.6, 3 - n * .35) / s; x.lineJoin = 'round';
+      for (const [, A, B, C] of gen[n]) { tri(C, A, B); x.stroke(); } })();
+  },
+}, {
+  id: 'demo-20-lightning', c: 'demo', lv: 2,
+  t: '20行で育つ稲妻の樹', y: 'にじゅうぎょうでそだついなずまのき',
+  tags: ['20行', 'DLA', 'フラクタル', 'ランダムウォーク', 'Canvas'],
+  d: '20 行のコードで、でたらめに歩く粒が集まって稲妻のような枝が育つ様子を見せる（拡散律速凝集、DLA）。上の端から次々に粒を放ち、粒は上下左右へでたらめに歩く。歩いているうちに、すでに固まった枝の隣に来たら、そこで固まる。枝の先ほど粒に出会いやすいので、先へ先へと枝分かれして伸びる。固まった順に色を変えるので、育った順番が見える。',
+  p: '「隣に来たら止まる」だけの規則から、雷の放電の跡（リヒテンベルク図形）や、霜・珊瑚・鉱物の結晶と同じ形が現れる。',
+  html: '<canvas id=c></canvas><button id=b>止める</button>',
+  css: `body{margin:0;background:#04030a}canvas{display:block;width:100vw;height:100vh;image-rendering:pixelated}
+#b{position:fixed;left:8px;top:8px}`,
+  js() {
+    const W = 360, H = 240, x = c.getContext('2d'), img = x.createImageData(W, H), A = new Uint8Array(W * H);
+    let run = 1, n, P, hi; const R = (m) => Math.random() * m | 0, S = Math.sin;
+    const put = (i, v = n++ / 30) => { A[i] = 1; hi = Math.min(hi, i / W | 0);
+      img.data.set([200 + 55 * S(v), 120 + 120 * S(v + 2), 255, 255], 4 * i); };
+    function init() { A.fill(0); img.data.fill(0); n = 0; P = []; hi = H;
+      for (let i = 0; i < W; i++) put((H - 1) * W + i); }
+    b.onclick = () => b.textContent = (run ^= 1) ? '止める' : '動かす'; init(); c.width = W; c.height = H;
+    (function f() { requestAnimationFrame(f); if (!run) return;
+      while (P.length < 2000) P.push([R(W), Math.max(0, hi - 8 - R(12))]);
+      for (let s = 0; s < 40; s++) for (const p of P) { if (p[2]) continue; const d = R(4);
+        p[0] = (p[0] + [1, -1, 0, 0][d] + W) % W; p[1] = Math.max(0, Math.min(H - 2, p[1] + [0, 0, 1, -1][d]));
+        const i = p[1] * W + p[0]; if (!(A[i + 1] | A[i - 1] | A[i + W] | A[i - W])) continue;
+        put(i); p[2] = 1; if (hi < 3) return init(); }
+      P = P.filter((p) => !p[2]); x.putImageData(img, 0, 0); })();
+  },
+}, {
+  id: 'demo-20-bytebeat', c: 'demo', lv: 2,
+  t: '20行のバイトビート（1行の式が音楽になる）', y: 'にじゅうぎょうのばいとびーと',
+  tags: ['20行', 'バイトビート', '音楽', 'Web Audio', 'ビット演算'],
+  d: '20 行のコードで、1 行の式から音楽を作る（バイトビート）。1 秒に 8000 回、時刻 t を式に入れ、答えの下 8 ビット（0〜255）をそのまま音の波の高さにする。シフト（>>）やかけ算・論理和（|）の組み合わせで、リズムと旋律のある曲が鳴る。式は書き換えられ、Enter で鳴らし直す。下には音の波を、1 列に 512 個ずつ並べた絵で描く。',
+  p: '楽譜も音色のデータもない。t >> 13 のようなシフトがゆっくり変わる「拍」になり、それを掛けたり重ねたりすると旋律になる。',
+  html: '<canvas id=c></canvas><button id=b>▶ 鳴らす</button><input id=e size=46 value="t*(t>>11&t>>8&123&t>>3)" aria-label="式">',
+  css: `body{margin:0;background:#000;color:#fff}canvas{display:block;width:100vw;height:100vh}
+#b,#e{position:fixed;top:8px;left:8px}#e{left:84px}`,
+  js() {
+    let A, src, D, start = 0; const x = c.getContext('2d');
+    const make = () => { const F = new Function('t', `return (${e.value})&255`); D = new Float32Array(8000 * 32);
+      for (let t = 0; t < D.length; t++) D[t] = (F(t) & 255) / 128 - 1; };
+    function play() { src?.stop(); const buf = A.createBuffer(1, D.length, 8000); buf.copyToChannel(D, 0);
+      src = A.createBufferSource(); src.buffer = buf; src.loop = true; const g = A.createGain(); g.gain.value = .25;
+      src.connect(g).connect(A.destination); src.start(); start = A.currentTime; }
+    b.onclick = () => { A ??= new AudioContext(); if (src) { src.stop(); src = null; b.textContent = '▶ 鳴らす'; return; }
+      play(); b.textContent = '■ 止める'; }; make();
+    e.onkeydown = (v) => { if (v.key === 'Enter') { make(); if (src) play(); } };
+    (function f() { requestAnimationFrame(f); const w = c.width = innerWidth, h = c.height = innerHeight, cols = w / 2 | 0;
+      const img = x.createImageData(cols, 256), u = new Uint32Array(img.data.buffer);
+      const now = (src ? (A.currentTime - start) * 8000 | 0 : cols * 512) + D.length * 9;
+      for (let i = 0; i < cols; i++) for (let k = 0; k < 256; k++) {
+        const v = (D[(now - (cols - i) * 512 + k * 2) % D.length] + 1) * 127 | 0;
+        u[k * cols + i] = 255 << 24 | (255 - v / 2) << 16 | v << 8 | v * .4; }
+      x.putImageData(img, 0, (h - 256) / 2); x.drawImage(c, 0, (h - 256) / 2, cols, 256, 0, 0, w, h); })();
+  },
+});

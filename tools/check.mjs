@@ -54,8 +54,11 @@ for (const e of entries) {
   // 大きなデータ（3D モデルなど）: data/ の下の .js だけを、項目を開いたときに読む
   if (e.data != null && !(Array.isArray(e.data) && e.data.every((p) => /^data\/[a-z0-9-]+\.js$/.test(p) && existsSync(join(ROOT, p))))) errors.push(`${where}: data は data/ の下にある .js の道筋の配列で`);
   if (e.data && !e.nt) errors.push(`${where}: data を読む項目は nt も付ける（一覧の小さな絵で大きなデータを読まない）`);
-  // メガデモ: 1ファイル全体が決めた上限のバイト数に収まること
-  if (e.c === 'demo') {
+  // メガデモ: 1ファイル全体が決めた上限のバイト数に収まること。「20行」の作品は行数で制限する（tests/short20.test.mjs）
+  if (e.c === 'demo' && e.tags.includes('20行')) {
+    const L = [D.src(e.html), D.src(e.css), D.src(e.js)].join('\n').split('\n').filter((l) => l.trim());
+    if (L.length > 20 || L.some((l) => [...l].length > 120)) errors.push(`${where}: 20 行以内・1 行 120 文字まで（いま ${L.length} 行）`);
+  } else if (e.c === 'demo') {
     if (![256, 1024, 4096].includes(e.size)) errors.push(`${where}: size は 256・1024・4096 のどれか`);
     else { const n = D.utf8Bytes(D.miniHtml(e)); if (n > e.size) errors.push(`${where}: ${n} バイトで上限 ${e.size} を超えている`); }
   }
