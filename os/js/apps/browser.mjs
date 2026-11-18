@@ -316,7 +316,10 @@ export async function launch(os, args = {}, rect = {}) {
     let body = null;
     if (typeof Document.parseHTML === 'function') {
       // Sanitizer API（Chrome 146・Firefox 148 から）。危ない要素と属性は、どの設定でも除かれる
-      try { body = Document.parseHTML(html, { sanitizer: { elements: READ_ELEMENTS, attributes: READ_ATTRS, replaceWithChildrenElements: READ_UNWRAP } }).body; } catch (e) { log('browser.sanitize', {}, 'error: ' + e.message); }
+      // parseHTML は文書全体に消毒をかけるので、根の html・head・body も許す（無いと文書が空になり .body が null になる）。
+      // head の中の title・style・script などは一覧に無いので消える
+      try { body = Document.parseHTML(html, { sanitizer: { elements: [...READ_ELEMENTS, 'html', 'head', 'body'], attributes: READ_ATTRS, replaceWithChildrenElements: READ_UNWRAP } }).body; } catch (e) { log('browser.sanitize', {}, 'error: ' + e.message); }
+      if (!body) log('browser.sanitize', {}, 'fallback: no body');
     }
     if (!body) {
       // 使えないブラウザ: 読み込みも実行もしない文書（DOMParser）で、許したものだけを残す
