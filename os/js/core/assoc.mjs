@@ -15,6 +15,8 @@ export const TYPES = {
   '.fvid': ['video', '動画の編集の計画'],
   '.png': ['viewer', 'PNG 画像'], '.jpg': ['viewer', 'JPEG 画像'], '.jpeg': ['viewer', 'JPEG 画像'], '.gif': ['viewer', 'GIF 画像'], '.svg': ['viewer', 'SVG 画像'], '.webp': ['viewer', 'WebP 画像'],
   '.pxa': ['pixel', 'ドット絵'],
+  '.webm': ['viewer', 'WebM 動画'], '.mp4': ['viewer', 'MP4 動画'], '.m4v': ['viewer', 'MP4 動画'], '.ogv': ['viewer', 'Ogg 動画'],
+  '.epub': ['books', 'EPUB の電子書籍'], '.fdaw': ['daw', '多重録音の計画'],
 };
 export const appFor = (name) => (TYPES[extname(name).toLowerCase()] || [null])[0];
 export const typeName = (name) => (TYPES[extname(name).toLowerCase()] || [null, (extname(name).slice(1).toUpperCase() || '') + ' ファイル'])[1].trim();
