@@ -234,6 +234,13 @@ const linePart = new Int16Array(N).fill(-1);
   const lab2 = new Int32Array(N); for (let i = 0; i < N; i++) lab2[i] = linePart[i];
   const filled = V.propagate(lab2, W, H);
   for (let i = 0; i < N; i++) if (linePart[i] < 0 && ink[i] >= 0.03) linePart[i] = filled[i];
+  // lineOwn の部品は、自分の多角形の中の線を、手前の部品より先に取る（目のまつげが前髪の線にならないように。まばたきで、まつげごと動かすため）
+  for (const name of partsDef.lineOwn || []) {
+    const p = partIndex[name], b = bbox[p];
+    for (let y = Math.max(0, Math.floor(b[1])); y <= Math.min(H - 1, Math.ceil(b[3])); y++) for (let x = Math.max(0, Math.floor(b[0])); x <= Math.min(W - 1, Math.ceil(b[2])); x++) {
+      const i = y * W + x; if (ink[i] >= 0.03 && V.pointInPolygon(x + 0.5, y + 0.5, polys[p])) linePart[i] = p;
+    }
+  }
 }
 
 // ---- 7〜8. 形 ----
@@ -403,8 +410,13 @@ log('線の色', colorGroups.map((g) => `${g.members[0].colorName} ${hex(g.rgb)}
 for (const { name, x0, y0, strokes, dots } of strokeResults) {
   const byColor = new Map(), add = (color, curves) => { if (!byColor.has(color)) byColor.set(color, []); byColor.get(color).push(curves); };
   const colorOf = (o) => o.colorName ?? inkName(o.c);
+  // erase（元の絵の座標の多角形）の中に真ん中がある線と点は描かない（細すぎて線と塗りに分けられず、黒い塊になる所。overlays で描き足す）
+  const er = partsDef.erase?.[name] ? [partsDef.erase[name].map(([x, y]) => [x - X0, y - Y0])] : [];
+  const erased = (x, y) => er.some((poly) => V.pointInPolygon(x, y, poly));
   for (const s of strokes) {
     const pts = s.pts.map(([x, y]) => [x + x0, y + y0]);
+    const mc = pts.reduce((a, p) => [a[0] + p[0] / pts.length, a[1] + p[1] / pts.length], [0, 0]);
+    if (erased(mc[0], mc[1])) continue;
     for (const poly of S.strokeOutline(pts, s.half, { closed: s.closed, caps: s.ends })) {
       const curves = V.fitClosed(poly, 0.05, { reach: 1, cornerAngle: 100 });
       if (curves.length) add(colorOf(s), curves);
@@ -413,6 +425,7 @@ for (const { name, x0, y0, strokes, dots } of strokeResults) {
   let skipped = 0;
   for (const d of dots) {
     const cx = d.cx + x0, cy = d.cy + y0;
+    if (erased(cx, cy)) continue;
     // ほかの部品の線（濃さ 0.3 以上）が 1.5 画素以内にある点は、その線のかけら（部品の境目で切れた端）なので描かない
     {
       let other = false;
@@ -461,6 +474,15 @@ for (const name of order) {
 }
 // 描く順: 塗り（奥から手前）→ 薄い線 → 濃い線 → 線を当てた部品の点の中の色 → 線を当てた部品の線
 shapes.push(...lineShapes.lineSoft, ...lineShapes.line, ...dotFills, ...strokeShapes);
+// overlays: 元の絵から測った位置と色で、楕円を描き足す（{ part, color, ellipse: [中心 x, 中心 y, 横の半径, 縦の半径] }、元の絵の座標）。
+// 細すぎて写せない所（横の目の瞳）に使う。塗りとして、いちばん最後に描く
+for (const o of partsDef.overlays || []) {
+  if (!(o.color in Object.fromEntries(pal.map((p) => [p.name, 1]))) && o.color !== 'line') throw new Error(`overlays の色 ${o.color} がパレットにない`);
+  const [cx, cy, rx, ry] = o.ellipse, k = 0.5522847498;
+  const x = cx - X0, y = cy - Y0, c = [[[x + rx, y], [x + rx, y + ry * k], [x + rx * k, y + ry], [x, y + ry]], [[x, y + ry], [x - rx * k, y + ry], [x - rx, y + ry * k], [x - rx, y]],
+    [[x - rx, y], [x - rx, y - ry * k], [x - rx * k, y - ry], [x, y - ry]], [[x, y - ry], [x + rx * k, y - ry], [x + rx, y - ry * k], [x + rx, y]]];
+  shapes.push({ part: o.part, kind: 'fill', color: o.color, d: V.pathData([c]) });
+}
 
 // ---- 書き出し ----
 // 線を当てた部品で足した色のうち、形に使われなかったもの（輪郭が小さすぎて曲線にならなかった線の色など）は外す

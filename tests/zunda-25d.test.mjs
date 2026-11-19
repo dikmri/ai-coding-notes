@@ -131,7 +131,7 @@ test('混ぜ方: 正面・横・後ろの近くでは 1 枚の絵だけ、間で
   assert.deepEqual(names(Z.viewBlend(45)), ['front']);
   const m = Z.viewBlend(63);
   assert.equal(m.length, 2); near(m[1].alpha, 0.5, 1e-9); assert.equal(m[0].alpha, 1);
-  const a = Z.viewBlend(60), b = Z.viewBlend(66);
+  const a = Z.viewBlend(62), b = Z.viewBlend(64);
   assert.equal(a[1].view, 'front'); assert.equal(b[1].view, 'left');
   assert.ok(a[1].alpha > 0.5 && a[1].alpha < 1);
   near(a[1].alpha, b[1].alpha, 1e-9, '63 度を中心に対称');
@@ -194,6 +194,54 @@ test('動きの再生: 前後のコマの間をつなぎ、歩いて進んだ分
   near(a.hips[2], 0, 1e-6, '始めの前後'); near(b.hips[2], 0, 1e-4, '終わりの前後（進んだ分を引く）');
   near(c.hips[0], 0.1, 1e-6, '左右の揺れは残る'); near(c.hips[1], 0.9, 1e-6, '高さはそのまま');
   near(a.rot[0][3], 1, 1e-4, '回転');
+});
+
+// ---- 表情 ----
+test('まばたき: 白目の上より上（まつげ）は形を保って閉じた線まで下がり、白目の中は閉じた線へつぶれる', () => {
+  // 目の幅 x 10〜30、白目の上 y 100、下 y 120 → 閉じた線は y 113（上から 65%）
+  const E = Z.eyeCloser({ x0: 10, top: new Array(21).fill(100), bot: new Array(21).fill(120) });
+  const top = E(20, 100 - 4), mid = E(20, 110), low = E(20, 119);
+  near(top[1], 96 + 13, 1e-6, 'まつげは 13 下がる'); near(mid[1], 113, 0.5, '白目の中は閉じた線へ'); near(low[1], 113, 0.5, '下のまぶたも閉じた線へ');
+  near(top[0], 20, 1e-9, '横には動かない');
+  // 目の幅の外（まつげの先）は、いちばん近い端の高さで閉じる
+  near(E(36, 98)[1], 98 + 13, 1e-6);
+  // まつげより上（前髪のふちなど）は動かない。その間はなめらかに下げる量を減らす
+  near(E(20, 80)[1], 80, 1e-9, '上の線は動かない');
+  near(E(20, 91)[1], 91 + 13, 1e-9, '二重の線（瞳の上から 10 画素まで）は丸ごと下がる');
+  const mid2 = E(20, 86)[1] - 86; assert.ok(mid2 > 0 && mid2 < 13, `間 ${mid2}`);
+});
+
+test('口の形: 開き 0 では点の幅がなく、開くほど縦に広がる。幅の指定で横に広がる', () => {
+  const h = (pts) => Math.max(...pts.map((p) => p[1])) - Math.min(...pts.map((p) => p[1]));
+  const w = (pts) => Math.max(...pts.map((p) => p[0])) - Math.min(...pts.map((p) => p[0]));
+  const a = Z.mouthShape(0, 0.5), b = Z.mouthShape(0.5, 0.5), c = Z.mouthShape(1, 0.5), d = Z.mouthShape(1, 1);
+  near(h(a), 0, 1e-6); assert.ok(h(b) > 0 && h(c) > h(b)); assert.ok(w(d) > w(c));
+});
+
+test('話す: かなを母音の並びにし、母音ごとの口の開きと幅にする（「ん」と記号は閉じる）', () => {
+  const v = Array.from(Z.vowels('ずんだもんなのだ！'));
+  assert.deepEqual(v, ['u', 'n', 'a', 'o', 'n', 'a', 'o', 'a', 'n']);
+  const o = Z.VOWEL_SHAPE;
+  assert.ok(o.a[0] > o.i[0] && o.i[1] > o.u[1] && o.n[0] === 0);
+});
+
+// ---- 髪の束 ----
+test('髪の束: 根元は付け根に付いたまま、ほかの点は休みの形へ戻り、区間の長さは保つ', () => {
+  const rest = [[0, 0, 0], [0, 10, 0], [0, 20, 0], [0, 30, 0]];
+  const T = Z.tailInit(rest);
+  // 根元を横へ 5 動かして、しばらく進める
+  const targets = rest.map((p) => [p[0] + 5, p[1], p[2]]);
+  for (let i = 0; i < 400; i++) Z.tailStep(T, targets, 1 / 60, { grav: 0 });
+  near(T.p[0][0], 5, 1e-9, '根元');
+  for (let i = 1; i < 4; i++) { near(T.p[i][0], 5, 0.05, `点 ${i} の横`); near(T.p[i][1], rest[i][1], 0.05, `点 ${i} の高さ`); }
+  for (let i = 1; i < 4; i++) near(Math.hypot(T.p[i][0] - T.p[i - 1][0], T.p[i][1] - T.p[i - 1][1], T.p[i][2] - T.p[i - 1][2]), 10, 1e-6, `区間 ${i} の長さ`);
+});
+
+test('髪の束: 根元を急に動かすと、先は遅れてついて来る（揺れる）', () => {
+  const rest = [[0, 0, 0], [0, 10, 0], [0, 20, 0], [0, 30, 0]];
+  const T = Z.tailInit(rest), targets = rest.map((p) => [p[0] + 8, p[1], p[2]]);
+  Z.tailStep(T, targets, 1 / 60, { grav: 0 });
+  assert.ok(T.p[3][0] < 4, `先はまだ動いていない ${T.p[3][0]}`);
 });
 
 // ---- 手足の板 ----
