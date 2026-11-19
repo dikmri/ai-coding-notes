@@ -1,0 +1,149 @@
+// 図鑑の項目「コードで描いたずんだもんを立体的に動かす」（entries/zunda.js）の core（画面を使わない計算）のテスト
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const sb = { console }; sb.window = sb; vm.createContext(sb);
+vm.runInContext(readFileSync(join(ROOT, 'js/registry.js'), 'utf8'), sb);
+vm.runInContext(readFileSync(join(ROOT, 'entries/zunda.js'), 'utf8'), sb, { filename: 'entries/zunda.js' });
+const e = sb.dekiru.entries.find((x) => x.id === '3d-zunda-move');
+const ctx = vm.createContext({ Math, Float32Array, Float64Array, Int16Array, Uint8Array, Array, Object, Number, JSON });
+vm.runInContext(sb.dekiru.src(e.core) + '\n;globalThis.__x = Z;', ctx);
+const Z = ctx.__x;
+
+const names = (blend) => Array.from(blend, (v) => v.view); // vm の中で作った配列を、ここの配列に写して比べる
+const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg ?? ''} ${a} と ${b} の差が ${tol} を超える`);
+
+// ---- 曲線のデータ ----
+test('曲線: M・c・l・z の相対の命令を、絶対座標の 3 次ベジェにする（直線もベジェにし、閉じる線を足す）', () => {
+  const subs = Z.parsePath('M10 20c1 0 2 1 3 2l4 0z', [100, 200]);
+  assert.equal(subs.length, 1);
+  const s = [...subs[0]].map((v) => +v.toFixed(4));
+  // 始点 (110,220) → c で (113,222) → l で (117,222) → z で始点へ
+  assert.deepEqual(s.slice(0, 8), [110, 220, 111, 220, 112, 221, 113, 222]);
+  assert.deepEqual(s.slice(6, 14).map((v) => +v.toFixed(3)), [113, 222, 114.333, 222, 115.667, 222, 117, 222]);
+  assert.deepEqual(s.slice(-2), [110, 220]);
+  assert.equal((s.length - 2) % 6, 0);
+});
+
+test('曲線: 区切りを省いた数（1.5.5、-.5、12-3）を正しく読み、続く同じ命令をくり返しとして扱う', () => {
+  const subs = Z.parsePath('M0 0l1.5.5-.5 1l12-3z', [0, 0]);
+  const s = [...subs[0]];
+  assert.deepEqual([s[6], s[7]], [1.5, 0.5]);
+  assert.deepEqual([s[12], s[13]], [1, 1.5]);
+  assert.deepEqual([s[18], s[19]], [13, -1.5]);
+});
+
+test('曲線: 長い区間は半分ずつに分け、どの区間も弦の長さが上限以下になる。形（中点）は変わらない', () => {
+  const [s] = Z.parsePath('M0 0c10 0 30 20 40 20z', [0, 0]);
+  const fine = Z.subdivide(s, 5);
+  for (let i = 0; i + 8 <= fine.length; i += 6) near(Math.hypot(fine[i + 6] - fine[i], fine[i + 7] - fine[i + 1]), 0, 5.0001, '弦');
+  // 元の曲線の t=0.5 の点が、細かくした点のどれかと一致する
+  const mid = [0.125 * 0 + 0.375 * 10 + 0.375 * 30 + 0.125 * 40, 0.375 * 20 + 0.125 * 20];
+  let best = Infinity; for (let i = 0; i < fine.length; i += 2) best = Math.min(best, Math.hypot(fine[i] - mid[0], fine[i + 1] - mid[1]));
+  near(best, 0, 1e-6, '中点');
+});
+
+// ---- 立体の形（楕円の断面）----
+// 正面の幅 a = 40、横の奥行き c = 60、奥行きの中心 cz = -10 の楕円柱を、正面と横の輪郭で表す
+function cylinderRows(y0, n, a, c, cz) {
+  const fx = [], sz = [];
+  for (let i = 0; i < n; i++) { fx.push([-a, a]); sz.push([cz - c, cz + c]); }
+  return { y0, fx, sz };
+}
+
+test('立体の形: 正面の幅と横の奥行きから、行ごとの楕円（中心と半径）を作る', () => {
+  const r = cylinderRows(100, 20, 40, 60, -10);
+  const P = Z.buildProxy(r.y0, r.fx, r.sz, { smooth: 0 });
+  const k = 5;
+  near(P.cx[k], 0, 1e-9); near(P.a[k], 40, 1e-9); near(P.cz[k], -10, 1e-9); near(P.c[k], 60, 1e-9);
+});
+
+test('立体の形: 片方の向きにしかない行は、両方そろった近い行の値を使う', () => {
+  const fx = [null, null, [-10, 10], [-20, 20], null], sz = [[-5, 5], [-6, 6], [-7, 7], [-8, 8], [-9, 9]];
+  const P = Z.buildProxy(50, fx, sz, { smooth: 0 });
+  near(P.a[0], 10, 1e-9, '上'); near(P.c[0], 7, 1e-9, '上の奥行き'); near(P.a[4], 20, 1e-9, '下');
+});
+
+test('持ち上げ: 正面の絵の点は楕円の前の面に乗り、横の絵の点は楕円の左の面に乗る', () => {
+  const r = cylinderRows(0, 10, 40, 60, -10);
+  const P = Z.buildProxy(r.y0, r.fx, r.sz, { smooth: 0 });
+  // 正面の真ん中: 前の面のいちばん前（Z = cz + c）
+  let p = Z.lift(P, 'front', 0, 5);
+  near(p[0], 0, 1e-9); near(p[2], 50, 1e-9); near(p[3], 0, 1e-9); near(p[5], 1, 1e-9, '法線は前');
+  // 正面の右の端（X = a）: 楕円の横の端
+  p = Z.lift(P, 'front', 40, 5); near(p[0], 40, 1e-9); near(p[2], -10, 1e-9); near(p[3], 1, 1e-9, '法線は左');
+  // 横の絵の点（Z = 20）: 左の面（X ≥ 0）にある
+  p = Z.lift(P, 'left', 20, 5);
+  near(p[2], 20, 1e-9); assert.ok(p[0] > 0);
+  near((p[0] / 40) ** 2 + ((p[2] + 10) / 60) ** 2, 1, 1e-9, '楕円の上');
+  // 後ろの絵の点: 後ろの面（Z = cz - c まで）
+  p = Z.lift(P, 'back', 0, 5); near(p[2], -70, 1e-9); near(p[5], -1, 1e-9);
+  // 右の横（左の横を鏡に写す）: X ≤ 0
+  p = Z.lift(P, 'right', 20, 5); assert.ok(p[0] < 0);
+});
+
+test('持ち上げ: 楕円より外の点（髪の先が出ている所）は、楕円の端から外へ出たまま置く', () => {
+  const r = cylinderRows(0, 10, 40, 60, -10);
+  const P = Z.buildProxy(r.y0, r.fx, r.sz, { smooth: 0 });
+  const p = Z.lift(P, 'front', 46, 5);
+  near(p[0], 46, 1e-9); near(p[2], -10, 1e-9);
+});
+
+test('回して写す: 正面の絵の点を 90 度回すと、横から見た楕円の上の位置に来る（輪郭が横の絵と一致する）', () => {
+  const r = cylinderRows(0, 10, 40, 60, -10);
+  const P = Z.buildProxy(r.y0, r.fx, r.sz, { smooth: 0 });
+  // 横の輪郭は、横の絵の幅（x = -Z、-(cz + c) から -(cz - c)）。正面の絵の前の半分の点を回したとき、写した x はその中に入る
+  const R = Z.rotY(-Math.PI / 2); // 右へ 90 度回る → キャラの左側が見える
+  for (const u of [-39, -20, 0, 20, 39]) {
+    const p = Z.lift(P, 'front', u, 5), w = Z.applyMat3(R, p);
+    assert.ok(w[0] >= -50 - 1e-6 && w[0] <= 70 + 1e-6, `x ${w[0]}`);
+  }
+  near(Z.applyMat3(R, Z.lift(P, 'front', 0, 5))[0], -50, 1e-9, '正面の真ん中は横の輪郭の前の端');
+  // 横の絵の点をそのまま横から見ると、絵と同じ位置（x = -Z）に来る
+  const q = Z.lift(P, 'left', 25, 5), wq = Z.applyMat3(R, q);
+  near(wq[0], -25, 1e-9, '横の絵の x');
+});
+
+test('凸包: 点の集まりを包む凸の多角形を返す（内側の点と、辺の上の点は入らない）', () => {
+  const h = Array.from(Z.hull([[0, 0], [4, 0], [4, 4], [0, 4], [2, 2], [1, 3], [2, 0]]), (p) => p.join(','));
+  assert.equal(h.length, 4);
+  for (const c of ['0,0', '4,0', '4,4', '0,4']) assert.ok(h.includes(c), c);
+});
+
+test('立体の形: 正面と横の両方にある行に印を付ける（下地はこの行だけに塗る）', () => {
+  const P = Z.buildProxy(0, [null, [-1, 1], [-1, 1]], [[-1, 1], [-1, 1], null], { smooth: 0 });
+  assert.deepEqual(Array.from(P.both), [0, 1, 0]);
+});
+
+// ---- 向きと絵の混ぜ方 ----
+test('混ぜ方: 正面・横・後ろの近くでは 1 枚の絵だけ、間では 2 枚を重ね、手前の絵の濃さは 0.5〜1', () => {
+  assert.deepEqual(names(Z.viewBlend(0)), ['front']);
+  assert.deepEqual(names(Z.viewBlend(90)), ['left']);
+  assert.deepEqual(names(Z.viewBlend(-90)), ['right']);
+  assert.deepEqual(names(Z.viewBlend(180)), ['back']);
+  assert.deepEqual(names(Z.viewBlend(-180)), ['back']);
+  // 正面と横の間は 63 度（4 分の 1 周の 7 割）で入れ替える。正面の絵の方が、回しても崩れにくいため
+  assert.deepEqual(names(Z.viewBlend(45)), ['front']);
+  const m = Z.viewBlend(63);
+  assert.equal(m.length, 2); near(m[1].alpha, 0.5, 1e-9); assert.equal(m[0].alpha, 1);
+  const a = Z.viewBlend(60), b = Z.viewBlend(66);
+  assert.equal(a[1].view, 'front'); assert.equal(b[1].view, 'left');
+  assert.ok(a[1].alpha > 0.5 && a[1].alpha < 1);
+  near(a[1].alpha, b[1].alpha, 1e-9, '63 度を中心に対称');
+  // 右へ回るときも同じ角度で入れ替える（-63 度）。横と後ろの間は 135 度
+  near(Z.viewBlend(-63)[1].alpha, 0.5, 1e-9);
+  near(Z.viewBlend(135)[1].alpha, 0.5, 1e-9);
+  near(Z.viewBlend(-135)[1].alpha, 0.5, 1e-9);
+});
+
+test('向き: 頭から見た見る人の向きから、正面 0・左 90・後ろ 180・右 -90 の角度を出す', () => {
+  near(Z.viewAngle(Z.rotY(0)), 0, 1e-9);
+  near(Z.viewAngle(Z.rotY(-Math.PI / 2)), 90, 1e-9);  // キャラが右を向く → 左側が見える
+  near(Z.viewAngle(Z.rotY(Math.PI / 2)), -90, 1e-9);
+  near(Math.abs(Z.viewAngle(Z.rotY(Math.PI))), 180, 1e-9);
+});
