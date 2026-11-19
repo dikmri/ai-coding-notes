@@ -2512,8 +2512,8 @@ dekiru.add({
   html: `<canvas id="c" role="img" aria-label="ドット絵で作った、茶色の長い髪に水色のリボン、白いブラウスと紺のチェックのスカートの女の子の立体。ゆっくり回る"></canvas>
 <div class="ui bar">
   <button type="button" id="pause">止める</button>
-  <label for="gap">板を離す（8 枚ずつ）</label><input type="range" id="gap" min="0" max="8" step="1" value="0">
-  <label for="cut">上から外す</label><input type="range" id="cut" min="0" max="160" step="1" value="0">
+  <label for="gap">板を離す</label><input type="range" id="gap" min="0" max="20" step="1" value="0">
+  <label for="cut">上から外す</label><input type="range" id="cut" min="0" max="400" step="1" value="0">
   <label for="elev">見下ろす角度</label><input type="range" id="elev" min="8" max="70" step="1" value="15">
 </div>
 <p class="ui info" id="info"></p>
@@ -2539,13 +2539,39 @@ canvas:active { cursor: grabbing; }
       const clampElev = (e) => Math.min(ELEV_MAX, Math.max(ELEV_MIN, e));
       // 見下ろす角度 el のとき、1 枚ごとに上へずらす量（画素）と、板を縦に縮める割合（正射影）
       const layerStep = (el) => ({ dy: Math.cos(el), squash: Math.sin(el) });
-      // [回数, 値] の組（base64）を、n 個の並びに戻す
-      function unrle(b64, n) {
-        const s = atob(b64), out = new Uint8Array(n); let o = 0;
-        for (let i = 0; i + 1 < s.length; i += 2) { const c = s.charCodeAt(i); out.fill(s.charCodeAt(i + 1), o, o + c); o += c; }
+      // deflate（raw）で縮めた base64 を、n 個の並びに戻す（ブラウザの DecompressionStream を使う）
+      async function inflate(b64, n) {
+        const s = atob(b64), bin = new Uint8Array(s.length);
+        for (let i = 0; i < s.length; i++) bin[i] = s.charCodeAt(i);
+        const buf = await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer();
+        const out = new Uint8Array(buf);
+        if (out.length !== n) throw new Error(`戻した数が合わない: ${out.length} / ${n}`);
         return out;
       }
-      return { ELEV_MIN, ELEV_MAX, clampElev, layerStep, unrle };
+      // 段の埋め戻し: データは表面の殻だけなので、段ごとに、外（端）からたどれない空きを、いちばん近い殻の色で埋める
+      // （殻から内側へ広げる幅優先の探索）。見下ろす角度が小さいと、縮めた板の表面より少し内側の色が画面に出るので、
+      // 内側を表面と同じ色にしておく
+      function fillLayer(L, W, D) {
+        const out = new Uint8Array(L), seen = new Uint8Array(W * D), st = [];
+        const push = (i) => { if (!seen[i] && !L[i]) { seen[i] = 1; st.push(i); } };
+        for (let x = 0; x < W; x++) { push(x); push((D - 1) * W + x); }
+        for (let y = 0; y < D; y++) { push(y * W); push(y * W + W - 1); }
+        while (st.length) {
+          const i = st.pop(), x = i % W, y = (i - x) / W;
+          if (x > 0) push(i - 1); if (x < W - 1) push(i + 1); if (y > 0) push(i - W); if (y < D - 1) push(i + W);
+        }
+        const q = new Int32Array(W * D); let qh = 0, qt = 0;
+        for (let i = 0; i < W * D; i++) if (L[i]) q[qt++] = i;
+        while (qh < qt) {
+          const i = q[qh++], x = i % W;
+          for (const j of [x > 0 ? i - 1 : -1, x < W - 1 ? i + 1 : -1, i >= W ? i - W : -1, i < W * (D - 1) ? i + W : -1]) {
+            if (j < 0 || out[j] || seen[j]) continue;
+            out[j] = out[i]; q[qt++] = j;
+          }
+        }
+        return out;
+      }
+      return { ELEV_MIN, ELEV_MAX, clampElev, layerStep, inflate, fillLayer };
     })();
   },
   js() {
@@ -2554,26 +2580,30 @@ canvas:active { cursor: grabbing; }
     if (window.THUMB) document.body.classList.add('thumb');
     const DATA = window.DEKIRU_DATA && window.DEKIRU_DATA['stack-girl'];
     if (!DATA) { dlog('stack.error', { why: 'data' }, 'ng'); throw new Error('データ data/stack-girl.js がありません'); }
-    const { w: W, d: Dp, h: H } = DATA, vox = SK.unrle(DATA.vox, W * Dp * H);
+    const { w: W, d: Dp, h: H } = DATA;
+    (async () => {
+    const vox = await SK.inflate(DATA.vox, W * Dp * H);   // 表面の殻だけのデータ
     const pal = DATA.pal.map((h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)));
-    // 段ごとの板（上から見た 1 枚の絵）。x は左から右、y は奥から手前
-    const layers = [];
+    // 段ごとの板（上から見た 1 枚の絵）。x は左から右、y は奥から手前。殻の中を埋め戻してから絵にする
+    const layers = []; let n = 0;
     for (let j = 0; j < H; j++) {
+      const F = SK.fillLayer(vox.subarray(j * Dp * W, (j + 1) * Dp * W), W, Dp);
       const lc = document.createElement('canvas'); lc.width = W; lc.height = Dp;
       const id = lc.getContext('2d').createImageData(W, Dp);
-      let n = 0;
-      for (let k = 0; k < Dp; k++) for (let i = 0; i < W; i++) {
-        const v = vox[(j * Dp + k) * W + i]; if (!v) continue;
-        const p = (k * W + i) * 4, col = pal[v - 1]; id.data[p] = col[0]; id.data[p + 1] = col[1]; id.data[p + 2] = col[2]; id.data[p + 3] = 255; n++;
+      let m = 0;
+      for (let q = 0; q < W * Dp; q++) {
+        const v = F[q]; if (!v) continue;
+        const p = q * 4, col = pal[v - 1]; id.data[p] = col[0]; id.data[p + 1] = col[1]; id.data[p + 2] = col[2]; id.data[p + 3] = 255; m++;
       }
-      lc.getContext('2d').putImageData(id, 0, 0); layers.push(n ? lc : null);
+      lc.getContext('2d').putImageData(id, 0, 0); layers.push(m ? lc : null); n += m;
     }
+    const G = Math.max(4, Math.round(H / 20));   // 板を離すときの束の枚数（およそ 20 束に分ける）
     const DIAG = Math.ceil(Math.hypot(W, Dp)) + 2;
     const nc = document.createElement('canvas'), ng = nc.getContext('2d');   // 1 ボクセル = 1 画素で描く小さなキャンバス
     const st = { ang: -0.6, elev: 15 * Math.PI / 180, gap: 0, cut: 0, paused: !window.THUMB && matchMedia('(prefers-reduced-motion: reduce)').matches, drag: null };
     document.getElementById('cut').max = String(H - 1);
     function drawStack() {
-      const { dy, squash } = SK.layerStep(st.elev), lift = (j) => j * dy + Math.floor(j / 8) * st.gap;   // 8 枚ずつの束の間を離す
+      const { dy, squash } = SK.layerStep(st.elev), lift = (j) => j * dy + Math.floor(j / G) * st.gap;   // G 枚ずつの束の間を離す
       const NW = DIAG + 8, NH = Math.ceil(lift(H - 1) + DIAG * squash) + 10;
       if (nc.width !== NW || nc.height !== NH) { nc.width = NW; nc.height = NH; }
       ng.clearRect(0, 0, NW, NH); ng.imageSmoothingEnabled = false;
@@ -2595,10 +2625,10 @@ canvas:active { cursor: grabbing; }
     function drawPlate(cw) {
       let j = H - st.cut - 1; while (j > 0 && !layers[j]) j--;
       const L = layers[j]; if (!L) return;
-      const k = Math.max(1, Math.floor(Math.min(cw * 0.22 / W, 140 / Dp))), pw = W * k, ph = Dp * k, x0 = 10, y0 = 10;
+      const k = Math.min(cw * 0.3 / W, 140 / Dp), pw = Math.round(W * k), ph = Math.round(Dp * k), x0 = 10, y0 = 10;
       g.fillStyle = 'rgb(16 18 26 / .75)'; g.fillRect(x0 - 4, y0 - 4, pw + 8, ph + 30);
       g.strokeStyle = 'rgb(255 255 255 / .25)'; g.strokeRect(x0 - 0.5, y0 - 0.5, pw + 1, ph + 1);
-      g.drawImage(L, x0, y0, pw, ph);
+      g.imageSmoothingEnabled = false; g.drawImage(L, x0, y0, pw, ph);
       g.fillStyle = '#eef0f6'; g.font = '12px system-ui, sans-serif'; g.fillText(`上から ${H - j} 枚目の板（下が前）`, x0, y0 + ph + 18);
     }
     function render() {
@@ -2608,7 +2638,7 @@ canvas:active { cursor: grabbing; }
       // 拡大: 2 倍以上なら整数倍（ドット絵の画素の大きさをそろえる）。小さな枠では端数のまま拡大する
       const bar = window.THUMB ? 0 : document.querySelector('.bar').getBoundingClientRect().height + 34, avail = Math.max(1, ch - bar);
       const z = Math.min(cw / NW, avail / NH), zoom = z >= 2 ? Math.floor(z) : Math.max(0.5, z);
-      g.clearRect(0, 0, cw, ch); g.imageSmoothingEnabled = false;
+      g.clearRect(0, 0, cw, ch); g.imageSmoothingEnabled = zoom < 1;   // 縮めるときだけなめらかにする（画素を間引くと縞が出る）
       g.drawImage(nc, Math.round((cw - NW * zoom) / 2), Math.round((avail - NH * zoom) / 2), Math.round(NW * zoom), Math.round(NH * zoom));
       if (!window.THUMB) drawPlate(cw);
       return zoom;
@@ -2632,7 +2662,6 @@ canvas:active { cursor: grabbing; }
     const setPause = (v) => { st.paused = v; pause.textContent = v ? '回す' : '止める'; };
     pause.addEventListener('click', () => { setPause(!st.paused); dlog('stack.pause', { paused: st.paused }, 'ok'); });
     setPause(st.paused);
-    const n = vox.reduce((a, v) => a + (v ? 1 : 0), 0);
     document.getElementById('info').textContent = `${W}×${Dp}×${H} ボクセル・${n.toLocaleString()} 個・${pal.length} 色・板 ${H} 枚`;
     let dirty = true, last = null, frames = 0, zoom = 1;
     const gaps = [];
@@ -2648,5 +2677,6 @@ canvas:active { cursor: grabbing; }
     }
     window.__stack = { st, set: (o) => { Object.assign(st, o); dirty = true; }, draw: () => ({ n: gaps.length, mean: gaps.reduce((x, y) => x + y, 0) / (gaps.length || 1), zoom }) };
     requestAnimationFrame(frame);
+    })().catch((err) => { dlog('stack.error', { why: String((err && err.message) || err).slice(0, 200) }, 'ng'); document.getElementById('info').textContent = 'データを読めませんでした: ' + ((err && err.message) || err); console.error(err); });
   },
 });

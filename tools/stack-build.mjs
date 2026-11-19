@@ -1,19 +1,20 @@
 // 三面図（正面・左の横顔・後ろ・右の横顔が横に並んだ 1 枚の絵）から、ドット絵の立体（ボクセル）を作り、
 // 図鑑の項目「三面図から作る、重ねたドット絵の立体」のデータ data/stack-girl.js に書く。
-// 使い方: node tools/stack-build.mjs [--src runtime/assets/stack-girl/1.webp] [--px 5] [--colors 48]
+// 使い方: node tools/stack-build.mjs [--src runtime/assets/stack-girl/1.webp] [--px 2] [--colors 255]
 //   --px: ボクセル 1 つの大きさ（元の絵の画素）。小さいほど細かく、データが大きくなる
 // 元の絵は git に入れない（runtime/ に置く）。絵を画素に直すのに、画面のない Chrome を使う（WebP を読むため）
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { deflateRawSync } from 'node:zlib';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openBrowser } from './lib/cdp.mjs';
-import { maskOf, runsOf, bandRow, sliceEllipses, insideEllipse, viewFor, medianCut, nearest, rle, normalAt } from './lib/stack.mjs';
+import { maskOf, runsOf, bandRow, sliceEllipses, insideEllipse, viewFor, medianCut, nearest, normalAt, shellOf, splitLimbs, isSkin, splitHairEdges, hairClass } from './lib/stack.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2), opt = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
 // 元の絵の既定の場所: 元のフォルダの runtime/assets/stack-girl/1.webp（worktree（runtime/<名前>）から動かすときは、2 つ上の runtime/assets）
 const DEF = ['runtime/assets/stack-girl/1.webp', '../assets/stack-girl/1.webp'].map((p) => resolve(ROOT, p)).find((p) => existsSync(p));
-const SRC = opt('src', null) ? resolve(ROOT, opt('src')) : DEF, S = +opt('px', 5), NCOL = +opt('colors', 48);
+const SRC = opt('src', null) ? resolve(ROOT, opt('src')) : DEF, S = +opt('px', 2), NCOL = Math.min(255, +opt('colors', 255));
 if (!SRC) throw new Error('元の絵が見つからない: runtime/assets/stack-girl/1.webp に置くか、--src で渡す');
 const t0 = Date.now(), log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(1)}s]`, ...a);
 
@@ -77,11 +78,21 @@ function sample(view, i, k, j) {
 const ORDER = { front: ['front', 'left', 'right', 'back'], back: ['back', 'left', 'right', 'front'], left: ['left', 'front', 'back', 'right'], right: ['right', 'front', 'back', 'left'] };
 for (let j = 0; j < H; j++) {
   const y1 = floorY - j * S, y0 = Math.max(topY, y1 - S + 1);
-  const toRuns = (p, c, n, flip) => runsOf(bandRow(mask, W0, p[0], p[1], y0, y1)).map(([a, b]) => {
-    const u = toVox(p[0] + a, c, n), v = toVox(p[0] + b, c, n);
-    return flip ? [n - 1 - v, n - 1 - u] : [u, v];
-  });
-  const fr = toRuns(PF, cxF, W, false), sr = toRuns(PL, cxL, D, false);
+  const toRuns = (p, c, n, flip, split) => {
+    let r = runsOf(bandRow(mask, W0, p[0], p[1], y0, y1));
+    if (split) r = split(r, p[0]);
+    return r.map(([a, b, kind]) => {   // kind: 分けた区間の種類（髪・腕）を残す
+      const u = toVox(p[0] + a, c, n), v = toVox(p[0] + b, c, n);
+      const out = flip ? [n - 1 - v, n - 1 - u] : [u, v];
+      if (kind) out.push(kind);
+      return out;
+    });
+  };
+  // 正面は、帯の真ん中の行の色で、先に横の髪を、次に残った区間の端の腕（肌）を胴から分ける。真ん中が肌（顔や首）の区間の髪は分けない
+  const ym = (y0 + y1) >> 1, colorAt = (fn, x0) => (x) => { const q = at(x0 + x, ym); return fn(img.d[q], img.d[q + 1], img.d[q + 2]); };
+  const EDGE = Math.max(2, Math.round(6 / S));
+  const fr = toRuns(PF, cxF, W, false, (r, x0) => splitLimbs(splitHairEdges(r, colorAt(hairClass, x0), { center: (x) => !colorAt(isSkin, x0)(x) }), colorAt(isSkin, x0), { edge: EDGE, tol: 2 }));
+  const sr = toRuns(PL, cxL, D, false);
   if (!fr.length || !sr.length) continue;
   const fRow = new Uint8Array(W), sRow = new Uint8Array(D);
   for (const [a, b] of fr) for (let i = Math.max(0, a); i <= Math.min(W - 1, b); i++) fRow[i] = 1;
@@ -93,29 +104,33 @@ for (let j = 0; j < H; j++) {
     const idx = (j * D + k) * W + i; vox[idx] = 1; dir[idx * 2] = hit.u; dir[idx * 2 + 1] = hit.v;
   }
 }
-// 色: 表面のボクセルは、立体全体から求めた面の向き（左右と前後の成分）に近い絵から取る。中のボクセルは断面の中での向きで選ぶ
+// 残すのは表面の殻だけ（中は、項目が開いたときに段ごとに埋め戻す）
+const keep = shellOf(vox, W, D, H), NR = Math.max(2, Math.round(6 / S));   // NR: 面の向きを求める範囲（ボクセルの数）
+log('殻のボクセル', keep.reduce((a, v) => a + v, 0));
+// 色: 表面のボクセルは、立体全体から求めた面の向き（左右と前後の成分）に近い絵から取る。殻の内側のボクセルは断面の中での向きで選ぶ
 const occ = (i, k, j) => i >= 0 && i < W && k >= 0 && k < D && j >= 0 && j < H && vox[(j * D + k) * W + i] ? 1 : 0;
 for (let j = 0; j < H; j++) for (let k = 0; k < D; k++) for (let i = 0; i < W; i++) {
-  const idx = (j * D + k) * W + i; if (!vox[idx]) continue;
+  const idx = (j * D + k) * W + i; if (!vox[idx] || !keep[idx]) continue;
   const surf = !occ(i - 1, k, j) || !occ(i + 1, k, j) || !occ(i, k - 1, j) || !occ(i, k + 1, j) || !occ(i, k, j - 1) || !occ(i, k, j + 1);
   let u = dir[idx * 2], v = dir[idx * 2 + 1];
-  if (surf) { const n = normalAt(occ, i, k, j, 2); if (n[0] || n[2]) { u = n[0]; v = n[2]; } }
+  if (surf) { const n = normalAt(occ, i, k, j, NR); if (n[0] || n[2]) { u = n[0]; v = n[2]; } }
   let c = null; for (const vw of ORDER[viewFor(u, v)]) { c = sample(vw, i, k, j); if (c) break; }
-  if (!c) { vox[idx] = 0; continue; }
+  if (!c) continue;
   col.push([idx, c[0], c[1], c[2]]);
 }
+vox.fill(0);   // 殻の外（中）は空にする。色を付けた殻だけを、下で番号として入れ直す
 log('詰めたボクセル', col.length);
 
 // 5. 色の数を減らして、色の表の番号（1 から。0 は空）にする
 const pal = medianCut(col.map((c) => [c[1], c[2], c[3]]), NCOL);
 for (const c of col) vox[c[0]] = nearest(pal, [c[1], c[2], c[3]]) + 1;
-const enc = rle(vox), b64 = Buffer.from(enc).toString('base64');
+const enc = deflateRawSync(vox, { level: 9 }), b64 = enc.toString('base64');
 const hex = pal.map((c) => '#' + c.map((v) => v.toString(16).padStart(2, '0')).join(''));
 const head = `/* 三面図から作った、ドット絵の立体（ボクセル）。図鑑の項目「三面図から作る、重ねたドット絵の立体」が、開いたときだけ読み込む。
  * 元の絵: 作者が用意した三面図（正面・左の横顔・後ろ・右の横顔）。元の絵はリポジトリに入れていない。
  * tools/stack-build.mjs で作った（ボクセル 1 つは元の絵の ${S} 画素、色は ${pal.length} 色）。
  * vox は、下の段から順に、段ごとに z（奥から手前）→ x（左から右）の順に並べた色の番号（0 は空、1 からは pal の番号 + 1）を、
- * [回数, 値] の組に縮めて base64 にしたもの。 */
+ * deflate（raw）で縮めて base64 にしたもの。表面の殻（厚さ 2）だけを入れてあり、中は項目が段ごとに埋め戻す。 */
 (window.DEKIRU_DATA ??= {})["stack-girl"] = ${JSON.stringify({ w: W, d: D, h: H, pal: hex, vox: b64 })};
 `;
 writeFileSync(join(ROOT, 'data/stack-girl.js'), head);

@@ -41,10 +41,18 @@ export function bandRow(mask, w, x0, x1, y0, y1) {
 // 細い区間（その段でいちばん太い区間の limb 倍より細い。腕や手）は、断面を丸とみなし、奥行きの半径を幅の半分にする
 export function sliceEllipses(front, side, limb = 0.4) {
   const wmax = Math.max(0, ...front.map(([a, b]) => b - a + 1)), out = [];
-  for (const [a, b] of front) for (const [c, d] of side) {
-    const rx = (b - a + 1) / 2, cx = (a + b + 1) / 2;
-    let rz = (d - c + 1) / 2; const cz = (c + d + 1) / 2;
-    if (b - a + 1 < limb * wmax) rz = Math.min(rz, rx);
+  // 種類の付いた区間（髪・腕）は、横の外形のいちばん太い区間（体の本体）とだけ組にする。
+  // 胸のふくらみのように横の外形が分かれる高さで、髪や腕が胸の前の奥行きに置かれて横一列の棒になるのを防ぐ
+  const main = side.reduce((m, r) => (r[1] - r[0] > m[1] - m[0] ? r : m), side[0] || [0, -1]);
+  for (const f of front) for (const [c, d] of (f[2] ? [main] : side)) {
+    const [a, b] = f;
+    let rx = (b - a + 1) / 2; const cx = (a + b + 1) / 2;
+    // 本体から離れた横の区間（胸のふくらみなど）と組む楕円は、幅を本体の奥行きの 1.1 倍までにする（髪まで含んだ幅に広がらない）
+    if (c !== main[0] || d !== main[1]) rx = Math.min(rx, ((main[1] - main[0] + 1) / 2) * 1.1);
+    let rz = (d - c + 1) / 2, cz = (c + d + 1) / 2;
+    const kind = f[2];
+    if (kind === 'limb' || (!kind && b - a + 1 < limb * wmax)) rz = Math.min(rz, rx);
+    else if (kind === 'hair') { rz = Math.min(rz, rx * 1.2); cz = c + rz; }   // 横の髪は、横の外形の後ろ側（背中側）に寄せる
     out.push({ cx, cz, rx, rz });
   }
   return out;
@@ -98,3 +106,90 @@ export function normalAt(occ, i, k, j, r = 2) {
   for (let dj = -r; dj <= r; dj++) for (let dk = -r; dk <= r; dk++) for (let di = -r; di <= r; di++) if (occ(i + di, k + dk, j + dj)) { x += di; y += dj; z += dk; }
   return [-x, -y, -z];
 }
+
+// 表面の殻: 詰まったボクセルのうち、6 方向のどれかが空いているもの（表面）と、同じ段で表面の隣（8 方向）にあるものだけを残す。
+// 中は、開いたときに段ごとに埋め戻す（項目の core の fillLayer）。厚さを 2 にするのは、斜めのすき間から外の空きが中へつながらないようにするため
+export function shellOf(vox, W, D, H) {
+  const at = (i, k, j) => i >= 0 && i < W && k >= 0 && k < D && j >= 0 && j < H && vox[(j * D + k) * W + i] !== 0;
+  const surf = new Uint8Array(W * D * H);
+  for (let j = 0; j < H; j++) for (let k = 0; k < D; k++) for (let i = 0; i < W; i++) {
+    if (!at(i, k, j)) continue;
+    if (!at(i - 1, k, j) || !at(i + 1, k, j) || !at(i, k - 1, j) || !at(i, k + 1, j) || !at(i, k, j - 1) || !at(i, k, j + 1)) surf[(j * D + k) * W + i] = 1;
+  }
+  const keep = new Uint8Array(surf);
+  for (let j = 0; j < H; j++) for (let k = 0; k < D; k++) for (let i = 0; i < W; i++) {
+    const idx = (j * D + k) * W + i; if (keep[idx] || !at(i, k, j)) continue;
+    for (let dk = -1; dk <= 1 && !keep[idx]; dk++) for (let di = -1; di <= 1; di++) {
+      const ii = i + di, kk = k + dk;
+      if (ii >= 0 && ii < W && kk >= 0 && kk < D && surf[(j * D + kk) * W + ii]) { keep[idx] = 1; break; }
+    }
+  }
+  return keep;
+}
+
+// 腕を胴から分ける: 正面の区間の端に、細い肌の部分（腕や手）があれば、別の区間にする。
+// 肘が髪や胴に触れる高さでは、正面の外形が 1 本につながり、胴の奥行きの楕円が腕の幅まで広がって平たい円盤になるため。
+// skinAt(x): 正面の絵の x の画素が肌の色か。端の輪郭の線（edge 画素まで）は飛ばして数える。肌の部分が区間の幅の maxFrac より細いときだけ分ける
+// 分けた区間には 3 つ目の値に種類（kind）を付ける。center(x) を渡すと、区間の真ん中がその条件に合うときだけ分ける
+// tol: 部分の中に挟まってもよい、条件に合わない画素の続く数（髪の筋の線など）
+export function splitLimbs(runs, skinAt, { edge = 3, minPx = 3, maxFrac = 0.3, kind = 'limb', center = null, tol = 0 } = {}) {
+  const out = [];
+  for (const run of runs) {
+    const [a, b] = run;
+    if (run[2] || (center && !center((a + b) >> 1))) { out.push(run); continue; }
+    const w = b - a + 1; let lo = a, hi = b;
+    const side = (start, step) => {
+      let x = start, skip = 0;
+      while (skip < edge && x >= a && x <= b && !skinAt(x)) { x += step; skip++; }
+      // 条件に合う画素を数える。合わない画素が tol 個までなら、その先も続きとみなす
+      let n = 0, hit = 0, gap = 0;
+      while (x >= a && x <= b) {
+        if (skinAt(x)) { hit++; n += gap + 1; gap = 0; } else if (++gap > tol) break;
+        x += step;
+      }
+      x -= step * gap;   // 最後に合った画素のすぐ先へ戻す
+      return hit >= minPx && (n + skip) < maxFrac * w && x >= a && x <= b ? n + skip : 0;   // 部分の先に、合わない所が続くときだけ
+    };
+    const l = side(a, 1), r = side(b, -1);
+    if (l) { out.push([a, a + l - 1, kind]); lo = a + l; }
+    const tail = r ? [b - r + 1, b, kind] : null; if (r) hi = b - r;
+    if (hi >= lo) out.push([lo, hi]);
+    if (tail) out.push(tail);
+  }
+  return out;
+}
+// 肌の色か（明るく、赤みが青みより少し強く、白ほど灰色ではない）
+export const isSkin = (r, g, b) => r > 200 && g > 165 && b > 150 && r - b >= 12 && r - b <= 70 && r >= g;
+// 髪の色か（茶色から桃色。肌より暗い）
+export const isHair = (r, g, b) => r >= g && g >= b - 10 && r - b > 20 && 0.3 * r + 0.59 * g + 0.11 * b < 205 && r > 90;
+
+// 横の髪を胴から分ける: 区間の端から、体の色（肌・白いシャツ・紺の服）が stopRun 画素以上続く所までを、髪の部分とする。
+// 背景の色（髪の筋のすき間）や暗い線は、どちらでもないので数えずに進む。cls(x) は 'in'（髪）・'stop'（体）・'neutral' を返す。
+// 髪の部分は、髪の画素が minFrac 以上で、区間の幅の maxFrac より細いときだけ分ける。区間の真ん中が center に合わなければ分けない
+export function splitHairEdges(runs, cls, { stopRun = 6, minFrac = 0.25, maxFrac = 0.42, center = null } = {}) {
+  const out = [];
+  for (const run of runs) {
+    const [a, b] = run;
+    if (run[2] || (center && !center((a + b) >> 1))) { out.push(run); continue; }
+    const w = b - a + 1;
+    const side = (start, step) => {
+      let x = start, hits = 0, stop = 0;
+      for (; x >= a && x <= b; x += step) {
+        const c = cls(x);
+        if (c === 'stop') { if (++stop >= stopRun) break; } else { stop = 0; if (c === 'in') hits++; }
+      }
+      if (!(x >= a && x <= b)) return 0;   // 体の色に当たらずに端まで来た（全部が髪）: 分けない
+      const len = Math.abs(x - start) + 1 - stop;   // 体の色が続き始めた所の手前まで
+      return len > 0 && hits >= minFrac * len && len < maxFrac * w ? len : 0;
+    };
+    const l = side(a, 1), r = side(b, -1);
+    let lo = a, hi = b;
+    if (l) { out.push([a, a + l - 1, 'hair']); lo = a + l; }
+    const tail = r ? [b - r + 1, b, 'hair'] : null; if (r) hi = b - r;
+    if (hi >= lo) out.push([lo, hi]);
+    if (tail) out.push(tail);
+  }
+  return out;
+}
+// 髪を分けるときの色の分け方
+export const hairClass = (r, g, b) => (isHair(r, g, b) ? 'in' : isSkin(r, g, b) || (r > 200 && g > 200 && b > 200) || (b > r + 25 && b > 70) ? 'stop' : 'neutral');
