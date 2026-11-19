@@ -1,5 +1,5 @@
 // 一覧のカードの静止画の目録。node tools/thumbs.mjs が作る。手で直さない
-window.DEKIRU_THUMBS = {"v":1,"w":400,"h":250,"cols":4,"rows":2,"sheets":["68d72c","4e08da","19ffa2","dd35ff","dd3a9c","60fbf0","63e81e","b7a4d3","686b21","92cefe","eb8186","f2066e","45a218","2a91ab","37d693","24ab4a","5a54cd","f752e7","d5e527","6c6f03","a925dd","52db0c","cf580e","4ff3cb","e52822","8d4c85","86cb75","aea336","88ed5d","d743dc","151077","a2a63d","026310","3bb873","eda318","f2d7f7","5b432b","315430","5da556","f6d5b0","4c1b0f","a1602a","17a31a","899807","4aa5ef","74e1f4","5c3a3a","18757a","ce7b78","9b8854","d15b89","b18e2c","f68cc0","50dd37","d7bec3","1b14a4","c3c5fd","fbea8e","9b356e","5efb07","b5f169","62dca2","a256ca"],"at":{
+window.DEKIRU_THUMBS = {"v":1,"w":400,"h":250,"cols":4,"rows":2,"sheets":["68d72c","4e08da","19ffa2","dd35ff","dd3a9c","60fbf0","63e81e","b7a4d3","686b21","92cefe","eb8186","f2066e","45a218","2a91ab","37d693","24ab4a","5a54cd","f752e7","d5e527","6c6f03","a925dd","52db0c","cf580e","4ff3cb","e52822","8d4c85","86cb75","aea336","88ed5d","d743dc","151077","a2a63d","026310","3bb873","eda318","f2d7f7","5b432b","315430","5da556","f6d5b0","4c1b0f","a1602a","17a31a","899807","4aa5ef","74e1f4","5c3a3a","18757a","ce7b78","9b8854","d15b89","b18e2c","f68cc0","50dd37","d7bec3","1b14a4","c3c5fd","fbea8e","9b356e","5efb07","b5f169","62dca2","3c3c56"],"at":{
 "tr-20261119-partial-eval":[60,0,"d237915398"],
 "tr-20261119-h2-window-underflow":[62,3,"5437b6d605"],
 "tr-20261119-upcase-overflow":[62,4,"9067f99f81"],
@@ -105,7 +105,7 @@ window.DEKIRU_THUMBS = {"v":1,"w":400,"h":250,"cols":4,"rows":2,"sheets":["68d72
 "3d-vroid-toon":[12,0,"0255b0961b"],
 "3d-vroid-motion":[12,1,"63aab2e7fa"],
 "3d-vroid-shore":[12,2,"6a2efe1ff4"],
-"3d-zunda-move":[62,5,"4d7ec391d0"],
+"3d-zunda-move":[62,5,"562d040492"],
 "astra-fold-map":[58,7,"01b42aa076"],
 "cv-paint":[12,3,"70672b37e2"],
 "cv-flowfield":[12,4,"4fb1c2eb2f"],

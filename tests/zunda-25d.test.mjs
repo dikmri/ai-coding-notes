@@ -127,18 +127,27 @@ test('混ぜ方: 正面・横・後ろの近くでは 1 枚の絵だけ、間で
   assert.deepEqual(names(Z.viewBlend(-90)), ['right']);
   assert.deepEqual(names(Z.viewBlend(180)), ['back']);
   assert.deepEqual(names(Z.viewBlend(-180)), ['back']);
-  // 正面と横の間は 63 度（4 分の 1 周の 7 割）で入れ替える。正面の絵の方が、回しても崩れにくいため
+  // 正面と横の間は 68 度で入れ替える。正面の絵の方が、回しても崩れにくいため（横の絵は、正面寄りに回すと顔がくさびの形に広がる）
   assert.deepEqual(names(Z.viewBlend(45)), ['front']);
-  const m = Z.viewBlend(63);
+  const m = Z.viewBlend(68);
   assert.equal(m.length, 2); near(m[1].alpha, 0.5, 1e-9); assert.equal(m[0].alpha, 1);
-  const a = Z.viewBlend(62), b = Z.viewBlend(64);
+  const a = Z.viewBlend(67.6), b = Z.viewBlend(68.4);
   assert.equal(a[1].view, 'front'); assert.equal(b[1].view, 'left');
   assert.ok(a[1].alpha > 0.5 && a[1].alpha < 1);
-  near(a[1].alpha, b[1].alpha, 1e-9, '63 度を中心に対称');
-  // 右へ回るときも同じ角度で入れ替える（-63 度）。横と後ろの間は 135 度
-  near(Z.viewBlend(-63)[1].alpha, 0.5, 1e-9);
+  near(a[1].alpha, b[1].alpha, 1e-9, "68 度を中心に対称");
+  // 右へ回るときも同じ角度で入れ替える（-68 度）。横と後ろの間は 135 度
+  near(Z.viewBlend(-68)[1].alpha, 0.5, 1e-9);
   near(Z.viewBlend(135)[1].alpha, 0.5, 1e-9);
   near(Z.viewBlend(-135)[1].alpha, 0.5, 1e-9);
+});
+
+test('となりの絵: いま描く絵と、下に敷くとなりの絵と、いま描く絵の向きからのずれ（度）', () => {
+  const p = (t) => { const r = Z.viewPair(t); return [r.primary, r.neighbor, +r.offset.toFixed(6)]; };
+  assert.deepEqual(p(30), ['front', 'left', 30]);
+  assert.deepEqual(p(80), ['left', 'front', 10]);
+  assert.deepEqual(p(-30), ['front', 'right', 30]);
+  assert.deepEqual(p(150), ['back', 'left', 30]);
+  assert.deepEqual(p(0), ['front', 'left', 0]);
 });
 
 // ---- 骨格 ----
@@ -219,6 +228,10 @@ test('まばたき: 白目の上より上（まつげ）は形を保って閉じ
   near(top[0], 20, 1e-9, '横には動かない');
   // 目の幅の外（まつげの先）は、いちばん近い端の高さで閉じる
   near(E(36, 98)[1], 98 + 13, 1e-6);
+  // 瞳の左右から遠い所（目の横の髪の線）は動かない（瞳の端から 24 画素より外）
+  near(E(60, 96)[1], 96, 1e-9, '目の横の線は動かない');
+  // 塗り（線でないもの）は、まつげより上を動かさない（まつげの上の肌の白い塗りが下がって、横の髪を隠さないように）
+  near(E(20, 96, false)[1], 96, 1e-9, 'まつげの上の塗りは動かない'); near(E(20, 110, false)[1], 113, 0.5, '瞳の中の塗りはつぶれる');
   // まつげより上（前髪のふちなど）は動かない。その間はなめらかに下げる量を減らす
   near(E(20, 80)[1], 80, 1e-9, '上の線は動かない');
   near(E(20, 91)[1], 91 + 13, 1e-9, '二重の線（瞳の上から 10 画素まで）は丸ごと下がる');
@@ -288,4 +301,24 @@ test('向き: 頭から見た見る人の向きから、正面 0・左 90・後�
   near(Z.viewAngle(Z.rotY(-Math.PI / 2)), 90, 1e-9);  // キャラが右を向く → 左側が見える
   near(Z.viewAngle(Z.rotY(Math.PI / 2)), -90, 1e-9);
   near(Math.abs(Z.viewAngle(Z.rotY(Math.PI))), 180, 1e-9);
+});
+
+test('頭の前後の傾き: 頭の上の向きが画面から前後へ傾く角度だけを上限で抑え、画面の中の向きと、横から見た傾き（画面の中の回転）は変えない', () => {
+  const up = (M) => [-M[1], -M[4], -M[7]], tiltOf = (M) => { const u = up(M); return Math.atan2(u[2], Math.hypot(u[0], u[1])); };
+  // 上限より小さい傾きは、そのまま
+  const small = Z.rotX(0.2), a = Z.limitTilt(small, 0.45);
+  for (let i = 0; i < 9; i++) near(a[i], small[i], 1e-9, `小さい傾き ${i}`);
+  // 正面から見た深いお辞儀（見る人の方へ 1 ラジアン傾く）は、0.45 ラジアンまで戻す。画面の中の上の向き（真上）は保つ
+  const deep = Z.mul3(Z.rotY(0.3), Z.rotX(1.0)), b = Z.limitTilt(deep, 0.45);
+  near(Math.abs(tiltOf(b)), 0.45, 1e-6, '抑えた傾き');
+  const u0 = up(deep), u1 = up(b);
+  near(Math.atan2(u1[0], -u1[1]), Math.atan2(u0[0], -u0[1]), 1e-6, '画面の中の向き');
+  // 回転のまま（列が直交して長さ 1）
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+    const d = b[i] * b[j] + b[3 + i] * b[3 + j] + b[6 + i] * b[6 + j];
+    near(d, i === j ? 1 : 0, 1e-9, `直交 ${i}${j}`);
+  }
+  // 真横から見たお辞儀は、画面の中の回転なので変えない
+  const side = Z.mul3(Z.rotY(-Math.PI / 2), Z.rotX(1.0)), c = Z.limitTilt(side, 0.45);
+  for (let i = 0; i < 9; i++) near(c[i], side[i], 1e-9, `横 ${i}`);
 });
