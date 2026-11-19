@@ -121,33 +121,31 @@ test('立体の形: 正面と横の両方にある行に印を付ける（下地
 });
 
 // ---- 向きと絵の混ぜ方 ----
-test('混ぜ方: 正面・横・後ろの近くでは 1 枚の絵だけ、間では 2 枚を重ね、手前の絵の濃さは 0.5〜1', () => {
-  assert.deepEqual(names(Z.viewBlend(0)), ['front']);
-  assert.deepEqual(names(Z.viewBlend(90)), ['left']);
-  assert.deepEqual(names(Z.viewBlend(-90)), ['right']);
-  assert.deepEqual(names(Z.viewBlend(180)), ['back']);
-  assert.deepEqual(names(Z.viewBlend(-180)), ['back']);
+test('絵の選び方: 近い方の絵を 1 枚だけ描く（2 枚を半透明で重ねると二重に見える）。入れ替える角度の前後 2 度は前の絵を保つ', () => {
+  const v = (t, prev) => Z.viewPick(t, prev).view;
+  assert.equal(v(0, null), 'front'); assert.equal(v(90, null), 'left'); assert.equal(v(-90, null), 'right');
+  assert.equal(v(180, null), 'back'); assert.equal(v(-180, null), 'back');
   // 正面と横の間は 68 度で入れ替える。正面の絵の方が、回しても崩れにくいため（横の絵は、正面寄りに回すと顔がくさびの形に広がる）
-  assert.deepEqual(names(Z.viewBlend(45)), ['front']);
-  const m = Z.viewBlend(68);
-  assert.equal(m.length, 2); near(m[1].alpha, 0.5, 1e-9); assert.equal(m[0].alpha, 1);
-  const a = Z.viewBlend(67.6), b = Z.viewBlend(68.4);
-  assert.equal(a[1].view, 'front'); assert.equal(b[1].view, 'left');
-  assert.ok(a[1].alpha > 0.5 && a[1].alpha < 1);
-  near(a[1].alpha, b[1].alpha, 1e-9, "68 度を中心に対称");
-  // 右へ回るときも同じ角度で入れ替える（-68 度）。横と後ろの間は 135 度
-  near(Z.viewBlend(-68)[1].alpha, 0.5, 1e-9);
-  near(Z.viewBlend(135)[1].alpha, 0.5, 1e-9);
-  near(Z.viewBlend(-135)[1].alpha, 0.5, 1e-9);
+  assert.equal(v(45, null), 'front'); assert.equal(v(67.9, null), 'front'); assert.equal(v(68.1, null), 'left');
+  assert.equal(v(-67.9, null), 'front'); assert.equal(v(-68.1, null), 'right');
+  // 息や揺れで角度が入れ替える角度の前後を行き来しても、絵が毎コマ入れ替わらない（前の絵を 2 度まで保つ）
+  assert.equal(v(69.9, 'front'), 'front'); assert.equal(v(70.1, 'front'), 'left');
+  assert.equal(v(66.1, 'left'), 'left'); assert.equal(v(65.9, 'left'), 'front');
+  // 横と後ろの間は 135 度
+  assert.equal(v(134.9, null), 'left'); assert.equal(v(135.1, null), 'back'); assert.equal(v(135, 'left'), 'left'); assert.equal(v(-135.5, 'back'), 'back');
+  // 前の絵がとなりの絵でない（大きく回った）ときは、近い方
+  assert.equal(v(30, 'back'), 'front');
 });
 
-test('となりの絵: いま描く絵と、下に敷くとなりの絵と、いま描く絵の向きからのずれ（度）', () => {
-  const p = (t) => { const r = Z.viewPair(t); return [r.primary, r.neighbor, +r.offset.toFixed(6)]; };
+test('となりの絵: 描く絵と、下に敷くとなりの絵と、描く絵の向きからのずれ（度）', () => {
+  const p = (t, prev = null) => { const r = Z.viewPick(t, prev); return [r.view, r.neighbor, +r.offset.toFixed(6)]; };
   assert.deepEqual(p(30), ['front', 'left', 30]);
   assert.deepEqual(p(80), ['left', 'front', 10]);
   assert.deepEqual(p(-30), ['front', 'right', 30]);
   assert.deepEqual(p(150), ['back', 'left', 30]);
   assert.deepEqual(p(0), ['front', 'left', 0]);
+  // 前の絵を保っているときは、保っている絵からのずれ
+  assert.deepEqual(p(69, 'front'), ['front', 'left', 69]);
 });
 
 // ---- 骨格 ----

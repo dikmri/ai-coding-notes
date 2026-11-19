@@ -127,26 +127,18 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
     const applyMat3 = (M, v) => [M[0] * v[0] + M[1] * v[1] + M[2] * v[2], M[3] * v[0] + M[4] * v[1] + M[5] * v[2], M[6] * v[0] + M[7] * v[1] + M[8] * v[2]];
     // 体の部分の回転 R のとき、その部分から見た見る人の向き（R⁻¹ × (0, 0, 1)）の水平の角度（度）。正面 0・左の横 90・後ろ 180・右の横 -90
     const viewAngle = (R) => Math.atan2(R[6], R[8]) * 180 / Math.PI;
-    // 角度（度）から、描く絵とその濃さを決める。正面・左・後ろ・右の 4 枚のうち近い 2 枚を、間の 3 割〜7 割の所で入れ替える。
-    // 戻りは描く順（先に描く絵は濃さ 1、あとから重ねる手前の絵は 0.5〜1）
+    // 角度（度）から、描く絵を 1 枚選ぶ。正面・左・後ろ・右の 4 枚のうち近い 2 枚を、間の決まった所（SWITCH）で入れ替える。
+    // 2 枚を半透明で重ねると、形の違う 2 枚が二重に見えるので重ねない。入れ替える所の前後 HYST 度は、前のコマの絵（prev）を保つ
+    // （息や揺れで角度が入れ替える所を行き来しても、絵が毎コマ入れ替わらない）。
     // 入れ替える所（4 分の 1 周の中の割合）: 正面と横の間は横寄り（正面の絵の方が、回しても崩れにくい）、横と後ろの間は真ん中。
-    // band はなめらかに入れ替える幅（割合）
+    // 戻り: view 描く絵、neighbor となりの絵（斜めのとき下に敷く）、offset 描く絵の向きからのずれ（度）
     const VIEWS = ['front', 'left', 'back', 'right'];
-    const SWITCH = [68 / 90, 0.5, 0.5, 22 / 90], BAND = 0.02;
-    function viewBlend(theta) {
+    const SWITCH = [68 / 90, 0.5, 0.5, 22 / 90], HYST = 2;
+    function viewPick(theta, prev) {
       const a = ((theta % 360) + 360) % 360, k = Math.floor(a / 90 + 1e-9), t = a / 90 - k;
-      const v0 = VIEWS[k % 4], v1 = VIEWS[(k + 1) % 4], m = SWITCH[k % 4];
-      const x = Math.max(0, Math.min(1, (t - m + BAND / 2) / BAND)), s = x * x * (3 - 2 * x);
-      if (s <= 1e-6) return [{ view: v0, alpha: 1 }];
-      if (s >= 1 - 1e-6) return [{ view: v1, alpha: 1 }];
-      return s < 0.5 ? [{ view: v1, alpha: 1 }, { view: v0, alpha: 1 - s }] : [{ view: v0, alpha: 1 }, { view: v1, alpha: s }];
-    }
-    // いま描く絵（primary）と、そのとなりの絵（neighbor）と、いま描く絵の向きからのずれ（度）。
-    // 斜めのときは、となりの絵を下に敷く（手前に回り込んだ所に、髪の筋や腰の帯が見える）
-    function viewPair(theta) {
-      const a = ((theta % 360) + 360) % 360, k = Math.floor(a / 90 + 1e-9), t = a / 90 - k;
-      const v0 = VIEWS[k % 4], v1 = VIEWS[(k + 1) % 4], first = t < SWITCH[k % 4];
-      return { primary: first ? v0 : v1, neighbor: first ? v1 : v0, offset: (first ? t : 1 - t) * 90 };
+      const v0 = VIEWS[k % 4], v1 = VIEWS[(k + 1) % 4], m = SWITCH[k % 4], h = HYST / 90;
+      const view = prev === v0 && t < m + h ? v0 : prev === v1 && t > m - h ? v1 : t < m ? v0 : v1;
+      return { view, neighbor: view === v0 ? v1 : v0, offset: (view === v0 ? t : 1 - t) * 90 };
     }
 
     // ---- 骨格と部分（元の絵の座標）----
@@ -158,7 +150,9 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
     // 元の絵で前髪に隠れて写していない額が見えない）。横の絵の顔は、顔の形に貼る（髪の形に貼ると、顔が横に広がる）
     // bone: 付ける骨。ref: 3 方向の絵での付け根（正面の x, y、横の x、後ろの x）。部分の絵は ref からの位置で持ち上げ、骨の付け根に付ける。
     // bias: 重なり順の差（見る人からの近さに足す）。右の靴の横の絵は、左の靴（手前の靴）の絵を使う
-    const one = (name, base, parts) => [{ name, base, parts }];
+    const one = (name, base, parts, o = {}) => [{ name, base, parts, ...o }];
+    // 靴にはとなりの向きの絵を下に敷かない（斜めのとき、横の絵のつま先が線ごと横にはみ出て、靴が 2 足を貼り合わせたように見える）
+    const BOOT = { underlay: false };
     const REGIONS = [
       { name: 'head', bone: 'head', ref: { front: [923.5, 325], side: 233, back: 1566.5 }, bias: 200, groups: [
         { name: 'hair', base: 'green', parts: { front: ['hair_back', 'hair_side_r', 'hair_side_l', 'hair_front'], side: ['hair'], back: ['hair'] },
@@ -170,9 +164,9 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
       // 胴の形には、横の絵の袖も含める（横の絵では胴の後ろ半分が袖に隠れていて、含めないと奥行きが浅くなり、斜めから見ると肩まで届かない）
       { name: 'torso', bone: 'chest', ref: { front: [923.5, 455], side: 200, back: 1566.5 }, bias: 0, groups: [{ name: 'torso', base: 'white',
         parts: { front: ['shirt', 'bib', 'ribbon'], side: ['shirt', 'bib', 'ribbon'], back: ['shirt', 'bib', 'ribbon'] }, shape: { front: ['shirt', 'bib', 'ribbon'], side: ['shirt', 'bib', 'ribbon', 'sleeve_l'] }, baseShape: true }] },
-      { name: 'shorts', bone: 'hips', ref: { front: [923.5, 610], side: 220, back: 1566.5 }, bias: 0, groups: one('shorts', 'dark', { front: ['shorts'], side: ['shorts'], back: ['shorts'] }) },
-      { name: 'bootL', bone: 'leftFoot', ref: { front: [990, 1150], side: 281, back: 1482 }, bias: 10, groups: one('boot', 'dark', { front: ['boot_l'], side: ['boot_l'], back: ['boot_l'] }) },
-      { name: 'bootR', bone: 'rightFoot', ref: { front: [858, 1150], side: 281, back: 1650 }, bias: 10, groups: one('boot', 'dark', { front: ['boot_r'], side: ['boot_l'], back: ['boot_r'] }) },
+      { name: 'shorts', bone: 'hips', ref: { front: [923.5, 610], side: 220, back: 1566.5 }, bias: 0, groups: one('shorts', 'dark', { front: ['shorts'], side: ['shorts'], back: ['shorts'] }, { hem: [781, 'pink'] }) },
+      { name: 'bootL', bone: 'leftFoot', ref: { front: [990, 1150], side: 281, back: 1482 }, bias: 10, groups: one('boot', 'dark', { front: ['boot_l'], side: ['boot_l'], back: ['boot_l'] }, BOOT) },
+      { name: 'bootR', bone: 'rightFoot', ref: { front: [858, 1150], side: 281, back: 1650 }, bias: 10, groups: one('boot', 'dark', { front: ['boot_r'], side: ['boot_l'], back: ['boot_r'] }, BOOT) },
     ];
     // 手足の板（正面の絵を骨に沿って曲げる）。parent・child: 関節のまわりで重みを混ぜる骨
     const CARDS = [
@@ -180,8 +174,8 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
       { part: 'hand_l', bone: 'leftHand', parent: 'leftLowerArm', bias: 85 },
       { part: 'upper_arm_r', bone: 'rightUpperArm', child: 'rightLowerArm', bias: 75 }, { part: 'forearm_r', bone: 'rightLowerArm', parent: 'rightUpperArm', child: 'rightHand', bias: 80 },
       { part: 'hand_r', bone: 'rightHand', parent: 'rightLowerArm', bias: 85 },
-      { part: 'thigh_l', bone: 'leftUpperLeg', child: 'leftLowerLeg', bias: -50 }, { part: 'shin_l', bone: 'leftLowerLeg', parent: 'leftUpperLeg', bias: -30 },
-      { part: 'thigh_r', bone: 'rightUpperLeg', child: 'rightLowerLeg', bias: -50 }, { part: 'shin_r', bone: 'rightLowerLeg', parent: 'rightUpperLeg', bias: -30 },
+      { part: 'thigh_l', bone: 'leftUpperLeg', child: 'leftLowerLeg', bias: -50, under: 'hips' }, { part: 'shin_l', bone: 'leftLowerLeg', parent: 'leftUpperLeg', bias: -30 },
+      { part: 'thigh_r', bone: 'rightUpperLeg', child: 'rightLowerLeg', bias: -50, under: 'hips' }, { part: 'shin_r', bone: 'rightLowerLeg', parent: 'rightUpperLeg', bias: -30 },
     ];
     // 横から見た手足の幅（正面の幅に対する割合）。脚の断面は前後に少し薄い楕円、腕は筒。脚は 0.6 より 0.8 のほうが横の絵と外形がよく重なる（横の IoU 0.843 → 0.857）
     const SIDE_W = { leftUpperLeg: 0.8, leftLowerLeg: 0.8, rightUpperLeg: 0.8, rightLowerLeg: 0.8 };
@@ -375,7 +369,7 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
     // 中心と幅は、写した 3 方向の絵の髪の束の部品から、高さごとに測った（X は後ろと正面の絵、Z は横の絵）
     const TAIL_REST = [[-4, 325, -67], [-64, 380, -106], [-105, 450, -140], [-140, 525, -168], [-181, 600, -200]];
     // 巻いた先は、正面と後ろからは幅 約 185、横からは 約 135 の丸に見えるので、奥行きの短い楕円の玉として描く（r は X・Y・Z の半径）
-    const TAIL_W = [12, 16, 28, 46, 64], CURL = { c: [-240, 668, -253], r: [92, 92, 66] };
+    const TAIL_W = [24, 20, 28, 46, 64], CURL = { c: [-240, 668, -253], r: [92, 92, 66] };
     const tailInit = (rest) => ({ p: rest.map((v) => v.slice()), q: rest.map((v) => v.slice()), len: rest.slice(1).map((v, i) => Math.hypot(v[0] - rest[i][0], v[1] - rest[i][1], v[2] - rest[i][2])) });
     // 1 コマ進める: 根元は targets[0] に付け、ほかの点は、慣性（前のコマからの動き）と、休みの形の位置へ戻る力と、重さで動かす。
     // 戻る力は先ほど弱く、先ほどよく揺れる。そのあと根元から順に、区間の長さを休みの形の長さに戻す
@@ -426,7 +420,7 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
       const ax = h > 1e-6 ? norm3([u[1], -u[0], 0]) : [1, 0, 0];   // u × (0,0,1)
       return mul3(qmat(qaxis(ax, Math.sign(tilt) * max - tilt)), M);
     }
-    const Z = { parsePath, subdivide, buildProxy, lift, hull, rotX, rotY, rotZ, mul3, applyMat3, viewAngle, viewBlend, viewPair, VIEWS, AXIS, REGIONS, CARDS, SLEEVES, SIDE_W, widthAt, view, dequant, sampleClip,
+    const Z = { parsePath, subdivide, buildProxy, lift, hull, rotX, rotY, rotZ, mul3, applyMat3, viewAngle, viewPick, VIEWS, AXIS, REGIONS, CARDS, SLEEVES, SIDE_W, widthAt, view, dequant, sampleClip,
       TAIL_REST, TAIL_W, CURL, tailInit, tailStep, eyeCloser, mouthShape, vowels, VOWEL_SHAPE,
       qmul, qconj, qaxis, qrot, qfromTo, qslerp, qmat, norm3, SKEL, buildSkeleton, restLocals, fk, boneDraw, HIPS_REST, PX_PER_M, hipsFromMotion, cardMap, jointBlend,
       FLOOR_Y, HIPS_BOTTOM, groundOffset, limitTilt };
@@ -435,9 +429,9 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
     const t0 = performance.now(), cv = document.getElementById('c'), g = cv.getContext('2d');
     const D = window.DEKIRU_DATA, SRC = { front: D['zunda-front'], side: D['zunda-side'], back: D['zunda-back'] }, PAL = SRC.front.palette;
     // ---- 曲線を読む（長い区間は 6 画素以下に分ける）----
-    // 髪の部品の、5 画素より小さな部分（写したときの点のごみ）は描かない。髪の形から外れた所にあると、立体にしたときに頭の上に浮く
-    const speck = (q) => { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (let j = 0; j < q.length; j += 2) { x0 = Math.min(x0, q[j]); x1 = Math.max(x1, q[j]); y0 = Math.min(y0, q[j + 1]); y1 = Math.max(y1, q[j + 1]); } return Math.max(x1 - x0, y1 - y0) < 5; };
-    const prep = (V) => V.shapes.map((s, i) => ({ i, part: s.part, kind: s.kind, color: V.palette[s.color], subs: Z.parsePath(s.d, V.origin).filter((q) => !(s.part.startsWith('hair') && speck(q))).map((q) => Z.subdivide(q, 6)) }));
+    // 髪と飾りの部品の、8 画素より小さな部分（写したときの点のごみ）は描かない。形から外れた所にあると、立体にしたときに頭の上に浮く
+    const speck = (q) => { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (let j = 0; j < q.length; j += 2) { x0 = Math.min(x0, q[j]); x1 = Math.max(x1, q[j]); y0 = Math.min(y0, q[j + 1]); y1 = Math.max(y1, q[j + 1]); } return Math.max(x1 - x0, y1 - y0) < 8; };
+    const prep = (V) => V.shapes.map((s, i) => ({ i, part: s.part, kind: s.kind, color: V.palette[s.color], subs: Z.parsePath(s.d, V.origin).filter((q) => !(/^(hair|ornament)/.test(s.part) && speck(q))).map((q) => Z.subdivide(q, 6)) }));
     const ART = { front: prep(SRC.front), side: prep(SRC.side), back: prep(SRC.back) };
     function addSub(p, s, f) {
       let q = f(s[0], s[1]); p.moveTo(q[0], q[1]);
@@ -459,7 +453,7 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
     }
     // 確かめ用の状態（spread: 貼るときの広げ方、force: 1 枚の絵だけを描く、cam: 見る向き（ラジアン）、clip・time: 動きと時刻を決める、
     // blink: まばたきを決める（null なら自動）、mouth: 口の [開き, 幅] を決める）
-    const state = { spread: 1.3, outline: 1.2, base: true, force: null, cam: 0, camPitch: 0, clip: null, time: null, paused: false, blink: null, mouth: null, frame: null, hide: null };   // hide: 確かめ用に描かない部分（'pods' など）
+    const state = { spread: 1.3, outline: 1.2, base: true, force: null, cam: 0, camPitch: 0, clip: null, time: null, paused: false, blink: null, mouth: null, frame: null, hide: null };   // hide: 確かめ用に描かない部分（'pods'・'tail'・部分の名前）
     // 目: 瞳（オレンジと黄色）の塗りを画素に描いて、列ごとの上と下を数え、閉じた位置へ動かす関数を作る。
     // 白い塗りで測らない（目の部品には、まつげの上の肌も入っている）。瞳の塗りがない目（横の絵）は、白い塗りで測る
     function eyeProfile(shapes, V) {
@@ -514,6 +508,8 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
         const line = s.kind === 'line';
         const out = { ...s, facing: G.facing ?? -2, underlay: G.underlay !== false, pts: s.subs.map((q) => liftQ(q, (x, y) => [x, y], true)) };
         out.nrm = Float32Array.from(nrm);
+        // 線の閉じた形ごとの、元の絵の上の面積（区切りの点で囲んだ多角形）。回して面積が大きく縮んだ線を描かないのに使う
+        if (line) out.area0 = Float32Array.from(s.subs, (q) => { let a = 0; for (let i = 0; i + 6 < q.length; i += 6) a += q[i] * q[i + 7] - q[i + 6] * q[i + 1]; return Math.abs(a) / 2; });
         // 閉じた位置へ動かすのは、まつげとまぶたの高さに収まる線だけ（目の部品に入った、縦に長い髪の筋の線は動かさない）
         const moves = (q) => { if (!line) return true; let y0 = Infinity, y1 = -Infinity, xs = 0; for (let i = 0; i < q.length; i += 2) { y0 = Math.min(y0, q[i + 1]); y1 = Math.max(y1, q[i + 1]); xs += q[i]; } const cx = xs / (q.length / 2), b = closer.box; return y0 >= b.t - 24 && y1 <= b.b + 10 && cx >= b.x0 - 22 && cx <= b.x1 + 22; };
         if (closer && view !== 'back') out.ptsC = s.subs.map((q, k) => (moves(q) ? liftQ(q, (x, y) => closer(x, y, line), false) : out.pts[k]));
@@ -693,11 +689,11 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
     // ---- 描く ----
     let W = 1, H = 1;
     const mk = () => { const c = new OffscreenCanvas(1, 1); return { c, g: c.getContext('2d') }; };
-    const A = mk(), B = mk(), T = mk();   // A: 部分 1 つ分、B: 重ねる絵、T: 輪郭の線の色に塗った写し
+    const A = mk(), T = mk();   // A: 部分 1 つ分、T: 輪郭の線の色に塗った写し
     function resize() {
       const dpr = Math.min(2, devicePixelRatio || 1);
       W = Math.max(1, Math.round(cv.clientWidth * dpr)); H = Math.max(1, Math.round(cv.clientHeight * dpr));
-      cv.width = W; cv.height = H; for (const L of [A, B, T]) { L.c.width = W; L.c.height = H; }
+      cv.width = W; cv.height = H; for (const L of [A, T]) { L.c.width = W; L.c.height = H; }
     }
     resize(); addEventListener('resize', resize);
     // 描いた範囲（部分の写しを、必要な所だけ重ねる）
@@ -706,12 +702,20 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
     // 3D の点の並び（部分の付け根からの位置）を、回転 M・付け根の画面の位置 J・縮尺 S で写して塗る
     let blinkNow = 0;   // いまのまばたき（0 開く〜1 閉じる）
     const CULL = 0.08;  // 閉じた線の向きが、見る人の方へこれより向いていなければ描かない（元の絵の向きより 0.15 以上向こうを向いたときだけ。息や小さな揺れでは消さない）
+    const SQUASH = 0.3;
     function fillPts(tg, s, M, J, S) {
       const p = new Path2D(), bl = s.ptsC ? blinkNow : 0;
       for (let n = 0; n < s.pts.length; n++) {
         // 立体の形の上で向こうを向いた閉じた線は描かない（回すと奥の線が縁に押し寄せて重なるため）
         if (s.nrm && M[6] * s.nrm[n * 4] + M[7] * s.nrm[n * 4 + 1] + M[8] * s.nrm[n * 4 + 2] < Math.min(CULL, s.nrm[n * 4 + 3] - 0.15)) continue;
         const q = s.pts[n], qc = bl > 0 ? s.ptsC[n] : null;
+        // 線のうち、画面に写した面積が元の 30% より小さくなったもの（縁で横から見て、つぶれたもの）は描かない。
+        // つぶれた線が重なって、あごや首の横に黒い塊ができるため。目の線（まばたきで動く）は除く
+        if (s.area0 && !s.ptsC && s.area0[n] > 0) {
+          let a = 0, px = M[0] * q[0] + M[1] * q[1] + M[2] * q[2], py = M[3] * q[0] + M[4] * q[1] + M[5] * q[2];
+          for (let k = 9; k < q.length; k += 9) { const x = M[0] * q[k] + M[1] * q[k + 1] + M[2] * q[k + 2], y = M[3] * q[k] + M[4] * q[k + 1] + M[5] * q[k + 2]; a += px * y - x * py; px = x; py = y; }
+          if (Math.abs(a) / 2 < SQUASH * s.area0[n]) continue;
+        }
         const f = (k) => {
           let X = q[k], Y = q[k + 1], Zz = q[k + 2];
           if (qc) { X += (qc[k] - X) * bl; Y += (qc[k + 1] - Y) * bl; Zz += (qc[k + 2] - Zz) * bl; }
@@ -723,15 +727,18 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
       }
       tg.fillStyle = s.color; tg.fill(p);
     }
+    // hem: [元の絵の y, 色]。その高さより下の行は、その色で塗る（半ズボンの裾の桃色。斜めのとき、絵の裾が届かない横の所に
+    // 下地が見えても、裾の帯が途切れない）
     function drawBase(tg, G, M, J, S) {
-      const P = G.Pbase, p = new Path2D(), STEP = 3, K = 20;
+      const P = G.Pbase, STEP = 3, K = 20, hem = G.hem ? G.hem[0] - P.y0 : Infinity, paths = [new Path2D(), new Path2D()];
       const ring = (r) => { const out = []; for (let k = 0; k < K; k++) { const t = k / K * Math.PI * 2, v = Z.applyMat3(M, [P.cx[r] + P.a[r] * Math.cos(t), P.y0 + r - G.jy, P.cz[r] + P.c[r] * Math.sin(t)]); out.push([J[0] + v[0] * S, J[1] + v[1] * S]); } return out; };
       for (let r = 0; r + STEP < P.n; r += STEP) {
         if (!P.both[r] || !P.both[r + STEP]) continue;
-        const h = Z.hull([...ring(r), ...ring(r + STEP)]);
+        const h = Z.hull([...ring(r), ...ring(r + STEP)]), p = paths[r >= hem ? 1 : 0];
         h.forEach((q, k) => { grow(q[0], q[1]); if (k) p.lineTo(q[0], q[1]); else p.moveTo(q[0], q[1]); }); p.closePath();
       }
-      tg.fillStyle = PAL[G.base]; tg.fill(p);
+      tg.fillStyle = PAL[G.base]; tg.fill(paths[0]);
+      if (G.hem) { tg.fillStyle = PAL[G.hem[1]]; tg.fill(paths[1]); }
     }
     // 輪郭の線を付けて描く: draw(tg) が下書き A に描いた形のまわりに、線の色に塗った写しを 8 方向にずらして下に描き、
     // その上に形を重ねる（どの向きでも、その向きの外形に線が付く）。描き終えたら、使った範囲の下書きを消す
@@ -750,24 +757,18 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
       }
       clearBox(A, [0, 0, W, H]);
     }
-    // 部分 1 つ: 下地 → 絵（入れ替えの間は 2 枚を重ねる）→ 頭なら開いた口
+    // 部分 1 つ: 下地 → となりの絵（斜めのとき）→ 絵 → 頭なら開いた口
     let mouthNow = [0, 0.5];   // いまの口の [開き, 幅]
     const MOUTH_AT = [924, 295], MOUTH_IN = '#8f2a3a', TONGUE = '#ee8a96';
     function drawRegion(R, M, J, S) {
-      const theta = Z.viewAngle(M), blend = state.force ? [{ view: state.force, alpha: 1 }] : Z.viewBlend(theta);
-      const front = blend[blend.length - 1].view === 'front' && M[8] > 0.2, open = R.name === 'head' && front ? mouthNow[0] : 0;
+      const pick = Z.viewPick(Z.viewAngle(M), R.view), view = state.force || pick.view; R.view = pick.view;
+      const front = view === 'front' && M[8] > 0.2, open = R.name === 'head' && front ? mouthNow[0] : 0;
       outlined(S, (tg) => {
         if (state.base) for (const G of R.groups) if (G.base && M[8] >= (G.facing ?? -2)) drawBase(tg, G, M, J, S);
-        // 斜めのとき（いま描く絵の向きから 12 度より離れたとき）は、となりの向きの絵を下に敷く（顔は敷かない）
-        const pair = Z.viewPair(theta);
-        if (!state.force && pair.offset > 12) for (const s of R.lifted[pair.neighbor]) if (s.underlay && M[8] >= s.facing) fillPts(tg, s, M, J, S);
-        for (const { view, alpha } of blend) {
-          // 口を開いているときは、閉じた口（:3）の線を描かない
-          const list = R.lifted[view].filter((s) => M[8] >= s.facing && !(open > 0.12 && s.part === 'mouth' && s.kind === 'line'));
-          if (alpha >= 1) { for (const s of list) fillPts(tg, s, M, J, S); continue; }
-          clearBox(B, [0, 0, W, H]); for (const s of list) fillPts(B.g, s, M, J, S);
-          tg.globalAlpha = alpha; tg.drawImage(B.c, 0, 0); tg.globalAlpha = 1;
-        }
+        // 斜めのとき（いま描く絵の向きから 12 度より離れたとき）は、となりの向きの絵の塗りだけを下に敷く（顔は敷かない。線も敷くと、縁で点線の二重の輪郭になる）
+        if (!state.force && pick.offset > 12) for (const s of R.lifted[pick.neighbor]) if (s.underlay && s.kind === 'fill' && M[8] >= s.facing) fillPts(tg, s, M, J, S);
+        // 口を開いているときは、閉じた口（:3）の線を描かない
+        for (const s of R.lifted[view]) if (M[8] >= s.facing && !(open > 0.12 && s.part === 'mouth' && s.kind === 'line')) fillPts(tg, s, M, J, S);
         if (open > 0.04) drawMouth(tg, R, M, J, S, open);
       });
     }
@@ -813,7 +814,8 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
     }
     // 髪の束: 鎖の点をなめらかな線（Catmull-Rom）でつなぎ、幅を付けた帯にする。先に丸く巻いた所（3D の円盤を写した楕円）を付ける
     // side: 横から見ている度合い（0: 正面か後ろ、1: 真横）。巻いた筋は、三面図の横の絵にだけあるので、横から見るときだけ描く
-    function drawTail(pts, curl, S, side) {
+    // nape: 首の後ろが見える度合い（1: 真後ろ、0: 真横、-1: 正面）
+    function drawTail(pts, curl, S, side, nape) {
       const cx = curl.reduce((a, q) => a + q[0], 0) / curl.length, cy = curl.reduce((a, q) => a + q[1], 0) / curl.length;
       outlined(S, (tg) => {
         const sm = [], wd = [];
@@ -852,7 +854,8 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
         for (let k = 0; k <= 24; k++) { const t = k / 24, a = a0 + dir * t * 2.6, r = 0.92 - 0.42 * t, x = cx + Math.cos(a) * rx * r, y = cy + Math.sin(a) * ry * r; if (k) g.lineTo(x, y); else g.moveTo(x, y); }
         g.stroke(); g.restore();
       }
-      // 根元の桃色の髪留め（三面図の横と後ろの絵にある玉）
+      // 根元の桃色の髪留め（三面図の横と後ろの絵にある玉）。前寄りから見るときは、首と髪に隠れるので描かない
+      if (nape < -0.35) return;
       const r0 = pts[0]; g.fillStyle = PAL.pink; g.beginPath(); g.arc(r0[0], r0[1], 8 * S, 0, Math.PI * 2); g.fill(); g.lineWidth = Math.max(1, 1.6 * S); g.stroke();
     }
     // 手足の板: 骨ごとの写し方（cardMap）を、点ごとの重みで混ぜる
@@ -926,9 +929,11 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
       // 描くものを、見る人からの近さ（＋部品ごとの差）の順に並べる
       const items = [];
       for (const R of REG) {
+        if ((state.hide || []).includes(R.name)) continue;   // 確かめ用: 部分を描かない
         const d = Z.boneDraw(SK, P, R.bi), M0 = Z.mul3(C, Z.qmat(d.q)), M = R.name === 'head' ? Z.limitTilt(M0, HEAD_TILT) : M0;
         items.push({ key: depth(P.p[R.bi]) + R.bias, draw: () => drawRegion(R, M, scr(R.bi), S) });
         if (R.name === 'head' && !(state.hide || []).includes('pods')) for (const pod of PODS) {
+          if ((state.hide || []).includes(pod.part)) continue;
           const q = podFrame(pod, P, state.paused ? 0 : dt, M), J = scr(R.bi), nn = Z.qrot(q, pod.n), front = M[6] * nn[0] + M[7] * nn[1] + M[8] * nn[2] > 0;
           // 裏が見えるとき（後ろから）は豆を描かず外形だけにし、頭より先に描く（後ろの絵では、根元が髪に隠れている）
           items.push({ key: depth(P.p[R.bi]) + R.bias + (front ? 1 : -1), draw: () => {
@@ -937,7 +942,11 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
           } });
         }
       }
-      for (const Cd of CARD) { const a = P.p[Cd.bi], e = P.p[Cd.ci >= 0 ? Cd.ci : Cd.bi]; items.push({ key: depth([(a[0] + e[0]) / 2, (a[1] + e[1]) / 2, (a[2] + e[2]) / 2]) + Cd.bias, draw: () => drawCard(Cd, maps) }); }
+      // under: その骨の部分（太ももなら半ズボン）より、いつも先に描く（脚を前へ上げても、太ももの付け根が半ズボンの手前に出ない）
+      for (const Cd of CARD) {
+        const a = P.p[Cd.bi], e = P.p[Cd.ci >= 0 ? Cd.ci : Cd.bi], k0 = depth([(a[0] + e[0]) / 2, (a[1] + e[1]) / 2, (a[2] + e[2]) / 2]) + Cd.bias;
+        items.push({ key: Cd.under ? Math.min(k0, depth(P.p[BI[Cd.under]]) - 1) : k0, draw: () => drawCard(Cd, maps) });
+      }
       for (const Sl of SLEEVE) items.push({ key: depth(P.p[Sl.bi]) + Sl.bias, draw: () => drawSleeve(Sl, scr, S) });
       {
         const T3 = tailPoints(P, state.paused ? 0 : dt), toS = (v) => { const w = cam(v); return [ox + w[0] * S, oy + w[1] * S, w[2]]; };
@@ -948,8 +957,8 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
         for (let k = 0; k < 32; k++) { const t = k / 32 * Math.PI * 2; disc.push([c[0] + Math.cos(t) * rh, c[1] + Math.sin(t) * rv]); }
         const dz = (chain.reduce((s, q) => s + q[2], 0) + c[2]) / (chain.length + 1);
         // 根元は首の後ろにあるので、首より奥に並べる（後ろから見るときは、平均の近さで胴より手前に来る）
-        const sd = Math.min(1, Math.abs(ax[0][2]) / Z.CURL.r[0]);
-        items.push({ key: dz - 60, draw: () => drawTail(chain, disc, S, sd) });
+        const sd = Math.min(1, Math.abs(ax[0][2]) / Z.CURL.r[0]), nape = -ax[2][2] / Z.CURL.r[2];
+        if (!(state.hide || []).includes('tail')) items.push({ key: dz - 60, draw: () => drawTail(chain, disc, S, sd, nape) });
       }
       items.sort((a, b) => a.key - b.key);
       updateFace(state.paused ? 0 : dt);
