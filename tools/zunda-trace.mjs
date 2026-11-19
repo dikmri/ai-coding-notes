@@ -1,7 +1,9 @@
 // ずんだもんの公式の三面図の「正面」を、ベクターの曲線（JavaScript のデータ）に写す道具。
 // 図鑑の項目「コードで描いたずんだもんを立体的に動かす」の段階 1。設計書は MyWiki の articles/zundamon-25d.md。
 //
-// 使い方: node tools/zunda-trace.mjs [--src <三面図.jpg>] [--out data/zunda-front.js] [--debug] [--profile <フォルダ>]
+// 使い方: node tools/zunda-trace.mjs [--view front|side|back] [--src <三面図.jpg>] [--parts <部品.json>] [--out data/zunda-<view>.js] [--debug] [--profile <フォルダ>]
+//   --view: 三面図のどの絵を写すか。front（真ん中、既定）・side（左。キャラの左側を見た絵）・back（右）
+//   部品の定義は tools/zunda-parts.json（正面）・tools/zunda-parts-side.json・tools/zunda-parts-back.json
 //   --debug: 途中の絵（色の割り当て、線の濃さ、部品の地図）を runtime/assets/zunko/work/ に書く
 //   --profile: 画面なしの Chrome の使い捨ての設定のフォルダ（既定 runtime/zunda-profile）。JPEG を初めて読むときだけ使う
 //   調整: --line-blur（線の濃さのぼかし、既定 0.6 画素）、--line-min（線にする濃さの山の下限、既定 0.2）、--cap（しきい値の上限の割合、既定 0.82）
@@ -34,12 +36,15 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ASSETS = resolve(ROOT, '../assets/zunko'); // worktree（runtime/zunda）から見た素材のフォルダ
 const args = process.argv.slice(2);
 const opt = (name, def) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : def; };
+const VIEW = opt('--view', 'front');
+if (!['front', 'side', 'back'].includes(VIEW)) throw new Error(`--view は front・side・back のどれか（${VIEW}）`);
 const SRC = opt('--src', join(ASSETS, '202012_ずんだもん三面.jpg'));
-const OUT = resolve(ROOT, opt('--out', 'data/zunda-front.js'));
-const WORK = join(ASSETS, 'work');
+const OUT = resolve(ROOT, opt('--out', `data/zunda-${VIEW}.js`));
+const WORK = join(ASSETS, 'work', VIEW === 'front' ? '' : VIEW);
 const DEBUG = args.includes('--debug');
 const PROFILE = resolve(ROOT, opt('--profile', 'runtime/zunda-profile')); // 画面なしの Chrome の使い捨ての設定のフォルダ
-const PARTS_FILE = join(ROOT, 'tools/zunda-parts.json');
+const PARTS_FILE = resolve(ROOT, opt('--parts', VIEW === 'front' ? 'tools/zunda-parts.json' : `tools/zunda-parts-${VIEW}.json`));
+const DATA_KEY = `zunda-${VIEW}`;
 const t0 = Date.now();
 const log = (...m) => console.log(`[${((Date.now() - t0) / 1000).toFixed(1)}s]`, ...m);
 
@@ -52,7 +57,7 @@ const notWhite = (k) => 255 - Math.min(img.data[k], img.data[k + 1], img.data[k 
 const cols = new Array(img.width).fill(0);
 for (let y = 0; y < img.height; y++) for (let x = 0; x < img.width; x++) if (notWhite((y * img.width + x) * 4)) cols[x]++;
 const runs = V.findRuns(cols, { gap: 3, minWidth: 40 });
-const [fx0, fx1] = V.middleRun(runs);
+const [fx0, fx1] = V.pickRun(runs, VIEW);
 const rows = new Array(img.height).fill(0);
 for (let y = 0; y < img.height; y++) for (let x = fx0; x <= fx1; x++) if (notWhite((y * img.width + x) * 4)) rows[y]++;
 const rr = V.findRuns(rows, { gap: 40, minWidth: 5 });
@@ -86,11 +91,24 @@ for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
   for (let dy = -1; dy <= 1 && mx < 5; dy++) for (let dx = -1; dx <= 1; dx++) mx = Math.max(mx, V.deltaE(pl(i), pl(i + dy * W + dx)));
   if (mx < 5) flatSamples.push(lab[i * 3], lab[i * 3 + 1], lab[i * 3 + 2]);
 }
-const km = V.kmeans(Float32Array.from(flatSamples), 16, { seed: 3 });
-let merged = V.mergeCenters(km.centers, km.counts, 10);
-// 少なすぎる群（0.005% 未満）は、にじみの色なので捨てる
-const total = merged.counts.reduce((a, b) => a + b, 0);
-let pal = merged.centers.map((c, i) => ({ lab: c, n: merged.counts[i] })).filter((p) => p.n >= total * 0.00005).sort((a, b) => b.n - a.n);
+let pal;
+// 横と後ろは、正面のパレット（data/zunda-front.js）の色をそのまま使う（3 方向で色をそろえる。横の目のオレンジのように、面積が小さくて落ちる色を残す）
+const PALETTE_FROM = opt('--palette-from', VIEW === 'front' ? null : 'data/zunda-front.js');
+if (PALETTE_FROM) {
+  const w = {}; new Function('window', readFileSync(resolve(ROOT, PALETTE_FROM), 'utf8'))(w);
+  const src = w.DEKIRU_DATA['zunda-front'].palette;
+  const rgbOf = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  pal = Object.entries(src).filter(([name, h]) => !/^(line|ink|pupil|dot)/.test(name) && h.length === 7).map(([name, h]) => ({ lab: V.rgbToLab(...rgbOf(h)), n: 0, fixedName: name }));
+  for (let i = 0; i < flatSamples.length; i += 3) { let b = 0, bd = Infinity; for (let k = 0; k < pal.length; k++) { const d = V.deltaE([flatSamples[i], flatSamples[i + 1], flatSamples[i + 2]], pal[k].lab); if (d < bd) { bd = d; b = k; } } pal[b].n++; }
+  pal.sort((a, b) => b.n - a.n);
+  log('パレットは', PALETTE_FROM, 'から');
+} else {
+  const km = V.kmeans(Float32Array.from(flatSamples), 16, { seed: 3 });
+  const merged = V.mergeCenters(km.centers, km.counts, 10);
+  // 少なすぎる群（0.005% 未満）は、にじみの色なので捨てる
+  const total = merged.counts.reduce((a, b) => a + b, 0);
+  pal = merged.centers.map((c, i) => ({ lab: c, n: merged.counts[i] })).filter((p) => p.n >= total * 0.00005).sort((a, b) => b.n - a.n);
+}
 const labToRgb = (L) => {
   const fy = (L[0] + 16) / 116, fx = fy + L[1] / 500, fz = fy - L[2] / 200;
   const inv = (t) => (t ** 3 > 216 / 24389 ? t ** 3 : (116 * t - 16) / (24389 / 27));
@@ -104,6 +122,7 @@ const NAMED = { white: [255, 255, 255], green: [175, 255, 122], dark: [109, 154,
 const used = new Set();
 pal.forEach((p, i) => {
   p.rgb = labToRgb(p.lab);
+  if (p.fixedName) { p.name = p.fixedName; used.add(p.name); return; }
   let best = null, bd = 25;
   for (const [name, c] of Object.entries(NAMED)) { const d = V.deltaE(p.lab, V.rgbToLab(...c)); if (d < bd && !used.has(name)) { bd = d; best = name; } }
   p.name = best || `c${i}`; used.add(p.name);
@@ -186,8 +205,13 @@ for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
 {
   const lab2 = new Int32Array(N); for (let i = 0; i < N; i++) lab2[i] = partOf[i];
   const filled = V.propagate(lab2, W, H);
-  let n = 0; for (let i = 0; i < N; i++) if (partOf[i] < 0 && label[i] !== BG) { partOf[i] = filled[i]; n++; }
-  if (n) log('どの部品の多角形にも入らない塗りの画素', n, '（いちばん近い部品にした）');
+  let n = 0; const box = [Infinity, Infinity, -Infinity, -Infinity], byPart = {};
+  for (let i = 0; i < N; i++) if (partOf[i] < 0 && label[i] !== BG) {
+    partOf[i] = filled[i]; n++;
+    const x = i % W + X0, y = Math.floor(i / W) + Y0; box[0] = Math.min(box[0], x); box[1] = Math.min(box[1], y); box[2] = Math.max(box[2], x); box[3] = Math.max(box[3], y);
+    const key = `${partsDef.parts[filled[i]]?.name}:${pal[label[i]].name}`; byPart[key] = (byPart[key] || 0) + 1;
+  }
+  if (n) log('どの部品の多角形にも入らない塗りの画素', n, '（いちばん近い部品にした）範囲', box.join(','), JSON.stringify(byPart));
 }
 const order = partsDef.order || partsDef.parts.map((p) => p.name);
 const partIndex = Object.fromEntries(partsDef.parts.map((p, i) => [p.name, i]));
@@ -442,16 +466,17 @@ shapes.push(...lineShapes.lineSoft, ...lineShapes.line, ...dotFills, ...strokeSh
 // 線を当てた部品で足した色のうち、形に使われなかったもの（輪郭が小さすぎて曲線にならなかった線の色など）は外す
 for (const name of Object.keys(extraPalette)) if (!shapes.some((s) => s.color === name)) delete extraPalette[name];
 const palette = Object.fromEntries([...pal.map((p) => [p.name, hex(p.rgb)]), ['line', hex(LINE)], ['lineSoft', hex(LINE) + Math.round(SOFT_A * 255).toString(16).padStart(2, '0')], ...Object.entries(extraPalette)]);
-const data = { w: W, h: H, origin: [X0, Y0], src: [img.width, img.height], palette, parts: order, shapes };
-const head = `/* ずんだもん（東北ずん子・ずんだもんプロジェクトの公式イラスト「202012_ずんだもん三面」の正面）を、曲線で写したデータ。
- * tools/zunda-trace.mjs で写した（部品の境目は tools/zunda-parts.json）。図鑑の項目が、開いたときだけ読み込む。
+const data = { view: VIEW, w: W, h: H, origin: [X0, Y0], src: [img.width, img.height], palette, parts: order, shapes };
+const VIEW_JA = { front: '正面', side: '横（キャラの左側）', back: '後ろ' }[VIEW];
+const head = `/* ずんだもん（東北ずん子・ずんだもんプロジェクトの公式イラスト「202012_ずんだもん三面」の${VIEW_JA}）を、曲線で写したデータ。
+ * tools/zunda-trace.mjs --view ${VIEW} で写した（部品の境目は ${PARTS_FILE.replace(ROOT, '').replace(/\\/g, '/').replace(/^\//, '')}）。図鑑の項目が、開いたときだけ読み込む。
  * 座標は画素（0.1 単位）。origin は元の絵（${img.width}×${img.height}）の中の左上。shapes は描く順（塗り → 薄い線 → 濃い線）。fill-rule は nonzero（外側と穴の向きが逆。重なった外側も塗る）。
  * palette の lineSoft は不透明度つき（#RRGGBBAA）。
  * 権利: 東北ずん子・ずんだもんプロジェクトのガイドライン（https://zunko.jp/guideline.html ）に従って使う。
  * このデータは、リポジトリのライセンスの対象外（素材の再許諾は禁止されている）。キャラクターデザイン: 江戸村ににこ。 */
 `;
 mkdirSync(dirname(OUT), { recursive: true });
-const body = `${head}window.ZUNDA_FRONT = ${JSON.stringify(data).replace(/,\{"part"/g, ',\n{"part"')};\n`;
+const body = `${head}(window.DEKIRU_DATA ??= {})[${JSON.stringify(DATA_KEY)}] = ${JSON.stringify(data).replace(/,\{"part"/g, ',\n{"part"')};\n`;
 writeFileSync(OUT, body);
 log('書いた', OUT, `${(Buffer.byteLength(body) / 1024).toFixed(1)} KB`, `形 ${shapes.length}`, `曲線 塗り ${segFill}・線 ${segLine}`);
 

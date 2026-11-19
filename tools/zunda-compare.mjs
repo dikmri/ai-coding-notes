@@ -1,5 +1,6 @@
 // 写したずんだもん（data/zunda-front.js）を、画面なしの Chrome で元の絵と同じ大きさに描き、三面図の正面と比べる道具。
-// 使い方: node tools/zunda-compare.mjs [--data data/zunda-front.js] [--src <三面図.jpg>] [--profile <Chrome の使い捨ての設定のフォルダ>]
+// 使い方: node tools/zunda-compare.mjs [--view front|side|back] [--data data/zunda-<view>.js] [--src <三面図.jpg>] [--profile <Chrome の使い捨ての設定のフォルダ>]
+//   数は logs/zunda-compare.json（正面）・logs/zunda-compare-side.json・logs/zunda-compare-back.json、絵は build/zunda/（正面）・build/zunda/side/・build/zunda/back/
 //
 // 数（logs/zunda-compare.json）
 // - 線の一致: 元の絵の線の画素と、写しの線の画素の、1.5 画素までのずれを許した一致（適合率・再現率・F1）。
@@ -26,15 +27,17 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ASSETS = resolve(ROOT, '../assets/zunko');
 const args = process.argv.slice(2);
 const opt = (name, def) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : def; };
-const DATA = resolve(ROOT, opt('--data', 'data/zunda-front.js'));
+const VIEW = opt('--view', 'front');
+const DATA = resolve(ROOT, opt('--data', `data/zunda-${VIEW}.js`));
 const SRC = opt('--src', join(ASSETS, '202012_ずんだもん三面.jpg'));
-const OUTDIR = join(ROOT, 'build/zunda'), LOG = join(ROOT, 'logs/zunda-compare.json');
-const PARTS_FILE = join(ROOT, 'tools/zunda-parts.json');
+const OUTDIR = join(ROOT, 'build/zunda', VIEW === 'front' ? '' : VIEW), LOG = join(ROOT, VIEW === 'front' ? 'logs/zunda-compare.json' : `logs/zunda-compare-${VIEW}.json`);
+const PARTS_FILE = join(ROOT, VIEW === 'front' ? 'tools/zunda-parts.json' : `tools/zunda-parts-${VIEW}.json`);
+const DATA_KEY = `zunda-${VIEW}`;
 const PROFILE = resolve(ROOT, opt('--profile', 'runtime/zunda-profile')); // 画面なしの Chrome の使い捨ての設定のフォルダ
 mkdirSync(OUTDIR, { recursive: true }); mkdirSync(dirname(LOG), { recursive: true });
 
 const dataText = readFileSync(DATA, 'utf8');
-const D = (() => { const window = {}; new Function('window', dataText)(window); return window.ZUNDA_FRONT; })();
+const D = (() => { const window = {}; new Function('window', dataText)(window); return window.DEKIRU_DATA[DATA_KEY]; })();
 const { w: W, h: H } = D, [X0, Y0] = D.origin, N = W * H;
 const img = await loadJpeg(SRC, { workDir: join(ASSETS, 'work'), profile: PROFILE });
 
@@ -42,7 +45,7 @@ const img = await loadJpeg(SRC, { workDir: join(ASSETS, 'work'), profile: PROFIL
 const page = await openBrowser({ width: 400, height: 300, profile: PROFILE });
 await page.evaluate(dataText);
 await page.evaluate(`window.render = (scale, mode, region) => {
-  const D = window.ZUNDA_FRONT, [rx, ry, rw, rh] = region || [0, 0, D.w, D.h];
+  const D = window.DEKIRU_DATA[${JSON.stringify(DATA_KEY)}], [rx, ry, rw, rh] = region || [0, 0, D.w, D.h];
   const c = document.createElement('canvas'); c.width = Math.round(rw * scale); c.height = Math.round(rh * scale);
   const g = c.getContext('2d');
   g.fillStyle = mode === 'gaps' ? '#ff0000' : '#ffffff'; g.fillRect(0, 0, c.width, c.height);

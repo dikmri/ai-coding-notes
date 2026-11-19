@@ -36,6 +36,13 @@ export function middleRun(runs) {
   const big = [...runs].sort((a, b) => (b[1] - b[0]) - (a[1] - a[0])).slice(0, 3).sort((a, b) => a[0] - b[0]);
   return big[Math.floor((big.length - 1) / 2)];
 }
+// 三面図の 横（左）・正面（真ん中）・後ろ（右）のどれかを返す。幅の大きい 3 つの塊から選ぶ
+export function pickRun(runs, view) {
+  const big = [...runs].sort((a, b) => (b[1] - b[0]) - (a[1] - a[0])).slice(0, 3).sort((a, b) => a[0] - b[0]);
+  if (view === 'side') return big[0];
+  if (view === 'back') return big[big.length - 1];
+  return big[Math.floor((big.length - 1) / 2)];
+}
 
 // ---------------- 色 ----------------
 const LIN = new Float64Array(256).map((_, i) => { const c = i / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; });

@@ -26,6 +26,13 @@ test('範囲: 3 体並んだうちの真ん中（正面）を選ぶ。幅の狭�
   assert.deepEqual(V.middleRun([[10, 300], [320, 900], [905, 910], [930, 1400]]), [320, 900]);
 });
 
+test('範囲: 横（左）・正面（真ん中）・後ろ（右）を選ぶ。幅の狭いごみの塊は数えない', () => {
+  const runs = [[0, 2], [10, 300], [320, 900], [905, 910], [930, 1400]];
+  assert.deepEqual(V.pickRun(runs, 'side'), [10, 300]);
+  assert.deepEqual(V.pickRun(runs, 'front'), [320, 900]);
+  assert.deepEqual(V.pickRun(runs, 'back'), [930, 1400]);
+});
+
 // ---- 色 ----
 test('色: sRGB を Lab にする（白・黒・赤の既知の値）', () => {
   const near = (a, b, e = 0.05) => a.forEach((v, i) => assert.ok(Math.abs(v - b[i]) < e, `${a} と ${b}`));
