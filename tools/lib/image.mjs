@@ -3,8 +3,9 @@
 // - bleed: 透明な画素に、隣の色を広げる（縮めたり、ブラウザで補間したりしたときに、縁に黒が混ざらないように）
 // - downscale: 面積で平均して縮める。色は透明度を重みにする
 // - split: 色の画像（透明度 255）と、透明度の画像（灰色）に分ける
+// - encodePng: RGBA の画素を PNG に（確かめの絵を書き出すため）
 
-import { inflateSync } from 'node:zlib';
+import { deflateSync, inflateSync } from 'node:zlib';
 
 export function decodePng(buf) {
   if (buf.readUInt32BE(0) !== 0x89504e47) throw new Error('PNG ではありません');
@@ -80,4 +81,15 @@ export function split(img) {
     alpha[i] = alpha[i + 1] = alpha[i + 2] = data[i + 3]; alpha[i + 3] = 255;
   }
   return { color: { width, height, data: color }, alpha: { width, height, data: alpha } };
+}
+
+// 8 ビットの RGBA の画素を PNG のファイルの中身（Buffer）にする。行フィルターは使わない（0）
+const CRC_TABLE = new Uint32Array(256).map((_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+const crc32 = (b) => { let c = 0xffffffff; for (const x of b) c = CRC_TABLE[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+export function encodePng(img) {
+  const { width: w, height: h, data } = img, raw = Buffer.alloc((w * 4 + 1) * h);
+  for (let y = 0; y < h; y++) raw.set(data.subarray(y * w * 4, (y + 1) * w * 4), y * (w * 4 + 1) + 1);
+  const chunk = (type, d) => { const l = Buffer.alloc(4); l.writeUInt32BE(d.length); const td = Buffer.concat([Buffer.from(type, 'latin1'), d]); const c = Buffer.alloc(4); c.writeUInt32BE(crc32(td)); return Buffer.concat([l, td, c]); };
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 6;
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw, { level: 6 })), chunk('IEND', Buffer.alloc(0))]);
 }
