@@ -162,6 +162,7 @@ body.fos { overflow: hidden; background: #000; user-select: none; -webkit-user-s
 .app-viewer .view-area img { max-width: none; image-rendering: auto; background: repeating-conic-gradient(#fff 0 25%, #ddd 0 50%) 0 0 / 16px 16px; }
 .app-viewer .view-area.fit img { max-width: 100%; max-height: 100%; }
 .app-viewer .view-area audio { width: min(460px, 90%); } /* 枠が広くても再生の欄がつぶれないよう、幅を決める */
+.app-viewer .view-area video { max-width: 100%; max-height: 100%; background: #000; } /* 動画は窓に収める */
 
 /* ローポリ モデラー */
 .app-modeler .view-wrap { flex: 1; min-height: 0; display: flex; gap: 3px; }

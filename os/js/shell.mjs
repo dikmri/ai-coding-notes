@@ -167,7 +167,7 @@ export function fileDialog({ mode = 'open', title, dir = '/ドキュメント', 
     async function show(d) {
       cur = normalize(d);
       const anc = []; for (let p = cur; ; p = dirname(p)) { anc.unshift(p); if (p === '/') break; }
-      const extra = ['/デスクトップ', '/ドキュメント', '/モデル', '/音楽', '/画像'].filter((p) => !anc.includes(p));
+      const extra = ['/デスクトップ', '/ドキュメント', '/モデル', '/音楽', '/画像', '/ビデオ', '/本'].filter((p) => !anc.includes(p));
       dirSel.innerHTML = anc.map((p, i) => `<option value="${esc(p)}">${'　'.repeat(i)}${p === '/' ? 'マイ ドライブ' : esc(basename(p))}</option>`).join('') + extra.map((p) => `<option value="${esc(p)}">${esc(basename(p))}</option>`).join('');
       dirSel.value = cur;
       const items = (await fs.list(cur)).filter((e) => e.kind === 'dir' ? e.path !== fs.TRASH : !exts.length || exts.includes(extname(e.name).toLowerCase()));
