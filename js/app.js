@@ -141,6 +141,8 @@ canvas, img, video { display: block; max-width: 100%; }
       }
     } else if (d.type === 'console') {
       if (info.mode === 'detail') consoleLine(d.data.level, d.data.text);
+      // 項目が「[dlog] 出来事 引数 結果」の console.info で知らせた操作は、動作確認のログ（logs/app.log）にも残す
+      if (info.mode === 'detail' && d.data.level === 'info' && String(d.data.text).startsWith('[dlog] ')) log('demo.log', { id: e.id, text: String(d.data.text).slice(7) }, 'ok');
       if (info.mode === 'test' && d.data.level === 'error') testRecord(e, 'console.error: ' + d.data.text);
     }
   });
