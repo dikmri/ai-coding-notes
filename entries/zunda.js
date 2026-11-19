@@ -25,7 +25,8 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
 .hint { bottom: 28px; font-size: 12px; }
 .credit { bottom: 6px; font-size: 10px; }
 .say { position: fixed; max-width: 200px; margin: 0; padding: 6px 10px; font-size: 14px; color: #222; background: #fff; border: 2px solid #6d9a23; border-radius: 12px; }
-[hidden] { display: none !important; }`,
+[hidden] { display: none !important; }
+.thumb .bar, .thumb .pause, .thumb .hint, .thumb .credit { display: none; }`,
   core() {
     // ---- 曲線のデータ ----
     // SVG の path（M と、相対の c・l、z）を、絶対座標の 3 次ベジェの並びにする。直線もベジェにする（あとで曲げても形が保てるように）。
@@ -175,6 +176,10 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
       { part: 'thigh_l', bone: 'leftUpperLeg', child: 'leftLowerLeg', bias: -50 }, { part: 'shin_l', bone: 'leftLowerLeg', parent: 'leftUpperLeg', bias: -30 },
       { part: 'thigh_r', bone: 'rightUpperLeg', child: 'rightLowerLeg', bias: -50 }, { part: 'shin_r', bone: 'rightLowerLeg', parent: 'rightUpperLeg', bias: -30 },
     ];
+    // 横から見た手足の幅（正面の幅に対する割合）。脚の断面は前後に薄い楕円（三面図の横の脚は、正面の約 0.6 倍の幅）、腕は筒
+    const SIDE_W = { leftUpperLeg: 0.6, leftLowerLeg: 0.6, rightUpperLeg: 0.6, rightLowerLeg: 0.6 };
+    // 見る向きでの幅の割合: 手足の前の面が見る人へ向く割合 c（0〜1）から、楕円の断面の見かけの幅 √(c² + r²(1 - c²))
+    const widthAt = (c, r) => Math.sqrt(c * c + r * r * (1 - c * c));
     // 袖: ふくらみの形を保ったまま、腕の付け根を中心に腕の向きへ回す
     const SLEEVES = [{ part: 'sleeve_l', bone: 'leftUpperArm', bias: 90 }, { part: 'sleeve_r', bone: 'rightUpperArm', bias: 90 }];
 
@@ -220,13 +225,16 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
       ['leftLowerArm', 'leftUpperArm', [144.5, 515, -25]], ['leftHand', 'leftLowerArm', [216.5, 637, -25], [311, 700, -25]],
       ['rightShoulder', 'chest', [-20, 372, -10]], ['rightUpperArm', 'rightShoulder', [-74.5, 400, -25]],
       ['rightLowerArm', 'rightUpperArm', [-145.5, 515, -25]], ['rightHand', 'rightLowerArm', [-217.5, 637, -25], [-311, 700, -25]],
-      ['leftUpperLeg', 'hips', [55.5, 640, 15]], ['leftLowerLeg', 'leftUpperLeg', [59.5, 930, 6]],
-      ['leftFoot', 'leftLowerLeg', [66.5, 1150, -3]], ['leftToes', 'leftFoot', [66.5, 1262, 50], [66.5, 1272, 80]],
-      ['rightUpperLeg', 'hips', [-55.5, 640, 15]], ['rightLowerLeg', 'rightUpperLeg', [-57.5, 930, 6]],
-      ['rightFoot', 'rightLowerLeg', [-65.5, 1150, -3]], ['rightToes', 'rightFoot', [-65.5, 1262, 50], [-65.5, 1272, 80]],
+      // 脚: 横の絵では、キャラの右脚が前（足首の Z +40）、左脚が後ろ（-46）に開いて立つ。正面から見た形は変わらない
+      ['leftUpperLeg', 'hips', [55.5, 640, 15]], ['leftLowerLeg', 'leftUpperLeg', [59.5, 930, -20]],
+      ['leftFoot', 'leftLowerLeg', [66.5, 1150, -46]], ['leftToes', 'leftFoot', [66.5, 1262, 4], [66.5, 1272, 34]],
+      ['rightUpperLeg', 'hips', [-55.5, 640, 15]], ['rightLowerLeg', 'rightUpperLeg', [-57.5, 930, 30]],
+      ['rightFoot', 'rightLowerLeg', [-65.5, 1150, 40]], ['rightToes', 'rightFoot', [-65.5, 1262, 90], [-65.5, 1272, 120]],
     ];
-    // T ポーズ（動きの回転が 0 のとき）の腕の向き。ほかの骨は絵の向きのまま
-    const TDIR = { leftUpperArm: [1, 0, 0], leftLowerArm: [1, 0, 0], leftHand: [1, 0, 0], rightUpperArm: [-1, 0, 0], rightLowerArm: [-1, 0, 0], rightHand: [-1, 0, 0] };
+    // T ポーズ（動きの回転が 0 のとき）の骨の向き。腕は水平、脚はまっすぐ下（絵の脚は前後に開いているので、動きはまっすぐな脚を基準に当てる）。
+    // ほかの骨は絵の向きのまま
+    const TDIR = { leftUpperArm: [1, 0, 0], leftLowerArm: [1, 0, 0], leftHand: [1, 0, 0], rightUpperArm: [-1, 0, 0], rightLowerArm: [-1, 0, 0], rightHand: [-1, 0, 0],
+      leftUpperLeg: [0, 1, 0], leftLowerLeg: [0, 1, 0], rightUpperLeg: [0, 1, 0], rightLowerLeg: [0, 1, 0] };
     // 骨格を組む: ra は T ポーズから絵の向きへの回転（世界の向きで）、t は親の付け根からの位置を T ポーズで見たもの
     function buildSkeleton(list) {
       const bones = list.map(([name, parent, at, tip]) => ({ name, parent, at, tip })), index = {};
@@ -280,7 +288,8 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
 
     // ---- 手足の板 ----
     // 休みの骨（A→B、元の絵の 2D）の向きの絵を、画面に写した骨（A2→B2）に合わせて曲げる関数。骨の長さの向きは写した長さに縮め、
-    // 幅の向きは画面の縮尺 S のまま（手足を真正面から見た絵の幅を保つ。腕がこちらを向いても細くならない）
+    // 幅の向きは画面の縮尺 S のまま（手足を真正面から見た絵の幅を保つ。腕がこちらを向いても細くならない）。
+    // S を負にすると、幅の向きを左右逆にする（手足の前の面が向こうを向いたとき。後ろから見た手足は、正面の絵の鏡の形）
     function cardMap(A, B, A2, B2, S) {
       const ex = B[0] - A[0], ey = B[1] - A[1], L = Math.hypot(ex, ey) || 1, ux = ex / L, uy = ey / L;
       const fx = B2[0] - A2[0], fy = B2[1] - A2[1], L2 = Math.hypot(fx, fy);
@@ -349,9 +358,10 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
     // ---- 髪の束 ----
     // 休みの形（骨格の座標、A ポーズの絵の位置）。三面図の正面・横・後ろから読んだ: 首の後ろの玉から、キャラの右うしろへ垂れる。
     // TAIL_W は点ごとの帯の幅、CURL は先の丸く巻いた所（中心・半径・面の向き）。どれも元の絵の画素
-    const TAIL_REST = [[0, 323, -55], [-45, 360, -85], [-90, 422, -122], [-135, 500, -158], [-178, 568, -178]];
-    // 巻いた先は、正面・横・後ろのどれから見ても大きな丸なので、玉として描く
-    const TAIL_W = [16, 26, 36, 46, 56], CURL = { c: [-235, 648, -172], r: 88 };
+    // 中心と幅は、写した 3 方向の絵の髪の束の部品から、高さごとに測った（X は後ろと正面の絵、Z は横の絵）
+    const TAIL_REST = [[-4, 325, -67], [-64, 380, -106], [-105, 450, -140], [-140, 525, -168], [-181, 600, -200]];
+    // 巻いた先は、正面と後ろからは幅 約 185、横からは 約 135 の丸に見えるので、奥行きの短い楕円の玉として描く（r は X・Y・Z の半径）
+    const TAIL_W = [12, 15, 23, 33, 44], CURL = { c: [-240, 668, -253], r: [92, 92, 66] };
     const tailInit = (rest) => ({ p: rest.map((v) => v.slice()), q: rest.map((v) => v.slice()), len: rest.slice(1).map((v, i) => Math.hypot(v[0] - rest[i][0], v[1] - rest[i][1], v[2] - rest[i][2])) });
     // 1 コマ進める: 根元は targets[0] に付け、ほかの点は、慣性（前のコマからの動き）と、休みの形の位置へ戻る力と、重さで動かす。
     // 戻る力は先ほど弱く、先ほどよく揺れる。そのあと根元から順に、区間の長さを休みの形の長さに戻す
@@ -394,13 +404,13 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
       return { rot, hips: h };
     }
 
-    const Z = { parsePath, subdivide, buildProxy, lift, hull, rotX, rotY, rotZ, mul3, applyMat3, viewAngle, viewBlend, VIEWS, AXIS, REGIONS, CARDS, SLEEVES, view, dequant, sampleClip,
+    const Z = { parsePath, subdivide, buildProxy, lift, hull, rotX, rotY, rotZ, mul3, applyMat3, viewAngle, viewBlend, VIEWS, AXIS, REGIONS, CARDS, SLEEVES, SIDE_W, widthAt, view, dequant, sampleClip,
       TAIL_REST, TAIL_W, CURL, tailInit, tailStep, eyeCloser, mouthShape, vowels, VOWEL_SHAPE,
       qmul, qconj, qaxis, qrot, qfromTo, qslerp, qmat, norm3, SKEL, buildSkeleton, restLocals, fk, boneDraw, HIPS_REST, PX_PER_M, hipsFromMotion, cardMap, jointBlend,
       FLOOR_Y, HIPS_BOTTOM, groundOffset };
   },
   js() {
-    const cv = document.getElementById('c'), g = cv.getContext('2d');
+    const t0 = performance.now(), cv = document.getElementById('c'), g = cv.getContext('2d');
     const D = window.DEKIRU_DATA, SRC = { front: D['zunda-front'], side: D['zunda-side'], back: D['zunda-back'] }, PAL = SRC.front.palette;
     // ---- 曲線を読む（長い区間は 6 画素以下に分ける）----
     const prep = (V) => V.shapes.map((s, i) => ({ i, part: s.part, kind: s.kind, color: V.palette[s.color], subs: Z.parsePath(s.d, V.origin).map((q) => Z.subdivide(q, 6)) }));
@@ -425,7 +435,7 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
     }
     // 確かめ用の状態（spread: 貼るときの広げ方、force: 1 枚の絵だけを描く、cam: 見る向き（ラジアン）、clip・time: 動きと時刻を決める、
     // blink: まばたきを決める（null なら自動）、mouth: 口の [開き, 幅] を決める）
-    const state = { spread: 1.3, outline: 1.2, base: true, force: null, cam: 0, camPitch: 0, clip: null, time: null, paused: false, blink: null, mouth: null };
+    const state = { spread: 1.3, outline: 1.2, base: true, force: null, cam: 0, camPitch: 0, clip: null, time: null, paused: false, blink: null, mouth: null, frame: null };
     // 目: 瞳（オレンジと黄色）の塗りを画素に描いて、列ごとの上と下を数え、閉じた位置へ動かす関数を作る。
     // 白い塗りで測らない（目の部品には、まつげの上の肌も入っている）。瞳の塗りがない目（横の絵）は、白い塗りで測る
     function eyeProfile(shapes, V) {
@@ -541,7 +551,10 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
     // 髪の束: 根元は頭（首の後ろの玉）に付け、ほかの点は胸に付いた休みの形へ戻りながら揺れる
     let tail = null;
     function tailPoints(P, dt) {
-      const at = (i) => SK.bones[i].at, dh = Z.boneDraw(SK, P, BI.head), dc = Z.boneDraw(SK, P, BI.chest);
+      const at = (i) => SK.bones[i].at, dh = Z.boneDraw(SK, P, BI.head), d0 = Z.boneDraw(SK, P, BI.chest);
+      // 休みの形は、胸の左右の向き（縦の軸のまわり）だけに合わせる。前後や左右の傾きには合わせない（髪は重さで下へ垂れるので、
+      // お辞儀で胸が前へ傾いても、束は上へはね上がらない）
+      const fw = Z.qrot(d0.q, [0, 0, 1]), dc = { ...d0, q: Z.qaxis([0, 1, 0], Math.atan2(fw[0], fw[2])) };
       const place = (d, bi, v) => { const o = Z.qrot(d.q, [v[0] - at(bi)[0], v[1] - at(bi)[1], v[2] - at(bi)[2]]); return [P.p[bi][0] + o[0], P.p[bi][1] + o[1], P.p[bi][2] + o[2]]; };
       const root = place(dh, BI.head, Z.TAIL_REST[0]), n = Z.TAIL_REST.length;
       const fromChest = Z.TAIL_REST.map((v) => place(dc, BI.chest, v)), off = [0, 1, 2].map((c) => root[c] - fromChest[0][c]);
@@ -550,7 +563,7 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
       Z.tailStep(tail, targets, dt);
       const last = Z.TAIL_REST[n - 1], cc = Z.qrot(dc.q, [Z.CURL.c[0] - last[0], Z.CURL.c[1] - last[1], Z.CURL.c[2] - last[2]]);
       const tip = tail.p[n - 1], center = [tip[0] + cc[0], tip[1] + cc[1], tip[2] + cc[2]];
-      return { chain: tail.p, center };
+      return { chain: tail.p, center, q: dc.q };
     }
 
     // ---- 動き ----
@@ -568,7 +581,13 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
       for (const [n, s] of [['leftUpperArm', 1], ['rightUpperArm', -1]]) L[BI[n]] = Z.qmul(L[BI[n]], Z.qaxis([0, 0, 1], s * Math.sin(t * 2.1 + 0.6) * 0.015));
       return { L, hips: SK.bones[0].at.slice() };
     }
-    function play(k) { from = last; fade = from ? 0 : 1; clip = k; ct = 0; updateButtons(); }
+    let onEnd = null;   // いまの動きが終わったときに呼ぶ（演技の窓口の play が待つ）
+    function play(k) {
+      from = last; fade = from ? 0 : 1; clip = k; ct = 0; updateButtons();
+      if (onEnd) { const f = onEnd; onEnd = null; f(); }
+    }
+    // 振り向き（体全体の向き）と視線（首と頭）。どちらも目標へなめらかに近づける
+    const turn = { now: 0, to: 0, speed: 3 }, look = { yaw: 0, pitch: 0, toYaw: 0, toPitch: 0, pointer: null, fixed: null };
     function currentPose(t, dt) {
       let p;
       if (clip == null) p = idle(t);
@@ -576,14 +595,32 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
         const C = CLIPS[clip], s = Z.sampleClip(C, state.time ?? ct), L = REST.map((q) => q.slice());
         s.rot.forEach((q, k) => { L[MBI[k]] = q; });
         p = { L, hips: Z.hipsFromMotion(s.hips, SK) };
-        if (state.time == null) { ct += dt; if (ct > C.len) { if (C.name === 'walk' || C.name === 'dance') ct -= C.len; else play(null); } }
+        if (state.time == null) {
+          ct += dt;
+          if (ct > C.len) {
+            const f = onEnd; onEnd = null;
+            if (C.name === 'walk' || C.name === 'dance') ct -= C.len; else play(null);
+            if (f) f();
+          }
+        }
       }
       if (from && fade < 1) {
         fade = Math.min(1, fade + dt / 0.4); const k = fade * fade * (3 - 2 * fade);
         p = { L: p.L.map((q, i) => Z.qslerp(from.L[i], q, k)), hips: p.hips.map((v, i) => from.hips[i] + (v - from.hips[i]) * k) };
       }
       last = p;
-      return p;
+      // 振り向き: 腰の回転に、縦の軸のまわりの回転を足す（体全体が腰を中心に回る）
+      turn.now += Math.sign(turn.to - turn.now) * Math.min(Math.abs(turn.to - turn.now), turn.speed * dt);
+      // 視線: 立っているときは、決めた向き（なければマウスの方）へ、体の正面を基準に首と頭を 4 対 6 で回す
+      // （見る人の方を追い続けると、見る向きを回したときに頭の後ろを見せられないので、追わない）
+      const want = clip == null ? (look.fixed ?? look.pointer ?? [0, 0]) : [0, 0];
+      look.toYaw = Math.max(-1.1, Math.min(1.1, want[0] * 0.9));
+      look.toPitch = Math.max(-0.45, Math.min(0.45, -want[1] * 0.5));
+      const r = Math.min(1, dt * 5); look.yaw += (look.toYaw - look.yaw) * r; look.pitch += (look.toPitch - look.pitch) * r;
+      const L = p.L.map((q) => q.slice());
+      L[0] = Z.qmul(Z.qaxis([0, 1, 0], turn.now), L[0]);
+      for (const [n, k] of [['neck', 0.4], ['head', 0.6]]) L[BI[n]] = Z.qmul(L[BI[n]], Z.qmul(Z.qaxis([0, 1, 0], look.yaw * k), Z.qaxis([1, 0, 0], look.pitch * k)));
+      return { L, hips: p.hips };
     }
 
     // ---- 描く ----
@@ -753,16 +790,20 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
       const A0 = restXY(C.bi), B0 = endXY(C.bi), A2 = scr(C.bi), B2 = scrEnd(C.bi);
       let ang = Math.atan2(B2[1] - A2[1], B2[0] - A2[0]) - Math.atan2(B0[1] - A0[1], B0[0] - A0[0]);
       if (Math.hypot(B2[0] - A2[0], B2[1] - A2[1]) < 0.25 * Math.hypot(B0[0] - A0[0], B0[1] - A0[1]) * S) ang = 0;   // 腕がこちらを向くときは回さない
-      const c = Math.cos(ang), s = Math.sin(ang);
+      const c = Math.cos(ang), s = Math.sin(ang), back = faceSign(C.bi) < 0, L0 = Math.hypot(B0[0] - A0[0], B0[1] - A0[1]) || 1, ex = (B0[0] - A0[0]) / L0, ey = (B0[1] - A0[1]) / L0;
       for (const sh of C.shapes) {
         const p = new Path2D();
-        for (const q of sh.subs) addSub(p, q, (x, y) => { const dx = (x - A0[0]) * S, dy = (y - A0[1]) * S; return [A2[0] + c * dx - s * dy, A2[1] + s * dx + c * dy]; });
+        for (const q of sh.subs) addSub(p, q, (x, y) => {
+          let dx = (x - A0[0]) * S, dy = (y - A0[1]) * S;
+          if (back) { const d = dx * ex + dy * ey; dx = 2 * d * ex - dx; dy = 2 * d * ey - dy; }   // 後ろから見るときは、腕の向きの線で鏡に写す
+          return [A2[0] + c * dx - s * dy, A2[1] + s * dx + c * dy];
+        });
         g.fillStyle = sh.color; g.fill(p);
       }
     }
-    let scrEnd = null;
+    let scrEnd = null, faceSign = () => 1;
     // ---- 1 コマ ----
-    let prevT = null, clock = 0, follow = 0;
+    let prevT = null, clock = 0, follow = 0, lastHead = null;
     const reduce = matchMedia('(prefers-reduced-motion: reduce)');
     const work = [];   // 1 コマの計算と描画にかかった時間（ミリ秒、直近 240 コマ）
     function frame(now) {
@@ -774,16 +815,23 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
       // 体のいちばん低い所を床に着ける（動きは VRoid の体の比率なので、そのままでは足が浮いたり沈んだりする）
       const lift = Z.groundOffset(SK, P); for (const p of P.p) p[1] += lift;
       // 見る向き（縦の軸のまわりに回す）と、画面の縮尺。体の真ん中（高さ 700）を中心に回す
-      const S = Math.min(H / 1300, W / 820), oy = H * 0.52 - 700 * S;
+      // 一覧の小さな絵（THUMB）では、頭から腰の下までを大きく写す
+      const FR = window.THUMB ? [60, 820, 560] : [20, 1300, 820];
+      let S = Math.min(H / (FR[1] - FR[0]), W / FR[2]), oy = H / 2 - (FR[0] + FR[1]) / 2 * S;
+      if (state.frame) { S = state.frame[0]; oy = state.frame[2]; }   // 確かめ用: 縮尺と位置を決め打ちする（元の絵と重ねて比べる）
       const C = Z.mul3(Z.rotX(state.camPitch), Z.rotY(state.cam));
       const cam = (v) => { const w = Z.applyMat3(C, [v[0], v[1] - 700, v[2]]); return [w[0], w[1] + 700, w[2]]; };
       // 腰が左右へ動く動き（ダンス）では、見る位置を腰の左右の位置へゆっくり追わせる
       follow += (cam(P.p[0])[0] - follow) * (state.time != null ? 1 : Math.min(1, dt * 2.5));
-      const ox = W / 2 - follow * S;
+      const ox = state.frame ? state.frame[1] : W / 2 - follow * S;
       const scr = (bi) => { const w = cam(P.p[bi]); return [ox + w[0] * S, oy + w[1] * S]; };
       scrEnd = (bi) => { const b = SK.bones[bi]; if (!b.tip) return scr(childOf(bi)); const d = Z.boneDraw(SK, P, bi), v = Z.qrot(d.q, [b.tip[0] - b.at[0], b.tip[1] - b.at[1], b.tip[2] - b.at[2]]); const w = cam([P.p[bi][0] + v[0], P.p[bi][1] + v[1], P.p[bi][2] + v[2]]); return [ox + w[0] * S, oy + w[1] * S]; };
       const depth = (v) => cam(v)[2];
-      const mapCache = new Map(), maps = (bi) => { if (!mapCache.has(bi)) mapCache.set(bi, Z.cardMap(restXY(bi), endXY(bi), scr(bi), scrEnd(bi), S)); return mapCache.get(bi); };
+      // 手足の前の面（骨の +Z）が向こうを向いたら、幅の向きを左右逆にする（後ろから見た手足は、正面の絵の鏡の形）
+      faceSign = (bi) => (Z.applyMat3(C, Z.qrot(Z.boneDraw(SK, P, bi).q, [0, 0, 1]))[2] < 0 ? -1 : 1);
+      // 幅は、前の面が見る人へ向く割合で、正面の幅と横の幅（SIDE_W）の間を取る
+      const widthOf = (bi) => { const r = Z.SIDE_W[SK.bones[bi].name]; if (!r) return 1; const f = Z.applyMat3(C, Z.qrot(Z.boneDraw(SK, P, bi).q, [0, 0, 1])); return Z.widthAt(Math.abs(f[2]), r); };
+      const mapCache = new Map(), maps = (bi) => { if (!mapCache.has(bi)) mapCache.set(bi, Z.cardMap(restXY(bi), endXY(bi), scr(bi), scrEnd(bi), S * faceSign(bi) * widthOf(bi))); return mapCache.get(bi); };
       // 描くものを、見る人からの近さ（＋部品ごとの差）の順に並べる
       const items = [];
       for (const R of REG) {
@@ -803,7 +851,10 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
       {
         const T3 = tailPoints(P, state.paused ? 0 : dt), toS = (v) => { const w = cam(v); return [ox + w[0] * S, oy + w[1] * S, w[2]]; };
         const chain = T3.chain.map(toS), c = toS(T3.center), disc = [];
-        for (let k = 0; k < 32; k++) { const t = k / 32 * Math.PI * 2; disc.push([c[0] + Math.cos(t) * Z.CURL.r * S, c[1] + Math.sin(t) * Z.CURL.r * S * 1.04]); }
+        // 楕円の玉（胸の左右の向きに合わせた X・Y・Z の半径）を写した形の、横と縦の半径
+        const ax = [[1, 0, 0], [0, 1, 0], [0, 0, 1]].map((v, i) => Z.applyMat3(C, Z.qrot(T3.q, v.map((x) => x * Z.CURL.r[i]))));
+        const rh = Math.hypot(ax[0][0], ax[1][0], ax[2][0]) * S, rv = Math.hypot(ax[0][1], ax[1][1], ax[2][1]) * S;
+        for (let k = 0; k < 32; k++) { const t = k / 32 * Math.PI * 2; disc.push([c[0] + Math.cos(t) * rh, c[1] + Math.sin(t) * rv]); }
         const dz = (chain.reduce((s, q) => s + q[2], 0) + c[2]) / (chain.length + 1);
         // 根元は首の後ろにあるので、首より奥に並べる（後ろから見るときは、平均の近さで胴より手前に来る）
         items.push({ key: dz - 60, draw: () => drawTail(chain, disc, S) });
@@ -812,33 +863,84 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
       updateFace(state.paused ? 0 : dt);
       g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
       for (const it of items) it.draw();
+      lastHead = scr(BI.head);
       // 吹き出しは頭の右上に置く（画面の画素を CSS の画素に直す）
       if (!sayEl.hidden) { const h = scr(BI.head), k = cv.clientWidth / W; sayEl.style.left = `${Math.min(cv.clientWidth - 220, h[0] * k + 60)}px`; sayEl.style.top = `${Math.max(40, h[1] * k - 150)}px`; }
       work.push(performance.now() - w0); if (work.length > 240) work.shift();
       requestAnimationFrame(frame);
     }
 
+    // ---- 動作確認のログ ----
+    // 図鑑の画面へ「[dlog] 出来事 引数 結果」を console.info で知らせる（手元のサーバーで開いたときは logs/app.log に 1 行ずつ残る）
+    const dlog = (event, args, result = 'ok') => { try { console.info('[dlog]', 'zunda.' + event, JSON.stringify(args ?? {}), typeof result === 'string' ? result : JSON.stringify(result)); } catch (_) { /* 書けなくても動きは続ける */ } };
+
+    // ---- 演技の窓口 ----
+    // 演技を JS で書くための関数。どれも Promise を返すので、await で順に並べられる
+    const sleep = (sec) => new Promise((r) => setTimeout(r, sec * 1000));
+    const zunda = {
+      // 動きを演じる（名前は bow・byebye・byehappy・walk・guide・dance）。終わったら次へ進む（歩く・踊るは 1 回分で次へ）
+      play(name) {
+        const k = CLIPS.findIndex((c) => c.name === name);
+        dlog('play', { name }, k < 0 ? 'unknown' : 'ok');
+        if (k < 0) return Promise.resolve(false);
+        play(k);
+        return new Promise((r) => { onEnd = () => r(true); });
+      },
+      stand() { dlog('stand'); play(null); return Promise.resolve(true); },
+      // 話す: 吹き出しに文を出し、口を動かす。話し終えたら次へ進む
+      say(text) { dlog('say', { text }); say(text); return sleep(Z.vowels(text).length / 7 + 0.6); },
+      // 見る: 体の正面を基準に、x は左右（-1 左〜1 右）、y は上下（-1 上〜1 下）。null でマウスの方へ戻す
+      look(x, y = 0) { dlog('look', { x, y }); look.fixed = x == null ? null : [x, y]; return sleep(0.5); },
+      // 振り向く: 体全体を縦の軸のまわりに deg 度回す（いまの向きから足す）
+      turn(deg, sec = 1) { dlog('turn', { deg, sec }); turn.to = turn.now + deg * Math.PI / 180; turn.speed = Math.abs(deg * Math.PI / 180) / Math.max(0.1, sec); return sleep(sec); },
+      wait(sec) { return sleep(sec); },
+    };
+    // 台本: 演技の窓口を並べた短いお芝居
+    async function script() {
+      await zunda.stand();
+      zunda.say('こんにちは、ずんだもんなのだ！');
+      await zunda.play('byebye');
+      await zunda.look(-0.8, 0); await zunda.wait(0.6);
+      await zunda.look(0.8, -0.2); await zunda.wait(0.6);
+      await zunda.look(null);
+      await zunda.say('くるっと回って、うしろも見せるのだ。');
+      await zunda.turn(360, 2.4);
+      zunda.say('コードだけで描いて、動いているのだ！');
+      await zunda.play('byehappy');
+      await zunda.play('bow');
+    }
+
     // ---- 操作 ----
     const bar = document.getElementById('bar'), btns = [];
-    const addBtn = (label, k) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', () => play(k)); bar.append(b); btns.push([b, k]); };
+    const addBtn = (label, k) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', () => { dlog('button', { label }); play(k); }); bar.append(b); btns.push([b, k]); };
     addBtn('立つ', null); CLIPS.forEach((c, k) => addBtn(c.label, k));
-    { const b = document.createElement('button'); b.type = 'button'; b.textContent = '話す'; b.addEventListener('click', () => say('ずんだもんなのだ。コードだけで描いて、動いているのだ！')); bar.append(b); }
+    const extra = (label, f) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.addEventListener('click', () => { dlog('button', { label }); Promise.resolve(f()).catch((err) => dlog('error', { label, msg: String(err) }, 'exception')); }); bar.append(b); };
+    extra('話す', () => zunda.say('ずんだもんなのだ。コードだけで描いて、動いているのだ！'));
+    extra('台本', script);
     function updateButtons() { for (const [b, k] of btns) b.setAttribute('aria-pressed', String(k === clip)); }
     updateButtons();
     const pauseBtn = document.getElementById('pause');
     const setPaused = (v) => { state.paused = v; pauseBtn.textContent = v ? '動かす' : '止める'; };
-    pauseBtn.addEventListener('click', () => setPaused(!state.paused));
+    pauseBtn.addEventListener('click', () => { setPaused(!state.paused); dlog('pause', { paused: state.paused }); });
     setPaused(reduce.matches);   // 動きを減らす設定のときは、止めた状態で始める
-    // ドラッグで見る向きを回す（ダブルクリックで正面へ戻す）。左右の矢印のキーでも回せる
+    // 一覧の小さな絵: ボタンと説明を隠し、斜めから、嬉しそうに手を振る場面を写す
+    if (window.THUMB) { document.body.classList.add('thumb'); Object.assign(state, { cam: -0.45, clip: CLIPS.findIndex((c) => c.name === 'byehappy'), time: 2.1 }); }
+    // ドラッグで見る向きを回す（ダブルクリックで正面へ戻す）。左右の矢印のキーでも回せる。ドラッグしていないときは、マウスの方を見る
     let drag = null;
     cv.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, cam: state.cam }; cv.setPointerCapture(e.pointerId); });
-    cv.addEventListener('pointermove', (e) => { if (drag) state.cam = drag.cam + (e.clientX - drag.x) * 0.01; });
-    cv.addEventListener('pointerup', () => { drag = null; });
-    cv.addEventListener('dblclick', () => { state.cam = 0; });
-    addEventListener('keydown', (e) => { if (e.key === 'ArrowLeft') state.cam -= 0.2; if (e.key === 'ArrowRight') state.cam += 0.2; });
+    cv.addEventListener('pointermove', (e) => {
+      if (drag) { state.cam = drag.cam + (e.clientX - drag.x) * 0.01; return; }
+      const k = W / Math.max(1, cv.clientWidth), h = lastHead;
+      if (h) look.pointer = [Math.max(-1, Math.min(1, (e.clientX * k - h[0]) / (W * 0.35))), Math.max(-1, Math.min(1, (e.clientY * k - h[1]) / (H * 0.35)))];
+    });
+    cv.addEventListener('pointerup', () => { if (drag) dlog('view', { cam: +state.cam.toFixed(2) }); drag = null; });
+    cv.addEventListener('pointerleave', () => { look.pointer = null; });
+    cv.addEventListener('dblclick', () => { state.cam = 0; dlog('view', { cam: 0 }); });
+    addEventListener('keydown', (e) => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { state.cam += e.key === 'ArrowLeft' ? -0.2 : 0.2; dlog('view', { cam: +state.cam.toFixed(2), key: e.key }); } });
+    dlog('ready', { shapes: { front: ART.front.length, side: ART.side.length, back: ART.back.length }, clips: CLIPS.length, ms: Math.round(performance.now() - t0) });
 
     // 確かめ用の入口（撮影の道具が、向き・動き・時刻を決めて撮る）
-    window.__zunda = { state, ready: true, say, perf: () => { const a = [...work].sort((x, y) => x - y); return { n: a.length, mean: a.reduce((x, y) => x + y, 0) / (a.length || 1), p95: a[Math.floor(a.length * 0.95)] || 0, max: a[a.length - 1] || 0, W, H }; }, clips: CLIPS.map((c) => c.name), pose: () => ({ clip, fade, L: last && last.L.map((q) => q.map((v) => +v.toFixed(3))), hips: last && last.hips }), rebuild: (o) => { Object.assign(state, o); REG = buildRegions(); return true; } };
+    window.__zunda = { state, ready: true, say, zunda, turn, look, perf: () => { const a = [...work].sort((x, y) => x - y); return { n: a.length, mean: a.reduce((x, y) => x + y, 0) / (a.length || 1), p95: a[Math.floor(a.length * 0.95)] || 0, max: a[a.length - 1] || 0, W, H }; }, clips: CLIPS.map((c) => c.name), pose: () => ({ clip, fade, L: last && last.L.map((q) => q.map((v) => +v.toFixed(3))), hips: last && last.hips }), rebuild: (o) => { Object.assign(state, o); REG = buildRegions(); return true; } };
     requestAnimationFrame(frame);
   },
 });

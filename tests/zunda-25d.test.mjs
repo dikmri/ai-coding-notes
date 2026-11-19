@@ -160,8 +160,11 @@ test('骨格: 回転を 0 にすると T ポーズ（腕が水平）になる。
     const len = dist(S.bones[k(low)].at, S.bones[k(arm)].at), e = P.p[k(low)], s = P.p[k(arm)];
     near(e[0] - s[0], sign * len, 1e-6, arm + ' の横'); near(e[1] - s[1], 0, 1e-6, arm + ' の高さ');
   }
-  // 脚と背骨は、絵の向きのまま（T ポーズと A ポーズの違いは腕だけ）
-  near(dist(P.p[k('leftLowerLeg')], S.bones[k('leftLowerLeg')].at), 0, 1e-6);
+  // 脚はまっすぐ下（絵の脚は前後に開いているが、動きはまっすぐな脚を基準に当てる）。長さは絵のまま
+  const hip = P.p[k('leftUpperLeg')], knee = P.p[k('leftLowerLeg')], len = dist(S.bones[k('leftLowerLeg')].at, S.bones[k('leftUpperLeg')].at);
+  near(knee[0] - hip[0], 0, 1e-6, 'ひざは脚の付け根の真下'); near(knee[2] - hip[2], 0, 1e-6); near(knee[1] - hip[1], len, 1e-6, '脚の長さ');
+  // 背骨は絵の向きのまま
+  near(dist(P.p[k('neck')], S.bones[k('neck')].at), 0, 1e-6);
 });
 
 test('骨格: 腰を縦の軸で 90 度回すと、体全体が回る（左の脚の付け根が、前に来る）', () => {
@@ -264,6 +267,15 @@ test('手足の板: 休みの骨の向きの絵を、画面に写した骨の向
   // 横へ向けても、幅の側は変わらない（骨の右側の点は、骨の右側に来る）
   const g = Z.cardMap([0, 0], [0, 100], [0, 0], [100, 0], 1), d = g(5, 50);
   near(d[0], 50, 1e-9); near(Math.abs(d[1]), 5, 1e-9);
+  // 縮尺を負にすると、幅の向きだけが左右逆になる（後ろから見た手足）
+  const m = Z.cardMap([0, 0], [0, 100], [10, 10], [10, 60], -2), e2 = m(5, 50), e1 = f(5, 50);
+  near(e2[1], e1[1], 1e-9, '長さの向きは同じ'); near(e2[0] - 10, -(e1[0] - 10), 1e-9, '幅の向きは逆');
+});
+
+test('手足の幅: 正面から見ると正面の幅、真横から見ると横の幅の割合、その間は楕円の断面の見かけの幅', () => {
+  near(Z.widthAt(1, 0.6), 1, 1e-9); near(Z.widthAt(0, 0.6), 0.6, 1e-9);
+  near(Z.widthAt(Math.SQRT1_2, 0.6), Math.sqrt(0.5 + 0.36 * 0.5), 1e-9);
+  assert.ok(Z.SIDE_W.leftUpperLeg < 1 && !Z.SIDE_W.leftUpperArm, '脚は薄く、腕は筒');
 });
 
 test('手足の重み: 関節から遠い所は 1 本の骨だけ、関節の上は 2 本を半分ずつ', () => {
