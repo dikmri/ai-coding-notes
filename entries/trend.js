@@ -2715,3 +2715,547 @@ dekiru.add({
     startAuto();
   },
 });
+
+dekiru.add({
+  id: 'tr-20261119-upcase-overflow', c: 'trend', lv: 2, date: '2026-11-19',
+  t: '大文字にすると長くなる文字で、領域を1バイト越えて書く（Ruby の ß の脆弱性）',
+  y: 'おおもじにするとながくなるもじでりょういきをいちばいとこえてかく',
+  tags: ['Ruby', 'Unicode', 'toUpperCase', 'ヒープのあふれ', 'セキュリティ'],
+  d: '2026年11月18日、Ruby の開発チームが、正規表現と文字列の大文字・小文字の変換にある7つの脆弱性を公表した（Ruby 4.0.10・3.4.13・3.3.14 で修正）。告知は Hacker News で250点を超え、そのうちの1つ（GHSA-34m4-m9fh-gqp5）を見つけた Veria Labs の解説「ruby2ßhell」も話題になった。ISO-8859-1 などの1文字1バイトの文字コードには大文字の ß が無いので、upcase は ß を「SS」の2バイトにする。ところが変換の繰り返しは、書く前に空きを1バイト分しか確かめない。そのため、領域（入力の長さ + 20 バイト）の最後の1バイトの位置で ß を変換すると、2バイト目が領域の外へ書かれる。解説によると、Rails と Sinatra は既定の設定のままこの処理に届く。前半の見本は、その繰り返しを1文字ずつ動かし、領域と隣の領域のバイトを並べて、どこに何を書いたかを見せる。ß が 21 個ならあふれ、22 個ならあふれない理由も確かめられる。直した書き方（書く前に2バイト分の空きを確かめ、足りなければ次の領域へ回す）は一例で、Ruby の実際の修正と同じとは限らない。後半は、ブラウザの toUpperCase と toLowerCase を全部の文字（約111万）に当て、文字の数や UTF-8 のバイト数が変わる文字を探す。Ruby の実物のコード、メモリの管理の仕組み、1バイトの書き換えから先の攻撃の手順は扱わない。正規表現の脆弱性も扱わない。',
+  p: '大文字・小文字の変換では、1文字が1文字になるとは限らない。ß は大文字にすると SS の2文字になり、合字の ﬁ は FI、点付きの İ は小文字にすると i と結合用の点の2つになる。UTF-8 では、ȿ（2バイト）の大文字の Ȿ が3バイトになるように、文字の数が同じでもバイト数が変わることがある。だから変換の後の長さを変換の前と同じと決めて領域を用意すると、足りなくなる。1回に何バイトも書く処理では、書く前に、書くバイト数の分の空きを確かめる。JavaScript の toUpperCase は Unicode の決まりどおりに長さの変わった文字列を返すので、String.fromCodePoint で全部のコードポイントを順に作って変換すれば、長さが変わる文字を数えられる。この繰り返しは約111万回あるので、50ミリ秒ごとに scheduler.yield()（無いブラウザでは setTimeout）で区切り、画面が止まらないようにした。',
+  refs: [
+    { title: 'Security advisories: multiple vulnerabilities in Regexp and String case conversion（ruby-lang.org）', url: 'https://www.ruby-lang.org/en/news/2026/11/18/multiple-vulnerabilities-in-regexp-and-string/' },
+    { title: 'ruby2ßhell（Veria Labs）', url: 'https://verialabs.com/ruby2shell/' },
+    { title: 'Hacker News: Multiple vulnerabilities in Regexp and String case conversion', url: 'https://news.ycombinator.com/item?id=50554038' },
+    { title: 'Hacker News: Ruby2ßhell: Pre-authentication RCE on stock Rails', url: 'https://news.ycombinator.com/item?id=50556287' },
+    { title: 'Unicode SpecialCasing.txt（長さが変わる大文字・小文字の対応表）', url: 'https://www.unicode.org/Public/UCD/latest/ucd/SpecialCasing.txt' },
+  ],
+  html: `<div class="wrap">
+  <section class="part sim" aria-labelledby="h-sim">
+    <h2 id="h-sim">1. Ruby の upcase の繰り返しを1文字ずつ動かす（ISO-8859-1、1文字1バイト）</h2>
+    <p id="cap" class="cap" role="status"></p>
+    <div class="ctl">
+      <label class="txt">入力の文字列（40文字まで。ISO-8859-1 に無い文字は ? になる）
+        <input id="in" type="text" maxlength="40" spellcheck="false" autocomplete="off">
+      </label>
+      <div class="row" role="group" aria-label="入力の例">
+        <span class="mut">例:</span>
+        <button type="button" data-pre="word">Straße</button>
+        <button type="button" data-pre="s20">ß × 20</button>
+        <button type="button" data-pre="s21">ß × 21</button>
+        <button type="button" data-pre="s22">ß × 22</button>
+        <button type="button" data-pre="as21">a + ß × 21</button>
+      </div>
+      <div class="row">
+        <button type="button" id="step">1文字進める</button>
+        <button type="button" id="auto" aria-pressed="false">自動で進める</button>
+        <button type="button" id="all">最後まで</button>
+        <button type="button" id="reset">最初から</button>
+      </div>
+      <p id="note" class="mut"></p>
+    </div>
+    <div id="cols" class="cols"></div>
+    <p class="mut legend"><span class="sw sw-w"></span>領域に書いたバイト<span class="sw sw-nb"></span>隣の領域（別のデータ。値は例）<span class="sw sw-bad"></span>領域の外に書いたバイト。黄色の線が to_end（領域の終わり）、点線の枠は次に書く位置 to。</p>
+  </section>
+  <section class="part scan" aria-labelledby="h-scan">
+    <h2 id="h-scan">2. ブラウザの toUpperCase と toLowerCase で、長さが変わる文字を全部探す</h2>
+    <div class="row">
+      <button type="button" id="scan">全部の文字を調べる（約111万文字）</button>
+      <progress id="prog" max="1" value="0" aria-label="調べた割合"></progress>
+      <span id="scanMsg" class="mut" role="status"></span>
+    </div>
+    <div id="cats" class="cats"></div>
+    <label class="txt">試す文字列（上の文字を押すとここに入る）
+      <input id="try" type="text" spellcheck="false" autocomplete="off">
+    </label>
+    <div class="tw" tabindex="0" role="region" aria-labelledby="tcap">
+      <table>
+        <caption id="tcap">変換の前と後の長さ</caption>
+        <thead><tr><th scope="col">変換</th><th scope="col">文字列</th><th scope="col">.length（UTF-16）</th><th scope="col">文字の数</th><th scope="col">UTF-8 のバイト数</th></tr></thead>
+        <tbody id="tb"></tbody>
+      </table>
+    </div>
+  </section>
+</div>`,
+  css: `:root { color-scheme: dark; --bg: #10131a; --fg: #e2e6ef; --mut: #98a2b8; --line: #2b3346; --code: #0a0d13; --acc: #6fb3ff; --ok: #46d39a; --warn: #ffc562; --bad: #ff7a7a; --safe: #7dcfff; --cell: #1b2130; --w: #22406a; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 13px/1.5 system-ui, sans-serif; accent-color: var(--acc); }
+    [hidden] { display: none !important; }
+    .wrap { display: flex; flex-direction: column; gap: 16px; padding: 8px; box-sizing: border-box; }
+    .part { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+    h2 { margin: 0; font-size: 14px; }
+    h3 { margin: 0; font-size: 13.5px; }
+    .cap { margin: 0; min-height: 3em; padding: 6px 8px; border-left: 3px solid var(--acc); background: #161b26; border-radius: 4px; }
+    .mut, .sub { margin: 0; color: var(--mut); font-size: 12px; }
+    .ctl { display: flex; flex-direction: column; gap: 6px; }
+    .row { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+    .txt { display: flex; flex-direction: column; gap: 2px; color: var(--mut); font-size: 12px; }
+    input[type="text"] { font: 14px/1.4 ui-monospace, Consolas, monospace; padding: 4px 8px; background: var(--code); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; min-block-size: 32px; box-sizing: border-box; max-width: 100%; }
+    button { font: inherit; min-block-size: 28px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 6px; background: #1d2433; color: var(--fg); cursor: pointer; }
+    button:hover { background: #26304a; }
+    button:disabled { opacity: .6; cursor: default; }
+    button[aria-pressed="true"] { background: #2a3f66; border-color: var(--acc); }
+    :focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+    .cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    @media (min-width: 640px) { .cols { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .pane { --lv: var(--ok); min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--line); border-top: 3px solid var(--lv); border-radius: 6px; }
+    .pane[data-lv="bad"] { --lv: var(--bad); }
+    .pane[data-lv="safe"] { --lv: var(--safe); }
+    .pane[data-lv="wait"] { --lv: var(--mut); }
+    pre.code { margin: 0; padding: 6px 8px; background: var(--code); border: 1px solid var(--line); border-radius: 6px; font: 11.5px/1.6 ui-monospace, Consolas, monospace; overflow-x: auto; }
+    .code .cm { color: var(--mut); }
+    .code .hit { background: #2a3550; outline: 1px solid var(--acc); border-radius: 2px; }
+    .mem { display: grid; grid-template-columns: repeat(auto-fill, minmax(26px, 1fr)); gap: 3px; }
+    .cell { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 32px; background: var(--cell); border-radius: 3px; font: 13px/1.1 ui-monospace, Consolas, monospace; color: var(--mut); }
+    .cell .hx { font-size: 9px; color: var(--mut); }
+    .cell.w { background: var(--w); color: var(--fg); }
+    .cell.new { background: #2f5f9e; }
+    .cell.nb { background: repeating-linear-gradient(135deg, #2a3142 0 4px, var(--cell) 4px 8px); color: var(--fg); }
+    .cell.end { box-shadow: -3px 0 0 var(--warn); }
+    .cell.bad { background: var(--bad); color: #1a0a0a; }
+    .cell.bad .hx { color: #1a0a0a; }
+    .cell.at { outline: 2px dashed var(--acc); outline-offset: -2px; }
+    dl { margin: 0; display: flex; flex-wrap: wrap; gap: 2px 14px; }
+    dl div { display: flex; gap: 6px; }
+    dt { color: var(--mut); font-size: 12px; }
+    dd { margin: 0; font: 12px/1.5 ui-monospace, Consolas, monospace; font-variant-numeric: tabular-nums; }
+    .state { margin: 0; font-weight: 600; color: var(--lv); }
+    .out { margin: 0; font: 12px/1.5 ui-monospace, Consolas, monospace; overflow-wrap: anywhere; color: var(--mut); }
+    .legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin: 0 4px 0 10px; }
+    .legend .sw:first-child { margin-left: 0; }
+    .sw-w { background: var(--w); }
+    .sw-nb { background: repeating-linear-gradient(135deg, #2a3142 0 3px, var(--cell) 3px 6px); outline: 1px solid var(--line); }
+    .sw-bad { background: var(--bad); }
+    progress { inline-size: 160px; }
+    .cats { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    @media (min-width: 640px) { .cats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .cat { min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
+    .cat h3 .n { color: var(--acc); font-weight: 400; margin-left: 6px; }
+    .chips { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+    .chips button { min-block-size: 26px; padding: 1px 6px; font: 13px/1.3 ui-monospace, Consolas, monospace; }
+    .chips small { color: var(--mut); font-size: 10px; margin-left: 4px; }
+    .chips .more { color: var(--mut); font-size: 12px; align-self: center; }
+    .tw { overflow: auto; max-inline-size: 100%; border: 1px solid var(--line); border-radius: 6px; }
+    table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 12px; }
+    caption { text-align: left; padding: 4px 8px; color: var(--mut); }
+    th, td { padding: 4px 8px; border-top: 1px solid var(--line); text-align: left; white-space: nowrap; }
+    thead th { color: var(--mut); font-weight: 400; }
+    tbody th { position: sticky; inset-inline-start: 0; background: var(--bg); font: 600 12px/1.5 ui-monospace, Consolas, monospace; }
+    td.s { font: 14px/1.4 ui-monospace, Consolas, monospace; white-space: normal; overflow-wrap: anywhere; min-width: 8em; }
+    td.n { font-variant-numeric: tabular-nums; }
+    td.more { color: var(--warn); }
+    td.less { color: var(--safe); }
+    .thumb .ctl, .thumb .code, .thumb .sub, .thumb .scan, .thumb dl, .thumb .out, .thumb .legend, .thumb h2, .thumb .pane.new { display: none; }
+    .thumb .wrap { padding: 6px; }
+    .thumb .cols { grid-template-columns: minmax(0, 1fr); }
+    .thumb .cap { font-size: 11.5px; min-height: 0; padding: 4px 6px; }
+    .thumb .mem { grid-template-columns: repeat(auto-fill, minmax(22px, 1fr)); }
+    .thumb .cell { min-height: 26px; }
+    .thumb .pane { padding: 6px; gap: 4px; }`,
+  core() {
+    // ISO-8859-1（1文字1バイト）の文字列を大文字にする繰り返しの模型
+    const SHARP_S = 0xDF;     // ß
+    const SLACK = 20;         // 最初の領域は「入力の長さ + 20」バイト
+    const NEIGHBOR = [0x31, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];   // 隣の領域の先頭の8バイト（値は例）
+
+    // 文字列を ISO-8859-1 のバイトの列にする。入らない文字は ?（0x3F）にして数える
+    function toLatin1(str) {
+      const bytes = [];
+      let bad = 0;
+      for (const ch of str) {
+        const c = ch.codePointAt(0);
+        if (c <= 0xFF) bytes.push(c);
+        else { bytes.push(0x3F); bad++; }
+      }
+      return { bytes, bad };
+    }
+
+    // ISO-8859-1 の1バイトを大文字にする。ª º µ ÿ はこの文字コードの中に大文字が無いのでそのまま
+    function upByte(c) {
+      if (c >= 0x61 && c <= 0x7A) return c - 0x20;
+      if (c >= 0xE0 && c <= 0xFE && c !== 0xF7) return c - 0x20;
+      return c;
+    }
+    // 1文字を大文字にしたときに書くバイトの列。ß だけ2バイトになる
+    function upcaseBytes(c) { return c === SHARP_S ? [0x53, 0x53] : [upByte(c)]; }
+    function upcaseAll(bytes) { return bytes.flatMap(upcaseBytes); }
+
+    // 最初の領域に書く様子を、入力1文字ずつの記録にする
+    // mode 'old': 書く前に空きを1バイト分だけ確かめる（ß の2バイト目は確かめずに書く）
+    // mode 'new': 書く前に、書くバイト数の分の空きを確かめ、足りなければ止める
+    function simulate(bytes, mode) {
+      if (mode !== 'old' && mode !== 'new') throw new RangeError('mode は old か new');
+      const n = bytes.length, cap = n + SLACK;
+      const mem = new Array(cap).fill(null).concat(NEIGHBOR);
+      const steps = [];
+      let i = 0, to = 0, end;
+      for (;;) {
+        if (i >= n) { end = 'done'; break; }
+        if (to >= cap) { end = 'full'; break; }
+        const code = bytes[i];
+        const out = upcaseBytes(code);
+        if (mode === 'new' && to + out.length > cap) { end = 'room'; break; }
+        const writes = [];
+        for (const b of out) {
+          if (to >= mem.length) throw new Error('隣の領域よりも外に書こうとした');
+          writes.push({ pos: to, before: mem[to], byte: b, outside: to >= cap });
+          mem[to] = b;
+          to++;
+        }
+        steps.push({ i, code, sharp: code === SHARP_S, writes, to });
+        i++;
+      }
+      const overflow = steps.flatMap((s) => s.writes.filter((w) => w.outside));
+      return { n, cap, steps, end, consumed: i, used: to, mem, overflow };
+    }
+
+    // 文字列の長さを3通りに数える
+    function utf8Len(s) {
+      let b = 0;
+      for (const ch of s) {
+        const c = ch.codePointAt(0);
+        b += c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4;
+      }
+      return b;
+    }
+    function cpLen(s) { let k = 0; for (const _ of s) k++; return k; }
+    function measure(s) { return { units: s.length, cps: cpLen(s), bytes: utf8Len(s) }; }
+
+    // 1つのコードポイントを大文字・小文字にしたとき、長さがどう変わるか。変わらなければ null
+    function caseInfo(cp) {
+      if (cp >= 0xD800 && cp <= 0xDFFF) return null;
+      const ch = String.fromCodePoint(cp);
+      const up = ch.toUpperCase(), low = ch.toLowerCase();
+      if (up === ch && low === ch) return null;
+      const b = utf8Len(ch), kinds = [];
+      const judge = (s, pre) => {
+        if (s === ch) return;
+        if (cpLen(s) > 1) kinds.push(pre + 'More');
+        else if (utf8Len(s) > b) kinds.push(pre + 'Bytes');
+        else if (utf8Len(s) < b) kinds.push(pre + 'Fewer');
+      };
+      judge(up, 'up');
+      judge(low, 'low');
+      return kinds.length ? { cp, ch, up, low, kinds } : null;
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const hex = (b) => b.toString(16).toUpperCase().padStart(2, '0');
+    const show = (b) => (b === 0x20 ? '␠' : (b > 0x20 && b < 0x7F) || b >= 0xA0 ? String.fromCharCode(b) : '·');
+    const latin = (arr) => arr.map((b) => String.fromCharCode(b)).join('');
+    const PRESETS = { word: 'Straße', s20: 'ß'.repeat(20), s21: 'ß'.repeat(21), s22: 'ß'.repeat(22), as21: 'a' + 'ß'.repeat(21) };
+    const MODES = [
+      { key: 'old', title: '元の書き方', sub: '書く前に空きを1バイト分だけ確かめる。ß のときは2バイト書く', code: [
+        [null, '// 領域の大きさは「入力の長さ + 20」バイト'],
+        ['check', 'while (i < 入力の長さ && to < to_end) {'],
+        ['read', '  c = 入力[i++];'],
+        ['sharp', '  if (c == ß) {          // この文字コードに大文字の ß は無い'],
+        ['sharp', "    *to++ = 'S';         // 1バイト目"],
+        ['sharp', "    c = 'S';"],
+        ['other', '  } else if (c が小文字) c = 大文字;'],
+        ['write', '  *to++ = c;             // ß なら2バイト目。空きは確かめていない'],
+        [null, '}'],
+      ] },
+      { key: 'new', title: '直した書き方（一例）', sub: '書く前に、書くバイト数の分の空きを確かめる', code: [
+        [null, '// 領域の大きさは同じ'],
+        ['check', 'while (i < 入力の長さ && to < to_end) {'],
+        ['read', '  c = 入力[i];  n = (c == ß) ? 2 : 1;'],
+        ['room', '  if (to + n > to_end) break;   // 足りなければ次の領域へ'],
+        ['sharp', "  if (c == ß) { *to++ = 'S'; *to++ = 'S'; }"],
+        ['other', '  else *to++ = (小文字なら大文字、ほかはそのまま);'],
+        ['read', '  i++;'],
+        [null, '}'],
+      ] },
+    ];
+
+    // 2つの欄を作る
+    const P = {};
+    for (const m of MODES) {
+      const k = m.key;
+      const el = document.createElement('article');
+      el.className = 'pane ' + k;
+      el.setAttribute('aria-labelledby', 'h-' + k);
+      const code = m.code.map(([tag, s]) => (tag ? `<span data-k="${tag}">${esc(s)}</span>` : `<span class="cm">${esc(s)}</span>`)).join('\n');
+      el.innerHTML = `<h3 id="h-${k}">${m.title}</h3>
+        <p class="sub">${m.sub}</p>
+        <pre class="code" tabindex="0" aria-label="${m.title}の要点のコード">${code}</pre>
+        <div class="mem" id="mem-${k}" role="img"></div>
+        <dl>
+          <div><dt>入力の位置 i</dt><dd id="i-${k}"></dd></div>
+          <div><dt>書く位置 to</dt><dd id="to-${k}"></dd></div>
+          <div><dt>領域の終わり to_end</dt><dd id="end-${k}"></dd></div>
+        </dl>
+        <p class="state" id="st-${k}"></p>
+        <p class="out" id="out-${k}"></p>`;
+      $('cols').append(el);
+      P[k] = { m, el, sim: null };
+    }
+
+    let bytes = [], stage = 0, maxStage = 1;
+
+    function load(str) {
+      const r = toLatin1(str);
+      bytes = r.bytes;
+      for (const m of MODES) P[m.key].sim = simulate(bytes, m.key);
+      maxStage = Math.max(...MODES.map((m) => P[m.key].sim.steps.length)) + 1;
+      stage = 0;
+      const ns = bytes.filter((b) => b === SHARP_S).length;
+      $('note').textContent = `入力 ${bytes.length} バイト（ß は ${ns} 個）。最初の領域は ${bytes.length} + 20 = ${bytes.length + SLACK} バイトで、大文字にした結果は ${upcaseAll(bytes).length} バイトになる。` + (r.bad ? `ISO-8859-1 に無い文字 ${r.bad} 個は ? にした。` : '');
+      render();
+    }
+
+    // stage 段目の欄の様子。stage = 手の数 + 1 で、繰り返しの終わりを見せる
+    function paneAt(sim, s) {
+      const k = Math.min(s, sim.steps.length);
+      const mem = new Array(sim.cap).fill(null).concat(NEIGHBOR);
+      for (let j = 0; j < k; j++) for (const w of sim.steps[j].writes) mem[w.pos] = w.byte;
+      const to = k ? sim.steps[k - 1].to : 0;
+      const i = k ? sim.steps[k - 1].i + 1 : 0;
+      const ended = s > sim.steps.length;
+      const last = s >= 1 && !ended ? sim.steps[s - 1] : null;
+      const outside = sim.steps.slice(0, k).flatMap((x) => x.writes).filter((w) => w.outside);
+      return { mem, to, i, ended, last, outside, justEnded: s === sim.steps.length + 1 };
+    }
+
+    function renderPane(p) {
+      const { sim, m } = p, k = m.key;
+      const st = paneAt(sim, stage);
+      const fresh = new Set(st.last ? st.last.writes.map((w) => w.pos) : []);
+      const bad = new Set(st.outside.map((w) => w.pos));
+      const cells = [];
+      for (let j = 0; j < st.mem.length; j++) {
+        const b = st.mem[j], nb = j >= sim.cap;
+        const cls = ['cell'];
+        if (nb) cls.push(bad.has(j) ? 'bad' : 'nb');
+        else if (b !== null) cls.push('w');
+        if (!nb && fresh.has(j)) cls.push('new');
+        if (j === sim.cap) cls.push('end');
+        if (j === st.to && !st.ended) cls.push('at');
+        let big, small;
+        if (nb && !bad.has(j)) { big = hex(b); small = '隣'; }
+        else if (b === null) { big = '·'; small = ''; }
+        else { big = show(b); small = hex(b); }
+        cells.push(`<span class="${cls.join(' ')}"><b>${esc(big)}</b><span class="hx">${small}</span></span>`);
+      }
+      const mem = $('mem-' + k);
+      mem.innerHTML = cells.join('');
+      mem.setAttribute('aria-label', `領域 ${sim.cap} バイトと隣の領域 ${NEIGHBOR.length} バイト。${Math.min(st.to, sim.cap)} バイト書いた` + (st.outside.length ? `。領域の外に ${st.outside.length} バイト書き、隣の領域が書き換わった` : ''));
+      $('i-' + k).textContent = st.i + ' / ' + sim.n;
+      $('to-' + k).textContent = String(st.to);
+      $('end-' + k).textContent = String(sim.cap);
+
+      let lv = 'ok', msg;
+      const ov = st.last ? st.last.writes.find((w) => w.outside) : null;
+      const rest = sim.n - sim.consumed;
+      if (stage === 0) { lv = 'wait'; msg = 'まだ何も書いていない'; }
+      else if (st.last) {
+        const L = st.last;
+        if (ov) { lv = 'bad'; msg = `${L.i + 1} 文字目の ß: 1バイト目を ${L.writes[0].pos} に、2バイト目を ${ov.pos}（領域の外）に書いた。隣の領域の 0x${hex(ov.before)} が 0x${hex(ov.byte)}（${show(ov.byte)}）に変わった`; }
+        else {
+          lv = st.outside.length ? 'bad' : 'ok';
+          msg = `${L.i + 1} 文字目の ${show(L.code)} を ${L.writes.map((w) => show(w.byte)).join('')} にして、${L.writes.map((w) => w.pos).join(' と ')} に書いた`;
+        }
+      } else if (st.outside.length) { lv = 'bad'; msg = '繰り返しを終えた。隣の領域の1バイトは書き換わったまま' + (rest ? `（残り ${rest} 文字は次の領域へ書く）` : ''); }
+      else if (sim.end === 'room') { lv = 'safe'; msg = `残りの空きは ${sim.cap - sim.used} バイトで、ß には2バイト要るので止めた。残り ${rest} 文字は次の領域へ書く`; }
+      else if (sim.end === 'full') { msg = `to が to_end に届いたので繰り返しを終えた。残り ${rest} 文字は次の領域へ書く`; }
+      else { msg = `入力を全部書き終えた（${sim.cap} バイトのうち ${sim.used} バイトを使った）`; }
+      p.el.dataset.lv = lv;
+      $('st-' + k).textContent = msg;
+
+      const inside = st.mem.slice(0, Math.min(st.to, sim.cap)).filter((b) => b !== null);
+      let out = '書いた文字列: ' + (inside.length ? latin(inside) : '（なし）');
+      if (st.outside.length) out += ' ＋ 領域の外に ' + latin(st.outside.map((w) => w.byte));
+      if (st.ended) out += ' ／ 次の領域の分も含めた結果: ' + latin(upcaseAll(bytes)) + (st.outside.length ? '（結果の文字列は正しい）' : '');
+      $('out-' + k).textContent = out;
+
+      let hits = [];
+      if (st.last) hits = k === 'old' ? ['check', 'read', st.last.sharp ? 'sharp' : 'other', 'write'] : ['check', 'read', 'room', st.last.sharp ? 'sharp' : 'other'];
+      else if (st.justEnded) hits = sim.end === 'room' ? ['check', 'read', 'room'] : ['check'];
+      for (const s of p.el.querySelectorAll('[data-k]')) s.classList.toggle('hit', hits.includes(s.dataset.k));
+    }
+
+    function caption() {
+      const o = P.old.sim, w = P.new.sim;
+      if (stage === 0) return `入力 ${o.n} 文字を大文字にする。最初の領域は ${o.n} + 20 = ${o.cap} バイト。ß は大文字にすると SS の2バイトになるので、ß 1個につき空きが1バイト減る。`;
+      const L = stage <= o.steps.length ? o.steps[stage - 1] : null;
+      if (L) {
+        const ov = L.writes.find((x) => x.outside);
+        if (ov) return `${L.i + 1} 文字目の ß: to = ${L.writes[0].pos} は to_end = ${o.cap} より小さいので確かめを通る。1バイト目は領域の最後に入り、2バイト目は確かめないまま領域の外（${ov.pos}）に書かれた。` + (w.end === 'room' ? '直した書き方は、2バイト分の空きが無いので、この文字の手前で止めた。' : '');
+        return `${L.i + 1} 文字目: ${show(L.code)} → ${L.writes.map((x) => show(x.byte)).join('')}。元の書き方の to は ${L.to}、to_end は ${o.cap}。`;
+      }
+      if (o.overflow.length) return '元の書き方は領域の外に1バイト書いた。結果の文字列は正しいので、変換の結果を見ても気づけない。';
+      if (o.end === 'full') return '元の書き方は、to がちょうど to_end に届いて止まったので、あふれなかった。ß の数が多くても、領域の最後の1バイトの位置に ß が来なければあふれない。';
+      return '元の書き方でもあふれなかった。あふれるのは ß が 21 個以上あり、領域の最後の1バイトの位置で ß を変換したときだけ。';
+    }
+
+    function render() {
+      for (const m of MODES) renderPane(P[m.key]);
+      $('cap').textContent = caption();
+    }
+
+    // 自動で進める
+    let timer = 0;
+    const autoBtn = $('auto');
+    function stopAuto() {
+      clearTimeout(timer);
+      timer = 0;
+      autoBtn.setAttribute('aria-pressed', 'false');
+      autoBtn.textContent = '自動で進める';
+    }
+    function tick() {
+      if (stage < maxStage) {
+        stage++;
+        render();
+        const near = stage >= maxStage - 2;   // あふれる手と終わりの手は長めに見せる
+        timer = setTimeout(tick, window.THUMB ? (near ? 1500 : 150) : (near ? 900 : 420));
+        return;
+      }
+      if (window.THUMB) { stage = 0; render(); timer = setTimeout(tick, 600); return; }
+      stopAuto();
+    }
+    function startAuto() {
+      stopAuto();
+      if (stage >= maxStage) { stage = 0; render(); }
+      autoBtn.setAttribute('aria-pressed', 'true');
+      autoBtn.textContent = '止める';
+      timer = setTimeout(tick, 500);
+    }
+
+    autoBtn.addEventListener('click', () => { if (timer) stopAuto(); else startAuto(); });
+    $('step').addEventListener('click', () => { stopAuto(); if (stage < maxStage) stage++; render(); });
+    $('all').addEventListener('click', () => { stopAuto(); stage = maxStage; render(); });
+    $('reset').addEventListener('click', () => { stopAuto(); stage = 0; render(); });
+    $('in').addEventListener('input', (e) => { stopAuto(); load(e.target.value); });
+    document.querySelector('[aria-label="入力の例"]').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-pre]');
+      if (!b) return;
+      $('in').value = PRESETS[b.dataset.pre];
+      load($('in').value);
+      startAuto();
+    });
+
+    // 後半: 長さが変わる文字を全部探す
+    const KIND_INFO = [
+      ['upMore', '大文字にすると文字の数が増える', 'up'],
+      ['upBytes', '大文字にすると UTF-8 のバイト数が増える（文字の数は同じ）', 'up'],
+      ['upFewer', '大文字にすると UTF-8 のバイト数が減る', 'up'],
+      ['lowMore', '小文字にすると文字の数が増える', 'low'],
+      ['lowBytes', '小文字にすると UTF-8 のバイト数が増える', 'low'],
+      ['lowFewer', '小文字にすると UTF-8 のバイト数が減る', 'low'],
+    ];
+    const SHOW_MAX = 48;
+    const yieldMain = () => ('scheduler' in window && 'yield' in window.scheduler ? window.scheduler.yield() : new Promise((r) => setTimeout(r, 0)));
+    let scanning = false;
+
+    function renderCats(found) {
+      $('cats').replaceChildren(...KIND_INFO.map(([k, title, dir]) => {
+        const list = found[k];
+        const sec = document.createElement('section');
+        sec.className = 'cat';
+        const h = document.createElement('h3');
+        const n = document.createElement('span');
+        n.className = 'n';
+        n.textContent = list.length + ' 文字';
+        h.append(title, n);
+        const ul = document.createElement('ul');
+        ul.className = 'chips';
+        for (const it of list.slice(0, SHOW_MAX)) {
+          const after = dir === 'up' ? it.up : it.low;
+          const li = document.createElement('li');
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.title = 'U+' + it.cp.toString(16).toUpperCase().padStart(4, '0');
+          const sm = document.createElement('small');
+          sm.textContent = k.endsWith('More') ? cpLen(it.ch) + '→' + cpLen(after) + '文字' : utf8Len(it.ch) + '→' + utf8Len(after) + 'バイト';
+          b.append(it.ch + '→' + after, sm);
+          b.addEventListener('click', () => { $('try').value = it.ch; renderTry(); });
+          li.append(b);
+          ul.append(li);
+        }
+        if (list.length > SHOW_MAX) {
+          const li = document.createElement('li');
+          li.className = 'more';
+          li.textContent = `ほか ${list.length - SHOW_MAX} 文字`;
+          ul.append(li);
+        }
+        sec.append(h, ul);
+        return sec;
+      }));
+    }
+
+    async function scanAll() {
+      if (scanning) return;
+      scanning = true;
+      const btn = $('scan'), prog = $('prog'), msg = $('scanMsg');
+      btn.disabled = true;
+      prog.value = 0;
+      msg.textContent = '調べています…';
+      const found = {};
+      for (const [k] of KIND_INFO) found[k] = [];
+      const t0 = performance.now();
+      let deadline = t0 + 50, count = 0;
+      const uniq = new Set();
+      for (let cp = 0; cp <= 0x10FFFF; cp++) {
+        if (cp === 0xD800) cp = 0xE000;   // サロゲートの範囲は1文字にならないので飛ばす
+        count++;
+        const info = caseInfo(cp);
+        if (info) { uniq.add(cp); for (const k of info.kinds) found[k].push(info); }
+        if ((cp & 0x3FF) === 0 && performance.now() >= deadline) {
+          prog.value = cp / 0x110000;
+          await yieldMain();
+          deadline = performance.now() + 50;
+        }
+      }
+      prog.value = 1;
+      const sec = (performance.now() - t0) / 1000;
+      msg.textContent = `${count.toLocaleString('ja-JP')} 文字を調べた（${sec.toFixed(1)} 秒）。長さが変わる文字は ${uniq.size} 個`;
+      renderCats(found);
+      btn.disabled = false;
+      btn.textContent = 'もう一度調べる';
+      scanning = false;
+    }
+
+    function renderTry() {
+      const s = $('try').value;
+      const base = measure(s);
+      const rows = [
+        ['元の文字列', s],
+        ['toUpperCase()', s.toUpperCase()],
+        ['toLowerCase()', s.toLowerCase()],
+        ["toLocaleUpperCase('tr')", s.toLocaleUpperCase('tr')],
+      ];
+      $('tb').replaceChildren(...rows.map(([label, v], idx) => {
+        const tr = document.createElement('tr');
+        const th = document.createElement('th');
+        th.scope = 'row';
+        th.textContent = label;
+        const td = document.createElement('td');
+        td.className = 's';
+        td.textContent = v;
+        tr.append(th, td);
+        const mv = measure(v);
+        for (const key of ['units', 'cps', 'bytes']) {
+          const c = document.createElement('td');
+          c.className = 'n';
+          const d = mv[key] - base[key];
+          c.textContent = String(mv[key]) + (idx && d ? (d > 0 ? '（+' + d + '）' : '（' + d + '）') : '');
+          if (idx && d) c.classList.add(d > 0 ? 'more' : 'less');
+          tr.append(c);
+        }
+        return tr;
+      }));
+    }
+
+    $('scan').addEventListener('click', scanAll);
+    $('try').addEventListener('input', renderTry);
+
+    if (window.THUMB) document.documentElement.classList.add('thumb');
+    $('in').value = PRESETS.s21;
+    load(PRESETS.s21);
+    $('try').value = 'Straße ﬁx İ ȿ ı';
+    renderTry();
+    startAuto();
+    if (!window.THUMB) setTimeout(scanAll, 800);
+  },
+});

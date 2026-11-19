@@ -569,3 +569,90 @@ test('送信枠: まとめた計算は、1回ずつ確かめたときと同じ�
     }
   }
 });
+
+// 大文字にすると長くなる文字で、領域を1バイト越えて書く（Ruby の ß の脆弱性）
+const UPC = 'tr-20261119-upcase-overflow';
+const UPC_NAMES = ['SHARP_S', 'SLACK', 'NEIGHBOR', 'toLatin1', 'upcaseAll', 'simulate', 'utf8Len', 'cpLen', 'measure', 'caseInfo'];
+const sharps = (k, pre = []) => [...pre, ...Array(k).fill(0xDF)];
+
+test('大文字の変換: ISO-8859-1 で大文字にする。ß は SS、ª º µ ÿ ÷ と ISO-8859-1 に無い文字はそのまま', () => {
+  const { toLatin1, upcaseAll } = trendCore(UPC, UPC_NAMES);
+  const { bytes, bad } = toLatin1('Straße àªºµÿ÷ あ');
+  assert.equal(bad, 1);
+  assert.equal(String.fromCharCode(...upcaseAll(bytes)), 'STRASSE Àªºµÿ÷ ?');
+});
+
+test('大文字の変換: ß が 21 個だと、元の書き方は2バイト目を領域の外に書き、直した書き方はその手前で止める', () => {
+  const { simulate, SLACK, NEIGHBOR } = trendCore(UPC, UPC_NAMES);
+  const old = simulate(sharps(21), 'old');
+  assert.equal(old.cap, 21 + SLACK);
+  assert.equal(old.overflow.length, 1);
+  assert.equal(old.overflow[0].pos, old.cap);
+  assert.equal(old.overflow[0].before, NEIGHBOR[0]);
+  assert.equal(old.overflow[0].byte, 0x53);
+  assert.equal(old.used, old.cap + 1);
+  assert.equal(old.mem[old.cap], 0x53);
+  const fixed = simulate(sharps(21), 'new');
+  assert.equal(fixed.overflow.length, 0);
+  assert.equal(fixed.end, 'room');
+  assert.equal(fixed.consumed, 20);
+  assert.equal(fixed.used, 40);
+  assert.equal(fixed.mem[fixed.cap], NEIGHBOR[0]);
+  assert.throws(() => simulate([], 'other'));
+});
+
+test('大文字の変換: ß が 20 個・22 個ならあふれず、23 個や a + ß 21 個ならあふれる', () => {
+  const { simulate } = trendCore(UPC, UPC_NAMES);
+  const s20 = simulate(sharps(20), 'old');
+  assert.equal(s20.overflow.length, 0);
+  assert.equal(s20.end, 'done');
+  const s22 = simulate(sharps(22), 'old');
+  assert.equal(s22.overflow.length, 0);
+  assert.equal(s22.end, 'full');
+  assert.equal(s22.consumed, 21);
+  assert.equal(simulate(sharps(23), 'old').overflow.length, 1);
+  assert.equal(simulate(sharps(21, [0x61]), 'old').overflow.length, 1);
+  assert.equal(simulate([], 'old').end, 'done');
+});
+
+test('大文字の変換: どんな入力でも、元の書き方があふれるのは1バイトまでで、直した書き方は領域の中だけに書く', () => {
+  const { simulate, upcaseAll } = trendCore(UPC, UPC_NAMES);
+  let seed = 7;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const head = (sim) => Array.from(sim.steps.flatMap((s) => s.writes.map((w) => w.byte)));
+  let seen = 0;
+  for (let t = 0; t < 500; t++) {
+    const n = Math.floor(rnd() * 41);
+    const bytes = Array.from({ length: n }, () => (rnd() < 0.75 ? 0xDF : 0x61));
+    const o = simulate(bytes, 'old'), w = simulate(bytes, 'new');
+    const all = Array.from(upcaseAll(bytes));
+    assert.ok(o.overflow.length <= 1);
+    assert.equal(w.overflow.length, 0);
+    assert.ok(w.used <= w.cap);
+    // 書いた分は、全体を大文字にした結果の先頭と同じ
+    assert.deepEqual(head(o), all.slice(0, o.used));
+    assert.deepEqual(head(w), all.slice(0, w.used));
+    // あふれるのは ß が 21 個以上のときだけ
+    if (o.overflow.length) { seen++; assert.ok(bytes.filter((b) => b === 0xDF).length >= 21); }
+  }
+  assert.ok(seen > 0);
+});
+
+test('大文字の変換: toUpperCase と toLowerCase で、文字の数や UTF-8 のバイト数が変わる文字を分ける', () => {
+  const { caseInfo, measure } = trendCore(UPC, UPC_NAMES);
+  const kinds = (cp) => { const r = caseInfo(cp); return r ? Array.from(r.kinds) : []; };
+  assert.deepEqual(kinds(0xDF), ['upMore']);       // ß → SS
+  assert.deepEqual(kinds(0xFB01), ['upMore']);     // ﬁ → FI
+  assert.deepEqual(kinds(0x23F), ['upBytes']);     // ȿ（2バイト）→ Ȿ（3バイト）
+  assert.deepEqual(kinds(0x131), ['upFewer']);     // ı → I
+  assert.deepEqual(kinds(0x130), ['lowMore']);     // İ → i と結合用の点
+  assert.deepEqual(kinds(0x23A), ['lowBytes']);    // Ⱥ → ⱥ
+  assert.deepEqual(kinds(0x212A), ['lowFewer']);   // ケルビンの記号 → k
+  assert.equal(caseInfo(0x41), null);              // A → a は長さが同じ
+  assert.equal(caseInfo(0x3042), null);            // あ は変わらない
+  assert.equal(caseInfo(0xD800), null);            // サロゲートは飛ばす
+  const m = measure('aß😀');
+  assert.equal(m.units, 4);
+  assert.equal(m.cps, 3);
+  assert.equal(m.bytes, 1 + 2 + 4);
+});
