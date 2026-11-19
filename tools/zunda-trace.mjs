@@ -19,6 +19,8 @@
 // 6. 部品: tools/zunda-parts.json の多角形（元の絵の座標）と色で、塗りの画素ごとに部品を決める。線は手前の部品につける
 // 7. 形: 塗りは部品と色ごとの 0/1 の地図を少しぼかし、0.35 の等値線（少し外へ広げ、となりの塗りと重ねる）。
 //    線は、線の濃さをぼかした場の等値線。しきい値は、線の幅が濃さの合計と同じになるように線ごとに決める（下の「線」の説明）
+// 7b. tools/zunda-parts.json の strokes の部品（目・口）は、線を等値線ではなく「中心の線 + 太さ + 色」で写す（tools/lib/strokes.mjs）。
+//    元の絵のぼけ（σ）をまつげの縁から測り、線ごとに太さと不透明な色を戻す。瞳の点は、中の色の円と輪にする
 // 8. 等値線（marching squares）→ 点を間引く → 3 次のベジェ（Schneider の方法）→ SVG の path の文字（0.1 画素）
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -26,6 +28,7 @@ import { fileURLToPath } from 'node:url';
 import { loadJpeg } from './lib/zunda-load.mjs';
 import { encodePng } from './lib/image.mjs';
 import * as V from './lib/vectorize.mjs';
+import * as S from './lib/strokes.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ASSETS = resolve(ROOT, '../assets/zunko'); // worktree（runtime/zunda）から見た素材のフォルダ
@@ -289,8 +292,137 @@ for (let i = 0; i < N; i++) {
   if (soft) softField[i] = inkS[i] - tOf(P, SOFT_A) + 0.5; else solidField[i] = inkS[i] - tOf(P, 1) + 0.5;
 }
 log('線の筆', comp.sizes.length - 1, '本のうち薄い線', softCount, '本');
+
+// ---- 7b. 線を「中心の線 + 太さ + 濃さ」で写す部品（tools/zunda-parts.json の strokes）----
+// 顔のような小さな所は、濃さの境目で写すと、線が波打ち、元より太く黒くなる。tools/lib/strokes.mjs で、線の中心をなめらかにたどり、
+// 線ごとに太さと濃さ（半透明の黒）を測って描き直す。小さな点（瞳の点、鼻）は円にし、中が明るい点（瞳の点）は、中の色の円と輪にする
+const STROKE_PARTS = new Set(partsDef.strokes || []);
+const strokeShapes = [], dotFills = [], extraPalette = {}, dotColors = [];
+const inkName = (c) => {
+  if (c >= 1) return 'line';
+  const name = `line${Math.round(c * 100)}`;
+  extraPalette[name] = hex(LINE) + Math.round(c * 255).toString(16).padStart(2, '0');
+  return name;
+};
+const dotColorName = (rgbv) => {
+  const L = V.rgbToLab(...rgbv), hit = dotColors.find((d) => V.deltaE(d.lab, L) < 10);
+  if (hit) return hit.name;
+  const name = dotColors.length ? `dot${dotColors.length + 1}` : 'pupil';
+  dotColors.push({ name, lab: L }); extraPalette[name] = hex(rgbv);
+  return name;
+};
+const LINE_LAB = V.rgbToLab(...LINE);
+// 元の絵の色（双線形）と、塗りの色（いちばん近い画素の塗り）。座標は切り出しの中
+const rgbAt = (x, y) => {
+  const cx = Math.min(W - 1, Math.max(0, x)), cy = Math.min(H - 1, Math.max(0, y)), x0 = Math.min(W - 2, Math.floor(cx)), y0 = Math.min(H - 2, Math.floor(cy)), tx = cx - x0, ty = cy - y0;
+  return [0, 1, 2].map((c) => (rgb[(y0 * W + x0) * 3 + c] * (1 - tx) + rgb[(y0 * W + x0 + 1) * 3 + c] * tx) * (1 - ty) + (rgb[((y0 + 1) * W + x0) * 3 + c] * (1 - tx) + rgb[((y0 + 1) * W + x0 + 1) * 3 + c] * tx) * ty);
+};
+const fillAtPx = (x, y) => fillRgb(label[Math.min(H - 1, Math.max(0, Math.round(y))) * W + Math.min(W - 1, Math.max(0, Math.round(x)))]);
+const WHITE_LAB = pal[WHITE].lab;
+// 元の絵のぼけ（σ）: 太くて濃い所（まつげなど）の縁の広がりから測る。tools/zunda-parts.json の strokeSigma で決め打ちもできる
+const SIGMA = STROKE_PARTS.size ? (partsDef.strokeSigma ?? S.estimatePsf(ink, W, H) ?? 0.55) : 0.55;
+if (STROKE_PARTS.size) log('元の絵のぼけ（σ）', SIGMA.toFixed(3), '画素');
+// 1 回目: 部品ごとに線と点を当てる
+const strokeResults = [];
+for (const name of STROKE_PARTS) {
+  if (!(name in partIndex)) throw new Error(`strokes の ${name} が parts にない`);
+  const p = partIndex[name];
+  const own = new Uint8Array(N); for (let i = 0; i < N; i++) own[i] = linePart[i] === p && ink[i] >= 0.03 ? 1 : 0;
+  const reach = V.dilate(own, W, H, 1.5);
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (reach[y * W + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  if (x1 < 0) continue;
+  x0 = Math.max(0, x0 - 4); y0 = Math.max(0, y0 - 4); x1 = Math.min(W - 1, x1 + 4); y1 = Math.min(H - 1, y1 + 4);
+  const sw = x1 - x0 + 1, sh = y1 - y0 + 1, sub = new Float32Array(sw * sh);
+  for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) { const i = (y + y0) * W + x + x0; sub[y * sw + x] = reach[i] ? ink[i] : 0; }
+  const r = S.strokesFromField(sub, sw, sh, {
+    minPeak: partsDef.lineMin?.[name] ?? LINE_MIN, sigmaPsf: SIGMA,
+    colorAt: (x, y) => rgbAt(x + x0, y + y0), fillAt: (x, y) => fillAtPx(x + x0, y + y0),
+  });
+  strokeResults.push({ name, x0, y0, ...r });
+}
+// 線の色をまとめる: JPEG の色のにじみで、同じ色の線でも 1 本ずつ少しずつ違う色に戻る。
+// 長さ（点は円周）で重みを付け、重い線から順に、近い色（ΔE 15 未満）の群に入れる。群の色は重み付きの平均。黒に近い群は line
+// 点（瞳の点の輪）は小さく、1 個ずつ測ると色のにじみに強く引っぱられる。点どうしを先にまとめ（左右の瞳の点を同じ色にする）、
+// その色を線の群のうち近いもの（ΔE 30 未満）に入れる
+// この絵の線は基本的に黒で、瞳の輪郭が茶色に見えるのは、細い黒の線がオレンジや黄色と混ざるため（中心の画素の値が、
+// 黒い 1.3 画素の線を σ 0.7 でぼかした値で説明できる）。黒との差が ΔE 25 未満の群は黒（line）にする
+const colorItems = [], dotItems = [];
+for (const r of strokeResults) {
+  for (const s of r.strokes) if (s.rgb) colorItems.push({ o: s, rgb: s.rgb, wgt: S.pathLength(s.pts, s.closed) * (s.half.reduce((a, b) => a + b, 0) / s.half.length) });
+  for (const d of r.dots) if (d.rgb) dotItems.push({ o: d, rgb: d.rgb, wgt: 2 * Math.PI * d.r * (d.wr || d.r) });
+}
+const groupBy = (items, tol) => {
+  const groups = [];
+  for (const it of [...items].sort((a, b) => b.wgt - a.wgt)) {
+    const lab = V.rgbToLab(...it.rgb);
+    let g = groups.find((q) => V.deltaE(q.lab, lab) < tol);
+    if (!g) { g = { sum: [0, 0, 0], w: 0, lab, members: [] }; groups.push(g); }
+    it.rgb.forEach((v, j) => { g.sum[j] += v * it.wgt; }); g.w += it.wgt; g.members.push(it.o);
+    g.rgb = g.sum.map((v) => v / g.w); g.lab = V.rgbToLab(...g.rgb);
+  }
+  return groups;
+};
+const colorGroups = groupBy(colorItems, 15);
+for (const dg of groupBy(dotItems, 35)) {
+  const near = colorGroups.map((q) => [q, V.deltaE(q.lab, dg.lab)]).filter(([, d]) => d < 30).sort((a, b) => a[1] - b[1])[0]?.[0];
+  if (near) near.members.push(...dg.members); else colorGroups.push(dg);
+}
+let inkN = 0;
+for (const g of colorGroups) {
+  const name = V.deltaE(g.lab, LINE_LAB) < 25 ? 'line' : `ink${++inkN}`;
+  if (name !== 'line') extraPalette[name] = hex(g.rgb);
+  for (const o of g.members) o.colorName = name;
+}
+log('線の色', colorGroups.map((g) => `${g.members[0].colorName} ${hex(g.rgb)}（${g.members.length}）`).join('、'));
+// 2 回目: 形にする
+for (const { name, x0, y0, strokes, dots } of strokeResults) {
+  const byColor = new Map(), add = (color, curves) => { if (!byColor.has(color)) byColor.set(color, []); byColor.get(color).push(curves); };
+  const colorOf = (o) => o.colorName ?? inkName(o.c);
+  for (const s of strokes) {
+    const pts = s.pts.map(([x, y]) => [x + x0, y + y0]);
+    for (const poly of S.strokeOutline(pts, s.half, { closed: s.closed, caps: s.ends })) {
+      const curves = V.fitClosed(poly, 0.05, { reach: 1, cornerAngle: 100 });
+      if (curves.length) add(colorOf(s), curves);
+    }
+  }
+  let skipped = 0;
+  for (const d of dots) {
+    const cx = d.cx + x0, cy = d.cy + y0;
+    // ほかの部品の線（濃さ 0.3 以上）が 1.5 画素以内にある点は、その線のかけら（部品の境目で切れた端）なので描かない
+    {
+      let other = false;
+      for (let y = Math.floor(cy - d.r - 1.5); y <= Math.ceil(cy + d.r + 1.5) && !other; y++) for (let x = Math.floor(cx - d.r - 1.5); x <= Math.ceil(cx + d.r + 1.5); x++) {
+        if (x < 0 || y < 0 || x >= W || y >= H) continue;
+        const i = y * W + x;
+        if (ink[i] >= 0.3 && linePart[i] >= 0 && linePart[i] !== partIndex[name] && Math.hypot(x - cx, y - cy) <= d.r + 1.5) { other = true; break; }
+      }
+      if (other) { skipped++; continue; }
+    }
+    if (d.ring) {
+      // 輪の中の色: 元の絵の、輪の内側の画素の平均。
+      // まわりの塗りが白い輪は、瞳の点ではない（白目の上で 2 本の線が寄った所の小さなすき間）ので描かない
+      const rin = Math.max(0.6, d.r - d.wr);
+      let sr = 0, sg = 0, sb = 0, n = 0;
+      for (let y = Math.floor(cy - rin); y <= Math.ceil(cy + rin); y++) for (let x = Math.floor(cx - rin); x <= Math.ceil(cx + rin); x++) {
+        if (x < 0 || y < 0 || x >= W || y >= H || Math.hypot(x - cx, y - cy) > rin) continue;
+        const c = px(y * W + x); sr += c[0]; sg += c[1]; sb += c[2]; n++;
+      }
+      let whiteAround = 0;
+      for (let a = 0; a < 8; a++) { const f = fillAtPx(cx + (d.r + 1.2) * Math.cos((a * Math.PI) / 4), cy + (d.r + 1.2) * Math.sin((a * Math.PI) / 4)); if (V.deltaE(V.rgbToLab(...f), WHITE_LAB) < 5) whiteAround++; }
+      if (!n || whiteAround >= 5) { skipped++; continue; }
+      dotFills.push({ part: name, kind: 'fill', color: dotColorName([sr / n, sg / n, sb / n]), d: V.pathData([S.circleCurves(cx, cy, d.r - d.wr / 2)]) });
+      add(colorOf(d), S.circleCurves(cx, cy, d.r)); add(colorOf(d), S.circleCurves(cx, cy, Math.max(0.1, d.r - d.wr), true));
+    } else add(colorOf(d), S.circleCurves(cx, cy, d.r));
+  }
+  if (skipped) log(`  点のうち ${skipped} 個は描かなかった（中が白い輪、またはほかの部品の線のかけら）`);
+  for (const [color, contours] of byColor) strokeShapes.push({ part: name, kind: 'line', color, d: V.pathData(contours) });
+  log(`線を当てた部品 ${name}: 線 ${strokes.length} 本、点 ${dots.length} 個（輪 ${dots.filter((d) => d.ring).length}）`);
+}
+
 const lineShapes = { lineSoft: [], line: [] };
 for (const name of order) {
+  if (STROKE_PARTS.has(name)) continue;
   const p = partIndex[name];
   const own = new Uint8Array(N); for (let i = 0; i < N; i++) own[i] = linePart[i] === p ? 1 : 0;
   const reach = V.dilate(own, W, H, 1.5);
@@ -303,11 +435,13 @@ for (const name of order) {
     lineShapes[color].push({ part: name, kind: 'line', color, d: V.pathData(contours) });
   }
 }
-// 描く順: 塗り（奥から手前）→ 薄い線 → 濃い線
-shapes.push(...lineShapes.lineSoft, ...lineShapes.line);
+// 描く順: 塗り（奥から手前）→ 薄い線 → 濃い線 → 線を当てた部品の点の中の色 → 線を当てた部品の線
+shapes.push(...lineShapes.lineSoft, ...lineShapes.line, ...dotFills, ...strokeShapes);
 
 // ---- 書き出し ----
-const palette = Object.fromEntries([...pal.map((p) => [p.name, hex(p.rgb)]), ['line', hex(LINE)], ['lineSoft', hex(LINE) + Math.round(SOFT_A * 255).toString(16).padStart(2, '0')]]);
+// 線を当てた部品で足した色のうち、形に使われなかったもの（輪郭が小さすぎて曲線にならなかった線の色など）は外す
+for (const name of Object.keys(extraPalette)) if (!shapes.some((s) => s.color === name)) delete extraPalette[name];
+const palette = Object.fromEntries([...pal.map((p) => [p.name, hex(p.rgb)]), ['line', hex(LINE)], ['lineSoft', hex(LINE) + Math.round(SOFT_A * 255).toString(16).padStart(2, '0')], ...Object.entries(extraPalette)]);
 const data = { w: W, h: H, origin: [X0, Y0], src: [img.width, img.height], palette, parts: order, shapes };
 const head = `/* ずんだもん（東北ずん子・ずんだもんプロジェクトの公式イラスト「202012_ずんだもん三面」の正面）を、曲線で写したデータ。
  * tools/zunda-trace.mjs で写した（部品の境目は tools/zunda-parts.json）。図鑑の項目が、開いたときだけ読み込む。
