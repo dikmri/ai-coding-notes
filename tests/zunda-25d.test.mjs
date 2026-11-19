@@ -174,6 +174,17 @@ test('骨格: 腰を縦の軸で 90 度回すと、体全体が回る（左の�
   assert.ok(after[1] > 40, `前 ${after[1]}`);
 });
 
+test('床: 立っているときは床までの差が 0。腰を上げると、その分だけ下げて床に着ける。座ると腰の下が床に着く', () => {
+  const S = Z.buildSkeleton(Z.SKEL), L = Z.restLocals(S), at = S.bones[0].at;
+  near(Z.groundOffset(S, Z.fk(S, L, at)), 0, 1, '立つ');
+  near(Z.groundOffset(S, Z.fk(S, L, [at[0], at[1] - 40, at[2]])), 40, 1, '浮いた分を下げる');
+  // 両脚を前へ 90 度上げる（床に座る）: 腰の下（半ズボンの下）が床に着く
+  const K = L.map((q) => q.slice()), k = (n) => S.index[n];
+  for (const n of ['leftUpperLeg', 'rightUpperLeg']) K[k(n)] = Z.qmul(Z.qaxis([1, 0, 0], -Math.PI / 2), K[k(n)]);
+  const P = Z.fk(S, K, at), off = Z.groundOffset(S, P);
+  near(at[1] + off + Z.HIPS_BOTTOM, Z.FLOOR_Y, 1, '腰の下が床');
+});
+
 test('動きの腰の位置: VRM 0.x（メートル、上が +Y、顔が -Z）を、絵の画素（下が +Y、前が +Z）に直す', () => {
   const S = Z.buildSkeleton(Z.SKEL), h = S.bones[0].at;
   const a = Z.hipsFromMotion([0, Z.HIPS_REST, 0], S);

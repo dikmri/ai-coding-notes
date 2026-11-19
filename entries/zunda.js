@@ -263,6 +263,21 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
     const HIPS_REST = 0.875, PX_PER_M = 766;
     const hipsFromMotion = (h, S) => { const a = S.bones[0].at; return [a[0] - h[0] * PX_PER_M, a[1] - (h[1] - HIPS_REST) * PX_PER_M, a[2] - h[2] * PX_PER_M]; };
 
+    // 床: 体のいちばん低い所（靴の裏・つま先・ひざ・腰の下）が床（元の絵の靴の裏の高さ）に着くように、体全体を上下させる量。
+    // 動きは VRoid の体の比率で記録されていて、脚の長さの比率が違うと、そのままでは足が浮いたり沈んだりする
+    const FLOOR_Y = 1280, KNEE_R = 45, HIPS_BOTTOM = 190;
+    function groundOffset(S, P) {
+      const B = S.index, at = (n) => S.bones[B[n]].at;
+      let low = -Infinity;
+      for (const side of ['left', 'right']) {
+        const f = B[side + 'Foot'], t = B[side + 'Toes'], df = boneDraw(S, P, f), dt = boneDraw(S, P, t), tip = S.bones[t].tip, ta = at(side + 'Toes');
+        const sole = qrot(df.q, [0, FLOOR_Y - at(side + 'Foot')[1], 8]), toe = qrot(dt.q, [tip[0] - ta[0], tip[1] - ta[1], tip[2] - ta[2]]);
+        low = Math.max(low, P.p[f][1] + sole[1], P.p[t][1] + toe[1], P.p[B[side + 'LowerLeg']][1] + KNEE_R);
+      }
+      low = Math.max(low, P.p[0][1] + HIPS_BOTTOM);
+      return FLOOR_Y - low;
+    }
+
     // ---- 手足の板 ----
     // 休みの骨（A→B、元の絵の 2D）の向きの絵を、画面に写した骨（A2→B2）に合わせて曲げる関数。骨の長さの向きは写した長さに縮め、
     // 幅の向きは画面の縮尺 S のまま（手足を真正面から見た絵の幅を保つ。腕がこちらを向いても細くならない）
@@ -381,7 +396,8 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
 
     const Z = { parsePath, subdivide, buildProxy, lift, hull, rotX, rotY, rotZ, mul3, applyMat3, viewAngle, viewBlend, VIEWS, AXIS, REGIONS, CARDS, SLEEVES, view, dequant, sampleClip,
       TAIL_REST, TAIL_W, CURL, tailInit, tailStep, eyeCloser, mouthShape, vowels, VOWEL_SHAPE,
-      qmul, qconj, qaxis, qrot, qfromTo, qslerp, qmat, norm3, SKEL, buildSkeleton, restLocals, fk, boneDraw, HIPS_REST, PX_PER_M, hipsFromMotion, cardMap, jointBlend };
+      qmul, qconj, qaxis, qrot, qfromTo, qslerp, qmat, norm3, SKEL, buildSkeleton, restLocals, fk, boneDraw, HIPS_REST, PX_PER_M, hipsFromMotion, cardMap, jointBlend,
+      FLOOR_Y, HIPS_BOTTOM, groundOffset };
   },
   js() {
     const cv = document.getElementById('c'), g = cv.getContext('2d');
@@ -748,11 +764,15 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
     // ---- 1 コマ ----
     let prevT = null, clock = 0, follow = 0;
     const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+    const work = [];   // 1 コマの計算と描画にかかった時間（ミリ秒、直近 240 コマ）
     function frame(now) {
+      const w0 = performance.now();
       const dt = prevT == null ? 0 : Math.min(0.1, (now - prevT) / 1000); prevT = now;
       if (!state.paused) clock += dt;
       if (state.clip !== null && state.clip !== undefined && state.clip !== clip) play(state.clip);
       const pose = currentPose(clock, state.paused ? 0 : dt), P = Z.fk(SK, pose.L, pose.hips);
+      // 体のいちばん低い所を床に着ける（動きは VRoid の体の比率なので、そのままでは足が浮いたり沈んだりする）
+      const lift = Z.groundOffset(SK, P); for (const p of P.p) p[1] += lift;
       // 見る向き（縦の軸のまわりに回す）と、画面の縮尺。体の真ん中（高さ 700）を中心に回す
       const S = Math.min(H / 1300, W / 820), oy = H * 0.52 - 700 * S;
       const C = Z.mul3(Z.rotX(state.camPitch), Z.rotY(state.cam));
@@ -794,6 +814,7 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
       for (const it of items) it.draw();
       // 吹き出しは頭の右上に置く（画面の画素を CSS の画素に直す）
       if (!sayEl.hidden) { const h = scr(BI.head), k = cv.clientWidth / W; sayEl.style.left = `${Math.min(cv.clientWidth - 220, h[0] * k + 60)}px`; sayEl.style.top = `${Math.max(40, h[1] * k - 150)}px`; }
+      work.push(performance.now() - w0); if (work.length > 240) work.shift();
       requestAnimationFrame(frame);
     }
 
@@ -817,7 +838,7 @@ button:focus-visible { outline: 2px solid #234; outline-offset: 2px; }
     addEventListener('keydown', (e) => { if (e.key === 'ArrowLeft') state.cam -= 0.2; if (e.key === 'ArrowRight') state.cam += 0.2; });
 
     // 確かめ用の入口（撮影の道具が、向き・動き・時刻を決めて撮る）
-    window.__zunda = { state, ready: true, say, clips: CLIPS.map((c) => c.name), pose: () => ({ clip, fade, L: last && last.L.map((q) => q.map((v) => +v.toFixed(3))), hips: last && last.hips }), rebuild: (o) => { Object.assign(state, o); REG = buildRegions(); return true; } };
+    window.__zunda = { state, ready: true, say, perf: () => { const a = [...work].sort((x, y) => x - y); return { n: a.length, mean: a.reduce((x, y) => x + y, 0) / (a.length || 1), p95: a[Math.floor(a.length * 0.95)] || 0, max: a[a.length - 1] || 0, W, H }; }, clips: CLIPS.map((c) => c.name), pose: () => ({ clip, fade, L: last && last.L.map((q) => q.map((v) => +v.toFixed(3))), hips: last && last.hips }), rebuild: (o) => { Object.assign(state, o); REG = buildRegions(); return true; } };
     requestAnimationFrame(frame);
   },
 });
