@@ -52,13 +52,14 @@
     { "name": "shin_l", "colors": ["white"], "poly": [[924, 898], [1048, 898], [1062, 1200], [924, 1200]] },
     { "name": "thigh_r", "colors": ["white"], "poly": [[805, 760], [918, 760], [918, 898], [798, 898]] },
     { "name": "thigh_l", "colors": ["white"], "poly": [[924, 760], [1045, 760], [1048, 898], [924, 898]] },
-    { "name": "overalls", "colors": ["dark", "pink"], "poly": [[845, 338], [1002, 338], [1002, 488], [1078, 760], [1045, 805], [795, 805], [770, 760], [848, 488]] },
+    { "name": "bib", "colors": ["dark", "pink"], "poly": [[845, 338], [1002, 338], [1002, 488], [1012, 553], [836, 553], [848, 488]] },
+    { "name": "shorts", "colors": ["dark", "pink"], "poly": [[836, 553], [1012, 553], [1078, 760], [1045, 805], [795, 805], [770, 760]] },
     { "name": "shirt", "colors": ["white"], "poly": [[858, 326], [992, 326], [1002, 346], [1004, 500], [846, 500], [842, 346]] }
   ],
   "order": [
     "hair_curl", "hair_back",
     "thigh_r", "thigh_l", "shin_r", "shin_l", "boot_r", "boot_l",
-    "neck", "shirt", "overalls", "ribbon",
+    "neck", "shirt", "shorts", "bib", "ribbon",
     "upper_arm_r", "forearm_r", "hand_r", "sleeve_r",
     "upper_arm_l", "forearm_l", "hand_l", "sleeve_l",
     "face", "hair_side_r", "hair_side_l", "eye_r", "eye_l", "mouth", "hair_front",

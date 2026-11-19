@@ -141,6 +141,77 @@ test('混ぜ方: 正面・横・後ろの近くでは 1 枚の絵だけ、間で
   near(Z.viewBlend(-135)[1].alpha, 0.5, 1e-9);
 });
 
+// ---- 骨格 ----
+const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+test('骨格: 絵の姿勢に戻す回転を入れると、関節は絵の位置に来て、絵を描く回転は 0 になる', () => {
+  const S = Z.buildSkeleton(Z.SKEL);
+  const P = Z.fk(S, Z.restLocals(S), S.bones[0].at);
+  S.bones.forEach((b, i) => {
+    near(dist(P.p[i], b.at), 0, 1e-6, b.name);
+    const d = Z.boneDraw(S, P, i).q;
+    near(Math.abs(d[3]), 1, 1e-6, b.name + ' の回転');
+  });
+});
+
+test('骨格: 回転を 0 にすると T ポーズ（腕が水平）になる。腕の長さは絵のまま', () => {
+  const S = Z.buildSkeleton(Z.SKEL), I = S.bones.map(() => [0, 0, 0, 1]);
+  const P = Z.fk(S, I, S.bones[0].at), k = (n) => S.index[n];
+  for (const [arm, low, sign] of [['leftUpperArm', 'leftLowerArm', 1], ['rightUpperArm', 'rightLowerArm', -1]]) {
+    const len = dist(S.bones[k(low)].at, S.bones[k(arm)].at), e = P.p[k(low)], s = P.p[k(arm)];
+    near(e[0] - s[0], sign * len, 1e-6, arm + ' の横'); near(e[1] - s[1], 0, 1e-6, arm + ' の高さ');
+  }
+  // 脚と背骨は、絵の向きのまま（T ポーズと A ポーズの違いは腕だけ）
+  near(dist(P.p[k('leftLowerLeg')], S.bones[k('leftLowerLeg')].at), 0, 1e-6);
+});
+
+test('骨格: 腰を縦の軸で 90 度回すと、体全体が回る（左の脚の付け根が、前に来る）', () => {
+  const S = Z.buildSkeleton(Z.SKEL), L = Z.restLocals(S), k = (n) => S.index[n];
+  L[0] = Z.qaxis([0, 1, 0], -Math.PI / 2);
+  const P = Z.fk(S, L, S.bones[0].at), hip = S.bones[0].at, leg = S.bones[k('leftUpperLeg')].at;
+  const before = [leg[0] - hip[0], leg[2] - hip[2]], after = [P.p[k('leftUpperLeg')][0] - hip[0], P.p[k('leftUpperLeg')][2] - hip[2]];
+  near(Math.hypot(...after), Math.hypot(...before), 1e-6, '距離');
+  // 回す前は左（+X）にあった付け根が、回したあとは前（+Z）に来る（rotY の決まり: +Z が +X へ回る向きの逆）
+  assert.ok(after[1] > 40, `前 ${after[1]}`);
+});
+
+test('動きの腰の位置: VRM 0.x（メートル、上が +Y、顔が -Z）を、絵の画素（下が +Y、前が +Z）に直す', () => {
+  const S = Z.buildSkeleton(Z.SKEL), h = S.bones[0].at;
+  const a = Z.hipsFromMotion([0, Z.HIPS_REST, 0], S);
+  near(dist(a, h), 0, 1e-9, '休みの高さは絵の腰');
+  const b = Z.hipsFromMotion([0.1, Z.HIPS_REST + 0.1, -0.2], S);
+  near(b[0] - h[0], -0.1 * Z.PX_PER_M, 1e-9, 'X は逆');
+  near(b[1] - h[1], -0.1 * Z.PX_PER_M, 1e-9, '上へ');
+  near(b[2] - h[2], 0.2 * Z.PX_PER_M, 1e-9, '前へ');
+});
+
+test('動きの再生: 前後のコマの間をつなぎ、歩いて進んだ分（始めから終わりへのまっすぐな進み）を引いて、その場で動かす', () => {
+  const frames = 5, I = [0, 0, 0, 32767];
+  const rotA = Int16Array.from({ length: frames * 4 }, (_, i) => I[i % 4]);
+  // 腰: z は 1 コマに 0.5 ずつ前へ進み、x は左右に揺れる、y は一定
+  const hipsA = Float32Array.from([0, 0.9, 0, 0.1, 0.9, -0.5, 0, 0.9, -1, -0.1, 0.9, -1.5, 0, 0.9, -2]);
+  const clip = { frames, fps: 10, rotA, hipsA };
+  const a = Z.sampleClip(clip, 0), b = Z.sampleClip(clip, 0.4), c = Z.sampleClip(clip, 0.1);
+  near(a.hips[2], 0, 1e-6, '始めの前後'); near(b.hips[2], 0, 1e-4, '終わりの前後（進んだ分を引く）');
+  near(c.hips[0], 0.1, 1e-6, '左右の揺れは残る'); near(c.hips[1], 0.9, 1e-6, '高さはそのまま');
+  near(a.rot[0][3], 1, 1e-4, '回転');
+});
+
+// ---- 手足の板 ----
+test('手足の板: 休みの骨の向きの絵を、画面に写した骨の向きに合わせて曲げる。幅は保ち、長さは写した長さに縮む', () => {
+  const f = Z.cardMap([0, 0], [0, 100], [10, 10], [10, 60], 2);
+  const a = f(0, 0), b = f(0, 100), c = f(5, 50);
+  near(a[0], 10, 1e-9); near(a[1], 10, 1e-9); near(b[0], 10, 1e-9); near(b[1], 60, 1e-9);
+  near(c[1], 35, 1e-9, '長さの半分'); near(Math.abs(c[0] - 10), 10, 1e-9, '幅は 2 倍（画面の縮尺）のまま');
+  // 横へ向けても、幅の側は変わらない（骨の右側の点は、骨の右側に来る）
+  const g = Z.cardMap([0, 0], [0, 100], [0, 0], [100, 0], 1), d = g(5, 50);
+  near(d[0], 50, 1e-9); near(Math.abs(d[1]), 5, 1e-9);
+});
+
+test('手足の重み: 関節から遠い所は 1 本の骨だけ、関節の上は 2 本を半分ずつ', () => {
+  near(Z.jointBlend(-30, 12), 0, 1e-9); near(Z.jointBlend(0, 12), 0.5, 1e-9); near(Z.jointBlend(30, 12), 1, 1e-9);
+  assert.ok(Z.jointBlend(6, 12) > 0.5 && Z.jointBlend(6, 12) < 1);
+});
+
 test('向き: 頭から見た見る人の向きから、正面 0・左 90・後ろ 180・右 -90 の角度を出す', () => {
   near(Z.viewAngle(Z.rotY(0)), 0, 1e-9);
   near(Z.viewAngle(Z.rotY(-Math.PI / 2)), 90, 1e-9);  // キャラが右を向く → 左側が見える

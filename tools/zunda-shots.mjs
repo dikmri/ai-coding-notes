@@ -52,8 +52,12 @@ try {
   if (!ready) throw new Error('20 秒待っても window.__zunda.ready にならない（エラー: ' + await page.evaluate('String(window.__err || "")') + '）');
   // --rebuild '<JSON>': 撮る前に、貼り方などを変えて部分を作り直す（window.__zunda.rebuild）
   if (opt('--rebuild')) await page.evaluate(`window.__zunda.rebuild(${opt('--rebuild')})`);
+  // --wait: 状態を変えてから撮るまでの時間（ミリ秒）。--probe: 撮るたびに、ページの中で評価して書き出す式
+  const WAIT = Number(opt('--wait', 0)), PROBE = opt('--probe');
   for (let k = 0; k < SETS.length; k++) {
     await page.evaluate(`Object.assign(window.__zunda.state, ${JSON.stringify(SETS[k])}); new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))`);
+    if (WAIT) await sleep(WAIT);
+    if (PROBE) console.log(k, JSON.stringify(await page.evaluate(PROBE)));
     const file = join(OUT, `${NAME}-${String(k).padStart(2, '0')}.png`);
     writeFileSync(file, Buffer.from(await page.screenshot(), 'base64'));
     files.push(file);
