@@ -656,3 +656,99 @@ test('大文字の変換: toUpperCase と toLowerCase で、文字の数や UTF-
   assert.equal(m.cps, 3);
   assert.equal(m.bytes, 1 + 2 + 4);
 });
+
+const ZINE = 'tr-20261120-one-sheet-zine';
+const ZINE_NAMES = ['cycle', 'inspect', 'impose', 'pageMatrix', 'apply', 'GAP', 'H', 'END'];
+const plain = (x) => JSON.parse(JSON.stringify(x));
+
+test('折り本: 真ん中の2マスを切った紙は8マスの輪になり、表紙から右へ一周する', () => {
+  const { cycle } = trendCore(ZINE, ZINE_NAMES);
+  const loop = plain(cycle(4));
+  assert.deepEqual(loop, [[1, 1], [1, 2], [1, 3], [0, 3], [0, 2], [0, 1], [0, 0], [1, 0]]);
+  // 輪で隣り合う2マスは、紙の上でも隣にあり、切っていない辺でつながっている
+  for (let i = 0; i < loop.length; i++) {
+    const [r1, c1] = loop[i], [r2, c2] = loop[(i + 1) % loop.length];
+    assert.equal(Math.abs(r1 - r2) + Math.abs(c1 - c2), 1);
+    if (r1 !== r2) assert.ok(c1 === 0 || c1 === 3, '上下でつながるのは切っていない端の列だけ');
+  }
+  assert.equal(cycle(4, []), null);            // 切らないと3方向につながるマスができる
+  assert.equal(cycle(4, [0, 1, 2, 3]), null);  // 全部切ると上下の2枚に分かれる
+  assert.equal(cycle(4, [1]), null);
+  assert.equal(cycle(6).length, 12);           // 横6マスなら12ページの輪
+});
+
+test('折り本: 切り込みの長さごとに、紙の分かれ方と分かれ道を数える', () => {
+  const { inspect } = trendCore(ZINE, ZINE_NAMES);
+  assert.deepEqual(plain(inspect(4, [1, 2])), { parts: 1, branch: 0, ends: 0 });
+  assert.deepEqual(plain(inspect(4, [])), { parts: 1, branch: 4, ends: 0 });
+  assert.deepEqual(plain(inspect(4, [0, 1, 2, 3])), { parts: 2, branch: 0, ends: 4 });
+});
+
+test('折り本: 面付けは元の記事の図と同じ。上の段は逆さま、右綴じは左右が入れ替わる', () => {
+  const { impose } = trendCore(ZINE, ZINE_NAMES);
+  const grid = (binding) => {
+    const g = [[], []];
+    for (const p of impose(binding)) {
+      g[p.row][p.col] = p.name;
+      assert.equal(p.rot, p.row === 0 ? 180 : 0);
+    }
+    return plain(g);
+  };
+  assert.deepEqual(grid('left'), [['6', '5', '4', '3'], ['裏表紙', '表紙', '1', '2']]);
+  assert.deepEqual(grid('right'), [['3', '4', '5', '6'], ['2', '1', '表紙', '裏表紙']]);
+});
+
+test('折り本: 折る途中も、輪で隣り合う面の辺は離れない', () => {
+  const { pageMatrix, apply, GAP, H } = trendCore(ZINE, ZINE_NAMES);
+  const corners = [[0, 0, 0], [1, 0, 0], [0, H, 0], [1, H, 0]];
+  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  for (const binding of ['left', 'right']) {
+    for (let k = 0; k < 8; k++) {
+      const n = (k + 1) % 8;
+      // 広げた紙の上で重なる角の組（共有する辺の両端）を探す
+      const pairs = [];
+      for (const a of corners) for (const b of corners) {
+        if (dist(apply(pageMatrix(k, 0, binding), a), apply(pageMatrix(n, 0, binding), b)) < 1e-9) pairs.push([a, b]);
+      }
+      assert.equal(pairs.length, 2, `${binding} ${k}-${n}`);
+      for (const T of [0.3, 0.7, 1, 1.4, 1.8, 2, 2.5, 3, 3.5, 4.2, 5.5, 7]) {
+        for (const [a, b] of pairs) {
+          const d = dist(apply(pageMatrix(k, T, binding), a), apply(pageMatrix(n, T, binding), b));
+          assert.ok(d <= 2.5 * GAP, `${binding} ${k}-${n} T=${T} 離れた距離 ${d}`);
+        }
+      }
+    }
+  }
+});
+
+test('折り本: 広げた紙ではどの面も手前を向き、めくると読む順番の見開きが見える', () => {
+  const { pageMatrix, impose, apply, H, END } = trendCore(ZINE, ZINE_NAMES);
+  const NAMES = ['表紙', '1', '2', '3', '4', '5', '6', '裏表紙'];
+  for (const binding of ['left', 'right']) {
+    for (const p of impose(binding)) {
+      const m = pageMatrix(p.page, 0, binding);
+      assert.ok(m[10] > 0.999, '刷った面が手前');
+      const c = apply(m, [0.5, H / 2, 0]);
+      assert.ok(Math.abs(c[0] - (p.col - 1.5)) < 1e-9 && Math.abs(c[1] - (p.row === 1 ? -H / 2 : H / 2)) < 1e-9);
+    }
+    // 見開きの左と右で、手前を向いた面のうち一番上（z が大きい）にある面を見る
+    const seen = (T) => {
+      const side = { left: null, right: null };
+      const best = { left: -Infinity, right: -Infinity };
+      for (let k = 0; k < 8; k++) {
+        const m = pageMatrix(k, T, binding);
+        if (m[10] < 0.9) continue;
+        const c = apply(m, [0.5, H / 2, 0]);
+        const s = c[0] < 0 ? 'left' : 'right';
+        if (c[2] > best[s]) { best[s] = c[2]; side[s] = NAMES[k]; }
+      }
+      return binding === 'left' ? [side.left, side.right] : [side.right, side.left];
+    };
+    // 左綴じは [左, 右]、右綴じは [右, 左] の順に、読む順番どおりに並ぶ
+    assert.deepEqual(seen(3), [null, '表紙'], binding);
+    assert.deepEqual(seen(4), ['1', '2'], binding);
+    assert.deepEqual(seen(5), ['3', '4'], binding);
+    assert.deepEqual(seen(6), ['5', '6'], binding);
+    assert.deepEqual(seen(END), ['裏表紙', null], binding);
+  }
+});

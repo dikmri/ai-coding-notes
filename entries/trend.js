@@ -3259,3 +3259,451 @@ dekiru.add({
     if (!window.THUMB) setTimeout(scanAll, 800);
   },
 });
+
+dekiru.add({
+  id: 'tr-20261120-one-sheet-zine', c: 'trend', lv: 2, date: '2026-11-20',
+  t: 'A4 の紙1枚で作る8ページの本を、面付けして画面の上で折る',
+  y: 'えーよんのかみいちまいでつくるはちぺーじのほんをめんつけしてがめんのうえでおる',
+  tags: ['fanzines.app', 'zine', '面付け', 'matrix3d', 'preserve-3d'],
+  d: '2026年11月19日、Wilson Tovar さんの記事「Paper, folds, and what’s new in fanzines.app」が Hacker News で200点近くを集めた。A4 の紙1枚を8マスに折り、真ん中を切って十字に折りたたむと、ホチキスも糊も使わない8ページの小さな本（zine）になる。記事の fanzines.app は、ページを正しい向きで作ると、上の段を逆さまにした印刷用の配置（面付け）をブラウザの中で作る。この見本は、その面付けの計算と紙を折る動きを再現した。8つの面を CSS の 3D 変形で動かし、上の段を裏へ折る・両端を寄せて十字にする・閉じる・めくるの順に見せる。ページの文字は書きかえられ、右綴じ（縦書き）にすると配置が左右反転する。切り込みの長さを変えると、本にならない理由も面付けの図で分かる。折り方の模型は簡単にしてあり、紙の厚みは小さな隙間で代わりにして、折り目の丸みや紙のたわみは描かない。写真の配置、300 DPI の PDF への書き出し、印刷は再現していない。',
+  p: '切り込みを入れた紙の8マスは、隣どうしのつながりをたどると1つの輪になる。真ん中の4マスは上下を切り離すので、どのマスも2つのマスとだけつながる。読む順番はこの輪を表紙から一周する順番なので、下の段に 裏表紙・表紙・1・2、上の段に 6・5・4・3 が並ぶ。上の段は裏へ折り返すので、180度回して刷る。動きは面ごとに4×4の行列を掛け合わせて作る。「上の段を横の折り目のまわりに回す」「両端を寄せて、真ん中の縦の折り目を開く」「十字の4枚の葉を背のまわりに回す」の3つを順に掛け、matrix3d() で各面へ渡す。transform-style: preserve-3d の中では、重なった面の前後をブラウザが奥行きから決める。',
+  refs: [
+    { title: 'Paper, folds, and what’s new in fanzines.app（Wilson Tovar）', url: 'https://krthr.co/paper-folds-and-whats-new-in-fanzines-app/' },
+    { title: 'Hacker News: Making 8-page foldable zines from a single A4 sheet in the browser', url: 'https://news.ycombinator.com/item?id=50559719' },
+  ],
+  html: `<div class="wrap">
+  <div class="stage" id="stage" role="img" aria-label="8ページの本を折る様子の立体の図。下の説明の文で今の段階を伝える">
+    <div class="scene" id="scene" aria-hidden="true"></div>
+  </div>
+  <p id="cap" class="cap"></p>
+  <div class="ctl">
+    <label class="sl">折る・めくる
+      <input type="range" id="t" min="0" max="700" step="1" value="0">
+    </label>
+    <div class="row">
+      <button type="button" id="play">止める</button>
+      <span class="mut">段階へ:</span>
+      <button type="button" data-go="0">広げる</button>
+      <button type="button" data-go="100">上を裏へ</button>
+      <button type="button" data-go="200">十字にする</button>
+      <button type="button" data-go="300">閉じる</button>
+      <button type="button" data-go="700">最後までめくる</button>
+    </div>
+    <label class="row">綴じ方
+      <select id="bind">
+        <option value="left">左綴じ（横書き）</option>
+        <option value="right">右綴じ（縦書き）</option>
+      </select>
+    </label>
+  </div>
+  <div class="cols">
+    <section class="side" aria-labelledby="h-map">
+      <h2 id="h-map">面付けの図（印刷する面）</h2>
+      <svg id="map" viewBox="0 0 300 220" role="img" aria-labelledby="h-map map-note"></svg>
+      <fieldset class="row">
+        <legend>切り込みの長さを変えてみる</legend>
+        <label><input type="radio" name="cut" value="none"> 切らない</label>
+        <label><input type="radio" name="cut" value="mid" checked> 真ん中の2マス</label>
+        <label><input type="radio" name="cut" value="all"> 端から端まで</label>
+      </fieldset>
+      <p id="map-note" class="mut" role="status"></p>
+    </section>
+    <section class="edit" aria-labelledby="h-edit">
+      <h2 id="h-edit">ページの文字を書きかえる</h2>
+      <p class="mut">入力欄を選ぶと、本がそのページまで開く。</p>
+      <div id="fields" class="fields"></div>
+    </section>
+  </div>
+</div>`,
+  css: `:root { color-scheme: dark; --bg: #12141b; --fg: #e4e6ee; --mut: #9aa3b6; --line: #2c3344; --acc: #ff8f6b; --paper: #fbf7ee; --ink: #2b2620; --back: #e4ddcf; --cut: #e0453a; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 13px/1.5 system-ui, sans-serif; accent-color: var(--acc); }
+    [hidden] { display: none !important; }
+    .wrap { display: flex; flex-direction: column; gap: 10px; padding: 8px; box-sizing: border-box; }
+    h2 { margin: 0; font-size: 14px; }
+    .stage { position: relative; inline-size: 100%; aspect-ratio: 16 / 10; overflow: hidden; border-radius: 8px;
+      background: radial-gradient(120% 90% at 50% 35%, #2a3042, #151821 70%); }
+    .scene { position: absolute; inset: 0; transform-style: preserve-3d; }
+    .pn { position: absolute; left: 0; top: 0; transform-origin: 0 0; transform-style: preserve-3d; }
+    .pn > .f, .pn > .b { position: absolute; inset: 0; backface-visibility: hidden; }
+    .pn > .f { container-type: inline-size; }
+    .pn > .b { transform: rotateY(180deg); background: var(--back); box-shadow: inset 0 0 0 1px rgb(0 0 0 / .12); }
+    .pn > .f::after, .pn > .b::after { content: ''; position: absolute; inset: 0; background: #000; pointer-events: none; }
+    .pn > .f::after { opacity: var(--sf, 0); }
+    .pn > .b::after { opacity: var(--sb, 0); }
+    /* 文字の大きさは面の横幅（cqw）で決める。縦書きの要素では cqi が縦の長さを指すので使わない */
+    .pg { --h: 20; position: absolute; inset: 0; overflow: hidden; box-sizing: border-box; padding: 9cqw 8cqw;
+      background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 1px rgb(0 0 0 / .14);
+      display: grid; grid-template-rows: auto 1fr auto; gap: 4cqw; }
+    .cutline .pg[data-k="0"], .cutline .pg[data-k="1"] { box-shadow: inset 0 1.6cqw 0 var(--cut), inset 0 0 0 1px rgb(0 0 0 / .14); }
+    .pg .no { font-size: 6.5cqw; color: hsl(var(--h) 55% 42%); letter-spacing: .05em; }
+    .pg .tx { margin: 0; font-size: 9cqw; line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; }
+    .pg .art { inline-size: 100%; block-size: auto; color: hsl(var(--h) 45% 38%); }
+    .pg[data-k="0"] { background: hsl(var(--h) 70% 88%); }
+    .pg[data-k="0"] .tx { font-size: 12.5cqw; font-weight: 700; line-height: 1.4; }
+    .pg[data-k="7"] { background: hsl(var(--h) 35% 90%); }
+    .pg[data-k="7"] .tx { font-size: 7.2cqw; }
+    .art .pp { fill: #fff; stroke: currentColor; stroke-width: 2; }
+    .art .dash { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-dasharray: 4 3; }
+    .art .cutl { fill: none; stroke: var(--cut); stroke-width: 3.5; }
+    .art .thick { fill: none; stroke: currentColor; stroke-width: 7; stroke-linecap: round; }
+    .art .ac { fill: hsl(var(--h) 70% 55%); }
+    .art .big { fill: #fff; font: 700 30px system-ui, sans-serif; text-anchor: middle; }
+    .art .ln { fill: none; stroke: currentColor; stroke-width: 2; }
+    .rtl .pg { grid-template-rows: auto 1fr; grid-template-columns: 1fr auto; }
+    .rtl .pg .no { grid-column: 1 / -1; }
+    .rtl .pg .tx { grid-column: 2; grid-row: 2; writing-mode: vertical-rl; }
+    .rtl .pg .art { grid-column: 1; grid-row: 2; align-self: end; }
+    .cap { margin: 0; min-height: 3em; padding: 6px 8px; border-left: 3px solid var(--acc); background: #1a1e29; border-radius: 4px; }
+    .mut { margin: 0; color: var(--mut); font-size: 12px; }
+    .ctl { display: flex; flex-direction: column; gap: 6px; }
+    .row { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+    .sl { display: flex; align-items: center; gap: 8px; }
+    .sl input { flex: 1; min-inline-size: 0; }
+    button, select { font: inherit; min-block-size: 28px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 6px; background: #1e2433; color: var(--fg); cursor: pointer; }
+    button:hover { background: #283048; }
+    :focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+    .cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    @media (min-width: 640px) { .cols { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    section { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    fieldset { border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px 6px; margin: 0; }
+    legend { color: var(--mut); font-size: 12px; padding: 0 4px; }
+    #map { inline-size: 100%; block-size: auto; }
+    #map .sheet { fill: var(--paper); }
+    #map .fold { stroke: #8a8070; stroke-width: 1; stroke-dasharray: 4 3; }
+    #map .cut { stroke: var(--cut); stroke-width: 3; }
+    #map .lab { fill: var(--ink); font: 600 15px system-ui, sans-serif; text-anchor: middle; dominant-baseline: middle; }
+    #map .lab.up { fill: #b04a1c; }
+    #map .seg { stroke: #2f7de0; stroke-width: 2; fill: none; }
+    #map .tip { fill: #2f7de0; }
+    .fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+    .fields label { display: flex; flex-direction: column; gap: 2px; color: var(--mut); font-size: 12px; }
+    textarea { font: 13px/1.4 system-ui, sans-serif; resize: vertical; padding: 4px 6px; background: #0c0f15; color: var(--fg); border: 1px solid var(--line); border-radius: 6px; }
+    .thumb .wrap { padding: 0; }
+    .thumb .stage { aspect-ratio: auto; block-size: 100vh; border-radius: 0; }
+    .thumb .cap, .thumb .ctl, .thumb .cols { display: none; }`,
+  core() {
+    // A4 の紙1枚（横4マス × 縦2マス）を切って折り、8ページの本にする計算
+    const COLS = 4;
+    const H = Math.SQRT2;        // 1マスの縦の長さ（横を1とする）。A判の紙は縦と横の比が √2
+    const GAP = 0.01;            // 重なった紙の間にあける隙間（紙の厚みの代わり）
+    const NAMES = ['表紙', '1', '2', '3', '4', '5', '6', '裏表紙'];
+    const DEG = Math.PI / 180;
+
+    // マスどうしのつながり。同じ段の隣は縦の折り目でつながり、上下は cut に入っている列だけ切り離す
+    function links(cols, cut) {
+      const nb = Array.from({ length: cols * 2 }, () => []);
+      const key = (r, c) => r * cols + c;
+      const join = (a, b) => { nb[a].push(b); nb[b].push(a); };
+      for (let r = 0; r < 2; r++) for (let c = 0; c + 1 < cols; c++) join(key(r, c), key(r, c + 1));
+      for (let c = 0; c < cols; c++) if (!cut.includes(c)) join(key(0, c), key(1, c));
+      return nb;
+    }
+    function middleCut(cols) { const cut = []; for (let c = 1; c < cols - 1; c++) cut.push(c); return cut; }
+
+    // 紙がいくつに分かれるか、3つ以上のマスとつながるマス、1つ以下としかつながらないマスの数
+    function inspect(cols = COLS, cut = middleCut(cols)) {
+      const nb = links(cols, cut);
+      const seen = new Array(nb.length).fill(false);
+      let parts = 0;
+      for (let s = 0; s < nb.length; s++) {
+        if (seen[s]) continue;
+        parts++;
+        seen[s] = true;
+        const stack = [s];
+        while (stack.length) { const a = stack.pop(); for (const b of nb[a]) if (!seen[b]) { seen[b] = true; stack.push(b); } }
+      }
+      return { parts, branch: nb.filter((x) => x.length >= 3).length, ends: nb.filter((x) => x.length <= 1).length };
+    }
+
+    // つながりが1つの輪なら、表紙のマス（下の段の左から2つ目）から右へ一周した順に [行, 列] を返す。輪でなければ null
+    function cycle(cols = COLS, cut = middleCut(cols)) {
+      if (cols < 3) return null;
+      const nb = links(cols, cut);
+      if (nb.some((x) => x.length !== 2)) return null;
+      const start = cols + 1;
+      const path = [start];
+      let prev = start, cur = cols + 2;
+      while (cur !== start && path.length <= nb.length) {
+        path.push(cur);
+        const next = nb[cur][0] === prev ? nb[cur][1] : nb[cur][0];
+        prev = cur;
+        cur = next;
+      }
+      if (path.length !== nb.length) return null;   // 輪が2つ以上に分かれている
+      return path.map((k) => [Math.floor(k / cols), k % cols]);
+    }
+    const LOOP = cycle(COLS);
+
+    // 面付け: ページ k を紙のどのマスに、何度回して刷るか。右綴じは左右を入れ替える
+    function impose(binding = 'left') {
+      return LOOP.map(([row, col], k) => ({
+        page: k, name: NAMES[k], row, col: binding === 'right' ? COLS - 1 - col : col, rot: row === 0 ? 180 : 0,
+      }));
+    }
+
+    // 4×4 の行列（行優先の16個の数）
+    const I4 = () => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    function mul(a, b) {
+      const o = new Array(16);
+      for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
+        let s = 0;
+        for (let k = 0; k < 4; k++) s += a[r * 4 + k] * b[k * 4 + c];
+        o[r * 4 + c] = s;
+      }
+      return o;
+    }
+    const chain = (...ms) => ms.reduce(mul);
+    const tr = (x, y, z) => [1, 0, 0, x, 0, 1, 0, y, 0, 0, 1, z, 0, 0, 0, 1];
+    const sc = (x, y, z) => [x, 0, 0, 0, 0, y, 0, 0, 0, 0, z, 0, 0, 0, 0, 1];
+    function rx(a) { const c = Math.cos(a), s = Math.sin(a); return [1, 0, 0, 0, 0, c, -s, 0, 0, s, c, 0, 0, 0, 0, 1]; }
+    function ry(a) { const c = Math.cos(a), s = Math.sin(a); return [c, 0, s, 0, 0, 1, 0, 0, -s, 0, c, 0, 0, 0, 0, 1]; }
+    function apply(m, p) {
+      const [x, y, z] = p;
+      return [m[0] * x + m[1] * y + m[2] * z + m[3], m[4] * x + m[5] * y + m[6] * z + m[7], m[8] * x + m[9] * y + m[10] * z + m[11]];
+    }
+    const smooth = (x) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
+    const lerp = (a, b, t) => a + (b - a) * t;
+
+    // 時刻 T: 0〜1 上の段を裏へ折る、1〜2 両端を寄せて十字に、2〜3 閉じる、3〜7 1枚ずつめくる
+    const END = 7;
+    const TMAX = Math.acos(GAP / 2);                         // 両端を寄せきったときの、真ん中の折り目の開き
+    const PSI0 = [90, 0, -90, -180].map((d) => d * DEG);     // 十字にしたときの4枚の葉の向き（上から見た角度）
+    const LEAF_TILT = 3 * DEG;                               // 閉じた本の葉どうしの小さな開き
+    // マスがどの葉に入るか。0: 表紙と1、1: 2と3、2: 4と5、3: 6と裏表紙
+    function leafOf(row, col) { return col === 1 || col === 2 ? (row === 1 ? 0 : 2) : (col === 3 ? 1 : 3); }
+    function pose(T) {
+      const psi = PSI0.map((p0, i) => {
+        const closed = (3 - i) * LEAF_TILT, turned = Math.PI - i * LEAF_TILT;
+        if (T <= 2) return p0;
+        if (T <= 3) return lerp(p0, closed, smooth(T - 2));
+        return lerp(closed, turned, smooth(T - 3 - i));
+      });
+      return { s: smooth(T), th: smooth(T - 1) * TMAX, psi };
+    }
+    // 広げた紙の上の位置。面の中の座標 (u, v) は u が右へ 0〜1、v が下へ 0〜H。上の段は180度回して置く
+    function flat(row, col) { return row === 1 ? mul(tr(col - 2, 0, 0), sc(1, -1, 1)) : mul(tr(col - 1, 0, 0), sc(-1, 1, 1)); }
+    // 上の段を、横の折り目（y = 0）のまわりに裏へ回す
+    function foldTop(row, s) { return row === 1 ? I4() : chain(tr(0, 0, -GAP / 2), rx(-Math.PI * s), tr(0, 0, GAP / 2)); }
+    // 両端を寄せる。端の葉は平行に動き、真ん中の4面は縦の折り目で回って菱形に開く
+    function pushEnds(row, col, th) {
+      const z0 = row === 1 ? 0 : -GAP, d = Math.cos(th);
+      if (col === 0) return tr(1 - d, 0, 0);
+      if (col === 3) return tr(d - 1, 0, 0);
+      if (col === 1) return chain(tr(-d, 0, z0), ry(row === 1 ? -th : th), tr(1, 0, -z0));
+      return chain(tr(d, 0, z0), ry(row === 1 ? th : -th), tr(-1, 0, -z0));
+    }
+    // 葉を背（x = 0 の縦の線）のまわりに回す
+    function turnLeaf(i, psi) { return chain(tr(0, 0, -GAP / 2), ry(PSI0[i] - psi), tr(0, 0, GAP / 2)); }
+    const MIRROR = sc(-1, 1, 1), FLIP_U = mul(tr(1, 0, 0), sc(-1, 1, 1));
+    // ページ k の面を、時刻 T の位置へ移す行列（y は上、z は手前）。右綴じは全体を鏡に映し、面の中身だけ戻す
+    function pageMatrix(k, T, binding = 'left') {
+      const [row, col] = LOOP[k];
+      const p = pose(T), leaf = leafOf(row, col);
+      const m = chain(turnLeaf(leaf, p.psi[leaf]), pushEnds(row, col, p.th), foldTop(row, p.s), flat(row, col));
+      return binding === 'right' ? chain(MIRROR, m, FLIP_U) : m;
+    }
+
+    // 見る向きと大きさ。段階ごとの値をなめらかにつなぐ
+    const VIEW = [
+      { T: 0, rx: 8, ry: 0, tx: 0, ty: 0, zoom: 1 },
+      { T: 1, rx: 16, ry: -22, tx: 0, ty: -H / 2, zoom: 1.08 },
+      { T: 2, rx: 52, ry: -30, tx: 0, ty: -H / 2, zoom: 1.2 },
+      { T: 3, rx: 14, ry: -6, tx: 0.5, ty: -H / 2, zoom: 1.6 },
+      { T: 4, rx: 18, ry: 0, tx: 0, ty: -H / 2, zoom: 1.6 },
+      { T: 6, rx: 18, ry: 0, tx: 0, ty: -H / 2, zoom: 1.6 },
+      { T: 7, rx: 14, ry: 0, tx: -0.5, ty: -H / 2, zoom: 1.6 },
+    ];
+    function camera(T, binding = 'left') {
+      let i = 0;
+      while (i < VIEW.length - 2 && T > VIEW[i + 1].T) i++;
+      const a = VIEW[i], b = VIEW[i + 1], f = smooth((T - a.T) / (b.T - a.T));
+      const sg = binding === 'right' ? -1 : 1;
+      return { rx: lerp(a.rx, b.rx, f) * DEG, ry: sg * lerp(a.ry, b.ry, f) * DEG, tx: sg * lerp(a.tx, b.tx, f), ty: lerp(a.ty, b.ty, f), zoom: lerp(a.zoom, b.zoom, f) };
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const calm = matchMedia('(prefers-reduced-motion: reduce)');
+    if (window.THUMB) document.documentElement.classList.add('thumb');
+    const stage = $('stage'), scene = $('scene'), slider = $('t'), cap = $('cap'), playBtn = $('play'), bindSel = $('bind');
+    const TEXT = [
+      '1枚で作る\n8ページの本',
+      'A4 の紙を\n横に置く',
+      '半分に3回折って開くと、8マスの折り目ができる',
+      '真ん中の横の線を、2マス分だけ切る',
+      '横長に半分に折る',
+      '両端を押して寄せると、切った所が開いて十字になる',
+      '表紙が上になるように閉じれば出来あがり',
+      '出来る！\nHTML/CSS/JavaScript',
+    ];
+    const ART = [
+      '<circle cx="50" cy="36" r="26" class="ac"/><text x="50" y="47" class="big">8</text>',
+      '<rect x="12" y="8" width="76" height="54" class="pp"/>',
+      '<rect x="12" y="8" width="76" height="54" class="pp"/><path d="M31 8V62M50 8V62M69 8V62M12 35H88" class="dash"/>',
+      '<rect x="12" y="8" width="76" height="54" class="pp"/><path d="M31 8V62M50 8V62M69 8V62M12 35H31M69 35H88" class="dash"/><path d="M31 35H69" class="cutl"/>',
+      '<rect x="12" y="22" width="76" height="27" class="pp"/><path d="M31 22V49M50 22V49M69 22V49" class="dash"/>',
+      '<path d="M50 35H18M50 35H82M50 35V8M50 35V62" class="thick"/>',
+      '<rect x="36" y="8" width="34" height="54" class="pp"/><path d="M36 8V62" class="thick" style="stroke-width:3"/>',
+      '<rect x="20" y="14" width="60" height="42" class="pp"/><path d="M35 42H65V28H35Z" class="ln"/><circle cx="35" cy="42" r="3" class="ac"/>',
+    ];
+    const HUE = [18, 200, 150, 5, 260, 40, 320, 18];
+    const pages = TEXT.map((text, k) => {
+      const pn = document.createElement('div');
+      pn.className = 'pn';
+      pn.innerHTML = `<div class="f"><div class="pg" data-k="${k}" style="--h:${HUE[k]}"><span class="no"></span><p class="tx"></p><svg class="art" viewBox="0 0 100 70" aria-hidden="true">${ART[k]}</svg></div></div><div class="b"></div>`;
+      pn.querySelector('.no').textContent = k === 0 || k === 7 ? NAMES[k] : `― ${k} ―`;
+      const tx = pn.querySelector('.tx');
+      tx.textContent = text;
+      scene.append(pn);
+      return { pn, tx };
+    });
+
+    let bind = 'left', T = 0, playing = !!window.THUMB || !calm.matches, aim = null, hold = 0, last = 0, L = 0, cutMode = 'mid';
+
+    // 行列を CSS の matrix3d() の並び（列ごと）にする
+    function css(m) { const o = []; for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) o.push(+m[r * 4 + c].toFixed(5)); return o.join(','); }
+
+    function render() {
+      const W = Math.max(1, stage.clientWidth), Hs = Math.max(1, stage.clientHeight);
+      const unit = Math.max(1, Math.min(W / 4.5, Hs / (2 * H + 0.5)));
+      const size = Math.max(1, Math.round(unit * 1.6));   // 面は拡大したときの大きさで作り、縮めて置く（文字がぼやけない）
+      if (size !== L) {
+        L = size;
+        for (const p of pages) { p.pn.style.width = L + 'px'; p.pn.style.height = L * H + 'px'; }
+      }
+      const c = camera(T, bind), k = unit * c.zoom;
+      const view = chain(tr(W / 2, Hs / 2, 0), sc(k, -k, k), rx(c.rx), ry(c.ry), tr(-c.tx, -c.ty, 0));
+      const local = sc(1 / L, 1 / L, 1 / L);
+      stage.style.perspective = Math.round(W * 2.4) + 'px';
+      pages.forEach((p, i) => {
+        const m = chain(view, pageMatrix(i, T, bind), local);
+        p.pn.style.transform = `matrix3d(${css(m)})`;
+        // 手前を向く面ほど明るく、横や奥を向く面ほど暗くする
+        const nz = m[10] / Math.max(1e-9, Math.hypot(m[2], m[6], m[10]));
+        p.pn.style.setProperty('--sf', (0.45 * (1 - Math.max(0, nz))).toFixed(3));
+        p.pn.style.setProperty('--sb', (0.45 * (1 - Math.max(0, -nz))).toFixed(3));
+      });
+    }
+
+    const SPREAD = ['表紙', '1 と 2 の見開き', '3 と 4 の見開き', '5 と 6 の見開き', '裏表紙'];
+    function stageText() {
+      if (T < 0.01) return ['広げた紙', '広げた紙。8マスのうち上の段は逆さまに刷る。赤い線が切り込み（真ん中の2マス分）。'];
+      if (T <= 1) return ['上の段を裏へ折る', '上の段を裏へ折る。逆さまに刷った面は、裏から見ると正しい向きになる。'];
+      if (T <= 2) return ['両端を寄せる', '両端を押して寄せる。切り込みが菱形に開き、8つの面は1つの輪につながったまま十字になる。'];
+      if (T <= 3) return ['十字を閉じる', '十字の4枚の葉を、表紙が上になるように閉じる。'];
+      const u = T - 3, j = Math.floor(u + 1e-6), f = u - j;
+      const now = f < 0.05 || j >= 4 ? SPREAD[Math.min(4, j)] : `${SPREAD[j]} → ${SPREAD[j + 1]}`;
+      return ['めくる: ' + now, `めくる。今は${now}。表紙 → 1・2 → 3・4 → 5・6 → 裏表紙の順は、紙の8マスを輪に沿って一周する順番と同じ。`];
+    }
+    function sync() {
+      slider.value = String(Math.round(T * 100));
+      const [short, long] = stageText();
+      slider.setAttribute('aria-valuetext', short);
+      if (cap.textContent !== long) cap.textContent = long;
+      scene.classList.toggle('cutline', T < 2);   // 閉じるまでは、切り込みの辺を赤く見せる
+      render();
+    }
+    function setPlaying(on) {
+      playing = on;
+      playBtn.textContent = on ? '止める' : '動かす';
+    }
+
+    function tick(now) {
+      const dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
+      last = now;
+      let moved = false;
+      if (aim !== null) {
+        const step = dt * 1.8;
+        if (Math.abs(aim - T) <= step) { T = aim; aim = null; } else T += Math.sign(aim - T) * step;
+        moved = true;
+      } else if (playing) {
+        if (hold > 0) hold -= dt;
+        else if (T >= END) { T = 0; hold = 0.8; moved = true; }
+        else {
+          const speed = (T < 3 ? 0.42 : 0.75) * (window.THUMB ? 1.6 : 1);
+          const next = Math.min(END, T + dt * speed);
+          if (Math.floor(next) > Math.floor(T)) { T = Math.floor(next); hold = T >= END ? 1.8 : 0.45; } else T = next;
+          moved = true;
+        }
+      }
+      if (moved) sync();
+      requestAnimationFrame(tick);
+    }
+
+    // 面付けの図。印刷する面に、ページの名前と読む順番の矢印（輪）を描く
+    const NS = 'http://www.w3.org/2000/svg';
+    function drawMap() {
+      const svg = $('map');
+      const cut = cutMode === 'none' ? [] : cutMode === 'all' ? [0, 1, 2, 3] : [1, 2];
+      const cw = 70, ch = 99, x0 = 10, y0 = 10;
+      const cx = (col) => x0 + col * cw + cw / 2, cy = (row) => y0 + row * ch + ch / 2;
+      let s = `<defs><marker id="arw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10Z" class="tip"/></marker></defs>`;
+      s += `<rect x="${x0}" y="${y0}" width="${cw * 4}" height="${ch * 2}" class="sheet"/>`;
+      for (let c = 1; c < 4; c++) s += `<line x1="${x0 + c * cw}" y1="${y0}" x2="${x0 + c * cw}" y2="${y0 + ch * 2}" class="fold"/>`;
+      for (let c = 0; c < 4; c++) s += `<line x1="${x0 + c * cw}" y1="${y0 + ch}" x2="${x0 + (c + 1) * cw}" y2="${y0 + ch}" class="${cut.includes(c) ? 'cut' : 'fold'}"/>`;
+      for (const p of impose(bind)) {
+        const x = cx(p.col), y = cy(p.row) + (p.row === 0 ? 20 : -20);
+        s += `<text x="${x}" y="${y}" class="lab${p.rot ? ' up' : ''}"${p.rot ? ` transform="rotate(180 ${x} ${y})"` : ''}>${NAMES[p.page]}</text>`;
+      }
+      const loop = cycle(4, cut);
+      if (loop) {
+        const pts = loop.map(([r, c]) => [cx(bind === 'right' ? 3 - c : c), cy(r) + (r === 0 ? -16 : 16)]);
+        pts.forEach((a, i) => {
+          const b = pts[(i + 1) % pts.length];
+          const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy), ux = dx / len, uy = dy / len;
+          s += `<line x1="${(a[0] + ux * 12).toFixed(1)}" y1="${(a[1] + uy * 12).toFixed(1)}" x2="${(b[0] - ux * 14).toFixed(1)}" y2="${(b[1] - uy * 14).toFixed(1)}" class="seg" marker-end="url(#arw)"/>`;
+        });
+      }
+      svg.innerHTML = s;
+      const info = inspect(4, cut);
+      let note;
+      if (loop) note = '8マスが1つの輪につながる。表紙から矢印をたどる順番が、そのまま読む順番になる。上の段は裏へ折るので、逆さま（茶色の字）に刷る。';
+      else if (info.parts > 1) note = `紙が${info.parts}枚に分かれてしまう。上の段と下の段が別々の帯になり、1冊の本にならない。`;
+      else note = `${info.branch}つのマスが3方向（左右と上下）につながり、輪にならない。紙を十字に開けないので、ページを順にめくれない。`;
+      $('map-note').textContent = note;
+    }
+
+    const fields = $('fields');
+    TEXT.forEach((text, k) => {
+      const lab = document.createElement('label');
+      const span = document.createElement('span');
+      span.textContent = k === 0 || k === 7 ? NAMES[k] : `${k} ページ`;
+      const ta = document.createElement('textarea');
+      ta.rows = 2;
+      ta.maxLength = 40;
+      ta.spellcheck = false;
+      ta.value = text;
+      ta.addEventListener('input', () => { pages[k].tx.textContent = ta.value; });
+      // そのページが見える見開きまで本を開く
+      ta.addEventListener('focus', () => { setPlaying(false); aim = 3 + Math.ceil(k / 2); });
+      lab.append(span, ta);
+      fields.append(lab);
+    });
+
+    slider.addEventListener('input', () => { setPlaying(false); aim = null; T = Number(slider.value) / 100; sync(); });
+    playBtn.addEventListener('click', () => {
+      aim = null;
+      if (!playing && T >= END) T = 0;
+      setPlaying(!playing);
+      hold = 0;
+    });
+    for (const b of document.querySelectorAll('[data-go]')) {
+      b.addEventListener('click', () => { setPlaying(false); aim = Number(b.dataset.go) / 100; });
+    }
+    bindSel.addEventListener('change', () => {
+      bind = bindSel.value;
+      document.documentElement.classList.toggle('rtl', bind === 'right');
+      drawMap();
+      render();
+    });
+    for (const r of document.querySelectorAll('input[name="cut"]')) {
+      r.addEventListener('change', () => { if (r.checked) { cutMode = r.value; drawMap(); } });
+    }
+    new ResizeObserver(render).observe(stage);
+
+    setPlaying(playing);
+    drawMap();
+    sync();
+    requestAnimationFrame(tick);
+  },
+});
