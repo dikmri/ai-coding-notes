@@ -2787,3 +2787,501 @@ void main() {
     })(0);
   },
 });
+dekiru.add({
+  id: 'real-dusk-ride', c: 'real', lv: 3,
+  t: '1枚のシェーダーで描く、夕暮れの道を走る自転車', y: 'いちまいのしぇーだーでえがくゆうぐれのみちをはしるじてんしゃ',
+  tags: ['シェーダー', 'WebGL2', 'レイマーチング', 'IK', 'ループ映像'],
+  d: 'X で「この映像は 10KB のコード」と紹介された、夕暮れの道を自転車で走る映像（gokaygokay、2026-11-18）を調べ、公開されたシェーダーの仕組みを同じ考え方で書き直した。映像は 1 枚のフラグメントシェーダーが、画面の点ごとに光線を飛ばして色を計算して作る。道の形、木の並び、ペダルと車輪の回転を 1 周の時間に合わせてあるので、10 秒でつなぎ目なく繰り返す。下のボタンで、曲がるときの傾き・ぶれ・雲の立体感・色の仕上げを 1 つずつ切って、違いを見られる。',
+  p: 'つなぎ目のない繰り返しは「1 周で進む距離 ＝ 世界の繰り返しの長さ」で作る。道の形は距離 D ごとに同じに戻る sin の和にし、木は区画の番号を D の中の区画の数で割った余りから決める。ペダルは 1 周でちょうど整数回、車輪はスポークの間の角度のちょうど整数倍だけ回るように、回転の速さと車輪の半径を選ぶ。',
+  html: `<canvas id="c" role="img" aria-label="夕暮れの丘の道を、自転車に乗った人が走り続ける映像。10 秒でつなぎ目なく繰り返す"></canvas>
+<div class="ui bar" role="toolbar" aria-label="映像の仕組みの切り替え">
+  <button type="button" id="pause">止める</button>
+  <button type="button" class="tg" data-k="lean" aria-pressed="true">曲がるときの傾き</button>
+  <button type="button" class="tg" data-k="blur" aria-pressed="true">ぶれと縁のなめらかさ</button>
+  <button type="button" class="tg" data-k="cloud" aria-pressed="true">雲の立体感</button>
+  <button type="button" class="tg" data-k="tone" aria-pressed="true">色の仕上げ</button>
+  <progress id="loop" max="1" value="0" aria-label="10 秒の 1 周のうち進んだ割合"></progress>
+</div>
+<details class="ui how">
+  <summary>元の映像を調べて分かったこと</summary>
+  <ul>
+    <li>全体は 1 枚のフラグメントシェーダー（Shadertoy の mainImage の形）。WebGL2 で画面を覆う三角形を 1 つ描き、640×360 の点ごとに色を計算する。時刻を 7 秒で割った余りを使い、60 コマ/秒の 420 コマで元に戻る。</li>
+    <li>道の中心は sin の和で曲がり、木や柵は区画の番号の余りとハッシュで置く。進む速さは 7 秒で 144 単位。車輪は 7 秒で、スポークの間の角度（30 度）のちょうど 814 倍回る。</li>
+    <li>車体の傾きは、道の曲がり具合 κ と速さ v から atan(v²κ / 9.81)。遠心力と重力が釣り合う角度。</li>
+    <li>脚は、ペダルの位置と腰から膝を求める 2 本の骨の IK（長さ 0.431 と 0.384）。体の多くと車輪は、楕円体・先の細い円柱・厚みのある輪と光線の交わりを式で解く。胴まわりだけは、箱で範囲を絞ってから距離関数を最大 49 回たどる。</li>
+    <li>地面は高さの関数を最大 70 回たどって当たりを探し、6 回の二分法で詰める。</li>
+    <li>雲は 2D の楕円を重ねてなめらかにつなぎ、楕円を半球と見たときの向き（法線）で光の当たり方を決める。立体の雲を計算せずに、立体らしく見せる。</li>
+    <li>人と自転車は、1 点につき 4 回、位置と時刻を少しずつずらして計算して平均する（回転格子の 4 点。動きのぶれも同時に出る）。画面の下の道は、前後の時刻の絵を重ねてぶらす。</li>
+    <li>色は HLG（放送の HDR の決まり）で表した値で計算し、最後に BT.2020 から BT.709 へ行列で直し、明るさの曲線で縮めて sRGB にする。乱数は PCG のハッシュ（GPU によって結果が変わらない）。</li>
+    <li>公開されたファイルは 41,886 バイト（gzip 17,087 バイト）。名前を 2 文字に縮めてある。投稿の「10KB」が何を数えたかは書かれていない。作者は、自作の MIT のライブラリ shader-skills（GLSL の部品 197 個と、まとめる道具・点検する道具）を AI（GPT Astra 6.2）に使わせて作ったと書いている。</li>
+  </ul>
+  <p>この項目のコードは、上の仕組みをもとに自分で書いたもの（元のコードは使っていない）。人の骨組み・車体の傾き・カメラは JS で 1 コマに 2 回（シャッターの始めと終わり）計算し、シェーダーへ渡している（元の映像は、これもシェーダーの中で点ごとに計算する）。</p>
+</details>
+<p class="ui info" id="info"></p>
+<p class="ui credit">元の投稿: <a href="https://x.com/gokayfem/status/2123083869562003745" target="_blank" rel="noopener">gokaygokay の投稿（X）</a>・<a href="https://github.com/gokayfem/sunset-ride" target="_blank" rel="noopener">sunset-ride</a>・<a href="https://github.com/gokayfem/shader-skills" target="_blank" rel="noopener">shader-skills（MIT）</a></p>`,
+  css: `
+:root { color-scheme: dark; }
+[hidden] { display: none !important; }
+body { margin: 0; background: #000; overflow: hidden; font: 13px/1.5 system-ui, sans-serif; color: #f4ece4; }
+canvas { display: block; width: 100vw; height: 100vh; }
+.bar { position: fixed; left: 8px; right: 8px; bottom: 30px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.bar button { min-height: 32px; padding: 4px 10px; font: inherit; color: inherit; background: rgb(20 14 12 / .72); border: 1px solid rgb(255 236 220 / .55); border-radius: 6px; cursor: pointer; }
+.bar .tg[aria-pressed="true"] { background: rgb(255 170 110 / .85); color: #1c0f08; border-color: #ffd2b0; }
+.bar button:focus-visible, .how summary:focus-visible, .credit a:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+#loop { flex: 1 1 120px; min-width: 80px; height: 8px; accent-color: #ffb27a; }
+.how { position: fixed; z-index: 2; left: 8px; top: 8px; max-width: min(560px, calc(100vw - 16px)); max-height: calc(100vh - 110px); overflow: auto; background: rgb(20 14 12 / .82); border: 1px solid rgb(255 236 220 / .4); border-radius: 8px; padding: 4px 10px; }
+.how summary { cursor: pointer; min-height: 28px; line-height: 28px; font-weight: 700; }
+.how ul { margin: 4px 0; padding-left: 1.2em; } .how li { margin: 3px 0; } .how p { margin: 6px 0; }
+.info { position: fixed; right: 8px; top: 8px; margin: 0; padding: 2px 8px; background: rgb(20 14 12 / .6); border-radius: 6px; font-variant-numeric: tabular-nums; }
+.credit { position: fixed; left: 8px; bottom: 4px; margin: 0; font-size: 12px; text-shadow: 0 1px 2px #000; }
+.credit a { color: #ffd2b0; }
+@media (max-width: 760px) { .info { top: 46px; left: 8px; right: auto; } }
+.thumb .ui { display: none; }`,
+  core() {
+    // 映像の骨組み（画面を使わない計算）。道・自転車の傾き・脚と腕の IK・カメラを、時刻 t から決める
+    const RD = (() => {
+      const P = {
+        T: 10, V: 10, D: 100,                 // 1 周の秒数・速さ（m/秒）・道の形が繰り返す長さ（m）。V × T = D
+        A1: 4.2, A2: 1.7, PH2: 1.3,           // 道の中心の左右のうねり（2 つの sin）
+        H1: 0.8, PHH: 0.5,                    // 道の高さのうねり
+        LANE: 0.95, RW: 2.6, Z0: 30, G: 9.81, // 走る位置（中心から右）・道の幅の半分・始めの位置・重力
+        CAD: 1.5, SPOKES: 12,                 // ペダルの回転（回/秒）・スポークの数
+        CRANK: 0.17, PEDAL_X: 0.11, THIGH: 0.44, SHIN: 0.44, UPPER: 0.29, FORE: 0.29,
+      };
+      P.K = 2 * Math.PI / P.D;
+      // 車輪の半径: 1 周で進む D を半径で割った回転の量が、スポークの間の角度のちょうど整数倍になる値（0.34 m に近いもの）
+      const m = Math.round(P.D * P.SPOKES / (2 * Math.PI * 0.34));
+      P.WHEEL_R = P.D * P.SPOKES / (2 * Math.PI * m);
+      const roadX = (z) => P.A1 * Math.sin(P.K * z) + P.A2 * Math.sin(2 * P.K * z + P.PH2);
+      const roadDX = (z) => P.A1 * P.K * Math.cos(P.K * z) + 2 * P.A2 * P.K * Math.cos(2 * P.K * z + P.PH2);
+      const roadDDX = (z) => -P.A1 * P.K * P.K * Math.sin(P.K * z) - 4 * P.A2 * P.K * P.K * Math.sin(2 * P.K * z + P.PH2);
+      const roadY = (z) => P.H1 * Math.sin(P.K * z + P.PHH);
+      const roadDY = (z) => P.H1 * P.K * Math.cos(P.K * z + P.PHH);
+      const curv = (z) => roadDDX(z) / Math.pow(1 + roadDX(z) ** 2, 1.5);   // 上から見た道の曲がり（右へ曲がると正）
+      const lean = (v, k, g) => Math.atan(v * v * k / g);                  // 遠心力 v²κ と重力 g が釣り合う傾き
+      const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+      const mul = (a, s) => [a[0] * s, a[1] * s, a[2] * s], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+      const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+      const norm = (a) => mul(a, 1 / (Math.hypot(a[0], a[1], a[2]) || 1));
+      // 2 本の骨の IK: 根元 a と先 c の間に、長さ l1・l2 の骨をつなぐ関節を、目印の向き pole の側に置く（余弦定理）
+      function ik2(a, c, l1, l2, pole) {
+        const ac = sub(c, a), d = Math.min(Math.hypot(ac[0], ac[1], ac[2]), l1 + l2 - 1e-9), e = norm(ac);
+        const x = (l1 * l1 + d * d - l2 * l2) / (2 * d), h = Math.sqrt(Math.max(0, l1 * l1 - x * x));
+        const side = norm(sub(pole, mul(e, dot(pole, e))));
+        return add(add(a, mul(e, x)), mul(side, h));
+      }
+      // 時刻 t の姿。opt.lean が false なら、曲がっても傾けない
+      function rig(t, opt) {
+        const z = P.Z0 + P.V * t, o = [roadX(z) + P.LANE, roadY(z), z];
+        const F = norm([roadDX(z), roadDY(z), 1]), R0 = norm(cross([0, 1, 0], F)), U0 = cross(F, R0);
+        const theta = opt && opt.lean === false ? 0 : lean(P.V, curv(z), P.G);
+        const c = Math.cos(theta), s = Math.sin(theta);
+        const U = add(mul(U0, c), mul(R0, s)), R = sub(mul(R0, c), mul(U0, s));
+        const W = (l) => add(add(add(o, mul(R, l[0])), mul(U, l[1])), mul(F, l[2]));   // 自転車の中の位置（右, 上, 前）を世界へ
+        const ph = 2 * Math.PI * P.CAD * t + 0.4, tt = 2 * Math.PI * t / P.T;
+        const bb = [0, 0.29, 0], J = { bb: W(bb) };
+        const L = {};
+        for (const [k, sg, a] of [['R', 1, ph], ['L', -1, ph + Math.PI]]) {
+          const pedal = [sg * P.PEDAL_X, bb[1] - P.CRANK * Math.cos(a), -P.CRANK * Math.sin(a)];
+          L['pedal' + k] = pedal;
+          L['ankle' + k] = add(pedal, [0, 0.075, -0.045]);
+          L['heel' + k] = add(pedal, [0, 0.05, -0.1]);
+          L['toe' + k] = add(pedal, [0, 0.03 + 0.025 * Math.sin(a), 0.11]);
+        }
+        const bob = 0.006 * Math.sin(2 * ph), sway = 0.012 * Math.sin(ph);
+        L.pelvis = [sway * 0.5, 1.0 + bob, -0.24];
+        L.chest = [sway, 1.42 + bob * 0.5, 0.12];
+        L.head = add(L.chest, [sway * 0.5, 0.2, 0.13]);
+        for (const [k, sg] of [['R', 1], ['L', -1]]) {
+          L['hip' + k] = add(L.pelvis, [sg * 0.09, -0.02, 0]);
+          L['shoulder' + k] = add(L.chest, [sg * 0.17, 0, -0.02]);
+          L['hand' + k] = [sg * 0.21, 0.99, 0.44];
+        }
+        L.rearAxle = [0, P.WHEEL_R, -0.52]; L.frontAxle = [0, P.WHEEL_R, 0.5];
+        L.seat = [0, 0.93, -0.24]; L.headTube = [0, 0.88, 0.38]; L.downTop = [0, 0.8, 0.4]; L.bar = [0, 0.99, 0.44];
+        for (const k of Object.keys(L)) J[k] = W(L[k]);
+        // 膝と肘は世界の中で IK を解く（目印: 膝は前、肘は外と後ろ）
+        for (const [k, sg] of [['R', 1], ['L', -1]]) {
+          J['knee' + k] = ik2(J['hip' + k], J['ankle' + k], P.THIGH, P.SHIN, add(mul(F, 1), mul(R, sg * 0.08)));
+          J['elbow' + k] = ik2(J['shoulder' + k], J['hand' + k], P.UPPER, P.FORE, add(add(mul(R, sg), mul(U, -0.4)), mul(F, -0.5)));
+        }
+        // カメラ: 人の 4.6 m 後ろ、道の左寄りの少し高い所から、人の少し前を見る。揺れは 1 周で元に戻る
+        const cz = z - 4.6, cp = [roadX(cz) - 1.5 + 0.12 * Math.sin(tt), roadY(cz) + 1.5 + 0.04 * Math.sin(2 * tt + 1), cz];
+        const tg = add(o, [0, 0.8, 2.2]), cF = norm(sub(tg, cp)), cR = norm(cross([0, 1, 0], cF)), cU = cross(cF, cR);
+        return { z, o, F, R, U, theta, crank: ph, wheel: P.V * t / P.WHEEL_R, J, cam: { p: cp, F: cF, R: cR, U: cU } };
+      }
+      return { P, roadX, roadDX, roadDDX, roadY, roadDY, curv, lean, ik2, rig };
+    })();
+  },
+  js() {
+    const c = document.getElementById('c'), gl = c.getContext('webgl2', { antialias: false });
+    const dlog = (ev, args, res) => console.info('[dlog] ' + ev + ' ' + JSON.stringify(args) + ' ' + res);
+    if (!gl) { dlog('ride.error', { why: 'webgl2' }, 'ng'); document.body.textContent = 'この映像には WebGL2 が必要です。'; throw new Error('WebGL2 が使えません'); }
+    if (window.THUMB) document.body.classList.add('thumb');
+    const P = RD.P, NAMES = Object.keys(RD.rig(0, { lean: true }).J), NJ = NAMES.length;
+    const f = (v) => v.toFixed(6);
+    const fs = `#version 300 es
+precision highp float;
+precision highp int;
+uniform vec2 RES; uniform float TT; uniform int FL;
+uniform vec3 J0[${NJ}], J1[${NJ}];   // 骨組みの点（シャッターの始めと終わり）
+uniform vec3 B0[4], B1[4];         // 自転車: 原点・前・右・上
+uniform vec3 C0[4], C1[4];         // カメラ: 位置・前・右・上
+uniform vec2 WA;                   // 車輪の回転角（始めと終わり）
+out vec4 O;
+const float PI = 3.14159265, D = ${f(P.D)}, K = ${f(P.K)}, A1 = ${f(P.A1)}, A2 = ${f(P.A2)}, PH2 = ${f(P.PH2)}, H1 = ${f(P.H1)}, PHH = ${f(P.PHH)};
+const float RW = ${f(P.RW)}, WR = ${f(P.WHEEL_R)}, CELL = 5.0, SPOKE = ${f(2 * Math.PI / P.SPOKES)};
+const int NCELL = ${Math.round(P.D / 5)};
+const vec3 SUN = vec3(${(() => { const v = [-0.32, 0.115, 1], l = Math.hypot(...v); return v.map((x) => f(x / l)).join(', '); })()});
+const vec3 SUNC = vec3(1.0, 0.56, 0.3) * 4.0, SKYC = vec3(0.24, 0.29, 0.6) * 0.5, BOUNCE = vec3(0.5, 0.3, 0.18) * 0.2;
+${NAMES.map((n, i) => `#define J_${n} ${i}`).join('\n')}
+float gS; vec3 gB[4]; float gW;   // 今の標本のシャッターの中の位置、自転車の向き、車輪の角度
+vec3 jp(int i) { return mix(J0[i], J1[i], gS); }
+
+// ---- 乱数とノイズ（PCG のハッシュ: 整数だけで計算するので、GPU によって結果が変わらない）----
+uint pcg(uint v) { uint s = v * 747796405u + 2891336453u; uint w = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u; return (w >> 22u) ^ w; }
+float h21(ivec2 p) { uvec2 q = uvec2(p + 1048576); return float(pcg(q.x + pcg(q.y)) >> 8) / 16777216.0; }   // 負の数は足して正にしてから使う
+// z の向きに nz 個の格子で繰り返す値のノイズ（世界が D ごとに同じになる）
+float vnz(vec2 p, int nz) {
+  vec2 i = floor(p), q = fract(p); q = q * q * (3.0 - 2.0 * q);
+  ivec2 c = ivec2(i); int z0 = ((c.y % nz) + nz) % nz, z1 = (z0 + 1) % nz;
+  return mix(mix(h21(ivec2(c.x, z0)), h21(ivec2(c.x + 1, z0)), q.x), mix(h21(ivec2(c.x, z1)), h21(ivec2(c.x + 1, z1)), q.x), q.y);
+}
+
+// ---- 道と地面 ----
+float roadX(float z) { return A1 * sin(K * z) + A2 * sin(2.0 * K * z + PH2); }
+float roadY(float z) { return H1 * sin(K * z + PHH); }
+float hills(vec2 q) {
+  float x = q.x, a = q.y * K;   // z を、1 周で 2π のラジアンに直す（sin の中の z の係数を整数にして繰り返させる）
+  float h = 3.2 * sin(0.042 * x + a + 0.7) + 2.0 * sin(0.083 * x - 2.0 * a + 1.9) + 1.1 * sin(0.16 * x + 3.0 * a + 4.1);
+  return h + 2.4 * vnz(vec2(x * 0.09, q.y * 24.0 / D), 24) + 2.5;
+}
+float ground(vec2 q) {
+  float dx = abs(q.x - roadX(q.y)), m = smoothstep(RW + 0.8, RW + 12.0, dx);
+  return roadY(q.y) - 0.06 * smoothstep(RW + 0.2, RW + 0.9, dx) * (1.0 - m) + m * hills(q);
+}
+// 高さの関数をたどって地面との当たりを探し、通り過ぎたら二分法で詰める
+float marchGround(vec3 ro, vec3 rd, float tmax) {
+  float t = 0.3, lt = 0.3;
+  for (int i = 0; i < 90; i++) {
+    vec3 p = ro + rd * t; float h = p.y - ground(p.xz);
+    if (h < 0.0) {
+      for (int j = 0; j < 6; j++) { float m = 0.5 * (t + lt); vec3 q = ro + rd * m; if (q.y < ground(q.xz)) t = m; else lt = m; }
+      return t;
+    }
+    if (rd.y > 0.0 && p.y > 16.0) break;
+    lt = t; t += max(0.05 + 0.012 * t, 0.45 * h);
+    if (t > tmax) break;
+  }
+  return -1.0;
+}
+
+// ---- 木: 区画の番号を NCELL で割った余りから、あるか・位置・形を決める ----
+bool treeAt(int i, int s, out vec3 cc, out vec3 r, out float tall) {
+  int k = ((i % NCELL) + NCELL) % NCELL;
+  float a = h21(ivec2(k, s * 7 + 3)), b = h21(ivec2(k * 3 + 1, s * 11 + 5)), e = h21(ivec2(k * 5 + 2, s * 13 + 1));
+  if (a < 0.38) return false;
+  float z = (float(i) + b) * CELL, x = roadX(z) + float(s) * (RW + 3.4 + e * 15.0), sz = 0.75 + 0.5 * b;
+  tall = a > 0.8 ? 1.0 : 0.0;
+  r = tall > 0.5 ? vec3(0.75, 2.5, 0.75) * sz : vec3(2.0, 1.7, 2.0) * sz;
+  cc = vec3(x, ground(vec2(x, z)) + (tall > 0.5 ? 2.3 : 3.2) * sz, z);
+  return true;
+}
+float hitEll(vec3 ro, vec3 rd, vec3 c, vec3 r) {
+  vec3 o = (ro - c) / r, d = rd / r; float a = dot(d, d), b = dot(o, d), h = b * b - a * (dot(o, o) - 1.0);
+  return h < 0.0 ? -1.0 : (-b - sqrt(h)) / a;
+}
+float hitTrunk(vec3 ro, vec3 rd, vec3 base, float rad, float hgt) {
+  vec2 o = ro.xz - base.xz, d = rd.xz; float a = dot(d, d), b = dot(o, d), h = b * b - a * (dot(o, o) - rad * rad);
+  if (h < 0.0) return -1.0; float t = (-b - sqrt(h)) / a, y = ro.y + rd.y * t;
+  return (y > base.y - 0.5 && y < base.y + hgt) ? t : -1.0;
+}
+// 光線が当たるいちばん近い木（kind: 1 葉、2 幹）
+float traceTrees(vec3 ro, vec3 rd, float tmax, out vec3 nrm, out float kind) {
+  float best = tmax; kind = 0.0; int i0 = int(floor(ro.z / CELL)) - 1;
+  for (int j = 0; j < 46; j++) {
+    int i = i0 + j; if (float(i) * CELL - ro.z > best + 4.0) break;
+    for (int s = -1; s <= 1; s += 2) {
+      vec3 c, r; float tl; if (!treeAt(i, s, c, r, tl)) continue;
+      float tz = (c.z - ro.z) / max(rd.z, 0.05); vec3 pz = ro + rd * tz;
+      if (abs(pz.x - c.x) > r.x + 3.0 || pz.y > c.y + r.y + 2.0) continue;   // その z で光線が遠ければ捨てる
+      float t = hitEll(ro, rd, c, r);
+      if (t > 0.0 && t < best) { best = t; kind = 1.0; nrm = normalize((ro + rd * t - c) / (r * r)); }
+      if (tl < 0.5) {
+        vec3 c2 = c + vec3(0.45 * r.x * float(s), 0.75 * r.y, 0.2 * r.z), r2 = r * vec3(0.62, 0.7, 0.62);
+        t = hitEll(ro, rd, c2, r2);
+        if (t > 0.0 && t < best) { best = t; kind = 1.0; nrm = normalize((ro + rd * t - c2) / (r2 * r2)); }
+        vec3 base = vec3(c.x, c.y - r.y * 1.6, c.z); float tt = hitTrunk(ro, rd, base, 0.17 * r.x / 2.2, r.y * 1.2);
+        if (tt > 0.0 && tt < best) { best = tt; kind = 2.0; vec3 p = ro + rd * tt; nrm = normalize(vec3(p.x - base.x, 0.0, p.z - base.z)); }
+      }
+    }
+  }
+  return kind > 0.0 ? best : -1.0;
+}
+// 太陽の向きへの光線が木に当たるか（地面の影）
+float treeShadow(vec3 p) {
+  int i0 = int(floor(p.z / CELL)) - 1;
+  for (int j = 0; j < 13; j++) for (int s = -1; s <= 1; s += 2) {
+    vec3 c, r; float tl; if (!treeAt(i0 + j, s, c, r, tl)) continue;
+    if (hitEll(p, SUN, c, r) > 0.0) return 0.0;
+    if (tl < 0.5 && hitEll(p, SUN, c + vec3(0.45 * r.x * float(s), 0.75 * r.y, 0.2 * r.z), r * vec3(0.62, 0.7, 0.62)) > 0.0) return 0.0;
+  }
+  return 1.0;
+}
+
+// ---- 人と自転車: 距離関数（いちばん近い面までの距離）を、カプセル・円錐・輪で作る ----
+float sdCap(vec3 p, vec3 a, vec3 b, float r) { vec3 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h) - r; }
+vec2 sdCone(vec3 p, vec3 a, vec3 b, float ra, float rb) { vec3 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return vec2(length(pa - ba * h) - mix(ra, rb, h), h); }
+void un(inout vec2 m, float d, float id) { if (d < m.x) m = vec2(d, id); }
+// id: 1 肌、2 上着、3 ズボン、4 車体、5 タイヤ、6 帽子、7 靴、8 金属、9 黒
+vec2 rider(vec3 p) {
+  vec3 Fw = gB[1], R = gB[2], U = gB[3]; vec2 m = vec2(1e9, 0.0);
+  for (int w = 0; w < 2; w++) {
+    vec3 c = jp(w == 0 ? J_rearAxle : J_frontAxle), q = p - c; float y = dot(q, R); vec3 pl = q - y * R; float rr = length(pl);
+    un(m, length(vec2(rr - (WR - 0.018), y)) - 0.018, 5.0);
+    un(m, length(vec2(rr - (WR - 0.046), y)) - 0.007, 8.0);
+    float an = atan(dot(pl, U), dot(pl, Fw)) + gW;            // 車輪の面の中の角度。回転の分だけずらす
+    an = mod(an + 0.5 * SPOKE, SPOKE) - 0.5 * SPOKE;          // スポークの間の角度で折り返す
+    vec2 pp = vec2(cos(an), sin(an)) * rr;
+    un(m, max(length(vec2(pp.y, y)) - 0.0035, max(0.03 - pp.x, pp.x - WR + 0.046)), 8.0);
+    un(m, sdCap(p, c - R * 0.05, c + R * 0.05, 0.022), 8.0);
+  }
+  vec3 bb = jp(J_bb), seat = jp(J_seat), ht = jp(J_headTube);
+  un(m, sdCap(p, bb, seat, 0.017), 4.0);
+  un(m, sdCap(p, seat - U * 0.06, ht, 0.016), 4.0);
+  un(m, sdCap(p, bb, jp(J_downTop), 0.021), 4.0);
+  un(m, sdCap(p, bb, jp(J_rearAxle), 0.012), 4.0);
+  un(m, sdCap(p, seat - U * 0.08, jp(J_rearAxle), 0.011), 4.0);
+  un(m, sdCap(p, ht, jp(J_frontAxle), 0.014), 4.0);
+  un(m, sdCap(p, ht, jp(J_bar), 0.015), 9.0);
+  un(m, sdCap(p, jp(J_handL), jp(J_handR), 0.012), 9.0);
+  un(m, sdCap(p, seat - Fw * 0.08 + U * 0.035, seat + Fw * 0.11 + U * 0.03, 0.03), 9.0);
+  un(m, length(vec2(length((p - bb) - dot(p - bb, R) * R) - 0.1, dot(p - bb, R) - 0.05)) - 0.006, 8.0);   // 前のギア
+  for (int k = 0; k < 2; k++) {
+    float sg = k == 0 ? 1.0 : -1.0;
+    vec3 pd = jp(k == 0 ? J_pedalR : J_pedalL), hip = jp(k == 0 ? J_hipR : J_hipL), knee = jp(k == 0 ? J_kneeR : J_kneeL), ank = jp(k == 0 ? J_ankleR : J_ankleL);
+    un(m, sdCap(p, bb + R * sg * 0.06, pd - R * sg * 0.03, 0.011), 8.0);
+    un(m, sdCap(p, pd - R * sg * 0.035, pd + R * sg * 0.035, 0.016), 9.0);
+    un(m, sdCap(p, jp(k == 0 ? J_heelR : J_heelL), jp(k == 0 ? J_toeR : J_toeL), 0.04), 7.0);
+    vec2 th = sdCone(p, hip, knee, 0.078, 0.056); un(m, th.x, th.y < 0.55 ? 3.0 : 1.0);
+    un(m, sdCone(p, knee, ank, 0.052, 0.036).x, 1.0);
+    vec3 sh = jp(k == 0 ? J_shoulderR : J_shoulderL), el = jp(k == 0 ? J_elbowR : J_elbowL), hd = jp(k == 0 ? J_handR : J_handL);
+    vec2 ua = sdCone(p, sh, el, 0.05, 0.04); un(m, ua.x, ua.y < 0.45 ? 2.0 : 1.0);
+    un(m, sdCone(p, el, hd, 0.038, 0.03).x, 1.0);
+    un(m, length(p - hd) - 0.037, 9.0);
+  }
+  vec3 pel = jp(J_pelvis), ch = jp(J_chest), hc = jp(J_head);
+  un(m, length(p - pel) - 0.125, 3.0);
+  un(m, sdCone(p, pel + U * 0.05, ch, 0.125, 0.15).x, 2.0);
+  un(m, sdCap(p, mix(jp(J_shoulderL), jp(J_shoulderR), 0.12), mix(jp(J_shoulderR), jp(J_shoulderL), 0.12), 0.06), 2.0);
+  un(m, sdCap(p, ch + U * 0.04, mix(ch, hc, 0.62), 0.045), 1.0);
+  un(m, length(p - hc) - 0.1, 1.0);
+  un(m, max(length(p - hc - U * 0.02) - 0.122, -dot(p - hc, U) - 0.005), 6.0);   // 帽子（球の上半分）
+  return m;
+}
+vec4 riderBound() { return vec4(gB[0] + gB[3] * 0.78, 1.2); }
+float marchRider(vec3 ro, vec3 rd, float tmax, out float id) {
+  vec4 bs = riderBound(); vec3 oc = ro - bs.xyz; float b = dot(oc, rd), h = b * b - dot(oc, oc) + bs.w * bs.w;
+  if (h < 0.0) return -1.0; h = sqrt(h);
+  float t = max(-b - h, 0.0), t1 = min(-b + h, tmax);
+  for (int i = 0; i < 80; i++) {
+    if (t > t1) break;
+    vec2 d = rider(ro + rd * t);
+    if (d.x < 0.0004 + 0.0004 * t) { id = d.y; return t; }
+    t += d.x * 0.9;
+  }
+  return -1.0;
+}
+vec3 riderNormal(vec3 p) {
+  const vec2 e = vec2(0.0012, -0.0012);
+  return normalize(e.xyy * rider(p + e.xyy).x + e.yyx * rider(p + e.yyx).x + e.yxy * rider(p + e.yxy).x + e.xxx * rider(p + e.xxx).x);
+}
+// 人と自転車の、やわらかい影（太陽へ向かう光線が、どれだけ近くを通るか）
+float riderShadow(vec3 p) {
+  vec4 bs = riderBound(); vec3 oc = p - bs.xyz; float b = dot(oc, SUN), h = b * b - dot(oc, oc) + bs.w * bs.w;
+  if (h < 0.0 || -b + sqrt(h) < 0.0) return 1.0;
+  float t = max(-b - sqrt(h), 0.02), res = 1.0;
+  for (int i = 0; i < 40; i++) { float d = rider(p + SUN * t).x; res = min(res, 9.0 * d / t); if (res < 0.02) return 0.0; t += clamp(d, 0.01, 0.2); if (t > -b + sqrt(h)) break; }
+  return clamp(res, 0.0, 1.0);
+}
+
+// ---- 空と雲 ----
+vec3 skyCol(vec3 rd) {
+  float y = max(rd.y, 0.0), mu = max(dot(rd, SUN), 0.0);
+  vec3 c = mix(vec3(1.0, 0.5, 0.28) * 0.9, vec3(0.1, 0.12, 0.34), pow(y, 0.4));
+  c = mix(c, vec3(1.0, 0.34, 0.16), exp(-y * 14.0) * 0.45);
+  c += vec3(1.0, 0.5, 0.22) * pow(mu, 6.0) * 0.7 + vec3(1.0, 0.72, 0.4) * (pow(mu, 40.0) * 0.6 + pow(mu, 400.0) * 1.5);
+  c += vec3(1.0, 0.86, 0.62) * smoothstep(0.99982, 0.99992, mu) * 40.0;   // 太陽の円（見かけの半径 約 0.8 度）
+  if (rd.y < 0.0) c = mix(c, vec3(0.45, 0.24, 0.16), smoothstep(0.0, -0.08, rd.y));
+  return c;
+}
+// 雲: 2D の楕円をなめらかにつなぎ、楕円を半球と見たときの向き（法線）で光の当たり方を決める
+vec4 blob(vec2 p, vec2 c, vec2 r) { vec2 q = (p - c) / r; float w = 1.0 - dot(q, q); return vec4(q, sqrt(max(w, 0.0)), w); }
+vec4 smax4(vec4 a, vec4 b) { float k = clamp(0.5 + 0.5 * (b.w - a.w) / 0.35, 0.0, 1.0); vec4 m = mix(a, b, k); m.w += 0.35 * k * (1.0 - k) * 0.5; return m; }
+vec3 clouds(vec3 rd, vec3 col, bool solid) {
+  if (rd.y < -0.01) return col;
+  vec2 sp = vec2(atan(rd.x, rd.z), rd.y), sun = vec2(atan(SUN.x, SUN.z), SUN.y);
+  for (int i = 0; i < 8; i++) {
+    float fi = float(i);
+    vec2 cc = vec2(-1.2 + 0.42 * fi + 0.2 * h21(ivec2(i, 1)) + 0.012 * sin(2.0 * PI * TT / ${f(P.T)} + fi), 0.06 + 0.16 * h21(ivec2(i, 2)));
+    float sc = 0.06 + 0.04 * h21(ivec2(i, 3));
+    vec2 p = (sp - cc) / sc;
+    if (abs(p.x) > 2.4 || abs(p.y) > 1.2) continue;
+    p += 0.18 * (vec2(vnz(p * 3.1 + fi * 7.0, 64), vnz(p * 3.1 + fi * 3.0 + 9.0, 64)) - 0.5);   // 縁をふわふわにする
+    vec4 z = vec4(0.0, 0.0, 0.0, -9.0);
+    for (int j = 0; j < 6; j++) {
+      vec2 o = vec2((h21(ivec2(i, 10 + j)) - 0.5) * 2.6, h21(ivec2(i, 20 + j)) * 0.35 - 0.05), r = vec2(0.45 + 0.35 * h21(ivec2(i, 30 + j)), 0.22 + 0.16 * h21(ivec2(i, 40 + j)));
+      z = smax4(z, blob(p, o, r));
+    }
+    z.w = min(z.w, 3.0 * (p.y + 0.32));   // 雲の底を平らにする
+    float a = smoothstep(0.0, 0.18, z.w) * 0.95;
+    if (a <= 0.0) continue;
+    vec3 n = normalize(vec3(z.x, z.y, z.z + 0.25));
+    vec2 ls = sun - cc; vec3 L = normalize(vec3(ls / max(length(ls), 1e-3) * 0.85, 0.5));
+    float lit = solid ? clamp(dot(n, L), 0.0, 1.0) : 0.55;
+    float near = exp(-3.5 * length(sp - sun));
+    vec3 cl = mix(vec3(0.3, 0.17, 0.3), vec3(1.1, 0.52, 0.28), lit) * (0.8 + 1.6 * near);
+    if (solid) cl += vec3(1.0, 0.78, 0.5) * pow(1.0 - n.z, 2.0) * near * 3.0;   // 太陽の近くでは縁が光る
+    col = mix(col, cl, a);
+  }
+  return col;
+}
+
+// ---- 1 本の光線の色（明るさは実際の光の量の比のまま。あとで縮める）----
+vec3 shade(vec3 ro, vec3 rd) {
+  float tmax = 260.0, tg = marchGround(ro, rd, tmax); if (tg > 0.0) tmax = tg;
+  vec3 tn; float tk, tt = traceTrees(ro, rd, tmax, tn, tk); if (tt > 0.0) tmax = tt;
+  float rid, tr = marchRider(ro, rd, tmax, rid);
+  vec3 col; float dist = tmax;
+  if (tr > 0.0) {
+    dist = tr; vec3 p = ro + rd * tr, n = riderNormal(p);
+    vec3 alb = rid < 1.5 ? vec3(0.62, 0.42, 0.32) : rid < 2.5 ? vec3(0.06, 0.3, 0.38) : rid < 3.5 ? vec3(0.04, 0.04, 0.05) : rid < 4.5 ? vec3(0.55, 0.06, 0.05)
+             : rid < 5.5 ? vec3(0.03) : rid < 6.5 ? vec3(0.85, 0.84, 0.8) : rid < 7.5 ? vec3(0.1, 0.1, 0.12) : rid < 8.5 ? vec3(0.45, 0.46, 0.48) : vec3(0.02);
+    float sh = riderShadow(p + n * 0.01), dif = max(dot(n, SUN), 0.0);
+    col = alb * (SUNC * dif * sh + SKYC * (0.5 + 0.5 * n.y) + BOUNCE * (0.5 - 0.5 * n.y));
+    float spec = (rid > 3.5 && rid < 4.5) || (rid > 7.5 && rid < 8.5) || (rid > 5.5 && rid < 6.5) ? 0.7 : 0.06;
+    col += SUNC * spec * pow(max(dot(n, normalize(SUN - rd)), 0.0), 48.0) * sh;
+    col += SUNC * alb * 1.5 * pow(1.0 - max(dot(n, -rd), 0.0), 3.0) * pow(max(dot(rd, SUN), 0.0), 2.0);   // 逆光の縁の光
+  } else if (tt > 0.0) {
+    vec3 p = ro + rd * tt;
+    float leaf = tk < 1.5 ? 1.0 : 0.0, nz = vnz(vec2(p.x * 1.7 + p.y * 2.3, p.z * 170.0 / D), 170);   // z の格子の数を D の中の数にして繰り返させる
+    vec3 alb = leaf > 0.5 ? mix(vec3(0.07, 0.11, 0.03), vec3(0.16, 0.18, 0.05), nz) : vec3(0.12, 0.08, 0.05);
+    float sh = treeShadow(p + tn * 0.05), dif = max(dot(tn, SUN) * 0.7 + 0.3, 0.0);
+    col = alb * (SUNC * dif * sh * (0.6 + 0.6 * nz) + SKYC * (0.6 + 0.4 * tn.y));
+    col += leaf * SUNC * vec3(0.5, 0.35, 0.1) * 0.25 * pow(max(dot(rd, SUN), 0.0), 4.0) * pow(1.0 - abs(dot(tn, rd)), 2.0);   // 逆光で葉の縁が透ける
+  } else if (tg > 0.0) {
+    vec3 p = ro + rd * tg; float e = 0.04 + 0.002 * tg;
+    vec3 n = normalize(vec3(ground(p.xz - vec2(e, 0.0)) - ground(p.xz + vec2(e, 0.0)), 2.0 * e, ground(p.xz - vec2(0.0, e)) - ground(p.xz + vec2(0.0, e))));
+    float dx = p.x - roadX(p.z), adx = abs(dx), nz = vnz(vec2(p.x * 0.7, p.z * 70.0 / D), 70);
+    vec3 alb = mix(vec3(0.2, 0.24, 0.07), vec3(0.4, 0.31, 0.13), smoothstep(0.35, 0.75, nz));
+    alb = mix(alb, vec3(0.24, 0.2, 0.15), 1.0 - smoothstep(RW + 0.5, RW + 1.1, adx));
+    float road = 1.0 - smoothstep(RW - 0.02, RW + 0.02, adx), gloss = 0.0;
+    if (road > 0.0) {
+      vec3 asph = vec3(0.075, 0.07, 0.065) * (0.85 + 0.3 * vnz(vec2(p.x * 9.0, p.z * 900.0 / D), 900));
+      float line = (adx < 0.06 && fract(p.z / 5.0) < 0.5) || (adx > RW - 0.16 && adx < RW - 0.06) ? 1.0 : 0.0;
+      alb = mix(alb, mix(asph, vec3(0.75, 0.72, 0.62), line), road); gloss = road * (1.0 - line);
+    }
+    float sh = tg < 120.0 ? min(treeShadow(p + n * 0.05), riderShadow(p + n * 0.02)) : 1.0;
+    col = alb * (SUNC * max(dot(n, SUN), 0.0) * sh + SKYC * (0.5 + 0.5 * n.y));
+    col += gloss * SUNC * 0.35 * pow(max(dot(reflect(rd, n), SUN), 0.0), 24.0) * sh;   // 低い太陽の照り返し
+  } else {
+    col = skyCol(rd);
+    col = clouds(rd, col, (FL & 4) != 0);
+    dist = 1e4;
+  }
+  // 遠くほど空の色に近づける（空気の層）
+  if (dist < 1e4) col = mix(col, skyCol(normalize(vec3(rd.x, max(rd.y, 0.02), rd.z))) * 0.7, 1.0 - exp(-dist * 0.0045));
+  col += SUNC * 0.012 * pow(max(dot(rd, SUN), 0.0), 8.0);   // レンズの中で散る光
+  return col;
+}
+vec3 aces(vec3 x) { return clamp(x * (2.51 * x + 0.03) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
+vec3 toSrgb(vec3 c) { return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
+void main() {
+  bool blur = (FL & 2) != 0, tone = (FL & 8) != 0;
+  int N = blur ? 4 : 1;
+  vec2 offs[4] = vec2[4](vec2(-0.125, -0.375), vec2(0.375, -0.125), vec2(0.125, 0.375), vec2(-0.375, 0.125));   // 回転格子の 4 点
+  vec3 acc = vec3(0.0);
+  vec2 uv0 = gl_FragCoord.xy / RES;
+  float vig = 0.72 + 0.28 * pow(16.0 * uv0.x * uv0.y * (1.0 - uv0.x) * (1.0 - uv0.y), 0.3);
+  for (int s = 0; s < 4; s++) {
+    if (s >= N) break;
+    gS = blur ? (float(s) + 0.5) / 4.0 : 0.0;   // 4 点を、シャッターが開いている間の別々の時刻にする（動きのぶれ）
+    for (int k = 0; k < 4; k++) gB[k] = mix(B0[k], B1[k], gS);
+    gB[1] = normalize(gB[1]); gB[2] = normalize(gB[2]); gB[3] = normalize(gB[3]);
+    gW = mix(WA.x, WA.y, gS);
+    vec3 cp = mix(C0[0], C1[0], gS), cf = normalize(mix(C0[1], C1[1], gS)), cr = normalize(mix(C0[2], C1[2], gS)), cu = normalize(mix(C0[3], C1[3], gS));
+    vec2 uv = (gl_FragCoord.xy + (blur ? offs[s] : vec2(0.0)) - 0.5 * RES) / RES.y;
+    vec3 col = shade(cp, normalize(cf * 1.55 + cr * uv.x + cu * uv.y)) * vig;
+    acc += tone ? aces(col * 0.9) : clamp(col * 0.9, 0.0, 1.0);   // 標本ごとに縮めてから平均する
+  }
+  vec3 c = toSrgb(acc / float(N));
+  if (tone) c = c * vec3(1.02, 1.0, 0.96) + vec3(0.012, 0.004, 0.02);   // 仕上げ: 少し暖かく、暗い所に紫を足す
+  c += (float(pcg(uint(gl_FragCoord.x) + pcg(uint(gl_FragCoord.y) + pcg(uint(TT * 60.0))))) / 4294967295.0 - 0.5) / 255.0;   // 縞が出ないように散らす
+  O = vec4(c, 1.0);
+}`;
+    let pg = null;
+    try {
+      const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+      pg = gl.createProgram();
+      gl.attachShader(pg, sh(gl.VERTEX_SHADER, '#version 300 es\nvoid main() { gl_Position = vec4(vec2(gl_VertexID & 1, gl_VertexID >> 1) * 4. - 1., 0, 1); }'));
+      gl.attachShader(pg, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(pg);
+      if (!gl.getProgramParameter(pg, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(pg));
+      gl.useProgram(pg);
+    } catch (err) { dlog('ride.error', { why: 'shader', msg: String(err.message).slice(0, 300) }, 'ng'); throw err; }
+    const U = (n) => gl.getUniformLocation(pg, n);
+    const u = { RES: U('RES'), TT: U('TT'), FL: U('FL'), J0: U('J0'), J1: U('J1'), B0: U('B0'), B1: U('B1'), C0: U('C0'), C1: U('C1'), WA: U('WA') };
+    const st = { t: window.THUMB ? 2.4 : 0, paused: !window.THUMB && matchMedia('(prefers-reduced-motion: reduce)').matches, lean: true, blur: true, cloud: true, tone: true, q: 1 };
+    const SHUT = 0.8 / 60;   // シャッターが開いている時間（1 コマの 8 割）
+    const flat = (r) => NAMES.flatMap((n) => r.J[n]);
+    function upload() {
+      const opt = { lean: st.lean }, a = RD.rig(st.t, opt), b = RD.rig(st.t + SHUT, opt);
+      gl.uniform3fv(u.J0, flat(a)); gl.uniform3fv(u.J1, flat(b));
+      gl.uniform3fv(u.B0, [...a.o, ...a.F, ...a.R, ...a.U]); gl.uniform3fv(u.B1, [...b.o, ...b.F, ...b.R, ...b.U]);
+      gl.uniform3fv(u.C0, [...a.cam.p, ...a.cam.F, ...a.cam.R, ...a.cam.U]); gl.uniform3fv(u.C1, [...b.cam.p, ...b.cam.F, ...b.cam.R, ...b.cam.U]);
+      gl.uniform2f(u.WA, a.wheel % (2 * Math.PI), a.wheel % (2 * Math.PI) + (b.wheel - a.wheel));
+      gl.uniform1f(u.TT, st.t);
+      gl.uniform1i(u.FL, (st.blur ? 2 : 0) | (st.cloud ? 4 : 0) | (st.tone ? 8 : 0));
+    }
+    // 切り替えのボタン
+    const pause = document.getElementById('pause'), loopBar = document.getElementById('loop');
+    const setPause = (v) => { st.paused = v; pause.textContent = v ? '動かす' : '止める'; dirty = true; };
+    pause.addEventListener('click', () => { setPause(!st.paused); dlog('ride.pause', { paused: st.paused, t: +st.t.toFixed(2) }, 'ok'); });
+    for (const b of document.querySelectorAll('.tg')) b.addEventListener('click', () => {
+      const k = b.dataset.k; st[k] = !st[k]; b.setAttribute('aria-pressed', String(st[k])); dirty = true;
+      dlog('ride.toggle', { key: k, on: st[k], t: +st.t.toFixed(2) }, 'ok');
+    });
+    let dirty = true; setPause(st.paused);
+    // シェーダーの大きさ（gzip で縮めた大きさも数える）
+    const info = document.getElementById('info'), raw = new TextEncoder().encode(fs).length;
+    info.textContent = `このシェーダー ${raw.toLocaleString()} バイト`;
+    if (window.CompressionStream) new Response(new Blob([fs]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer().then((buf) => {
+      info.textContent = `このシェーダー ${raw.toLocaleString()} バイト（gzip ${buf.byteLength.toLocaleString()}）／元の映像 41,886 バイト（gzip 17,087）`;
+      dlog('ride.size', { raw, gzip: buf.byteLength }, 'ok');
+    }).catch((err) => dlog('ride.size', { raw, err: String(err) }, 'ng'));
+    // 速さ: 1 コマの間隔が長すぎるときは、描く解像度を下げる
+    const gaps = []; let last = null, frames = 0, perfLogged = false;
+    const t0 = performance.now();
+    window.__ride = { st, perf: () => { const a = [...gaps].sort((x, y) => x - y); return { n: a.length, mean: a.reduce((x, y) => x + y, 0) / (a.length || 1), p95: a[Math.floor(a.length * 0.95)] || 0, w: c.width, h: c.height, q: st.q }; } };
+    function frame(now) {
+      const dt = last == null ? 0 : Math.min(0.1, (now - last) / 1000); last = now;
+      if (!window.THUMB && !st.paused) { st.t = (st.t + dt) % P.T; dirty = true; }
+      const base = window.THUMB ? 0.45 : Math.min(1, 540 / Math.max(1, innerHeight));
+      const w = Math.max(1, Math.round(innerWidth * base * st.q)), h = Math.max(1, Math.round(innerHeight * base * st.q));
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; gl.viewport(0, 0, w, h); dirty = true; }
+      if (dirty) {
+        upload(); gl.uniform2f(u.RES, w, h); gl.drawArrays(gl.TRIANGLES, 0, 3); dirty = false;
+        loopBar.value = st.t / P.T;
+        if (dt > 0 && !st.paused) { gaps.push(dt * 1000); if (gaps.length > 240) gaps.shift(); }
+        frames++;
+        if (frames === 30) dlog('ride.ready', { ms: Math.round(performance.now() - t0), w, h, names: NJ }, 'ok');
+        if (!perfLogged && gaps.length >= 120) {
+          perfLogged = true; const pf = window.__ride.perf();
+          dlog('ride.perf', { mean: +pf.mean.toFixed(1), p95: +pf.p95.toFixed(1), w, h }, 'ok');
+          if (pf.mean > 26 && st.q > 0.5) { st.q *= 0.75; dlog('ride.scale', { q: st.q }, 'ok'); gaps.length = 0; perfLogged = false; }
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  },
+});
