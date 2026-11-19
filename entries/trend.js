@@ -2313,3 +2313,405 @@ dekiru.add({
     }
   },
 });
+
+dekiru.add({
+  id: 'tr-20261119-h2-window-underflow', c: 'trend', lv: 2, date: '2026-11-19',
+  t: '符号なしの引き算で上限の確かめが働かなくなる（nginx の HTTP/2 の脆弱性）',
+  y: 'ふごうなしのひきざんでじょうげんのたしかめがはたらかなくなる',
+  tags: ['nginx', 'HTTP/2', 'BigInt', '整数の桁あふれ', 'セキュリティ'],
+  d: '2026年11月18日、Wiz Research などが nginx の HTTP/2 の処理にある2つの重大な脆弱性（CVE-2026-123633 と CVE-2026-123007）を公表し、Hacker News で1000点を超える話題になった。この見本は後者の「送信枠（send_window）の整数の桁あふれ」の流れを、計算だけの小さな模型で再現する。HTTP/2 では、相手が受け取れる量（枠）を超えて応答を送らないように、送る側が枠の残りを数える。記事によると nginx は、応答を積んだ時点でその分を枠から引き、ストリームが取り消されると、まだ送っていない分を上限を確かめずに枠へ返していた。そのあと WINDOW_UPDATE（枠を増やす知らせ）を受けると「上限 − 今の枠」で余裕を計算するが、符号なしの整数なので、今の枠が上限を超えていると答えが負にならずに巨大な数になり、確かめが通ってしまう。枠を増やし続けると、符号付き（off_t）で読んだときに負になり、送る長さが負になる。見本では、元の書き方と直した書き方（返すときに上限で止め、確かめを足し算で書く一例で、nginx の実際の修正と同じとは限らない）を並べ、同じ操作を両方に送る。整数は BigInt.asUintN と BigInt.asIntN で 64 ビットの符号なし・符号付きを再現した。実際の通信やフレームのバイト列、nginx のコード、負の長さから先の範囲外のメモリのコピー（攻撃の手順）は扱わない。もう1つの脆弱性（接続の use-after-free）も扱わない。記事の表では、影響があるのは 1.9.5 から 1.31.8 までで、1.30.7 と 1.31.9 で直っている。',
+  p: '符号なしの整数は負の数を表せないので、引き算の答えが負になると 2 の 64 乗を足した大きな数になる。「増やす量 > 上限 − 今の値」という確かめは、今の値が上限以下のときだけ正しく働き、今の値が上限を超えていると逆の答えを返す。だから「値が上限を超えない」という決まりを、値を変えるすべての場所（ここでは取り消して返す所）で守る必要がある。確かめは「今の値 + 増やす量 > 上限」のように、桁あふれしない広さの型で足し算として書くと安全になる。JavaScript の BigInt.asUintN(64, x) と BigInt.asIntN(64, x) を使うと、C の 64 ビット整数の一回りと型の変換を、そのままの数で確かめられる。何十億回の WINDOW_UPDATE は、次に答えが変わるまでの回数を割り算で求めてまとめて足すので、すぐ終わる。',
+  refs: [
+    { title: 'Unauthenticated Remote Code Execution in NGINX: CVE-2026-123633 and CVE-2026-123007（Wiz Blog）', url: 'https://www.wiz.io/blog/nginx-http2-rce-vulnerabilities' },
+    { title: 'Hacker News: Unauthenticated remote code execution in Nginx', url: 'https://news.ycombinator.com/item?id=50547374' },
+    { title: 'RFC 9113 HTTP/2 6.9 Flow Control', url: 'https://www.rfc-editor.org/rfc/rfc9113#section-6.9' },
+  ],
+  html: `<div class="wrap">
+  <p id="cap" class="cap" role="status"></p>
+  <section id="cols" class="cols" aria-label="元の書き方と直した書き方"></section>
+  <div class="ctl">
+    <fieldset>
+      <legend>サーバー（nginx の役）</legend>
+      <button type="button" data-ev="queue">応答を積む（16KB まで）</button>
+      <button type="button" data-ev="send">積んだ分を送り終える</button>
+    </fieldset>
+    <fieldset>
+      <legend>相手（クライアントの役）</legend>
+      <label>増やす量
+        <select id="inc">
+          <option value="fill">上限まで（サーバーの残りに合わせる）</option>
+          <option value="65535">65,535</option>
+          <option value="1000000">1,000,000</option>
+          <option value="2147483647" selected>2,147,483,647（1回の最大）</option>
+        </select>
+      </label>
+      <label>回数
+        <select id="times">
+          <option value="1" selected>1 回</option>
+          <option value="1000">1,000 回</option>
+          <option value="1000000">100 万回</option>
+          <option value="4294967296">約 43 億回（2 の 32 乗）</option>
+          <option value="6442450944">約 64 億回</option>
+        </select>
+      </label>
+      <button type="button" data-ev="update">WINDOW_UPDATE を送る</button>
+      <button type="button" data-ev="cancel">ストリームを取り消す（RST_STREAM）</button>
+    </fieldset>
+    <div class="row">
+      <button type="button" id="auto" aria-pressed="false">手順どおりに進める</button>
+      <button type="button" id="reset">最初から</button>
+      <span class="mut">回数の多い WINDOW_UPDATE は、1回ずつ確かめたときと同じ結果をまとめて計算する</span>
+    </div>
+  </div>
+</div>`,
+  css: `:root { color-scheme: dark; --bg: #10131a; --fg: #e2e6ef; --mut: #98a2b8; --line: #2b3346; --code: #0a0d13; --acc: #6fb3ff; --ok: #46d39a; --warn: #ffc562; --bad: #ff7a7a; --safe: #7dcfff; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 13px/1.5 system-ui, sans-serif; accent-color: var(--acc); }
+    [hidden] { display: none !important; }
+    .wrap { display: flex; flex-direction: column; gap: 8px; padding: 8px; box-sizing: border-box; }
+    .cap { margin: 0; min-height: 3em; padding: 6px 8px; border-left: 3px solid var(--acc); background: #161b26; border-radius: 4px; }
+    .cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    @media (min-width: 560px) { .cols { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .pane { --lv: var(--ok); min-width: 0; display: flex; flex-direction: column; gap: 4px; padding: 8px; border: 1px solid var(--line); border-top: 3px solid var(--lv); border-radius: 6px; }
+    .pane[data-lv="warn"] { --lv: var(--warn); }
+    .pane[data-lv="bad"] { --lv: var(--bad); }
+    .pane[data-lv="safe"] { --lv: var(--safe); }
+    h2 { margin: 0; font-size: 14px; }
+    .sub, .mut { margin: 0; color: var(--mut); font-size: 12px; }
+    pre.code { margin: 0; padding: 6px 8px; background: var(--code); border: 1px solid var(--line); border-radius: 6px; font: 11.5px/1.6 ui-monospace, Consolas, monospace; overflow-x: auto; }
+    .code .cm { color: var(--mut); }
+    .code .hit { background: #2a3550; outline: 1px solid var(--acc); border-radius: 2px; }
+    dl { margin: 0; display: grid; gap: 2px; }
+    dl div { display: grid; grid-template-columns: minmax(0, 10.5em) minmax(0, 1fr); gap: 6px; }
+    dt { color: var(--mut); font-size: 12px; }
+    dd { margin: 0; font: 12px/1.5 ui-monospace, Consolas, monospace; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .neg { color: var(--bad); }
+    .meter { position: relative; height: 12px; background: #1b2130; border-radius: 6px; overflow: hidden; }
+    .meter .fill { position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: var(--lv); transition: width .4s; }
+    .meter .fill.off { background: repeating-linear-gradient(135deg, var(--bad) 0 6px, #7a2f2f 6px 12px); }
+    .meter .maxline { position: absolute; top: 0; bottom: 0; left: 75%; width: 2px; background: var(--fg); }
+    .chk { margin: 0; font-size: 12px; overflow-wrap: anywhere; }
+    .buf { position: relative; height: 18px; background: #1b2130; border-radius: 4px; overflow: hidden; }
+    .buf .seg { position: absolute; top: 4px; bottom: 4px; left: 40%; width: 0; background: var(--ok); border-radius: 2px; transition: left .4s, width .4s; }
+    .buf .seg.bad { background: repeating-linear-gradient(135deg, var(--bad) 0 5px, #7a2f2f 5px 10px); }
+    .buf .pt { position: absolute; top: 0; left: 40%; font: 10px/18px system-ui, sans-serif; transform: translateX(-50%); transition: left .4s; text-shadow: 0 0 3px #000; }
+    .bufcap { margin: 0; font-size: 12px; color: var(--mut); overflow-wrap: anywhere; }
+    .state { margin: 0; font-weight: 600; color: var(--lv); }
+    .log { margin: 0; padding-left: 1.4em; font-size: 12px; color: var(--mut); max-height: 9.5em; overflow: auto; }
+    .log li:last-child { color: var(--fg); }
+    .ctl { display: flex; flex-direction: column; gap: 6px; }
+    fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 0; padding: 4px 8px 8px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+    legend { color: var(--mut); padding: 0 4px; }
+    .row { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+    button, select { font: inherit; min-block-size: 28px; }
+    button { padding: 2px 10px; border: 1px solid var(--line); border-radius: 6px; background: #1d2433; color: var(--fg); cursor: pointer; }
+    button:hover { background: #26304a; }
+    button[aria-pressed="true"] { background: #2a3f66; border-color: var(--acc); }
+    select { background: #1d2433; color: var(--fg); border: 1px solid var(--line); border-radius: 6px; }
+    :focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) { .meter .fill, .buf .seg, .buf .pt { transition: none; } }
+    .thumb .ctl, .thumb .code, .thumb .sub, .thumb .log, .thumb .chk, .thumb .bufcap, .thumb dl div:not(:first-child) { display: none; }
+    .thumb .wrap { padding: 6px; gap: 6px; }
+    .thumb .cols { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+    .thumb .cap { font-size: 11.5px; min-height: 0; padding: 4px 6px; }
+    .thumb .pane { padding: 6px; }
+    .thumb dl div { grid-template-columns: minmax(0, 1fr); }`,
+  core() {
+    // HTTP/2 の接続の送信枠（send_window）の模型。枠は 64 ビットの符号なし整数として BigInt で数える
+    const MAX = 2147483647n;   // 2 の 31 乗 − 1。HTTP/2 の枠の上限
+    const INIT = 65535n;       // 接続の枠の最初の値
+    const CHUNK = 16384n;      // 1回に積む応答の大きさ
+    const TWO64 = 1n << 64n;
+    const u64 = (x) => BigInt.asUintN(64, x);   // C の 64 ビット符号なし整数のように一回りさせる
+    const s64 = (x) => BigInt.asIntN(64, x);    // 同じビットを符号付き（off_t）として読む
+    const bmin = (a, b) => (a < b ? a : b);
+    const newConn = () => ({ sw: INIT, queued: 0n, sent: 0n, closed: false });
+
+    // 応答を積む。送る長さは枠を符号付きで読んで決め、積んだ時点でその分を枠から引く
+    function queueData(c) {
+      if (c.closed) return { conn: c, kind: 'closed', len: null };
+      const len = bmin(CHUNK, s64(c.sw));
+      if (len < 0n) return { conn: c, kind: 'negative', len };
+      if (len === 0n) return { conn: c, kind: 'wait', len };
+      return { conn: { ...c, sw: u64(c.sw - len), queued: c.queued + len }, kind: 'ok', len };
+    }
+
+    // 積んだ応答を送り終える（枠は積んだときに引いてあるので変わらない）
+    function sendQueued(c) {
+      if (c.closed) return { conn: c, kind: 'closed', amount: 0n };
+      return { conn: { ...c, queued: 0n, sent: c.sent + c.queued }, kind: c.queued > 0n ? 'ok' : 'none', amount: c.queued };
+    }
+
+    // ストリームの取り消し。まだ送っていない分を枠に返す
+    function cancelStream(c, mode) {
+      if (c.closed) return { conn: c, kind: 'closed', back: 0n };
+      const back = c.queued;
+      if (mode === 'old') {
+        const sw = u64(c.sw + back);   // 上限を確かめずに足す
+        return { conn: { ...c, sw, queued: 0n }, kind: sw > MAX ? 'over' : 'ok', back };
+      }
+      if (back > MAX - c.sw) return { conn: { ...c, sw: MAX, queued: 0n }, kind: 'capped', back };
+      return { conn: { ...c, sw: c.sw + back, queued: 0n }, kind: 'ok', back };
+    }
+
+    // WINDOW_UPDATE を times 回受ける。同じ答えが続く所はまとめて数えるので、何十億回でもすぐ終わる
+    function windowUpdate(c, inc, times, mode) {
+      if (inc < 1n || inc > MAX) throw new RangeError('増やす量は 1 から 2147483647 まで');
+      if (times < 1n) throw new RangeError('回数は 1 以上');
+      if (c.closed) return { conn: c, kind: 'closed', accepted: 0n };
+      // 確かめの式の右辺。元の書き方は符号なしの引き算なので、負になると 2 の 64 乗を足した数になる
+      const roomOf = (sw) => (mode === 'old' ? u64(MAX - sw) : MAX - sw);
+      let sw = c.sw, left = times, accepted = 0n, swCheck = sw;
+      for (let guard = 0; left > 0n; guard++) {
+        if (guard > 64) throw new Error('計算が終わりません');
+        if (inc > roomOf(sw)) {
+          return { conn: { ...c, sw, closed: true }, kind: 'rejected', accepted, swCheck: sw, room: roomOf(sw), pass: false };
+        }
+        // 次に答えが変わるまでの回数 k をまとめて足す
+        let k;
+        if (sw > MAX) {
+          // 枠が上限を超えていると、確かめはいつも通る。2 の 64 乗に届いて一回りするまで増え続ける
+          k = (TWO64 - sw + inc - 1n) / inc;
+        } else {
+          // 枠が上限以下なら、上限を超えない間だけ通る（inc <= MAX - sw なので k は 1 以上）
+          k = (MAX - sw) / inc;
+        }
+        k = bmin(k, left);
+        swCheck = u64(sw + (k - 1n) * inc);   // まとめた中で最後に確かめたときの枠
+        sw = u64(sw + k * inc);
+        accepted += k;
+        left -= k;
+      }
+      return { conn: { ...c, sw }, kind: 'ok', accepted, swCheck, room: roomOf(swCheck), pass: true };
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const fmt = (b) => b.toLocaleString('ja-JP');
+    const compact = new Intl.NumberFormat('ja-JP', { notation: 'compact', maximumFractionDigits: 1 });
+    const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const MODES = [
+      { key: 'old', title: '元の書き方', sub: '返すときに上限を確かめず、確かめの式を符号なしの引き算で書く', code: [
+        [null, '// ストリームを取り消したとき（送っていない分を返す）'],
+        ['cancel', 'send_window += unsent;'],
+        [null, '// WINDOW_UPDATE を受けたとき（符号なしで引く）'],
+        ['update', 'if (inc > MAX - send_window) 接続を切る;'],
+        ['update', 'send_window += inc;'],
+        [null, '// 応答を積むとき'],
+        ['queue', 'len = min(16384, (off_t) send_window);'],
+      ] },
+      { key: 'new', title: '直した書き方（一例）', sub: '返すときに上限で止め、確かめの式を足し算で書く', code: [
+        [null, '// ストリームを取り消したとき'],
+        ['cancel', 'send_window = min(send_window + unsent, MAX);'],
+        [null, '// WINDOW_UPDATE を受けたとき（足しても 2^32 未満）'],
+        ['update', 'if (send_window + inc > MAX) 接続を切る;'],
+        ['update', 'send_window += inc;'],
+        [null, '// 応答を積むとき'],
+        ['queue', 'len = min(16384, (off_t) send_window);'],
+      ] },
+    ];
+
+    // 2つの欄を作る
+    const P = {};
+    for (const m of MODES) {
+      const k = m.key;
+      const el = document.createElement('article');
+      el.className = 'pane';
+      el.setAttribute('aria-labelledby', 'h-' + k);
+      const code = m.code.map(([tag, s]) => (tag ? `<span data-k="${tag}">${esc(s)}</span>` : `<span class="cm">${esc(s)}</span>`)).join('\n');
+      el.innerHTML = `<h2 id="h-${k}">${m.title}</h2>
+        <p class="sub">${m.sub}</p>
+        <pre class="code" tabindex="0" aria-label="${m.title}の要点のコード">${code}</pre>
+        <dl>
+          <div><dt>送信枠 send_window</dt><dd id="sw-${k}"></dd></div>
+          <div><dt>符号付きで読むと</dt><dd id="sg-${k}"></dd></div>
+          <div><dt>積んだまま送っていない応答</dt><dd id="q-${k}"></dd></div>
+        </dl>
+        <div class="meter" aria-hidden="true"><span class="fill" id="bar-${k}"></span><span class="maxline"></span></div>
+        <p class="chk" id="chk-${k}"></p>
+        <div class="buf" aria-hidden="true" id="buf-${k}"><span class="seg"></span><span class="pt s">始</span><span class="pt e">終</span></div>
+        <p class="bufcap" id="bufc-${k}"></p>
+        <p class="state" id="st-${k}"></p>
+        <ol class="log" id="log-${k}" aria-label="${m.title}の記録"></ol>`;
+      $('cols').append(el);
+      P[k] = { el, conn: newConn(), lastLen: null, chk: null, hit: null, log: [] };
+    }
+
+    function render() {
+      for (const m of MODES) {
+        const k = m.key, p = P[k], c = p.conn;
+        const signed = s64(c.sw);
+        const ratio = Number(c.sw) / Number(MAX);
+        let extra = '';
+        if (c.sw > MAX) extra = ratio < 2 ? '（上限より ' + fmt(c.sw - MAX) + ' 多い）' : '（上限の約 ' + compact.format(ratio) + ' 倍）';
+        $('sw-' + k).textContent = fmt(c.sw) + extra;
+        const sg = $('sg-' + k);
+        sg.textContent = fmt(signed);
+        sg.classList.toggle('neg', signed < 0n);
+        $('q-' + k).textContent = fmt(c.queued) + ' バイト';
+        const bar = $('bar-' + k);
+        bar.style.width = Math.min(100, ratio * 75) + '%';
+        bar.classList.toggle('off', ratio * 75 > 100);
+
+        // 最後に確かめた式
+        const chk = $('chk-' + k);
+        if (!p.chk) chk.textContent = '確かめの式: まだ WINDOW_UPDATE を受けていない';
+        else {
+          const { inc, room, swCheck, pass } = p.chk;
+          const end = pass ? '。偽なので通す' : '。真なので接続を切る';
+          chk.textContent = k === 'old'
+            ? 'inc > MAX − send_window を計算すると ' + fmt(inc) + ' > ' + fmt(room) + end + (swCheck > MAX ? '（上限 − 枠が負になり、2 の 64 乗を足した数に変わった）' : '')
+            : 'send_window + inc > MAX を計算すると ' + fmt(swCheck + inc) + ' > ' + fmt(MAX) + end;
+        }
+
+        // 今回積んだ範囲（始まりと終わり）
+        const buf = $('buf-' + k), seg = buf.querySelector('.seg'), ps = buf.querySelector('.s'), pe = buf.querySelector('.e');
+        const L = p.lastLen, cap = $('bufc-' + k);
+        seg.classList.toggle('bad', L !== null && L < 0n);
+        ps.style.left = '40%';
+        if (c.closed) {
+          cap.textContent = '接続を閉じたので、これ以上は積まない（最後に積んだ範囲のまま）';
+        } else if (L === null || L === 0n) {
+          seg.style.left = '40%'; seg.style.width = '0'; pe.style.left = '40%';
+          cap.textContent = L === null ? '応答を積むと、今回の範囲の始まりと終わりがここに出る' : '今回の範囲: 長さ 0（枠が空くのを待つ）';
+        } else if (L > 0n) {
+          const w = Number(L) / 16384 * 45;
+          seg.style.left = '40%'; seg.style.width = w + '%'; pe.style.left = (40 + w) + '%';
+          cap.textContent = '今回の範囲: 始まり 0、終わり ' + fmt(L) + '（' + fmt(L) + ' バイト）';
+        } else {
+          seg.style.left = '0'; seg.style.width = '40%'; pe.style.left = '4%';
+          cap.textContent = '今回の範囲: 終わりが始まりより ' + fmt(-L) + ' バイト前を指す。実物ではこの先で長さの型が何度も変わり、範囲の外のメモリをコピーする（この模型はここで止める）';
+        }
+
+        // 状態
+        let lv = 'ok', st = '正常（枠は 0 から上限までの間）';
+        if (c.closed) { lv = 'safe'; st = 'FLOW_CONTROL_ERROR で接続を閉じた。枠はこれ以上増えない'; }
+        else if (L !== null && L < 0n) { lv = 'bad'; st = '送る長さが負になった'; }
+        else if (signed < 0n) { lv = 'bad'; st = '枠が上限を大きく超え、符号付きで読むと負になった'; }
+        else if (c.sw > MAX) { lv = 'warn'; st = '枠が上限を超えた（HTTP/2 では起きないはずの値）'; }
+        p.el.dataset.lv = lv;
+        $('st-' + k).textContent = st;
+
+        for (const s of p.el.querySelectorAll('[data-k]')) s.classList.toggle('hit', s.dataset.k === p.hit);
+        const ol = $('log-' + k);
+        ol.replaceChildren(...p.log.map((t) => { const li = document.createElement('li'); li.textContent = t; return li; }));
+        ol.scrollTop = ol.scrollHeight;
+      }
+    }
+
+    // 同じ操作を両方の欄に送る
+    function apply(ev) {
+      let inc = ev.inc;
+      if (ev.fill) { const s = P.old.conn.sw; inc = s < MAX ? MAX - s : 1n; }
+      for (const m of MODES) {
+        const k = m.key, p = P[k], before = p.conn.sw;
+        let r, text;
+        if (ev.type === 'queue') {
+          r = queueData(p.conn);
+          if (r.kind !== 'closed') p.lastLen = r.len;
+          text = r.kind === 'ok' ? '応答を ' + fmt(r.len) + ' バイト積み、枠から引いた（' + fmt(before) + ' → ' + fmt(r.conn.sw) + '）'
+            : r.kind === 'wait' ? '枠が 0 なので積めない。WINDOW_UPDATE を待つ'
+            : r.kind === 'negative' ? '送る長さが ' + fmt(r.len) + ' になった'
+            : '接続は閉じている';
+        } else if (ev.type === 'send') {
+          r = sendQueued(p.conn);
+          text = r.kind === 'closed' ? '接続は閉じている' : r.kind === 'none' ? '送るものが無い' : fmt(r.amount) + ' バイトを送り終えた（枠は積んだときに引いてある）';
+        } else if (ev.type === 'cancel') {
+          r = cancelStream(p.conn, k);
+          text = r.kind === 'closed' ? '接続は閉じている'
+            : r.back === 0n ? 'ストリームを取り消した。返す分は無い'
+            : r.kind === 'capped' ? '取り消して ' + fmt(r.back) + ' バイト分を返すと上限を超えるので、上限 ' + fmt(MAX) + ' で止めた'
+            : '取り消して、送っていない ' + fmt(r.back) + ' バイト分を枠に返した（→ ' + fmt(r.conn.sw) + (r.kind === 'over' ? '。上限を超えた）' : '）');
+        } else {
+          r = windowUpdate(p.conn, inc, ev.times, k);
+          if (r.kind !== 'closed') p.chk = { inc, room: r.room, swCheck: r.swCheck, pass: r.pass };
+          const n = ev.times === 1n ? '' : ' を ' + fmt(ev.times) + ' 回';
+          text = r.kind === 'closed' ? '接続は閉じている'
+            : r.kind === 'ok' ? 'WINDOW_UPDATE +' + fmt(inc) + n + ': 確かめを通り、枠は ' + fmt(r.conn.sw)
+            : (r.accepted > 0n ? fmt(r.accepted) + ' 回目までは通ったが、次で' : 'WINDOW_UPDATE +' + fmt(inc) + ' で') + '枠が上限を超えるので FLOW_CONTROL_ERROR で接続を閉じた';
+        }
+        p.conn = r.conn;
+        p.hit = r.kind === 'closed' || ev.type === 'send' ? null : ev.type;
+        p.log.push(text);
+        if (p.log.length > 40) p.log.shift();
+      }
+      render();
+    }
+
+    function reset() {
+      for (const m of MODES) Object.assign(P[m.key], { conn: newConn(), lastLen: null, chk: null, hit: null, log: ['接続を開いた。枠は ' + fmt(INIT) + ' バイト'] });
+      step = 0;
+      render();
+    }
+
+    // 手順どおりに進める
+    const STEPS = [
+      { ev: { type: 'queue' }, say: '① サーバーが応答を 16,384 バイト積む。nginx は積んだ時点で、その分を枠から引く。' },
+      { ev: { type: 'update', fill: true, times: 1n }, say: '② 相手が WINDOW_UPDATE を送り、サーバーの残りの枠を上限（2,147,483,647）ちょうどまで増やす。ここまでは決まりどおり。' },
+      { ev: { type: 'cancel' }, say: '③ 相手がストリームを取り消す。送っていない 16,384 バイト分が枠に返され、元の書き方では枠が上限を超える。直した書き方は上限で止める。' },
+      { ev: { type: 'update', inc: MAX, times: 1n }, say: '④ 相手がもう一度 WINDOW_UPDATE を送る。元の書き方では「上限 − 枠」が負になり、符号なしなので巨大な数に変わって確かめを通る。直した書き方は接続を切る。' },
+      { ev: { type: 'update', inc: MAX, times: 6442450944n }, say: '⑤ 同じ WINDOW_UPDATE を約 64 億回送ったとして、まとめて計算する。枠は 2 の 63 乗を超え、符号付きで読むと負になる。' },
+      { ev: { type: 'queue' }, say: '⑥ サーバーが次の応答を積む。送る長さを符号付きの枠から決めるので、長さが負になり、範囲の終わりが始まりより前を指す。' },
+    ];
+    const START_SAY = 'nginx の元の書き方と直した書き方に、同じ操作を送って比べる。';
+    let timer = 0, step = 0;
+    const autoBtn = $('auto');
+    function stopAuto() {
+      clearTimeout(timer);
+      timer = 0;
+      autoBtn.setAttribute('aria-pressed', 'false');
+      autoBtn.textContent = '手順どおりに進める';
+    }
+    function tick() {
+      if (step < STEPS.length) {
+        const s = STEPS[step++];
+        apply(s.ev);
+        $('cap').textContent = s.say;
+        timer = setTimeout(tick, window.THUMB ? 1700 : 3400);
+      } else if (window.THUMB) {
+        reset();
+        $('cap').textContent = START_SAY;
+        timer = setTimeout(tick, 1200);
+      } else {
+        stopAuto();
+        $('cap').textContent = '手順の終わり。下のボタンで1つずつ試すこともできる（「最初から」で枠を戻す）。';
+      }
+    }
+    function startAuto() {
+      stopAuto();
+      reset();
+      autoBtn.setAttribute('aria-pressed', 'true');
+      autoBtn.textContent = '止める';
+      $('cap').textContent = START_SAY;
+      timer = setTimeout(tick, 1500);
+    }
+
+    autoBtn.addEventListener('click', () => {
+      if (timer) { stopAuto(); $('cap').textContent = '止めた。下のボタンで1つずつ進められる。'; }
+      else startAuto();
+    });
+    $('reset').addEventListener('click', () => {
+      stopAuto();
+      reset();
+      $('cap').textContent = '最初に戻した。枠は ' + fmt(INIT) + ' バイト。';
+    });
+    document.querySelector('.ctl').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-ev]');
+      if (!b) return;
+      stopAuto();
+      const type = b.dataset.ev;
+      const ev = { type };
+      if (type === 'update') {
+        const v = $('inc').value;
+        if (v === 'fill') ev.fill = true;
+        else ev.inc = BigInt(v);
+        ev.times = BigInt($('times').value);
+      }
+      apply(ev);
+      $('cap').textContent = '操作: ' + b.textContent + (type === 'update' ? '（' + $('inc').selectedOptions[0].textContent + '、' + $('times').selectedOptions[0].textContent + '）' : '');
+    });
+
+    if (window.THUMB) document.documentElement.classList.add('thumb');
+    reset();
+    startAuto();
+  },
+});

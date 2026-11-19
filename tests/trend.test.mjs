@@ -470,3 +470,102 @@ test('部分評価: 終わらない計算・範囲の外を読む命令の列・
   const grow = { f: { params: ['k', 'x'], body: { k: 'call', f: 'f', args: [{ k: 'op', o: '+', a: { k: 'var', n: 'k' }, b: { k: 'num', v: 1 } }, { k: 'var', n: 'x' }] } } };
   assert.throws(() => specialize(grow, 'f', { k: 0 }), /関数が/);
 });
+
+const H2 = 'tr-20261119-h2-window-underflow';
+const H2_NAMES = ['MAX', 'INIT', 's64', 'newConn', 'queueData', 'sendQueued', 'cancelStream', 'windowUpdate'];
+
+test('送信枠: 元の書き方では、取り消しで上限を超えたあと確かめが通り、符号付きで負になる', () => {
+  const { MAX, s64, newConn, queueData, cancelStream, windowUpdate } = trendCore(H2, H2_NAMES);
+  let r = queueData(newConn());
+  assert.equal(r.kind, 'ok');
+  assert.equal(r.len, 16384n);
+  assert.equal(r.conn.sw, 49151n);
+  r = windowUpdate(r.conn, MAX - r.conn.sw, 1n, 'old');
+  assert.equal(r.kind, 'ok');
+  assert.equal(r.conn.sw, MAX);
+  r = cancelStream(r.conn, 'old');
+  assert.equal(r.kind, 'over');
+  assert.equal(r.conn.sw, MAX + 16384n);
+  // 上限 − 枠 = −16384 が、符号なしでは 2^64 − 16384 になって確かめを通る
+  r = windowUpdate(r.conn, MAX, 1n, 'old');
+  assert.equal(r.kind, 'ok');
+  assert.equal(r.pass, true);
+  assert.equal(r.room, (1n << 64n) - 16384n);
+  assert.equal(r.conn.sw, 4294983678n);
+  r = windowUpdate(r.conn, MAX, 6442450944n, 'old');
+  assert.equal(r.kind, 'ok');
+  assert.equal(r.accepted, 6442450944n);
+  assert.equal(r.conn.sw, 13835058053134696446n);
+  assert.equal(s64(r.conn.sw), -4611686020574855170n);
+  r = queueData(r.conn);
+  assert.equal(r.kind, 'negative');
+  assert.ok(r.len < 0n);
+});
+
+test('送信枠: 直した書き方では、返すときに上限で止め、超える WINDOW_UPDATE で接続を閉じる', () => {
+  const { MAX, newConn, queueData, sendQueued, cancelStream, windowUpdate } = trendCore(H2, H2_NAMES);
+  let c = queueData(newConn()).conn;
+  c = windowUpdate(c, MAX - c.sw, 1n, 'new').conn;
+  let r = cancelStream(c, 'new');
+  assert.equal(r.kind, 'capped');
+  assert.equal(r.conn.sw, MAX);
+  r = windowUpdate(r.conn, MAX, 1n, 'new');
+  assert.equal(r.kind, 'rejected');
+  assert.equal(r.pass, false);
+  assert.equal(r.conn.closed, true);
+  assert.equal(windowUpdate(r.conn, 1n, 1n, 'new').kind, 'closed');
+  assert.equal(queueData(r.conn).kind, 'closed');
+  assert.equal(sendQueued(r.conn).kind, 'closed');
+});
+
+test('送信枠: 相手が自分の数えた枠に合わせて増やすなら、元の書き方でも上限を超えない', () => {
+  const { MAX, INIT, newConn, queueData, sendQueued, cancelStream, windowUpdate } = trendCore(H2, H2_NAMES);
+  let c = queueData(newConn()).conn;
+  // 相手はまだ何も受け取っていないので、自分の側の枠は INIT のまま
+  c = windowUpdate(c, MAX - INIT, 1n, 'old').conn;
+  const r = cancelStream(c, 'old');
+  assert.equal(r.kind, 'ok');
+  assert.equal(r.conn.sw, MAX);
+  // 送り終えた分は返さない
+  const s = sendQueued(queueData(newConn()).conn);
+  assert.equal(s.amount, 16384n);
+  assert.equal(cancelStream(s.conn, 'old').back, 0n);
+  // 1,000,000 ずつ 100 万回増やすと、2147 回目までが通り、次で接続を閉じる
+  const u = windowUpdate(newConn(), 1000000n, 1000000n, 'old');
+  assert.equal(u.kind, 'rejected');
+  assert.equal(u.accepted, 2147n);
+  assert.throws(() => windowUpdate(newConn(), 0n, 1n, 'old'));
+  assert.throws(() => windowUpdate(newConn(), MAX + 1n, 1n, 'old'));
+});
+
+test('送信枠: まとめた計算は、1回ずつ確かめたときと同じ答えになる（2^64 で一回りする所も）', () => {
+  const { MAX, windowUpdate } = trendCore(H2, H2_NAMES);
+  const T = 1n << 64n;
+  const slow = (sw, inc, times, mode) => {
+    let acc = 0n;
+    for (let i = 0n; i < times; i++) {
+      const room = mode === 'old' ? BigInt.asUintN(64, MAX - sw) : MAX - sw;
+      if (inc > room) return { sw, acc, closed: true };
+      sw = BigInt.asUintN(64, sw + inc);
+      acc++;
+    }
+    return { sw, acc, closed: false };
+  };
+  const starts = [0n, 65535n, MAX - 5n, MAX, MAX + 1n, MAX + 16384n, T - 3n * MAX, T - MAX - 7n, T - 1n];
+  const incs = [1n, 65535n, 1000000007n, MAX];
+  for (const mode of ['old', 'new']) {
+    for (const sw0 of starts) {
+      if (mode === 'new' && sw0 > MAX) continue;
+      for (const inc of incs) {
+        for (const times of [1n, 2n, 5n, 13n]) {
+          const want = slow(sw0, inc, times, mode);
+          const got = windowUpdate({ sw: sw0, queued: 0n, sent: 0n, closed: false }, inc, times, mode);
+          const at = `${mode} sw=${sw0} inc=${inc} times=${times}`;
+          assert.equal(got.conn.sw, want.sw, at);
+          assert.equal(got.accepted, want.acc, at);
+          assert.equal(got.conn.closed, want.closed, at);
+        }
+      }
+    }
+  }
+});
