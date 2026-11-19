@@ -61,3 +61,10 @@ test('分ける: 色の画像は透明度 255 に、透明度の画像は灰色�
   assert.deepEqual([...color.data], [9, 8, 7, 255, 1, 2, 3, 255]);
   assert.deepEqual([...alpha.data], [100, 100, 100, 255, 0, 0, 0, 255]);
 });
+
+test('PNG: encodePng で書いた RGBA を decodePng で読むと、元の画素に戻る', () => {
+  const w = 5, h = 3, px = Uint8Array.from({ length: w * h * 4 }, (_, i) => (i * 37 + 11) & 255);
+  const back = I.decodePng(I.encodePng({ width: w, height: h, data: px }));
+  assert.equal(back.width, w); assert.equal(back.height, h);
+  assert.deepEqual([...back.data], [...px]);
+});
