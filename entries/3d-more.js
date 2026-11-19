@@ -2502,3 +2502,151 @@ void main() {
     requestAnimationFrame(frame);
   },
 });
+dekiru.add({
+  id: '3d-stack-girl', c: '3d', lv: 3,
+  t: '三面図から作る、重ねたドット絵の立体（スプライトスタッキング）', y: 'さんめんずからつくるかさねたどっとえのりったいすぷらいとすたっきんぐ',
+  tags: ['スプライトスタッキング', 'ボクセル', 'ドット絵', '三面図', 'Canvas'],
+  d: 'X で紹介された「スプライトスタッキング」を、作者が用意したキャラクターの三面図で試した。ドット絵を水平な板に切り、板を同じ角度だけ回して、1 画素ずつ上へずらして下から重ねると、どの向きから見ても立体に見える。板は、正面と横の外形から高さごとの断面を楕円で近似したボクセルの立体から作り、色は面の向きに近い絵から取った。ドラッグで回し、上下に動かすと見下ろす角度が変わる。「板を離す」で重ねる前の板が、「上から外す」で途中の断面が見える。',
+  p: '重ねる順番は下から上でよい。上から見下ろすとき、画面で重なる 2 点のうち、高い板の点のほうが必ず手前にあるので、奥行きを比べずに描ける。板の間にすき間が出ないように、1 枚ごとの上下のずれ（見下ろす角度の cos）を 1 画素以下にして小さなキャンバスに描き、最後にまとめて拡大する。',
+  data: ['data/stack-girl.js'], nt: true,
+  html: `<canvas id="c" role="img" aria-label="ドット絵で作った、茶色の長い髪に水色のリボン、白いブラウスと紺のチェックのスカートの女の子の立体。ゆっくり回る"></canvas>
+<div class="ui bar">
+  <button type="button" id="pause">止める</button>
+  <label for="gap">板を離す（8 枚ずつ）</label><input type="range" id="gap" min="0" max="8" step="1" value="0">
+  <label for="cut">上から外す</label><input type="range" id="cut" min="0" max="160" step="1" value="0">
+  <label for="elev">見下ろす角度</label><input type="range" id="elev" min="8" max="70" step="1" value="15">
+</div>
+<p class="ui info" id="info"></p>
+<p class="ui credit">方法: <a href="https://x.com/asynkimo/status/2121716250820964431" target="_blank" rel="noopener">Kimo の投稿</a>・<a href="https://x.com/fofrAI/status/2122352675283210734" target="_blank" rel="noopener">fofrAI の投稿</a>（X）。三面図: 作者が用意した絵</p>`,
+  css: `
+:root { color-scheme: dark; }
+[hidden] { display: none !important; }
+body { margin: 0; overflow: hidden; background: radial-gradient(ellipse at 50% 70%, #3a4152, #191c24 70%); color: #eef0f6; font: 13px/1.5 system-ui, sans-serif; }
+canvas { display: block; width: 100vw; height: 100vh; touch-action: none; cursor: grab; image-rendering: pixelated; }
+canvas:active { cursor: grabbing; }
+.bar { position: fixed; left: 8px; right: 8px; bottom: 28px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 6px 8px; background: rgb(16 18 26 / .7); border-radius: 8px; }
+.bar button { min-height: 32px; padding: 4px 12px; font: inherit; color: inherit; background: rgb(255 255 255 / .08); border: 1px solid rgb(255 255 255 / .45); border-radius: 6px; cursor: pointer; }
+.bar input[type=range] { width: clamp(80px, 18vw, 160px); min-height: 28px; accent-color: #8fb4ff; }
+.bar button:focus-visible, .bar input:focus-visible, .credit a:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.info { position: fixed; right: 8px; top: 8px; margin: 0; padding: 2px 8px; background: rgb(16 18 26 / .6); border-radius: 6px; font-variant-numeric: tabular-nums; }
+.credit { position: fixed; left: 8px; bottom: 4px; margin: 0; font-size: 12px; color: #c9cfdd; }
+.credit a { color: #b9cdff; }
+.thumb .ui { display: none; }`,
+  core() {
+    // 板の重ね方とデータの戻し方（画面を使わない計算）
+    const SK = (() => {
+      const ELEV_MIN = 8 * Math.PI / 180, ELEV_MAX = 70 * Math.PI / 180;   // 見下ろす角度の下限と上限（下からは見ない）
+      const clampElev = (e) => Math.min(ELEV_MAX, Math.max(ELEV_MIN, e));
+      // 見下ろす角度 el のとき、1 枚ごとに上へずらす量（画素）と、板を縦に縮める割合（正射影）
+      const layerStep = (el) => ({ dy: Math.cos(el), squash: Math.sin(el) });
+      // [回数, 値] の組（base64）を、n 個の並びに戻す
+      function unrle(b64, n) {
+        const s = atob(b64), out = new Uint8Array(n); let o = 0;
+        for (let i = 0; i + 1 < s.length; i += 2) { const c = s.charCodeAt(i); out.fill(s.charCodeAt(i + 1), o, o + c); o += c; }
+        return out;
+      }
+      return { ELEV_MIN, ELEV_MAX, clampElev, layerStep, unrle };
+    })();
+  },
+  js() {
+    const dlog = (ev, args, res) => console.info('[dlog] ' + ev + ' ' + JSON.stringify(args) + ' ' + res);
+    const t0 = performance.now(), c = document.getElementById('c'), g = c.getContext('2d');
+    if (window.THUMB) document.body.classList.add('thumb');
+    const DATA = window.DEKIRU_DATA && window.DEKIRU_DATA['stack-girl'];
+    if (!DATA) { dlog('stack.error', { why: 'data' }, 'ng'); throw new Error('データ data/stack-girl.js がありません'); }
+    const { w: W, d: Dp, h: H } = DATA, vox = SK.unrle(DATA.vox, W * Dp * H);
+    const pal = DATA.pal.map((h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)));
+    // 段ごとの板（上から見た 1 枚の絵）。x は左から右、y は奥から手前
+    const layers = [];
+    for (let j = 0; j < H; j++) {
+      const lc = document.createElement('canvas'); lc.width = W; lc.height = Dp;
+      const id = lc.getContext('2d').createImageData(W, Dp);
+      let n = 0;
+      for (let k = 0; k < Dp; k++) for (let i = 0; i < W; i++) {
+        const v = vox[(j * Dp + k) * W + i]; if (!v) continue;
+        const p = (k * W + i) * 4, col = pal[v - 1]; id.data[p] = col[0]; id.data[p + 1] = col[1]; id.data[p + 2] = col[2]; id.data[p + 3] = 255; n++;
+      }
+      lc.getContext('2d').putImageData(id, 0, 0); layers.push(n ? lc : null);
+    }
+    const DIAG = Math.ceil(Math.hypot(W, Dp)) + 2;
+    const nc = document.createElement('canvas'), ng = nc.getContext('2d');   // 1 ボクセル = 1 画素で描く小さなキャンバス
+    const st = { ang: -0.6, elev: 15 * Math.PI / 180, gap: 0, cut: 0, paused: !window.THUMB && matchMedia('(prefers-reduced-motion: reduce)').matches, drag: null };
+    document.getElementById('cut').max = String(H - 1);
+    function drawStack() {
+      const { dy, squash } = SK.layerStep(st.elev), lift = (j) => j * dy + Math.floor(j / 8) * st.gap;   // 8 枚ずつの束の間を離す
+      const NW = DIAG + 8, NH = Math.ceil(lift(H - 1) + DIAG * squash) + 10;
+      if (nc.width !== NW || nc.height !== NH) { nc.width = NW; nc.height = NH; }
+      ng.clearRect(0, 0, NW, NH); ng.imageSmoothingEnabled = false;
+      const gx = NW / 2, gy = NH - 5 - DIAG / 2 * squash;
+      // 足もとの影
+      ng.fillStyle = 'rgb(0 0 0 / .28)'; ng.beginPath(); ng.ellipse(gx, gy, W * 0.42, W * 0.42 * squash, 0, 0, Math.PI * 2); ng.fill();
+      // 下の板から順に、同じ角度だけ回し、縦に縮めて、1 枚ごとに上へずらして描く
+      const top = H - st.cut;
+      for (let j = 0; j < top; j++) {
+        const L = layers[j]; if (!L) continue;
+        ng.setTransform(1, 0, 0, squash, gx, gy - lift(j));   // 縦に縮める（見下ろす角度の sin）
+        ng.rotate(st.ang);
+        ng.drawImage(L, -W / 2, -Dp / 2);
+      }
+      ng.setTransform(1, 0, 0, 1, 0, 0);
+      return { NW, NH };
+    }
+    // 小窓: いま見えているいちばん上の板 1 枚を、上から見た絵のまま拡大して見せる
+    function drawPlate(cw) {
+      let j = H - st.cut - 1; while (j > 0 && !layers[j]) j--;
+      const L = layers[j]; if (!L) return;
+      const k = Math.max(1, Math.floor(Math.min(cw * 0.22 / W, 140 / Dp))), pw = W * k, ph = Dp * k, x0 = 10, y0 = 10;
+      g.fillStyle = 'rgb(16 18 26 / .75)'; g.fillRect(x0 - 4, y0 - 4, pw + 8, ph + 30);
+      g.strokeStyle = 'rgb(255 255 255 / .25)'; g.strokeRect(x0 - 0.5, y0 - 0.5, pw + 1, ph + 1);
+      g.drawImage(L, x0, y0, pw, ph);
+      g.fillStyle = '#eef0f6'; g.font = '12px system-ui, sans-serif'; g.fillText(`上から ${H - j} 枚目の板（下が前）`, x0, y0 + ph + 18);
+    }
+    function render() {
+      const cw = Math.max(1, innerWidth), ch = Math.max(1, innerHeight);
+      if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; }
+      const { NW, NH } = drawStack();
+      // 拡大: 2 倍以上なら整数倍（ドット絵の画素の大きさをそろえる）。小さな枠では端数のまま拡大する
+      const bar = window.THUMB ? 0 : document.querySelector('.bar').getBoundingClientRect().height + 34, avail = Math.max(1, ch - bar);
+      const z = Math.min(cw / NW, avail / NH), zoom = z >= 2 ? Math.floor(z) : Math.max(0.5, z);
+      g.clearRect(0, 0, cw, ch); g.imageSmoothingEnabled = false;
+      g.drawImage(nc, Math.round((cw - NW * zoom) / 2), Math.round((avail - NH * zoom) / 2), Math.round(NW * zoom), Math.round(NH * zoom));
+      if (!window.THUMB) drawPlate(cw);
+      return zoom;
+    }
+    // 操作: ドラッグで回す・見下ろす角度を変える。スライダー。止める
+    const elevIn = document.getElementById('elev'), pause = document.getElementById('pause');
+    const syncElev = () => { elevIn.value = String(Math.round(st.elev * 180 / Math.PI)); };
+    c.addEventListener('pointerdown', (e) => { st.drag = { x: e.clientX, y: e.clientY, ang: st.ang, elev: st.elev }; c.setPointerCapture(e.pointerId); });
+    c.addEventListener('pointermove', (e) => {
+      if (!st.drag) return;
+      st.ang = st.drag.ang + (e.clientX - st.drag.x) * 0.012;
+      st.elev = SK.clampElev(st.drag.elev + (e.clientY - st.drag.y) * 0.006); syncElev(); dirty = true;
+    });
+    const endDrag = () => { if (!st.drag) return; st.drag = null; dlog('stack.drag', { ang: +st.ang.toFixed(2), elev: Math.round(st.elev * 180 / Math.PI) }, 'ok'); };
+    c.addEventListener('pointerup', endDrag); c.addEventListener('pointercancel', endDrag);
+    for (const [id, set] of [['gap', (v) => { st.gap = v; }], ['cut', (v) => { st.cut = v; }], ['elev', (v) => { st.elev = SK.clampElev(v * Math.PI / 180); }]]) {
+      const el = document.getElementById(id);
+      el.addEventListener('input', () => { set(+el.value); dirty = true; });
+      el.addEventListener('change', () => dlog('stack.' + id, { value: +el.value }, 'ok'));
+    }
+    const setPause = (v) => { st.paused = v; pause.textContent = v ? '回す' : '止める'; };
+    pause.addEventListener('click', () => { setPause(!st.paused); dlog('stack.pause', { paused: st.paused }, 'ok'); });
+    setPause(st.paused);
+    const n = vox.reduce((a, v) => a + (v ? 1 : 0), 0);
+    document.getElementById('info').textContent = `${W}×${Dp}×${H} ボクセル・${n.toLocaleString()} 個・${pal.length} 色・板 ${H} 枚`;
+    let dirty = true, last = null, frames = 0, zoom = 1;
+    const gaps = [];
+    function frame(now) {
+      const dt = last == null ? 0 : Math.min(0.1, (now - last) / 1000); last = now;
+      if (!window.THUMB && !st.paused && !st.drag) { st.ang += dt * 0.5; dirty = true; }
+      if (c.width !== Math.max(1, innerWidth) || c.height !== Math.max(1, innerHeight)) dirty = true;
+      if (dirty) {
+        const a = performance.now(); zoom = render(); dirty = false; gaps.push(performance.now() - a); if (gaps.length > 120) gaps.shift();
+        if (++frames === 20) dlog('stack.ready', { ms: Math.round(performance.now() - t0), vox: n, zoom, draw: +(gaps.reduce((x, y) => x + y, 0) / gaps.length).toFixed(2) }, 'ok');
+      }
+      requestAnimationFrame(frame);
+    }
+    window.__stack = { st, set: (o) => { Object.assign(st, o); dirty = true; }, draw: () => ({ n: gaps.length, mean: gaps.reduce((x, y) => x + y, 0) / (gaps.length || 1), zoom }) };
+    requestAnimationFrame(frame);
+  },
+});
