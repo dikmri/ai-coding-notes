@@ -1,6 +1,8 @@
 // 一覧のカードの静止画の目録。node tools/thumbs.mjs が作る。手で直さない
-window.DEKIRU_THUMBS = {"v":1,"w":400,"h":250,"cols":4,"rows":2,"sheets":["68d72c","4e08da","19ffa2","dd35ff","dd3a9c","60fbf0","63e81e","b7a4d3","686b21","92cefe","eb8186","f2066e","45a218","2a91ab","37d693","24ab4a","5a54cd","f752e7","d5e527","6c6f03","a925dd","52db0c","cf580e","4ff3cb","e52822","8d4c85","86cb75","aea336","88ed5d","d743dc","151077","a2a63d","026310","3bb873","eda318","f2d7f7","5b432b","315430","5da556","f6d5b0","4c1b0f","a1602a","17a31a","899807","4aa5ef","74e1f4","5c3a3a","18757a","ce7b78","9b8854","d15b89","b18e2c","f68cc0","50dd37","d7bec3","1b14a4","c3c5fd","fbea8e","9b356e","5efb07","b5f169","62dca2","9a1eff"],"at":{
+window.DEKIRU_THUMBS = {"v":1,"w":400,"h":250,"cols":4,"rows":2,"sheets":["68d72c","4e08da","19ffa2","dd35ff","dd3a9c","60fbf0","63e81e","b7a4d3","686b21","92cefe","eb8186","f2066e","45a218","2a91ab","37d693","24ab4a","5a54cd","f752e7","d5e527","6c6f03","a925dd","52db0c","cf580e","4ff3cb","e52822","8d4c85","86cb75","aea336","88ed5d","d743dc","151077","a2a63d","026310","3bb873","eda318","f2d7f7","5b432b","315430","5da556","f6d5b0","4c1b0f","a1602a","17a31a","899807","4aa5ef","74e1f4","5c3a3a","18757a","ce7b78","9b8854","d15b89","b18e2c","f68cc0","50dd37","d7bec3","1b14a4","c3c5fd","fbea8e","9b356e","5efb07","b5f169","62dca2","ac9907"],"at":{
 "tr-20261119-partial-eval":[60,0,"d237915398"],
+"tr-20261119-h2-window-underflow":[62,3,"5437b6d605"],
+"tr-20261119-upcase-overflow":[62,4,"9067f99f81"],
 "tr-20261118-mutation-test":[0,0,"0be64d99cc"],
 "tr-20261118-romer-light":[56,7,"57942daca2"],
 "tr-20261118-solid-signals":[60,1,"ddf8780937"],
@@ -490,6 +492,7 @@ window.DEKIRU_THUMBS = {"v":1,"w":400,"h":250,"cols":4,"rows":2,"sheets":["68d72
 "real-lighthouse":[55,3,"df5a9dbc3b"],
 "real-shore-walker":[55,4,"3cc9cd8208"],
 "real-shiori-figure":[55,5,"e34083f86e"],
+"real-dusk-ride":[62,5,"97f348a137"],
 "app-spreadsheet":[55,6,"aa49dd0504"],
 "app-kakeibo":[55,7,"388dba31d2"],
 "app-flashcards":[56,0,"d1fcf7c498"],
