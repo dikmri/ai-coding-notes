@@ -879,3 +879,115 @@ test('zram: でたらめに開いたり切り替えたりしても、RAM と zra
     assert.equal(s.n.ok, s.n.in);
   }
 });
+
+// jj（Jujutsu）の自動の付け替え
+const JJ = 'tr-20261120-jj-auto-rebase';
+const jj = () => trendCore(JJ, ['one', 'resolved', 'rebaseLine', 'prefixLen', 'session', 'act', 'byDesc', 'conflicts', 'isEmpty', 'graphRows', 'TOUR', 'hex']);
+
+test('jj: 行は「子 + 新しい親 − 古い親」で付け替え、両方が別の値に変えた行だけが衝突になる', () => {
+  const J = jj();
+  const plain = (m) => JSON.parse(JSON.stringify(m));
+  // 子が変えていない行は、新しい親の値になる
+  assert.deepEqual(plain(J.rebaseLine(J.one('a'), J.one('b'), J.one('a'))), { adds: ['b'], removes: [] });
+  // 親が変えていない行は、子の値のまま
+  assert.deepEqual(plain(J.rebaseLine(J.one('c'), J.one('a'), J.one('a'))), { adds: ['c'], removes: [] });
+  // 両方が同じ値に変えたら衝突しない
+  assert.deepEqual(plain(J.rebaseLine(J.one('x'), J.one('x'), J.one('a'))), { adds: ['x'], removes: [] });
+  // 両方が別の値に変えたら衝突（足す項2つ、引く項1つ。先頭は子の値）
+  const m = J.rebaseLine(J.one('c'), J.one('b'), J.one('a'));
+  assert.equal(J.resolved(m), false);
+  assert.deepEqual(plain(m), { adds: ['c', 'b'], removes: ['a'] });
+  // 衝突した親の上へ、その行を変えていない子を付け替えると、子も同じ衝突を持つ
+  assert.deepEqual(plain(J.rebaseLine(J.one('a'), m, J.one('a'))), plain(m));
+  // 衝突したままの子を元の親へ戻すと、衝突が消える
+  assert.deepEqual(plain(J.rebaseLine(m, J.one('a'), J.one('b'))), { adds: ['c'], removes: [] });
+});
+
+test('jj: 書き換えても change ID は同じで、コミット ID だけが変わる。main は変えられない。空の @ は離れると捨てられる', () => {
+  const J = jj();
+  const S = J.session();
+  const wc = S.repo.wc, c0 = S.repo.changes[wc].commit;
+  assert.ok(J.act(S, { op: 'snap', file: 'main.py', line: 1, text: 'x' }).ok);
+  assert.equal(S.repo.wc, wc);
+  assert.notEqual(S.repo.changes[wc].commit, c0);
+  assert.equal(S.repo.changes[wc].evo.length, 2);
+  assert.equal(J.act(S, { op: 'snap', file: 'main.py', line: 1, text: 'x' }).ok, false, '同じ中身なら記録しない');
+  const bad = J.act(S, { op: 'edit', id: S.repo.main });
+  assert.equal(bad.ok, false);
+  assert.match(bad.out[0], /immutable/);
+  assert.equal(J.act(S, { op: 'describe', id: S.repo.main, text: 'y' }).ok, false);
+  J.act(S, { op: 'new' });
+  const empty = S.repo.wc;
+  assert.ok(J.isEmpty(S.repo, S.repo.changes[empty]));
+  assert.ok(J.act(S, { op: 'new', id: S.repo.main }).ok);
+  assert.equal(S.repo.changes[empty], undefined, '空で説明も無い @ は捨てられる');
+  assert.ok(S.repo.changes[wc], '中身のある変更は残る');
+});
+
+test('jj: undo と redo と op restore は操作の記録の上を行き来する', () => {
+  const J = jj();
+  const S = J.session();
+  const desc = () => S.repo.changes[S.repo.wc].desc;
+  J.act(S, { op: 'describe', text: 'a' });
+  J.act(S, { op: 'describe', text: 'b' });
+  assert.equal(desc(), 'b');
+  assert.ok(J.act(S, { op: 'undo' }).ok);
+  assert.equal(desc(), 'a');
+  assert.ok(J.act(S, { op: 'undo' }).ok);
+  assert.equal(desc(), '');
+  assert.equal(J.act(S, { op: 'undo' }).ok, false);
+  assert.ok(J.act(S, { op: 'redo' }).ok);
+  assert.equal(desc(), 'a');
+  // undo の後に別の操作をすると、redo はできない
+  J.act(S, { op: 'describe', text: 'c' });
+  assert.equal(J.act(S, { op: 'redo' }).ok, false);
+  // op restore で最初の状態に戻せる。それも1つの操作として残る
+  const n = S.hist.ops.length;
+  assert.ok(J.act(S, { op: 'restore', i: 0 }).ok);
+  assert.equal(desc(), '');
+  assert.equal(S.hist.ops.length, n + 1);
+  assert.equal(new Set(S.hist.ops.map((o) => o.id)).size, S.hist.ops.length, '操作の ID は重ならない');
+});
+
+test('jj: 区別できる最短の頭の文字と、枝分かれしたグラフの列', () => {
+  const J = jj();
+  assert.equal(J.prefixLen(['kpq', 'kxy', 'royx'], 'kpq'), 2);
+  assert.equal(J.prefixLen(['kpq', 'kxy', 'royx'], 'royx'), 1);
+  assert.equal(J.prefixLen(['abc', 'abd'], 'abc'), 3);
+  assert.match(J.hex('jj', 12), /^[0-9a-f]{12}$/);
+  const S = J.session();
+  J.act(S, { op: 'describe', text: 'a' });
+  J.act(S, { op: 'new', id: S.repo.main });
+  const rows = J.graphRows(S.repo);
+  assert.deepEqual(Array.from(rows, (x) => x.col), [0, 1, 0]);
+  assert.equal(rows[0].id, S.repo.wc);
+  assert.equal(rows[2].id, S.repo.main);
+});
+
+test('jj: 記事の流れで、税率を直すと上の変更が衝突し、squash で解け、undo・redo・rebase で一本になる', () => {
+  const J = jj();
+  const S = J.session();
+  const res = J.TOUR.map((st) => J.act(S, st));
+  res.forEach((r, i) => assert.ok(r.ok, `${i}: ${r.cmd} ${r.out.join(' ')}`));
+  // 税率を直した手順: 上に重なった2つを付け替え、「送料を足す」だけが衝突する
+  const k = J.TOUR.findIndex((s) => s.op === 'snap' && s.text === '    return round(n * 108)');
+  assert.match(res[k].out.join('\n'), /2 個/);
+  assert.match(res[k].out.join('\n'), /衝突した変更/);
+  // 前の空の @ が自動で捨てられた
+  assert.ok(res.some((r) => r.out.some((o) => o.includes('自動で捨てた'))));
+  // 最後は一本道: main ← 税込み ← 使い方 ← 送料 ← @、衝突は無い
+  const r = S.repo, chain = [];
+  for (let c = r.changes[r.wc]; c; c = r.changes[c.parent]) chain.push(c.desc || '@');
+  assert.deepEqual(chain, ['@', '送料を足す', '使い方を書く', '税込みにする', '値段の計算を作る']);
+  assert.equal(Object.keys(r.changes).length, 5);
+  for (const c of Object.values(r.changes)) assert.equal(J.conflicts(c.tree), 0, c.desc);
+  const ship = r.changes[J.byDesc(r, '送料を足す')];
+  assert.equal(ship.tree['main.py'][1].adds[0], '    return round(n * 108) + 500');
+  assert.equal(ship.tree['README.md'][1].adds[0], 'price(n) は n 個の税込みの値段を返す');
+  assert.ok(J.graphRows(r).every((x) => x.col === 0));
+  // undo で戻した手順の直後は、まだ衝突が残っていた
+  const S2 = J.session();
+  const u = J.TOUR.findIndex((s) => s.op === 'undo');
+  J.TOUR.slice(0, u + 1).forEach((st) => J.act(S2, st));
+  assert.equal(J.conflicts(S2.repo.changes[J.byDesc(S2.repo, '送料を足す')].tree), 1);
+});

@@ -4393,3 +4393,814 @@ dekiru.add({
     if (!window.THUMB) setTimeout(bench, 600);
   },
 });
+
+dekiru.add({
+  id: 'tr-20261120-jj-auto-rebase', c: 'trend', lv: 3, date: '2026-11-20',
+  t: '下の変更を直すと、上に重なった変更が自動で付け替わる版管理（jj / Jujutsu の仕組み）',
+  y: 'したのへんこうをなおすとうえにかさなったへんこうがじどうでつけかわるばんかんり',
+  tags: ['Jujutsu', 'jj', '版管理', 'リベース', '三方向マージ'],
+  d: '2026年11月18日に Ethan Lowman さんが書いた入門記事「Jujutsu Primer」が、11月20日に Hacker News で110点を超えた。Git を使う人に向けて、版管理の道具 jj（Jujutsu）を紹介する記事である。jj では作業中のファイルもいつも1つのコミット（@）として記録される。変更には、中身が変わっても同じままの change ID と、中身ごとに変わるコミット ID の2つが付く。下にある変更を直すと、その上に重なった変更を jj が自動で付け替え（リベース）、同じ行がぶつかっても止まらずに「衝突した変更」として記録する。どの操作も jj undo で取り消せる。この見本は、その仕組みを2つのファイルの行を単位にした小さな模型で一から作った。左のグラフで変更を選び、jj new・jj edit・jj squash・jj abandon・jj describe・jj rebase・jj undo・jj redo を押すと、グラフ・ファイル・端末の出力・操作の記録（op log）が変わる。@ を選ぶと、ファイルの行を書き換えられる。「自動で流れを見る」をオンにすると、記事とほぼ同じ流れを順に見せる。税率を直すと上の変更が衝突し、新しい変更で直して squash し、undo と redo をして、最後に rebase で一本にする。行の挿入と削除、親が2つあるマージのコミット、revset、ブックマークの移動、Git との同期は再現していない。コミット ID は SHA-1 ではなく、この見本で作った短いハッシュである。本物の jj は次に jj のコマンドを動かしたときに作業コピーを記録するが、この見本は行の欄で Enter を押したときか、欄から離れたときに記録する。',
+  p: 'jj は、衝突した中身を「足す項と引く項の並び」で持つ（A + (C − B) のような形）。変更を新しい親へ移すときは、行ごとに「子 + 新しい親 − 古い親」を作り、同じ値の足す項と引く項を打ち消す。子がその行を変えていなければ「子 = 古い親」なので打ち消し合い、新しい親の値だけが残る。親がその行を変えていなければ「新しい親 = 古い親」なので、子の値が残る。両方が別の値に変えていると3つの項が残り、それが衝突になる（両方が同じ値に変えたときは、その値に決める）。衝突した変更の上にさらに変更を付け替えても同じ計算で済み、衝突をそのまま持つ子は打ち消し合って親と同じ衝突になる。だから jj は衝突で止まらずに先へ進める。コミット ID は中身・説明・親のコミット ID・時刻から作るので、付け替えられた変更はすべて新しいコミット ID になる。操作の記録は、操作のたびにリポジトリ全体の状態を1つ残すだけで、undo は1つ前の状態へ戻す新しい操作として記録する。',
+  refs: [
+    { title: 'Jujutsu Primer（Ethan Lowman）', url: 'https://ethanlowman.com/posts/jj-primer/' },
+    { title: 'Hacker News: Jujutsu Primer', url: 'https://news.ycombinator.com/item?id=50570628' },
+    { title: 'Jujutsu docs: First-class conflicts（衝突の持ち方）', url: 'https://jj-vcs.github.io/jj/latest/technical/conflicts/' },
+    { title: 'jj-vcs/jj（GitHub）', url: 'https://github.com/jj-vcs/jj' },
+  ],
+  html: `<div class="wrap">
+  <div class="cols">
+    <section>
+      <div class="hd">jj log <span class="mut">（押すと右に中身を出す）</span></div>
+      <div id="log" class="log" role="group" aria-label="変更のグラフ（上ほど新しい）"></div>
+      <p class="mut small">左の英字が change ID、右の16進数がコミット ID。太字は、ほかと区別できる最短の頭の文字。@ が作業コピー、× は衝突、◆ は変えられない変更（main）。</p>
+    </section>
+    <section>
+      <div class="hd" id="selhd"></div>
+      <p id="evo" class="mut small"></p>
+      <div id="files" class="files"></div>
+    </section>
+  </div>
+  <p id="msg" class="msg" role="status"></p>
+  <div class="ctl">
+    <div role="toolbar" id="bar" focusgroup="toolbar wrap" aria-label="jj のコマンド（選んだ変更に対して動く）">
+      <button type="button" data-op="new">jj new</button>
+      <button type="button" data-op="edit">jj edit</button>
+      <button type="button" data-op="squash">jj squash</button>
+      <button type="button" data-op="abandon">jj abandon</button>
+      <span role="separator" aria-orientation="vertical"></span>
+      <button type="button" data-op="undo">jj undo</button>
+      <button type="button" data-op="redo">jj redo</button>
+    </div>
+  </div>
+  <div class="ctl">
+    <form id="fDesc" class="f">
+      <label for="desc">説明</label>
+      <input id="desc" type="text" autocomplete="off" maxlength="40">
+      <button type="submit" id="bDesc">jj describe -m</button>
+    </form>
+    <form id="fReb" class="f">
+      <button type="submit" id="bReb">jj rebase -s -o</button>
+      <label for="dest">移す先</label>
+      <select id="dest"></select>
+    </form>
+  </div>
+  <div class="ctl">
+    <label class="sw"><input type="checkbox" switch id="auto"> 自動で流れを見る</label>
+    <button type="button" id="bReset">最初から</button>
+  </div>
+  <div class="cols under">
+    <section>
+      <div class="hd">端末</div>
+      <pre id="term" class="term" tabindex="0" aria-label="端末の出力"></pre>
+    </section>
+    <section>
+      <div class="hd">jj op log <span class="mut">（押すと、その操作の直後へ戻す）</span></div>
+      <ol id="ops" class="ops"></ol>
+    </section>
+  </div>
+</div>`,
+  css: `:root { color-scheme: dark; --bg: #11141b; --fg: #e3e7ef; --mut: #98a2b8; --line: #2b3346; --panel: #181c26; --cid: #e09cff; --cmt: #6fb3ff; --wc: #46d39a; --bad: #ff7a7a; --chg: #ffc562; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, sans-serif; }
+    .wrap { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    @media (min-width: 640px) { .cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+    section { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .hd { font-weight: 600; }
+    .mut { color: var(--mut); font-weight: 400; }
+    .small { font-size: 12px; margin: 0; }
+    .log, .files, .term, .ops, .cid, .cmt, .ctl button, .f button { font-family: ui-monospace, Consolas, monospace; }
+    .log { position: relative; }
+    .log svg { position: absolute; inset-block-start: 0; inset-inline-start: 0; z-index: 1; pointer-events: none; }
+    .log path { fill: none; stroke: #6c7891; stroke-width: 1.5; }
+    .log .n { fill: var(--bg); stroke: #c9d1e3; stroke-width: 1.5; }
+    .log .n.wc { stroke: var(--wc); }
+    .log .n.im { fill: #c9d1e3; }
+    .log .n.cf { stroke: var(--bad); }
+    .log .x { stroke: var(--bad); stroke-width: 2; }
+    .log .at { fill: var(--wc); font: 700 11px ui-monospace, Consolas, monospace; text-anchor: middle; }
+    .row { position: absolute; inset-inline: 0; block-size: 44px; display: flex; flex-direction: column; justify-content: center; gap: 0; text-align: start; padding-block: 0; padding-inline-end: 6px; border: 1px solid transparent; border-radius: 6px; background: none; color: inherit; font: inherit; font-size: 13px; line-height: 1.4; cursor: pointer; }
+    .row .l1, .row .l2 { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row .l2 { color: var(--mut); font-family: system-ui, sans-serif; }
+    .row[aria-pressed="true"] { background: #1d2333; border-color: #3b4660; }
+    @media (hover: hover) { .row:hover { background: #1a2030; } }
+    .cid { color: var(--cid); }
+    .cmt { color: var(--cmt); }
+    .cid b, .cmt b { font-weight: 800; }
+    .cid .r, .cmt .r { opacity: .55; }
+    .bm { color: var(--wc); }
+    .tag { color: var(--mut); }
+    .tag.bad { color: var(--bad); }
+    .flash { border-radius: 3px; animation: fl 1.4s ease-out; }
+    @keyframes fl { from { background: rgb(111 179 255 / .5); } to { background: transparent; } }
+    .files { display: flex; flex-direction: column; gap: 8px; }
+    .file { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+    .fname { padding: 3px 8px; background: var(--panel); color: var(--mut); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ln { display: grid; grid-template-columns: 2.4em minmax(0, 1fr); align-items: start; font-size: 13px; border-inline-start: 3px solid transparent; }
+    .ln.chg { border-inline-start-color: var(--chg); background: rgb(255 197 98 / .07); }
+    .ln.cf { border-inline-start-color: var(--bad); background: rgb(255 122 122 / .08); }
+    .ln .no { color: #5d6780; text-align: end; padding: 3px 8px 3px 0; user-select: none; }
+    .lb { display: flex; flex-direction: column; gap: 3px; padding: 1px 4px 1px 0; min-width: 0; }
+    .lb code { white-space: pre; padding: 2px 4px; overflow: hidden; text-overflow: ellipsis; min-block-size: 1.5em; }
+    .lb input { font: inherit; inline-size: 100%; box-sizing: border-box; padding: 1px 4px; margin: 1px 0; background: #0c0f15; color: var(--fg); border: 1px solid #2f3a52; border-radius: 4px; }
+    .lb .mk { margin: 2px 0; padding: 4px 6px; font: inherit; font-size: 12px; white-space: pre; overflow-x: auto; color: #f0d0d0; background: #1c1418; border-radius: 4px; }
+    .msg { margin: 0; padding: 6px 8px; border-inline-start: 3px solid var(--cmt); background: var(--panel); border-radius: 4px; font-size: 13px; min-block-size: 3em; }
+    .ctl { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+    [role="toolbar"] { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    [role="separator"] { block-size: 20px; border-inline-start: 1px solid var(--line); }
+    .f { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; }
+    button, select { font: inherit; min-block-size: 28px; min-inline-size: 24px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 6px; background: #1e2433; color: var(--fg); cursor: pointer; }
+    .ctl button, .f button { font-size: 13px; }
+    #desc { font: inherit; inline-size: 13em; max-inline-size: 100%; min-block-size: 28px; box-sizing: border-box; padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; background: #0c0f15; color: var(--fg); }
+    @media (hover: hover) { button:hover:not([aria-disabled="true"]) { background: #283048; } }
+    button[aria-disabled="true"] { opacity: .45; cursor: default; }
+    :focus-visible { outline: 2px solid #ffd27a; outline-offset: 2px; }
+    @media (pointer: coarse) { button, select, #desc { min-block-size: 36px; } }
+    .sw { display: inline-flex; align-items: center; gap: 6px; }
+    input[type="checkbox"][switch] { accent-color: var(--wc); margin: 0; cursor: pointer; }
+    .term { margin: 0; padding: 6px 8px; background: #0a0d13; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; block-size: 16em; overflow: auto; }
+    .term .cmd { color: var(--wc); }
+    .term .o { color: #c4cbe0; }
+    .term .err { color: var(--bad); }
+    .ops { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-block-size: 16em; overflow: auto; }
+    .ops button { inline-size: 100%; text-align: start; font-size: 12px; padding: 2px 8px; background: none; border-color: transparent; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ops button[aria-current="true"] { border-color: #3b4660; background: #1d2333; }
+    .ops .opid { color: var(--cmt); }
+    @media (forced-colors: active) { .row[aria-pressed="true"], .ops button[aria-current="true"] { border-color: Highlight; } }
+    @media (prefers-reduced-motion: reduce) { .flash { animation: none; } }
+    .thumb .wrap { padding: 6px; gap: 6px; }
+    .thumb .ctl, .thumb .under, .thumb .small, .thumb #evo, .thumb .msg { display: none; }
+    .thumb .cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }`,
+  core() {
+    // jj（Jujutsu）の変更・コミット・自動の付け替え・衝突・操作の記録を、ファイルの行を単位にした小さな模型で計算する
+    const LETTERS = 'klmnopqrstuvwxyz';   // jj の change ID は k〜z の 16 文字で書く
+    const FILES = ['main.py', 'README.md'];
+    const BASE = {
+      'main.py': ['def price(n):', '    return n * 100', '', 'print(price(3))', ''],
+      'README.md': ['# 値段の計算', '', ''],
+    };
+
+    // 1行の中身は「足す項と引く項」の並びで持つ（jj の衝突の持ち方）: adds[0] − removes[0] + adds[1] − …
+    // 衝突していない行は、足す項が1つで引く項が無い
+    const one = (s) => ({ adds: [s], removes: [] });
+    const resolved = (m) => m.adds.length === 1 && m.removes.length === 0;
+    function simplify(m) {
+      const adds = m.adds.slice(), removes = [];
+      for (const r of m.removes) {
+        const i = adds.lastIndexOf(r);   // 後ろから打ち消すと、子の値が先頭に残る
+        if (i >= 0) adds.splice(i, 1); else removes.push(r);
+      }
+      // 両側が同じ値に書き換えたなら、その値に決める
+      if (removes.length && adds.every((a) => a === adds[0]) && removes.every((r) => r === removes[0])) return one(adds[0]);
+      return { adds, removes };
+    }
+    // 子の行 + 新しい親の行 − 古い親の行
+    const rebaseLine = (ch, nb, ob) => simplify({ adds: [...ch.adds, ...nb.adds, ...ob.removes], removes: [...ch.removes, ...nb.removes, ...ob.adds] });
+    function mapTree(t, f) {
+      const o = {};
+      for (const k of FILES) o[k] = t[k].map((m, i) => f(m, k, i));
+      return o;
+    }
+    const rebaseTree = (ch, nb, ob) => mapTree(ch, (m, k, i) => rebaseLine(m, nb[k][i], ob[k][i]));
+    const lineKey = (m) => JSON.stringify([m.adds.slice().sort(), m.removes.slice().sort()]);
+    const treeKey = (t) => FILES.map((k) => t[k].map(lineKey).join('|')).join('/');
+    const conflicts = (t) => FILES.reduce((n, k) => n + t[k].filter((m) => !resolved(m)).length, 0);
+
+    // 文字列から16進数の指紋を作る（本物は SHA-1。ここでは 32 ビットのハッシュを2つ並べた短いもの）
+    function hex(str, n) {
+      let a = 0x811c9dc5, b = 0x9e3779b9;
+      for (let i = 0; i < str.length; i++) {
+        const ch = str.charCodeAt(i);
+        a = Math.imul(a ^ ch, 0x01000193);
+        b = Math.imul(b ^ ch, 0x5bd1e995);
+        b ^= b >>> 15;
+      }
+      return ((a >>> 0).toString(16).padStart(8, '0') + (b >>> 0).toString(16).padStart(8, '0')).slice(0, n);
+    }
+    // ほかの ID と区別できる最短の頭の文字数
+    function prefixLen(all, s) {
+      let n = 1;
+      while (n < s.length && all.some((o) => o !== s && o.startsWith(s.slice(0, n)))) n++;
+      return n;
+    }
+    const short = (r, id) => id.slice(0, prefixLen(Object.keys(r.changes), id));
+
+    function rand(r) {
+      let t = (r.rng = (r.rng + 0x6d2b79f5) | 0);
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    }
+    function newId(r) {
+      let id;
+      do {
+        id = '';
+        for (let i = 0; i < 8; i++) id += LETTERS[Math.floor(rand(r) * 16)];
+      } while (r.changes[id]);
+      return id;
+    }
+    // コミット ID は、change ID・親のコミット ID・中身・説明・時刻から作る
+    function stamp(r, c) {
+      const p = c.parent && r.changes[c.parent] ? r.changes[c.parent].commit : '';
+      c.commit = hex(JSON.stringify([c.id, p, treeKey(c.tree), c.desc, r.time]), 12);
+      if (c.evo[c.evo.length - 1] !== c.commit) c.evo.push(c.commit);
+    }
+    const children = (r, id) => Object.values(r.changes).filter((c) => c.parent === id).sort((a, b) => a.born - b.born);
+    const isEmpty = (r, c) => !!c.parent && !!r.changes[c.parent] && treeKey(c.tree) === treeKey(r.changes[c.parent].tree);
+    function isAncestor(r, a, b) {
+      for (let c = r.changes[b]; c; c = r.changes[c.parent]) if (c.id === a) return true;
+      return false;
+    }
+    function make(r, parent, tree) {
+      const c = { id: newId(r), parent, tree: JSON.parse(JSON.stringify(tree)), desc: '', commit: '', evo: [], immutable: false, born: r.born++ };
+      r.changes[c.id] = c;
+      stamp(r, c);
+      return c;
+    }
+    function initRepo() {
+      const r = { changes: {}, wc: '', main: '', time: 1, rng: 20261120, born: 0 };
+      const base = {};
+      for (const k of FILES) base[k] = BASE[k].map(one);
+      const m = make(r, null, base);
+      m.desc = '値段の計算を作る';
+      m.immutable = true;
+      m.evo = [];
+      stamp(r, m);
+      r.main = m.id;
+      r.wc = make(r, m.id, m.tree).id;
+      return r;
+    }
+
+    // 変更 id の中身を tree にし、上に重なった変更を自動で付け替える（skip の子は中身を変えずにつなぎ直すだけ）
+    function rewrite(r, id, tree, desc, skip = []) {
+      const x = { rebased: [], conflicted: [], fixed: [] };
+      const c = r.changes[id], old = c.tree;
+      c.tree = tree;
+      if (desc != null) c.desc = desc;
+      stamp(r, c);
+      for (const k of children(r, id)) follow(r, k, tree, skip.includes(k.id) ? tree : old, x);
+      return x;
+    }
+    function follow(r, ch, nb, ob, x) {
+      const old = ch.tree, was = conflicts(old) > 0;
+      ch.tree = rebaseTree(old, nb, ob);
+      stamp(r, ch);
+      x.rebased.push(ch.id);
+      const now = conflicts(ch.tree) > 0;
+      if (now && !was) x.conflicted.push(ch.id);
+      if (!now && was) x.fixed.push(ch.id);
+      for (const k of children(r, ch.id)) follow(r, k, ch.tree, old, x);
+    }
+
+    function fail(msg) { throw new Error(msg); }
+    const get = (r, id) => r.changes[id] || fail('その変更は見つからない');
+    function mutable(c) {
+      if (c.immutable) fail(`${c.id} は main に入った変更なので変えられない（immutable）`);
+      return c;
+    }
+    // 作業コピーから離れるとき、空で説明も無い変更は jj が自動で捨てる
+    function leave(r, id, res) {
+      const w = r.changes[id];
+      if (w && !w.immutable && !w.desc && isEmpty(r, w) && !children(r, id).length) {
+        delete r.changes[id];
+        res.out.push(`空で説明も無い変更 ${id} は自動で捨てた`);
+      }
+    }
+    function tell(r, x, res) {
+      if (x.rebased.length) res.out.push(`上に重なった変更 ${x.rebased.length} 個を自動で付け替えた（${x.rebased.map((id) => short(r, id)).join('・')}）`);
+      if (x.conflicted.length) res.out.push(`衝突した変更: ${x.conflicted.join('・')}。止まらずに、衝突をコミットの中に記録した`);
+      if (x.fixed.length) res.out.push(`衝突が解けた変更: ${x.fixed.join('・')}`);
+    }
+    const ID8 = (s) => s.slice(0, 8);
+
+    // コマンドの中身。res.cmd に打ったコマンド、res.out に出力を書く。断るときは fail で投げる
+    const OPS = {
+      snap(r, s, res) {
+        const w = r.changes[r.wc];
+        res.cmd = `# ${s.file} の ${s.line + 1} 行目を書き換えた（jj が作業コピーを記録する）`;
+        const tree = mapTree(w.tree, (m, k, i) => (k === s.file && i === s.line ? one(String(s.text)) : m));
+        if (treeKey(tree) === treeKey(w.tree)) fail('中身は変わっていない');
+        const before = w.commit, was = conflicts(w.tree) > 0;
+        const x = rewrite(r, w.id, tree);
+        res.out.push(`@ ${w.id} のコミット ID: ${ID8(before)} → ${ID8(w.commit)}（change ID は同じまま）`);
+        if (was && !conflicts(w.tree)) res.out.push('@ の衝突が解けた');
+        tell(r, x, res);
+      },
+      describe(r, s, res) {
+        const id = s.id || r.wc, c = get(r, id), text = String(s.text || '');
+        res.cmd = `jj describe${id === r.wc ? '' : ' ' + short(r, id)} -m "${text}"`;
+        mutable(c);
+        if (c.desc === text) fail('説明は前と同じ');
+        const before = c.commit;
+        const x = rewrite(r, id, c.tree, text);
+        res.out.push(`${id} に説明を付けた。コミット ID: ${ID8(before)} → ${ID8(c.commit)}（説明もコミットの中身）`);
+        tell(r, x, res);
+      },
+      new(r, s, res) {
+        const p = s.id || r.wc, pc = get(r, p);
+        res.cmd = p === r.wc ? 'jj new' : `jj new ${short(r, p)}`;
+        const old = r.wc;
+        const c = make(r, p, pc.tree);
+        r.wc = c.id;
+        if (old !== p) leave(r, old, res);
+        res.out.push(`作業コピー (@) は新しい空の変更 ${c.id}。親は ${p}${conflicts(c.tree) ? '（親の衝突も引き継ぐ）' : ''}`);
+      },
+      commit(r, s, res) {
+        const w = r.changes[r.wc], text = String(s.text || '');
+        res.cmd = `jj commit -m "${text}"`;
+        rewrite(r, w.id, w.tree, text);
+        const c = make(r, w.id, w.tree);
+        r.wc = c.id;
+        res.out.push(`${w.id} に説明「${text}」を付け、その上に新しい空の作業コピー ${c.id} を作った`);
+      },
+      edit(r, s, res) {
+        const c = get(r, s.id);
+        res.cmd = `jj edit ${short(r, s.id)}`;
+        mutable(c);
+        if (s.id === r.wc) fail('その変更はもう作業コピー (@) になっている');
+        const old = r.wc;
+        r.wc = s.id;
+        leave(r, old, res);
+        res.out.push(`作業コピー (@) を ${s.id} に移した。ファイルはこの変更の中身になる${conflicts(c.tree) ? '（衝突が残っている）' : ''}`);
+      },
+      squash(r, s, res) {
+        const w = r.changes[r.wc];
+        res.cmd = 'jj squash';
+        const p = mutable(get(r, w.parent));
+        if (isEmpty(r, w)) fail('@ に変更が無いので、親へまとめるものが無い');
+        const kids = children(r, w.id), was = conflicts(p.tree) > 0;
+        delete r.changes[w.id];
+        for (const k of kids) k.parent = p.id;
+        const x = rewrite(r, p.id, w.tree, p.desc || w.desc, kids.map((k) => k.id));
+        const c = make(r, p.id, p.tree);
+        r.wc = c.id;
+        res.out.push(`@ の中身を親の ${p.id} へまとめた。作業コピー (@) は新しい空の変更 ${c.id}`);
+        if (was && !conflicts(p.tree)) res.out.push(`${p.id} の衝突が解けた`);
+        tell(r, x, res);
+      },
+      abandon(r, s, res) {
+        const c = get(r, s.id);
+        res.cmd = `jj abandon ${short(r, s.id)}`;
+        mutable(c);
+        const p = get(r, c.parent);
+        const kids = children(r, c.id), x = { rebased: [], conflicted: [], fixed: [] };
+        delete r.changes[c.id];
+        for (const k of kids) { k.parent = p.id; follow(r, k, p.tree, c.tree, x); }
+        res.out.push(`${c.id} を捨てた`);
+        if (r.wc === c.id) {
+          const n = make(r, p.id, p.tree);
+          r.wc = n.id;
+          res.out.push(`作業コピー (@) は新しい空の変更 ${n.id}`);
+        }
+        tell(r, x, res);
+      },
+      rebase(r, s, res) {
+        const c = get(r, s.id), d = get(r, s.to);
+        res.cmd = `jj rebase -s ${short(r, s.id)} -o ${short(r, s.to)}`;
+        mutable(c);
+        if (isAncestor(r, s.id, s.to)) fail('移す先が、移す変更そのものか、その上に重なった変更になっている');
+        if (c.parent === s.to) fail('もうその上にある');
+        const ob = r.changes[c.parent].tree, x = { rebased: [], conflicted: [], fixed: [] };
+        c.parent = s.to;
+        follow(r, c, d.tree, ob, x);
+        res.out.push(`${x.rebased.length} 個の変更を ${s.to} の上へ移した`);
+        tell(r, { rebased: [], conflicted: x.conflicted, fixed: x.fixed }, res);
+      },
+    };
+    function run(r0, s) {
+      const r = JSON.parse(JSON.stringify(r0));
+      r.time++;
+      const res = { ok: true, cmd: '', out: [] };
+      try {
+        OPS[s.op](r, s, res);
+        res.repo = r;
+      } catch (e) {
+        res.ok = false;
+        res.out = [e.message];
+        res.repo = r0;
+      }
+      return res;
+    }
+
+    // 操作の記録（op log）: 操作のたびにリポジトリ全体の状態を1つ残す。undo と redo は記録の上を行き来する
+    function addOp(h, r, cmd, kind) {
+      const state = JSON.stringify(r);
+      h.ops.push({ id: hex(state + '#' + h.ops.length, 12), cmd, kind, state });
+      if (kind === 'real') {
+        h.real.length = h.cur + 1;
+        h.real.push(h.ops.length - 1);
+        h.cur = h.real.length - 1;
+      }
+    }
+    function session() {
+      const repo = initRepo(), hist = { ops: [], real: [], cur: -1 };
+      addOp(hist, repo, 'リポジトリを作る', 'real');
+      return { repo, hist };
+    }
+    const byDesc = (r, text) => (Object.values(r.changes).find((c) => c.desc === text) || {}).id;
+    function act(S, step) {
+      const h = S.hist;
+      if (step.op === 'undo' || step.op === 'redo') {
+        const back = step.op === 'undo', res = { ok: true, cmd: 'jj ' + step.op, out: [] };
+        if (back ? h.cur <= 0 : h.cur >= h.real.length - 1) {
+          res.ok = false;
+          res.out = [back ? 'これより前の操作は無い' : 'やり直す操作は無い'];
+          return res;
+        }
+        const target = h.ops[h.real[back ? h.cur : h.cur + 1]];
+        h.cur += back ? -1 : 1;
+        const state = h.ops[h.real[h.cur]].state;
+        S.repo = JSON.parse(state);
+        h.ops.push({ id: hex(state + '#' + h.ops.length, 12), cmd: `${step.op}: ${target.cmd}`, kind: step.op, state });
+        res.out.push(back ? `操作「${target.cmd}」を取り消した` : `操作「${target.cmd}」をやり直した`);
+        return res;
+      }
+      if (step.op === 'restore') {
+        const o = h.ops[step.i], res = { ok: true, cmd: `jj op restore ${o ? o.id : '?'}`, out: [] };
+        if (!o || step.i === h.ops.length - 1) {
+          res.ok = false;
+          res.out = [o ? 'もうこの時点にいる' : 'その操作は無い'];
+          return res;
+        }
+        S.repo = JSON.parse(o.state);
+        addOp(h, S.repo, res.cmd, 'real');
+        res.out.push(`操作「${o.cmd}」の直後の状態に戻した`);
+        return res;
+      }
+      const s = Object.assign({}, step);
+      if (s.find) s.id = byDesc(S.repo, s.find);
+      if (s.findTo) s.to = byDesc(S.repo, s.findTo);
+      const res = run(S.repo, s);
+      if (res.ok) {
+        S.repo = res.repo;
+        addOp(h, S.repo, res.cmd, 'real');
+      }
+      return res;
+    }
+
+    // jj log の並び（上ほど新しい）と、各変更を描く列。親へ向かう線が通る列は、親に着くまでほかに使わせない
+    function graphRows(r) {
+      const order = [];
+      const visit = (c) => {
+        for (const k of children(r, c.id).reverse()) visit(k);
+        order.push(c.id);
+      };
+      for (const c of Object.values(r.changes)) if (!c.parent || !r.changes[c.parent]) visit(c);
+      const lanes = [], rows = [];
+      for (const id of order) {
+        let col = lanes.indexOf(id);
+        if (col < 0) {
+          col = lanes.indexOf(null);
+          if (col < 0) col = lanes.push(null) - 1;
+        }
+        for (let i = 0; i < lanes.length; i++) if (i !== col && lanes[i] === id) lanes[i] = null;
+        const p = r.changes[id].parent;
+        lanes[col] = p && r.changes[p] ? p : null;
+        rows.push({ id, col });
+      }
+      return rows;
+    }
+
+    // 「自動で流れを見る」の手順（記事の流れに合わせた）。find は説明で変更を探す
+    const TOUR = [
+      { op: 'snap', file: 'main.py', line: 1, text: '    return n * 110' },
+      { op: 'describe', text: '税込みにする' },
+      { op: 'new' },
+      { op: 'snap', file: 'main.py', line: 1, text: '    return n * 110 + 500' },
+      { op: 'commit', text: '送料を足す' },
+      { op: 'new', find: '税込みにする' },
+      { op: 'snap', file: 'README.md', line: 1, text: 'price(n) は n 個の税込みの値段を返す' },
+      { op: 'describe', text: '使い方を書く' },
+      { op: 'edit', find: '税込みにする' },
+      { op: 'snap', file: 'main.py', line: 1, text: '    return round(n * 108)', show: '送料を足す' },
+      { op: 'new', find: '送料を足す' },
+      { op: 'snap', file: 'main.py', line: 1, text: '    return round(n * 108) + 500' },
+      { op: 'squash', show: '送料を足す' },
+      { op: 'undo' },
+      { op: 'redo', show: '送料を足す' },
+      { op: 'rebase', find: '送料を足す', findTo: '使い方を書く', show: '送料を足す' },
+    ];
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    if (window.THUMB) document.documentElement.classList.add('thumb');
+    const calm = matchMedia('(prefers-reduced-motion: reduce)');
+    const logEl = $('log'), filesEl = $('files'), selHd = $('selhd'), evoEl = $('evo'), msgEl = $('msg');
+    const termEl = $('term'), opsEl = $('ops'), bar = $('bar'), descIn = $('desc'), destSel = $('dest'), autoSw = $('auto');
+    const RH = 46, CW = 16;   // グラフの1行の高さと1列の幅（px）
+    const FOLLOW = new Set(['snap', 'new', 'edit', 'commit', 'squash', 'undo', 'redo', 'restore']);
+    const CAP0 = 'main（◆）の上に、空の作業コピー（@）がある。jj では、作業中のファイルもいつも1つのコミットとして記録される。「自動で流れを見る」を切ると、自分で操作できる。';
+    const CAPS = [
+      'main.py の2行目を書き換えた。@ のコミット ID（右の16進数）は変わったが、change ID（左の英字）は同じまま。jj には git add のような準備の場所が無い。',
+      'jj describe で説明を付けた。説明もコミットの中身なので、コミット ID がまた変わる。',
+      'jj new で、@ の上に新しい空の変更を作り、そこを作業コピーにした。',
+      '送料を足す行に書き換えた。',
+      'jj commit は「説明を付けて、その上に新しい空の変更を作る」を1回で行う。',
+      'jj new で「税込みにする」の上に別の変更を作った。前の @ は空で説明も無いので、jj が自動で捨てた。',
+      'README.md に使い方を書いた。',
+      '説明を付けた。グラフが2本に分かれた。',
+      'jj edit で、下にある「税込みにする」を作業コピーにした。この変更を直接書き換えられる。',
+      '税率を 108 に直した。上に重なった2つの変更を、jj が自動で付け替えた。「送料を足す」は同じ行を書き換えていたので衝突したが、jj は止まらずに衝突をコミットの中に記録した（×）。',
+      '衝突した変更の上に新しい変更を作った。親の衝突をそのまま引き継いでいる。',
+      '両方の変更を合わせた行に書き換えた。この変更では衝突が解けた。',
+      'jj squash で、直した分を親の「送料を足す」へまとめた。× が消えた。',
+      'jj undo で、まとめる前に戻した。下の op log には、すべての操作が残っている。',
+      'jj redo で、もう一度まとめた。',
+      'jj rebase で「送料を足す」を「使い方を書く」の上へ移し、一本にした。その上の @ も一緒に移った。今度は衝突しない。',
+    ];
+    let S, sel = '', seen = new Map(), term = [], tourAt = 0, timer = 0;
+
+    const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
+    // 区別できる最短の頭の文字を太字にし、残りを薄くする
+    function idHtml(s, all, n) {
+      const k = Math.min(prefixLen(all, s), n);
+      return `<b>${esc(s.slice(0, k))}</b><span class="r">${esc(s.slice(k, n))}</span>`;
+    }
+    function say(text) { msgEl.textContent = text; }
+
+    function renderLog() {
+      const r = S.repo, rows = graphRows(r), at = new Map(rows.map((x, i) => [x.id, i]));
+      const cols = Math.max(1, ...rows.map((x) => x.col + 1));
+      const w = cols * CW + 6, h = rows.length * RH + 16;
+      const X = (c) => 10 + c * CW, Y = (i) => i * RH + 13;
+      let lines = '', nodes = '';
+      rows.forEach((x, i) => {
+        const c = r.changes[x.id], cx = X(x.col), cy = Y(i);
+        if (c.parent && at.has(c.parent)) {
+          const j = at.get(c.parent), px = X(rows[j].col), py = Y(j);
+          lines += cx === px ? `<path d="M${cx} ${cy}V${py}"/>` : `<path d="M${cx} ${cy}V${py - RH * 0.55}Q${cx} ${py} ${px} ${py}"/>`;
+        } else {
+          lines += `<path d="M${cx} ${cy}v16" stroke-dasharray="2 3"/>`;   // この下にも歴史が続く
+        }
+        if (x.id === r.wc) nodes += `<circle cx="${cx}" cy="${cy}" r="7" class="n wc${conflicts(c.tree) ? ' cf' : ''}"/><text x="${cx}" y="${cy + 3.5}" class="at">@</text>`;
+        else if (c.immutable) nodes += `<path d="M${cx} ${cy - 6}l6 6-6 6-6-6z" class="n im"/>`;
+        else if (conflicts(c.tree)) nodes += `<circle cx="${cx}" cy="${cy}" r="6" class="n cf"/><path d="M${cx - 3.5} ${cy - 3.5}l7 7M${cx + 3.5} ${cy - 3.5}l-7 7" class="x"/>`;
+        else nodes += `<circle cx="${cx}" cy="${cy}" r="5" class="n"/>`;
+      });
+      const allIds = Object.keys(r.changes), allCommits = Object.values(r.changes).map((c) => c.commit);
+      let html = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">${lines}${nodes}</svg>`;
+      rows.forEach((x, i) => {
+        const c = r.changes[x.id], tags = [];
+        if (c.id === r.main) tags.push('<span class="bm">main</span>');
+        if (isEmpty(r, c)) tags.push('<span class="tag">(empty)</span>');
+        if (conflicts(c.tree)) tags.push('<span class="tag bad">(conflict)</span>');
+        const moved = seen.has(c.id) && seen.get(c.id) !== c.commit;
+        html += `<button type="button" class="row" data-id="${c.id}" aria-pressed="${c.id === sel}" style="inset-block-start:${i * RH}px;padding-inline-start:${w + 2}px">`
+          + `<span class="l1"><span class="cid">${idHtml(c.id, allIds, 8)}</span> <span class="cmt${moved ? ' flash' : ''}">${idHtml(c.commit, allCommits, 8)}</span> ${tags.join(' ')}</span>`
+          + `<span class="l2">${c.id === r.wc ? '@ ' : ''}${c.desc ? esc(c.desc) : '(説明なし)'}</span></button>`;
+      });
+      logEl.style.blockSize = h + 'px';
+      logEl.innerHTML = html;   // 中身は、このコードで作った ID と、esc を通した説明だけ
+      seen = new Map(Object.values(r.changes).map((c) => [c.id, c.commit]));
+    }
+
+    // jj と同じ形の衝突の印（親の変化を差分で、この変更の中身をそのまま見せる）
+    function markers(m) {
+      const L = ['<<<<<<< 衝突'];
+      m.removes.forEach((rm, i) => {
+        L.push(`%%%%%%% 親の変化${m.removes.length > 1 ? ' ' + (i + 1) : ''}（前 → 後）`, '-' + rm, '+' + m.adds[i + 1]);
+      });
+      L.push('+++++++ この変更の中身', ' ' + m.adds[0], '>>>>>>> 衝突ここまで');
+      return L.join('\n');
+    }
+    function renderFiles() {
+      const r = S.repo, c = r.changes[sel], p = c.parent ? r.changes[c.parent] : null, isWc = sel === r.wc;
+      selHd.innerHTML = `${isWc ? '@ 作業コピー' : '変更'} <span class="cid">${esc(c.id)}</span> <span class="mut">コミット</span> <span class="cmt">${esc(c.commit.slice(0, 8))}</span>${p ? ` <span class="mut">親</span> <span class="cid">${esc(p.id)}</span>` : ''}`;
+      const evo = c.evo.slice(-5).map((x) => x.slice(0, 8));
+      evoEl.textContent = `この変更のコミット ID の移り変わり（jj evolog）: ${c.evo.length > 5 ? '… → ' : ''}${evo.join(' → ')}。change ID は ${c.id} のまま。`;
+      filesEl.replaceChildren();
+      for (const f of FILES) {
+        const box = document.createElement('div');
+        box.className = 'file';
+        const hd = document.createElement('div');
+        hd.className = 'fname';
+        hd.textContent = f + (isWc ? '（行を書き換えて Enter で記録）' : p ? '（色の付いた行が、親から変えた行）' : '');
+        box.append(hd);
+        c.tree[f].forEach((m, i) => {
+          const ok = resolved(m), changed = !!p && lineKey(m) !== lineKey(p.tree[f][i]);
+          const row = document.createElement('div');
+          row.className = 'ln' + (changed ? ' chg' : '') + (ok ? '' : ' cf');
+          const no = document.createElement('span');
+          no.className = 'no';
+          no.textContent = String(i + 1);
+          const body = document.createElement('div');
+          body.className = 'lb';
+          if (!ok) {
+            const pre = document.createElement('pre');
+            pre.className = 'mk';
+            pre.textContent = markers(m);
+            body.append(pre);
+          }
+          if (isWc) {
+            const inp = document.createElement('input');
+            inp.type = 'text';
+            inp.className = 'lv';
+            inp.spellcheck = false;
+            inp.autocomplete = 'off';
+            inp.dataset.f = f;
+            inp.dataset.i = String(i);
+            inp.value = m.adds[0];
+            inp.setAttribute('aria-label', `${f} の ${i + 1} 行目${ok ? '' : '（衝突を直した行を書いて Enter）'}`);
+            body.append(inp);
+          } else if (ok) {
+            const code = document.createElement('code');
+            code.textContent = m.adds[0];
+            body.append(code);
+          }
+          row.append(no, body);
+          box.append(row);
+        });
+        filesEl.append(box);
+      }
+    }
+
+    function renderBar() {
+      const r = S.repo, p = short(r, sel), isWc = sel === r.wc, h = S.hist;
+      bar.querySelector('[data-op="new"]').textContent = isWc ? 'jj new' : `jj new ${p}`;
+      bar.querySelector('[data-op="edit"]').textContent = `jj edit ${p}`;
+      bar.querySelector('[data-op="abandon"]').textContent = `jj abandon ${p}`;
+      bar.querySelector('[data-op="undo"]').setAttribute('aria-disabled', String(h.cur <= 0));
+      bar.querySelector('[data-op="redo"]').setAttribute('aria-disabled', String(h.cur >= h.real.length - 1));
+      $('bDesc').textContent = isWc ? 'jj describe -m' : `jj describe ${p} -m`;
+      $('bReb').textContent = `jj rebase -s ${p} -o`;
+      if (document.activeElement !== descIn) descIn.value = r.changes[sel].desc;
+      const keep = destSel.value;
+      destSel.replaceChildren();
+      for (const c of Object.values(r.changes).sort((a, b) => a.born - b.born)) {
+        if (isAncestor(r, sel, c.id)) continue;   // 自分と、自分の上に重なった変更へは移せない
+        const o = document.createElement('option');
+        o.value = c.id;
+        o.textContent = `${short(r, c.id)} ${c.desc || (c.id === r.wc ? '@' : '(説明なし)')}`;
+        destSel.append(o);
+      }
+      if ([...destSel.options].some((o) => o.value === keep)) destSel.value = keep;
+    }
+
+    function renderTerm() {
+      termEl.replaceChildren();
+      for (const t of term) {
+        const a = document.createElement('span');
+        a.className = 'cmd';
+        a.textContent = (t.cmd.startsWith('#') ? '' : '$ ') + t.cmd + '\n';
+        termEl.append(a);
+        for (const o of t.out) {
+          const b = document.createElement('span');
+          b.className = t.ok ? 'o' : 'err';
+          b.textContent = (t.ok ? '' : 'Error: ') + o + '\n';
+          termEl.append(b);
+        }
+      }
+      termEl.scrollTop = termEl.scrollHeight;
+    }
+    function renderOps() {
+      opsEl.replaceChildren();
+      const ops = S.hist.ops, last = ops.length - 1;
+      for (let i = last; i >= Math.max(0, last - 40); i--) {
+        const li = document.createElement('li');
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.dataset.i = String(i);
+        if (i === last) b.setAttribute('aria-current', 'true');
+        const id = document.createElement('span');
+        id.className = 'opid';
+        id.textContent = (i === last ? '@ ' : '○ ') + ops[i].id;
+        b.append(id, ' ' + ops[i].cmd);
+        li.append(b);
+        opsEl.append(li);
+      }
+    }
+    function render() {
+      renderLog();
+      renderFiles();
+      renderBar();
+      renderTerm();
+      renderOps();
+    }
+
+    function doStep(step) {
+      const res = act(S, step);
+      term.push({ ok: res.ok, cmd: res.cmd, out: res.out });
+      if (term.length > 30) term.shift();
+      const shown = res.ok && step.show && byDesc(S.repo, step.show);
+      if (shown) sel = shown;
+      else if (res.ok && FOLLOW.has(step.op)) sel = S.repo.wc;
+      if (!S.repo.changes[sel]) sel = S.repo.wc;
+      say(res.ok ? res.out.join('。') + '。' : `Error: ${res.out[0]}。`);
+      render();
+      return res;
+    }
+    function start() {
+      S = session();
+      sel = S.repo.wc;
+      seen = new Map();
+      term = [{ ok: true, cmd: 'jj git init', out: ['main の上に、空の作業コピー (@) を作った'] }];
+      tourAt = 0;
+      render();
+      say(CAP0);
+    }
+
+    // 自動で流れを見る: 手順を1つずつ進め、終わったら少し待って最初から
+    function tourStep() {
+      if (tourAt >= TOUR.length + 2) { start(); return; }
+      if (tourAt < TOUR.length) {
+        const res = doStep(TOUR[tourAt]);
+        if (res.ok) say(CAPS[tourAt]);
+      }
+      tourAt++;
+    }
+    function loop() {
+      timer = setTimeout(() => { tourStep(); loop(); }, window.THUMB ? 900 : 2800);
+    }
+    function setAuto(on) {
+      autoSw.checked = on;
+      clearTimeout(timer);
+      if (on) loop();
+    }
+    function stopTour() { if (autoSw.checked) setAuto(false); }
+
+    // @ の行を書き換えて記録する（本物の jj は、次のコマンドを動かしたときに記録する）
+    function snapFrom(inp, refocus) {
+      const f = inp.dataset.f, i = Number(inp.dataset.i);
+      const m = S.repo.changes[S.repo.wc].tree[f][i];
+      if (resolved(m) && m.adds[0] === inp.value) return;
+      stopTour();
+      doStep({ op: 'snap', file: f, line: i, text: inp.value });
+      if (refocus) {
+        const again = filesEl.querySelector(`input[data-f="${f}"][data-i="${i}"]`);
+        if (again) again.focus();
+      }
+    }
+    filesEl.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' || !e.target.matches('input.lv')) return;
+      e.preventDefault();
+      if (e.isComposing || e.keyCode === 229) return;   // 日本語の変換を確定する Enter では記録しない
+      snapFrom(e.target, true);
+    });
+    filesEl.addEventListener('change', (e) => {
+      if (e.target.matches('input.lv') && e.target.isConnected) snapFrom(e.target, false);
+    });
+    logEl.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-id]');
+      if (!b) return;
+      stopTour();
+      sel = b.dataset.id;
+      render();
+      const again = logEl.querySelector(`button[data-id="${sel}"]`);
+      if (again) again.focus();
+    });
+    bar.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-op]');
+      if (!b || b.getAttribute('aria-disabled') === 'true') return;
+      stopTour();
+      const op = b.dataset.op;
+      if (op === 'new') doStep(sel === S.repo.wc ? { op } : { op, id: sel });
+      else if (op === 'edit' || op === 'abandon') doStep({ op, id: sel });
+      else doStep({ op });
+    });
+    $('fDesc').addEventListener('submit', (e) => {
+      e.preventDefault();
+      stopTour();
+      doStep({ op: 'describe', id: sel, text: descIn.value.trim() });
+    });
+    $('fReb').addEventListener('submit', (e) => {
+      e.preventDefault();
+      stopTour();
+      doStep({ op: 'rebase', id: sel, to: destSel.value });
+    });
+    opsEl.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-i]');
+      if (!b) return;
+      stopTour();
+      doStep({ op: 'restore', i: Number(b.dataset.i) });
+    });
+    autoSw.addEventListener('change', () => {
+      if (autoSw.checked) start();
+      setAuto(autoSw.checked);
+    });
+    $('bReset').addEventListener('click', () => start());
+
+    // ツールバーは Tab で1回だけ止まり、矢印キーでボタンを移る。focusgroup が無いブラウザでは同じ動きを自分で作る
+    if (!('focusGroup' in HTMLElement.prototype)) {
+      const items = [...bar.querySelectorAll('button')];
+      items.forEach((b, i) => { b.tabIndex = i ? -1 : 0; });
+      bar.addEventListener('focusin', (e) => {
+        if (items.includes(e.target)) items.forEach((b) => { b.tabIndex = b === e.target ? 0 : -1; });
+      });
+      bar.addEventListener('keydown', (e) => {
+        const i = items.indexOf(document.activeElement);
+        if (i < 0) return;
+        const rtl = getComputedStyle(bar).direction === 'rtl';
+        let j = null;
+        if (e.key === 'ArrowRight') j = i + (rtl ? -1 : 1);
+        else if (e.key === 'ArrowLeft') j = i + (rtl ? 1 : -1);
+        else if (e.key === 'Home') j = 0;
+        else if (e.key === 'End') j = items.length - 1;
+        if (j === null) return;
+        e.preventDefault();
+        items[(j + items.length) % items.length].focus();
+      });
+    }
+
+    start();
+    setAuto(!!window.THUMB || !calm.matches);
+  },
+});
