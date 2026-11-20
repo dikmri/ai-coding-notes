@@ -39,6 +39,17 @@ for (const [name, args] of Object.entries({
   APPS[name] = KARGUI_EXE;
   APP_ARGS[name] = args;
 }
+// kargui の段階 1: フレームワークで書いたタスク帳（既定は CPU の道）
+const KARGUI_TB = process.env.KARGUI_TB ?? path.resolve(ROOT, '../kargui/target/release/taskbook-kargui.exe');
+for (const [name, args] of Object.entries({
+  'kargui-tb': [],
+  'kargui-tb-full': ['--full-rate'],
+  'kargui-tb-gpu': ['--renderer', 'd3d11'],
+  'kargui-tb-gpu-full': ['--renderer', 'd3d11', '--full-rate'],
+})) {
+  APPS[name] = KARGUI_TB;
+  APP_ARGS[name] = args;
+}
 
 const SCROLL = ['--items', '10000', '--bench-scroll', '5'];
 const SCENARIOS = {
