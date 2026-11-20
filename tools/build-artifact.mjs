@@ -18,8 +18,8 @@ const headOut = head.split('\n')
   .join('\n').trim();
 // Future OS（os/）と実験レポート（reports/）は共有ページに載せないので、公開版へのリンクにする
 const bodyOut = body.trim()
-  .replace('href="os/"', 'href="https://dikmri.github.io/dekiru-html/os/" target="_blank" rel="noopener"')
-  .replace('href="reports/"', 'href="https://dikmri.github.io/dekiru-html/reports/" target="_blank" rel="noopener"');
+  .replace('href="os/"', 'href="https://dikmri.github.io/ai-coding-notes/os/" target="_blank" rel="noopener"')
+  .replace('href="reports/"', 'href="https://dikmri.github.io/ai-coding-notes/reports/" target="_blank" rel="noopener"');
 const out = `${headOut}\n<script>window.DEKIRU_SHARED = true;</script>\n${bodyOut}\n`;
 
 const outDir = join(ROOT, 'build', 'artifact');
