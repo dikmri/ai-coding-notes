@@ -7,8 +7,12 @@ import { createInterface } from 'node:readline';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const ROOT = path.resolve(import.meta.dirname, '../../..');
+// 測る場所の最上位。既定はこのスクリプトから 3 つ上。
+// worktree から測るときは RUST_GUI_ROOT で元のフォルダ（ビルドの出力がある所）を指す
+const ROOT = process.env.RUST_GUI_ROOT ? path.resolve(process.env.RUST_GUI_ROOT) : path.resolve(import.meta.dirname, '../../..');
 const R = (...p) => path.join(ROOT, ...p);
+// 自作のフレームワーク kargui（別のリポジトリ D:\soft\kargui）の段階 0 の試作
+const KARGUI_EXE = process.env.KARGUI_EXE ?? path.resolve(ROOT, '../kargui/target/release/kargui-spike.exe');
 
 const APPS = {
   tauri: R('runtime/rust-gui/target-tauri/release/taskbook-tauri.exe'),
@@ -25,6 +29,16 @@ const APP_ENV = { 'egui-dx12': { WGPU_BACKEND: 'dx12' } };
 APPS['gpui-full'] = APPS.gpui;
 // GPU なしの条件では、GPUI も他の版と同じく、前面にない窓のフレームを抑えない
 const APP_ARGS = { 'gpui-full': ['--full-rate'], 'gpui-warp': ['--full-rate'] };
+// kargui: GPU（Direct3D 11）の道と CPU の道。-full は前面にない窓でもフレームを抑えない（gpui-full と同じ条件）
+for (const [name, args] of Object.entries({
+  kargui: ['--renderer', 'd3d11'],
+  'kargui-full': ['--renderer', 'd3d11', '--full-rate'],
+  'kargui-cpu': ['--renderer', 'cpu'],
+  'kargui-cpu-full': ['--renderer', 'cpu', '--full-rate'],
+})) {
+  APPS[name] = KARGUI_EXE;
+  APP_ARGS[name] = args;
+}
 
 const SCROLL = ['--items', '10000', '--bench-scroll', '5'];
 const SCENARIOS = {
