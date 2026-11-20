@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>タスク帳（Tauri）</title>
+<link rel="stylesheet" href="style.css">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<header class="head">
+  <div class="title-row">
+    <h1>タスク帳</h1>
+    <span class="sub">Tauri 2.12 ・ WebView2</span>
+    <label class="dark"><input type="checkbox" id="dark"> ダーク</label>
+  </div>
+  <!-- Enter での追加はフォームの送信に任せる（変換を確定する Enter では送信されない） -->
+  <form id="add-form" class="add-row">
+    <label for="new-task" class="visually-hidden">新しいタスク</label>
+    <input id="new-task" type="text" placeholder="新しいタスクを入力して Enter" autocomplete="off">
+    <button type="submit" class="primary">追加</button>
+  </form>
+  <div class="filter-row">
+    <label for="query" class="visually-hidden">絞り込み</label>
+    <input id="query" type="search" placeholder="絞り込み（例: 資料）" autocomplete="off">
+    <div class="tabs" role="radiogroup" aria-label="状態">
+      <label><input type="radio" name="status" value="all" checked> すべて</label>
+      <label><input type="radio" name="status" value="active"> 未完了</label>
+      <label><input type="radio" name="status" value="done"> 完了</label>
+    </div>
+    <span id="shown" aria-live="polite"></span>
+  </div>
+</header>
+<main id="list" class="list" tabindex="0" aria-label="タスクの一覧">
+  <div id="spacer" class="spacer" role="list"></div>
+</main>
+<footer class="foot">
+  <button type="button" id="gen">1万件を作る</button>
+  <button type="button" id="clear-done">完了を消す</button>
+  <button type="button" id="clear">すべて消す</button>
+  <span id="counts"></span>
+  <span id="message" class="message" role="status"></span>
+</footer>
+</body>
+</html>

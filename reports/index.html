@@ -3,31 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>実験レポート ― 出来る！HTML/CSS/JavaScript</title>
-<meta name="description" content="AI のモデルにどこまで作らせられるかを、実際に試した記録の一覧。">
+<meta name="description" content="図鑑の外で行った実験の記録。コードだけで作る猫の目線の動画、WebGPU のゲームを AI で作り直した実験、Rust の GUI フレームワークの比べ方。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='46' font-size='40' text-anchor='middle' fill='%23fff' font-family='serif' font-weight='700'%3E%E5%87%BA%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="../css/site.css">
 <style>
-body { font-size: 0.9375rem; }
-.report { max-inline-size: 60rem; margin-inline: auto; padding-block: 2rem 5rem; }
-.kicker { margin: 0; color: var(--ink-2); font-weight: 600; font-size: 0.875rem; }
-.report h1 { margin: 0.2em 0 0.4em; font: 800 clamp(1.6rem, 1.2rem + 1.6vw, 2.4rem)/1.3 var(--serif); text-wrap: balance; }
-.lede { font-size: 1.0625rem; max-inline-size: 44rem; text-wrap: pretty; }
-.reps { list-style: none; margin: 2rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 24rem), 1fr)); gap: 1.5rem; }
-/* カード: 見出しのリンクを ::after で広げ、カード全体を押せるようにする */
-.rep { position: relative; display: flex; flex-direction: column; block-size: 100%; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); overflow: hidden; }
-.rep img { display: block; inline-size: 100%; block-size: auto; aspect-ratio: 16 / 9; object-fit: cover; background: var(--paper-2); }
-.rep .body { padding: 1rem 1.2rem 1.2rem; }
-.rep time { color: var(--ink-2); font-size: 0.8125rem; font-weight: 600; }
-.rep h2 { margin: 0.2rem 0 0.5rem; font: 700 1.1875rem/1.45 var(--serif); text-wrap: balance; }
-.rep h2 a { color: inherit; text-decoration: none; }
-.rep h2 a::after { content: ""; position: absolute; inset: 0; }
-.rep h2 a:focus-visible { outline: none; }
-.rep:has(h2 a:focus-visible) { outline: 3px solid var(--shu); outline-offset: 2px; }
-.rep:has(h2 a:hover) h2 { text-decoration: underline; text-underline-offset: 0.2em; }
-.rep p { margin: 0; text-wrap: pretty; }
-.rep .meta { margin-top: 0.6rem; color: var(--ink-2); font-size: 0.8125rem; }
-.foot { margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--rule); color: var(--ink-2); font-size: 0.875rem; }
+.reports { max-inline-size: 60rem; margin-inline: auto; padding: 2rem 1rem 5rem; }
+.reports h1 { margin: 0 0 0.4em; font: 800 clamp(1.6rem, 1.2rem + 1.6vw, 2.4rem)/1.3 var(--serif); }
+.reports > p { max-inline-size: 44rem; }
+.list { list-style: none; padding: 0; margin: 2rem 0 0; display: grid; gap: 1rem; }
+.list li { border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
+.list a { display: block; padding: 1.1rem 1.3rem; color: inherit; text-decoration: none; }
+.list a:hover { background: var(--paper-2); border-radius: var(--r); }
+.list a:focus-visible { outline-offset: -3px; }
+.list .kicker { margin: 0; color: var(--ink-2); font-weight: 600; font-size: 0.875rem; }
+.list h2 { margin: 0.2em 0 0.3em; font: 700 1.25rem/1.4 var(--serif); }
+.list p { margin: 0; text-wrap: pretty; }
+.foot { margin-top: 3rem; color: var(--ink-2); font-size: 0.875rem; }
 </style>
 </head>
 <body>
@@ -46,36 +39,32 @@ body { font-size: 0.9375rem; }
   </nav>
 </header>
 
-<main id="main" class="report">
-  <p class="kicker">出来る！の実験レポート</p>
+<main id="main" class="reports">
   <h1>実験レポート</h1>
-  <p class="lede">X などで見かけた「AI がここまで作った」という報告を、この PC で実際に試した記録です。新しい順に並べています。</p>
-
-  <ul class="reps">
+  <p>図鑑の項目には収まらない、手を動かして確かめた実験の記録です。新しいものから並べています。</p>
+  <ul class="list">
     <li>
-      <article class="rep">
-        <img src="neko/img/final-0680.webp" width="1280" height="720" alt="">
-        <div class="body">
-          <time datetime="2026-11-20">2026 年 11 月 20 日</time>
-          <h2><a href="neko/">コードだけで作る、野良猫の目線の 30 秒</a></h2>
-          <p>Python が Blender を動かして描き、音は numpy で合成する。生成 AI を使わずに、地方の住宅街を歩く猫の目線の動画を作れるかを試した。</p>
-          <p class="meta">Claude Opus 5.5（作る係）、Claude Fable 5.2（点検係）</p>
-        </div>
-      </article>
+      <a href="neko/">
+        <p class="kicker">2026 年 11 月 20 日</p>
+        <h2>コードだけで作る、野良猫の目線の 30 秒</h2>
+        <p>Python が Blender を動かして描き、音は numpy で合成しました。生成 AI を使わずに、地方の住宅街を歩く猫の目線の動画を作れるかを試した記録です。</p>
+      </a>
     </li>
     <li>
-      <article class="rep">
-        <img src="uno/img/reuse-drive.webp" width="1280" height="720" alt="">
-        <div class="body">
-          <time datetime="2026-11-18">2026 年 11 月 18 日</time>
-          <h2><a href="uno/">Uno com escada を土台にした 3 つの実験</a></h2>
-          <p>公開されている WebGPU のレースゲームを土台に、作り方のまね・コードの流用・3 つのモデルでのブラッシュアップを試した。遊べる版とソースつき。</p>
-          <p class="meta">GPT-6.2 Astra、Claude Opus 5.5、Claude Fable 5.2</p>
-        </div>
-      </article>
+      <a href="rust-gui/">
+        <p class="kicker">番外編 ・ 2026 年 11 月 20 日</p>
+        <h2>Rust の GUI はどれを選ぶ？ Tauri・egui・GPUI で同じアプリを作って比べた</h2>
+        <p>同じ「タスク帳」を 3 つのフレームワークで作り、起動の速さ・メモリ・CPU を測りました。低い性能の PC で動かしたときの結果と、用途ごとの選び方も載せています。</p>
+      </a>
+    </li>
+    <li>
+      <a href="uno/">
+        <p class="kicker">2026 年 11 月 18 日</p>
+        <h2>Uno com escada を土台にした 3 つの実験</h2>
+        <p>公開されている WebGPU のレースゲームを土台に、作り方のまね・コードの流用・3 つの AI モデルでのブラッシュアップを試した記録です。遊べる版つき。</p>
+      </a>
     </li>
   </ul>
-
   <p class="foot"><a href="../">図鑑の表紙へ戻る</a></p>
 </main>
 </body>

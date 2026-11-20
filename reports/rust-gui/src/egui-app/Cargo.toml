@@ -1,0 +1,28 @@
+[package]
+name = "taskbook-egui"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# 既定は eframe の既定と同じ wgpu で描く。
+# OpenGL（glow）で描く版は: cargo build --release --no-default-features --features glow
+[features]
+default = ["wgpu"]
+wgpu = ["eframe/wgpu"]
+glow = ["eframe/glow"]
+
+[dependencies]
+# eframe の既定の機能のうち、Windows で意味があるものをそのまま有効にする
+eframe = { version = "=0.37.0", default-features = false, features = [
+    "accesskit",
+    "clipboard",
+    "default_fonts",
+    "links",
+    "system_fonts",
+] }
+taskcore = { path = "../common" }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
