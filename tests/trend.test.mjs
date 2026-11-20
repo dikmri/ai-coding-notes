@@ -752,3 +752,130 @@ test('折り本: 広げた紙ではどの面も手前を向き、めくると読
     assert.deepEqual(seen(END), ['裏表紙', null], binding);
   }
 });
+
+const ZRAM = 'tr-20261120-zram-compress';
+const zram = () => trendCore(ZRAM, ['PAGE', 'HUGE', 'compress', 'decompress', 'sequences', 'sameFill', 'makePage', 'PROFILES', 'createSim', 'openTab', 'touchTab', 'stats']);
+// 別の realm の Uint8Array どうしでも比べられるように、ふつうの配列にする
+const bytes = (a) => Array.from(a);
+const roundTrip = (Z, src) => bytes(Z.decompress(Z.compress(src), src.length));
+
+test('zram: 手で作った LZ4 の列を展開する（距離より長い写しは、書いたばかりのバイトを写す）', () => {
+  const Z = zram();
+  // 印 0x38 = そのまま3バイト・写し 8+4 = 12 バイト、距離 3。印 0x50 = 最後にそのまま5バイト
+  const block = Uint8Array.from([0x38, 97, 98, 99, 3, 0, 0x50, 97, 98, 99, 97, 98]);
+  assert.equal(String.fromCharCode(...Z.decompress(block, 20)), 'abcabcabcabcabcabcab');
+  assert.throws(() => Z.decompress(block, 21));                          // 大きさが合わない
+  assert.throws(() => Z.decompress(Uint8Array.from([0x10, 97, 9, 0, 0x00]), 9)); // 書いた量より遠い距離
+});
+
+test('zram: どの種類のページも、圧縮して展開すると1バイトも違わずに戻る', () => {
+  const Z = zram();
+  for (const kind of ['text', 'json', 'heap', 'media', 'zero']) {
+    for (let seed = 1; seed <= 5; seed++) {
+      const p = Z.makePage(kind, seed);
+      assert.equal(p.length, Z.PAGE);
+      assert.deepEqual(roundTrip(Z, p), bytes(p), `${kind} ${seed}`);
+    }
+  }
+});
+
+test('zram: 長さを延ばすバイト（15 以上、270 以上）と、短い入力', () => {
+  const Z = zram();
+  const r = (n) => Uint8Array.from({ length: n }, (_, i) => (Math.imul(i + 1, 2654435761) >>> 24));
+  const cases = [new Uint8Array(0), Uint8Array.of(7), new Uint8Array(12).fill(97), new Uint8Array(13).fill(97), r(300), new Uint8Array(1000).fill(5), r(5000)];
+  for (const src of cases) assert.deepEqual(roundTrip(Z, src), bytes(src), `長さ ${src.length}`);
+  assert.deepEqual(bytes(Z.compress(new Uint8Array(0))), [0]);
+  // 1000 バイトの同じ値は、そのまま1バイト + 長い写し1回になる
+  const seqs = Z.sequences(Z.compress(new Uint8Array(1000).fill(5)));
+  assert.equal(seqs[0].lit, 1);
+  assert.equal(seqs[0].off, 1);
+  assert.equal(seqs[0].len, 1000 - 1 - 5);
+});
+
+test('zram: LZ4 の終わりの決まり（最後の5バイトはそのまま、最後の写しは終わりの12バイトより前で始める）', () => {
+  const Z = zram();
+  const inputs = [Z.makePage('text', 2), Z.makePage('json', 3), Z.makePage('heap', 4), new Uint8Array(1000).fill(5), new Uint8Array(40).fill(1)];
+  for (const src of inputs) {
+    const n = src.length, seqs = Z.sequences(Z.compress(src));
+    let pos = 0;
+    for (const q of seqs) {
+      pos += q.lit;
+      if (!q.len) continue;
+      assert.ok(pos <= n - 12, `写しの始まり ${pos} / ${n}`);
+      assert.ok(pos + q.len <= n - 5, `写しの終わり ${pos + q.len} / ${n}`);
+      pos += q.len;
+    }
+    assert.equal(pos, n);
+    assert.equal(seqs[seqs.length - 1].len, 0);
+  }
+});
+
+test('zram: 0 だけのページは同じ値と分かり、画像のページは縮まず、文章は 2 倍以上縮む', () => {
+  const Z = zram();
+  const zero = Z.makePage('zero', 1);
+  assert.equal(Z.sameFill(zero), 0);
+  assert.equal(Z.sameFill(new Uint8Array(Z.PAGE).fill(7)), 7);
+  zero[Z.PAGE - 1] = 1;
+  assert.equal(Z.sameFill(zero), -1);
+  assert.ok(Z.compress(Z.makePage('media', 1)).length > Z.HUGE);
+  for (const kind of ['text', 'json']) assert.ok(Z.compress(Z.makePage(kind, 1)).length * 2 < Z.PAGE, kind);
+});
+
+test('zram: zram なしでは5つ目のタブで一番古いタブが閉じられる', () => {
+  const Z = zram();
+  const s = Z.createSim(64, 0);
+  for (let i = 0; i < 4; i++) Z.openTab(s, Z.PROFILES[i]);
+  assert.equal(Z.stats(s).free, 0);
+  assert.equal(Z.stats(s).killed, 0);
+  Z.openTab(s, Z.PROFILES[4]);
+  assert.deepEqual(Array.from(s.tabs, (t) => t.alive), [false, true, true, true, true]);
+  assert.equal(Z.stats(s).stored, 0);
+});
+
+test('zram: RAM と同じ大きさの zram なら6つ、2倍なら8つまで閉じずに開ける', () => {
+  const Z = zram();
+  for (const [zcap, fit] of [[64, 6], [128, 8]]) {
+    const s = Z.createSim(64, zcap);
+    for (let i = 0; i < fit; i++) Z.openTab(s, Z.PROFILES[i % Z.PROFILES.length]);
+    const st = Z.stats(s);
+    assert.equal(st.alive, fit, `zram ${zcap}`);
+    assert.ok(st.ram + st.pool <= 64);
+    assert.ok(st.ratio > 1.5, `圧縮率 ${st.ratio}`);
+    Z.openTab(s, Z.PROFILES[fit % Z.PROFILES.length]);
+    assert.equal(s.tabs[0].alive, false, `zram ${zcap} で ${fit + 1} 個目`);
+  }
+});
+
+test('zram: 古いタブへ切り替えると全部 RAM に戻り、展開した中身は元と同じ', () => {
+  const Z = zram();
+  const s = Z.createSim(64, 64);
+  for (let i = 0; i < 6; i++) Z.openTab(s, Z.PROFILES[i]);
+  assert.ok(s.tabs[0].pages.some((p) => p.where === 'zram'));
+  assert.equal(Z.touchTab(s, s.tabs[0]), true);
+  assert.ok(s.tabs[0].pages.every((p) => p.where === 'ram'));
+  assert.ok(s.ev.in > 0);
+  assert.equal(s.ev.ok, s.ev.in);
+  assert.equal(s.n.ok, s.n.in);
+});
+
+test('zram: でたらめに開いたり切り替えたりしても、RAM と zram の枠を超えず、数が合う', () => {
+  const Z = zram();
+  for (const zcap of [0, 32, 64, 128]) {
+    const s = Z.createSim(64, zcap);
+    let r = 12345 + zcap;
+    const rand = () => ((r = (Math.imul(r, 1103515245) + 12345) >>> 0) / 4294967296);
+    for (let step = 0; step < 60; step++) {
+      const alive = s.tabs.filter((t) => t.alive);
+      if (alive.length && rand() < 0.45) Z.touchTab(s, alive[(rand() * alive.length) | 0]);
+      else Z.openTab(s, Z.PROFILES[(rand() * Z.PROFILES.length) | 0]);
+      const st = Z.stats(s);
+      assert.ok(st.ram + st.pool <= 64, `zram ${zcap} 手順 ${step}`);
+      assert.ok(st.stored <= zcap);
+      const live = s.tabs.filter((t) => t.alive).flatMap((t) => t.pages);
+      assert.equal(live.filter((p) => p.where === 'ram').length, st.ram);
+      assert.equal(live.filter((p) => p.where === 'zram').length, st.stored);
+      assert.equal(live.reduce((a, p) => a + (p.z ? p.z.size : 0), 0), st.compr);
+    }
+    assert.equal(s.n.ok, s.n.in);
+  }
+});

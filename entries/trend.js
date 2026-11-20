@@ -3707,3 +3707,689 @@ dekiru.add({
     requestAnimationFrame(tick);
   },
 });
+
+dekiru.add({
+  id: 'tr-20261120-zram-compress', c: 'trend', lv: 2, date: '2026-11-20',
+  t: 'RAM を買い足さずに、メモリのページを圧縮して詰める（zram の仕組み）',
+  y: 'らむをかいたさずにめもりのぺーじをあっしゅくしてつめる',
+  tags: ['zram', 'LZ4', 'メモリ圧縮', 'LRU', 'Uint8Array'],
+  d: '2026年11月19日、Therry van Neerven さんの記事「Do not buy RAM, compress!」が Hacker News で260点を超え、200件以上のコメントが付いた。AI を使って作業を並べて進めるうちにメモリが足りなくなり、RAM を買い足す代わりに Linux の zram を有効にしたという話である。ブラウザのタブを大量に開いた状態で、zram の中では 5.7 GB のデータが 1.7 GB の RAM に収まっていた（1 : 3.35）。zram は、しばらく使われていないページを圧縮して RAM の中の置き場へ移し、また使うときに展開して戻す。この見本は、その動きを 64 マス（1マス 4 KiB）の小さな RAM で再現した。タブを開くと、文章・JSON・プログラムの変数（ヒープ）・画像・0 だけのページを本物のバイト列で作る。RAM が足りなくなると、一番長く使われていないページを LZ4 のブロック形式で圧縮して zram へ移す。古いタブへ切り替えると、ページを展開して戻し、元の中身と1バイトずつ同じかを確かめる。zram を「なし」にすると、5つ目のタブを開いた時点で一番古いタブが閉じられる。RAM と同じ大きさの zram なら6つ、2倍なら8つまで閉じずに開ける。半分では4つのままで、zram が小さすぎると効かないことも分かる。圧縮方式は LZ4 だけを一から書いた（実際の zram は zstd なども選べる）。カーネルが追い出すページを選ぶ細かい仕組み、zsmalloc の大きさの区分による無駄、管理用の情報の大きさ、ディスクへの書き出しは再現していない。',
+  p: 'LZ4 は「前に同じ並びがあれば、何バイト前から何バイト写すかだけを書く」圧縮方式。4バイトの並びにかけ算をして 12 ビットの番号にし、その番号の表に「最後に見た位置」を入れておくと、前の同じ並びを1回の表引きで探せる。出力は、1バイトの印（上の4ビットがそのまま書く長さ、下の4ビットが写す長さ − 4）、そのまま書くバイト、2バイトの距離の繰り返しで、15 以上の長さは 255 ずつ足すバイトを後ろに付けて表す。展開は印を読んで写すだけなので、圧縮より速い。zram はこれをページごとに行い、全部が同じ値のページは値だけを覚え、あまり縮まないページは生のまま置く。圧縮した分だけ置き場が小さくなり、空いたマスに別のタブのページが入る。追い出すページは、最後に使った時刻が一番古いもの（LRU）を選ぶ。',
+  refs: [
+    { title: 'Do not buy RAM, compress!（Therry van Neerven）', url: 'https://curiousbits.nl/blog/do-not-buy-ram-compress/' },
+    { title: 'Hacker News: Do not buy RAM, compress', url: 'https://news.ycombinator.com/item?id=50557661' },
+    { title: 'zram: Compressed RAM-based block devices（Linux カーネルの文書）', url: 'https://docs.kernel.org/admin-guide/blockdev/zram.html' },
+    { title: 'LZ4 Block Format Description', url: 'https://github.com/lz4/lz4/blob/dev/doc/lz4_Block_format.md' },
+  ],
+  html: `<div class="wrap">
+  <div class="cols">
+    <section>
+      <div class="hd">RAM <span class="mut">64 マス（1マス = 4 KiB のページ。数字はタブの番号）</span></div>
+      <div id="ram" class="ram" role="img" aria-label="RAM の使われ方"></div>
+      <ul class="legend" aria-label="色の意味">
+        <li><i class="text"></i>文章（HTML）</li>
+        <li><i class="json"></i>JSON</li>
+        <li><i class="heap"></i>ヒープ</li>
+        <li><i class="media"></i>画像</li>
+        <li><i class="zero"></i>0 だけ</li>
+        <li><i class="z"></i>zram の置き場</li>
+        <li><i class="free"></i>空き</li>
+      </ul>
+    </section>
+    <section>
+      <dl id="st" class="st"></dl>
+      <p id="msg" class="msg" role="status"></p>
+    </section>
+  </div>
+  <div class="ctl">
+    <button type="button" id="bOpen">タブを開く</button>
+    <button type="button" id="bOld">一番古いタブへ切り替える</button>
+    <label>zram の大きさ
+      <select id="zsize">
+        <option value="0">なし</option>
+        <option value="0.5">RAM の半分</option>
+        <option value="1" selected>RAM と同じ</option>
+        <option value="2">RAM の2倍</option>
+      </select>
+    </label>
+    <label class="sw"><input type="checkbox" switch id="auto"> 自動で動かす</label>
+    <button type="button" id="bReset">最初から</button>
+  </div>
+  <div id="tabs" class="tabs" role="group" aria-label="開いたタブ（押すとそのタブへ切り替える）"></div>
+  <section class="view">
+    <div class="hd">1ページ（4,096 バイト）を LZ4 で圧縮した中身</div>
+    <div class="row" id="kinds" role="radiogroup" aria-label="ページの種類"></div>
+    <div class="vcols">
+      <canvas id="bytes" width="64" height="64" role="img" aria-label="ページのバイトの図"></canvas>
+      <div class="vinfo">
+        <p id="vnum"></p>
+        <pre id="vtext" class="vtext"></pre>
+      </div>
+    </div>
+    <p class="mut small"><i class="sq lit"></i>そのまま書いたバイト　<i class="sq cp"></i>前から写したバイト　<i class="sq same"></i>同じ値だけ（左の図は 1 バイトを 1 マスにして 64 × 64 に並べた。明るいほど値が大きい）</p>
+  </section>
+  <p id="bench" class="mut small"></p>
+</div>`,
+  css: `:root { color-scheme: dark; --bg: #11141b; --fg: #e3e7ef; --mut: #98a2b8; --line: #2b3346; --text: #6fb3ff; --json: #46d39a; --heap: #b892ff; --media: #ffc562; --zero: #566176; --z: #ff7fa8; --lit: #ffb057; --cp: #3f86e0; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, sans-serif; }
+    .wrap { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    @media (min-width: 620px) { .cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+    section { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .hd { font-weight: 600; }
+    .mut { color: var(--mut); font-weight: 400; }
+    .small { font-size: 12px; margin: 0; }
+    .ram { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 3px; max-inline-size: 340px; }
+    .ram div { aspect-ratio: 1; border-radius: 3px; border: 1px solid var(--line); display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #0b0e14; transition: background-color .3s; }
+    .ram .text, .legend .text { background: var(--text); }
+    .ram .json, .legend .json { background: var(--json); }
+    .ram .heap, .legend .heap { background: var(--heap); }
+    .ram .media, .legend .media { background: var(--media); }
+    .ram .zero, .legend .zero { background: var(--zero); }
+    .ram .text, .ram .json, .ram .heap, .ram .media, .ram .zero { border-color: transparent; }
+    .ram .z { border-color: var(--z); color: var(--z); background: linear-gradient(to top, #6a2c44 var(--f, 100%), #1a1219 var(--f, 100%)); }
+    .legend .z { background: #6a2c44; outline: 1px solid var(--z); }
+    .legend .free { outline: 1px solid var(--line); }
+    .ram .cur { outline: 2px solid #fff; outline-offset: -2px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding: 0; list-style: none; font-size: 12px; color: var(--mut); }
+    .legend li { display: flex; align-items: center; gap: 4px; }
+    .legend i, .sq { display: inline-block; inline-size: 10px; block-size: 10px; border-radius: 2px; }
+    .sq { vertical-align: -1px; margin-inline-end: 4px; }
+    .sq.lit { background: var(--lit); } .sq.cp { background: var(--cp); } .sq.same { background: var(--zero); }
+    .st { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; margin: 0; font-size: 13px; }
+    .st dt { color: var(--mut); }
+    .st dd { margin: 0; font-variant-numeric: tabular-nums; }
+    .st .big { font-size: 18px; font-weight: 700; color: var(--z); }
+    .msg { margin: 0; padding: 6px 8px; border-inline-start: 3px solid var(--z); background: #181c26; border-radius: 4px; font-size: 13px; min-block-size: 3em; }
+    .ctl, .row { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+    button, select { font: inherit; min-block-size: 28px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 6px; background: #1e2433; color: var(--fg); cursor: pointer; }
+    button:hover:not(:disabled) { background: #283048; }
+    :focus-visible { outline: 2px solid #ffd27a; outline-offset: 2px; }
+    .sw { display: inline-flex; align-items: center; gap: 6px; }
+    input[type="checkbox"][switch] { accent-color: var(--z); margin: 0; cursor: pointer; }
+    input[type="checkbox"][switch]:focus-visible { outline: 3px solid #ffd27a; outline-offset: 4px; }
+    .tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tab { display: flex; flex-direction: column; gap: 3px; min-inline-size: 104px; padding: 4px 8px; text-align: start; font-size: 12px; }
+    .tab b { font-size: 13px; }
+    .tab .bar { display: flex; block-size: 6px; background: #0c0f15; border-radius: 3px; overflow: hidden; }
+    .tab .bar .r { background: #9fb4d8; } .tab .bar .q { background: var(--z); }
+    .tab.cur { border-color: #fff; }
+    .tab:disabled { opacity: .5; cursor: default; }
+    .tab:disabled b { text-decoration: line-through; }
+    .view { border-block-start: 1px solid var(--line); padding-block-start: 8px; }
+    .row label { display: inline-flex; align-items: center; gap: 4px; }
+    .vcols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    @media (min-width: 560px) { .vcols { grid-template-columns: 220px minmax(0, 1fr); } }
+    #bytes { inline-size: min(100%, 220px); block-size: auto; aspect-ratio: 1; image-rendering: pixelated; border: 1px solid var(--line); border-radius: 4px; }
+    .vinfo { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+    .vinfo p { margin: 0; font-size: 13px; }
+    .vtext { margin: 0; padding: 6px 8px; background: #0c0f15; border: 1px solid var(--line); border-radius: 4px; font: 12px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-all; max-block-size: 15em; overflow: auto; }
+    .vtext .lit { color: var(--lit); }
+    .vtext .cp { color: #cfe2ff; background: rgb(63 134 224 / .35); }
+    .vtext .same { color: var(--mut); }
+    @media (prefers-reduced-motion: reduce) { .ram div { transition: none; } }
+    .thumb .wrap { padding: 6px; }
+    .thumb .ctl, .thumb .view, .thumb #bench, .thumb .legend, .thumb .tabs, .thumb .hd .mut { display: none; }
+    .thumb .cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }`,
+  core() {
+    // メモリの 1 ページ（4 KiB）を LZ4 で圧縮して置く zram の動きを、小さな模型で計算する
+    const PAGE = 4096;
+    const HUGE = 3072;   // 圧縮してもこれより大きいページは、生のまま置く（実際の値は zsmalloc の区分で決まる）
+
+    // LZ4 のブロック形式で圧縮する。前に同じ4バイト以上の並びがあれば「何バイト前から何バイト写す」に置きかえる
+    function compress(src) {
+      const n = src.length;
+      const out = new Uint8Array(n + Math.ceil(n / 255) + 16);
+      const table = new Int32Array(4096).fill(-1);   // 4バイトの並びの番号 → 最後に見た位置
+      let op = 0, anchor = 0, i = 0;
+      const read4 = (p) => src[p] | (src[p + 1] << 8) | (src[p + 2] << 16) | (src[p + 3] << 24);
+      const hash = (v) => Math.imul(v, 2654435761) >>> 20;
+      const putLen = (v) => { while (v >= 255) { out[op++] = 255; v -= 255; } out[op++] = v; };
+      const lastStart = n - 12;   // 写しはここより後ろで始めない（LZ4 の決まり）
+      while (i <= lastStart) {
+        const v = read4(i), h = hash(v), ref = table[h];
+        table[h] = i;
+        if (ref < 0 || i - ref > 65535 || read4(ref) !== v) { i++; continue; }
+        let len = 4;
+        const max = n - 5 - i;    // 最後の5バイトは必ずそのまま書く
+        while (len < max && src[ref + len] === src[i + len]) len++;
+        const lit = i - anchor, ml = len - 4, off = i - ref;
+        out[op++] = (Math.min(lit, 15) << 4) | Math.min(ml, 15);
+        if (lit >= 15) putLen(lit - 15);
+        for (let k = anchor; k < i; k++) out[op++] = src[k];
+        out[op++] = off & 255;
+        out[op++] = off >> 8;
+        if (ml >= 15) putLen(ml - 15);
+        i += len;
+        anchor = i;
+        if (i - 2 <= lastStart) table[hash(read4(i - 2))] = i - 2;
+      }
+      const lit = n - anchor;
+      out[op++] = Math.min(lit, 15) << 4;
+      if (lit >= 15) putLen(lit - 15);
+      for (let k = anchor; k < n; k++) out[op++] = src[k];
+      return out.slice(0, op);
+    }
+
+    // 圧縮した列を読んで、[そのまま書く長さ, 写す長さ, 何バイト前から] の並びにする
+    function sequences(c) {
+      const seqs = [];
+      let ip = 0;
+      const getLen = (v) => {
+        let b;
+        do {
+          if (ip >= c.length) throw new Error('長さの途中で終わっている');
+          b = c[ip++];
+          v += b;
+        } while (b === 255);
+        return v;
+      };
+      while (ip < c.length) {
+        const tok = c[ip++];
+        let lit = tok >> 4;
+        if (lit === 15) lit = getLen(lit);
+        const at = ip;
+        ip += lit;
+        if (ip > c.length) throw new Error('そのまま書くバイトが足りない');
+        if (ip === c.length) { seqs.push({ lit, at, len: 0, off: 0 }); break; }
+        if (ip + 2 > c.length) throw new Error('距離が足りない');
+        const off = c[ip] | (c[ip + 1] << 8);
+        ip += 2;
+        let ml = tok & 15;
+        if (ml === 15) ml = getLen(ml);
+        seqs.push({ lit, at, len: ml + 4, off });
+      }
+      return seqs;
+    }
+
+    // 展開する。印を読み、そのまま書くバイトを写し、前の出力から写す（重なってもよい）
+    function decompress(c, size) {
+      const out = new Uint8Array(size);
+      let op = 0;
+      for (const q of sequences(c)) {
+        if (op + q.lit > size) throw new Error('元の大きさを超える');
+        for (let k = 0; k < q.lit; k++) out[op++] = c[q.at + k];
+        if (!q.len) continue;
+        if (q.off === 0 || q.off > op || op + q.len > size) throw new Error('壊れた写し');
+        for (let k = 0, from = op - q.off; k < q.len; k++) out[op++] = out[from + k];
+      }
+      if (op !== size) throw new Error('大きさが合わない');
+      return out;
+    }
+
+    // 全部のバイトが同じ値なら、その値。違うバイトがあれば -1
+    function sameFill(page) {
+      const v = page[0];
+      for (let i = 1; i < page.length; i++) if (page[i] !== v) return -1;
+      return page.length ? v : -1;
+    }
+
+    // 種から毎回同じ並びを作る乱数（mulberry32）
+    function rng(seed) {
+      let a = seed >>> 0;
+      return () => {
+        a = (a + 0x6d2b79f5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    const pick = (r, a) => a[(r() * a.length) | 0];
+
+    // 文字列を UTF-8 のバイトにしてページへ書く。ページの端で文字の途中でも切れる
+    function putText(p, pos, s) {
+      for (let i = 0; i < s.length && pos < p.length; i++) {
+        const ch = s.charCodeAt(i);
+        if (ch < 0x80) p[pos++] = ch;
+        else if (ch < 0x800) {
+          p[pos++] = 0xc0 | (ch >> 6);
+          if (pos < p.length) p[pos++] = 0x80 | (ch & 63);
+        } else {
+          p[pos++] = 0xe0 | (ch >> 12);
+          if (pos < p.length) p[pos++] = 0x80 | ((ch >> 6) & 63);
+          if (pos < p.length) p[pos++] = 0x80 | (ch & 63);
+        }
+      }
+      return pos;
+    }
+
+    const WORDS = ['駅前', '新しい店', '雨', '電車', '遅れ', '市役所', '図書館', '夏祭り', '気温', '天気予報', '試合', '映画', '値下げ', '道路工事', '公園', '花火大会', '選手', '発表', '開店', '休み'];
+    const JOIN = ['の', 'が', 'で', 'と', 'を'];
+    const GOODS = ['りんご', 'みかん', '牛乳', '食パン', '卵', 'お茶', 'ノート', '鉛筆', '電池', '傘'];
+    const TAGS = ['食べ物', '飲み物', '文房具', '日用品', 'セール', '新商品'];
+    const two = (v) => String(v).padStart(2, '0');
+    function newsLine(r) {
+      let title = pick(r, WORDS);
+      for (let i = 1, n = 3 + ((r() * 3) | 0); i < n; i++) title += pick(r, JOIN) + pick(r, WORDS);
+      return `<li class="item"><a href="/news/2026/11/${10000 + ((r() * 90000) | 0)}">${title}</a><span class="time">${two((r() * 24) | 0)}:${two((r() * 60) | 0)}</span></li>\n`;
+    }
+    function jsonRow(r) {
+      return `{"id":${1000 + ((r() * 9000) | 0)},"name":"${pick(r, GOODS)}","price":${(1 + ((r() * 50) | 0)) * 20},"stock":${(r() * 40) | 0},"tags":["${pick(r, TAGS)}","${pick(r, TAGS)}"]},\n`;
+    }
+    const KIND_NO = { text: 1, json: 2, heap: 3, media: 4, zero: 5 };
+
+    // ページの中身を作る。text: HTML の一覧、json: 商品の表、heap: プログラムの変数の並び、media: 圧縮済みの画像、zero: 0 だけ
+    function makePage(kind, seed) {
+      const p = new Uint8Array(PAGE);
+      if (!KIND_NO[kind]) throw new Error('知らない種類: ' + kind);
+      if (kind === 'zero') return p;
+      const r = rng(Math.imul(seed, 7919) + KIND_NO[kind]);
+      if (kind === 'media') {
+        for (let i = 0; i < PAGE; i++) p[i] = (r() * 256) | 0;
+      } else if (kind === 'heap') {
+        // 4バイトずつ: 先頭に型の番号、続けて小さな整数・近くを指す番地・決まった値。後ろはまだ使っていない 0
+        const MAPS = [0x08123a41, 0x08123b91, 0x08124001, 0x08125c29, 0x08126e71, 0x08127aa9];
+        const end = (PAGE * (0.45 + r() * 0.45)) & ~3;
+        let pos = 0;
+        const w32 = (v) => {
+          if (pos + 4 > end) { pos = end; return; }
+          p[pos] = v & 255; p[pos + 1] = (v >>> 8) & 255; p[pos + 2] = (v >>> 16) & 255; p[pos + 3] = v >>> 24;
+          pos += 4;
+        };
+        while (pos < end) {
+          w32(pick(r, MAPS));
+          for (let f = 0, nf = 2 + ((r() * 5) | 0); f < nf; f++) {
+            const k = r();
+            w32(k < 0.4 ? ((r() * 1000) | 0) << 1 : k < 0.8 ? 0x08400001 + (((r() * 16384) | 0) << 2) : 0x08000071);
+          }
+        }
+      } else {
+        let pos = 0;
+        while (pos < PAGE) pos = putText(p, pos, kind === 'text' ? newsLine(r) : jsonRow(r));
+      }
+      return p;
+    }
+
+    // タブの種類と、そのタブが使うページ（合わせて16）
+    const PROFILES = [
+      { name: 'ニュース', mix: { text: 7, heap: 5, media: 2, zero: 2 } },
+      { name: '動画', mix: { media: 7, heap: 4, text: 2, zero: 3 } },
+      { name: '表計算', mix: { json: 7, heap: 5, zero: 4 } },
+      { name: '地図', mix: { media: 4, json: 5, heap: 4, zero: 3 } },
+      { name: '文書', mix: { text: 8, heap: 5, zero: 3 } },
+      { name: 'SNS', mix: { text: 5, media: 4, json: 3, heap: 2, zero: 2 } },
+      { name: 'AI と会話', mix: { text: 6, json: 6, heap: 3, zero: 1 } },
+    ];
+    function tabKinds(mix, seed) {
+      const list = [];
+      for (const [k, n] of Object.entries(mix)) for (let i = 0; i < n; i++) list.push(k);
+      const r = rng(seed);
+      for (let i = list.length - 1; i > 0; i--) {
+        const j = (r() * (i + 1)) | 0;
+        [list[i], list[j]] = [list[j], list[i]];
+      }
+      return list;
+    }
+
+    // 模型。RAM は slots マス。zram は元の大きさで zcap ページまで入る。置き場は圧縮後の合計を 4 KiB で割って切り上げたマスを使う
+    function createSim(slots, zcap) {
+      return { slots, zcap, clock: 0, seed: 1, pages: [], tabs: [], ram: 0, zbytes: 0, zcount: 0, same: 0, huge: 0,
+        n: { out: 0, in: 0, ok: 0, kill: 0 }, ev: null };
+    }
+    const poolFrames = (s) => Math.ceil(s.zbytes / PAGE);
+    const usedFrames = (s) => s.ram + poolFrames(s);
+    const newEv = () => ({ out: 0, in: 0, ok: 0, killed: [] });
+
+    function swapOut(s, p) {
+      const fill = sameFill(p.data);
+      if (fill >= 0) { p.z = { type: 'same', size: 0, fill }; s.same++; }
+      else {
+        const c = compress(p.data);
+        if (c.length > HUGE) { p.z = { type: 'huge', size: PAGE, bytes: p.data }; s.huge++; }
+        else p.z = { type: 'lz', size: c.length, bytes: c };
+      }
+      s.zbytes += p.z.size;
+      s.zcount++;
+      s.ram--;
+      p.where = 'zram';
+      p.data = null;
+      s.n.out++;
+      s.ev.out++;
+    }
+    function dropZ(s, p) {
+      if (p.z.type === 'same') s.same--;
+      if (p.z.type === 'huge') s.huge--;
+      s.zbytes -= p.z.size;
+      s.zcount--;
+      p.z = null;
+    }
+    function swapIn(s, p) {
+      const z = p.z;
+      const d = z.type === 'same' ? new Uint8Array(PAGE).fill(z.fill) : z.type === 'huge' ? z.bytes : decompress(z.bytes, PAGE);
+      dropZ(s, p);
+      s.ram++;
+      p.where = 'ram';
+      p.data = d;
+      s.n.in++;
+      s.ev.in++;
+      // 元の中身を作り直して、1バイトずつ比べる
+      const want = makePage(p.kind, p.seed);
+      let same = d.length === want.length;
+      for (let i = 0; same && i < want.length; i++) same = d[i] === want[i];
+      if (same) { s.n.ok++; s.ev.ok++; }
+    }
+    function kill(s, t) {
+      for (const p of t.pages) {
+        if (p.where === 'ram') s.ram--;
+        if (p.where === 'zram') dropZ(s, p);
+        p.where = 'gone';
+        p.data = null;
+      }
+      t.alive = false;
+      s.pages = s.pages.filter((p) => p.where !== 'gone');
+      s.n.kill++;
+      s.ev.killed.push(t);
+    }
+    // マスを1つ空ける。まず長く使われていないページを zram へ移し、それも出来なければ一番古いタブを閉じる
+    function makeRoom(s, pin) {
+      while (usedFrames(s) + 1 > s.slots) {
+        if (s.zcount < s.zcap) {
+          let victim = null;
+          for (const p of s.pages) if (p.where === 'ram' && p.tab !== pin.id && (!victim || p.last < victim.last)) victim = p;
+          if (victim) { swapOut(s, victim); continue; }
+        }
+        let old = null;
+        for (const t of s.tabs) if (t.alive && t !== pin && (!old || t.last < old.last)) old = t;
+        if (!old) return false;
+        kill(s, old);
+      }
+      return true;
+    }
+    function openTab(s, prof) {
+      s.clock++;
+      s.ev = newEv();
+      const t = { id: s.tabs.length, name: prof.name, alive: true, last: s.clock, pages: [] };
+      s.tabs.push(t);
+      for (const kind of tabKinds(prof.mix, s.seed * 31 + t.id)) {
+        if (!makeRoom(s, t)) { kill(s, t); break; }
+        const p = { id: s.seed, tab: t.id, kind, seed: s.seed++, where: 'ram', last: s.clock, data: null, z: null };
+        p.data = makePage(kind, p.seed);
+        s.ram++;
+        s.pages.push(p);
+        t.pages.push(p);
+      }
+      return t;
+    }
+    // タブへ切り替える。zram にあるページは展開して戻し、全部のページを「今使った」にする
+    function touchTab(s, t) {
+      s.ev = newEv();
+      if (!t.alive) return false;
+      s.clock++;
+      t.last = s.clock;
+      for (const p of t.pages) {
+        if (p.where === 'zram') {
+          if (!makeRoom(s, t)) { kill(s, t); return false; }
+          swapIn(s, p);
+        }
+        p.last = s.clock;
+      }
+      return true;
+    }
+    function stats(s) {
+      const pool = poolFrames(s);
+      return {
+        slots: s.slots, ram: s.ram, pool, free: s.slots - s.ram - pool,
+        stored: s.zcount, same: s.same, huge: s.huge,
+        orig: s.zcount * PAGE, compr: s.zbytes, memUsed: pool * PAGE,
+        ratio: pool ? (s.zcount * PAGE) / (pool * PAGE) : Infinity,
+        holds: s.ram + s.zcount,
+        opened: s.tabs.length, alive: s.tabs.filter((t) => t.alive).length, killed: s.n.kill,
+      };
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    if (window.THUMB) document.documentElement.classList.add('thumb');
+    const calm = matchMedia('(prefers-reduced-motion: reduce)');
+    const ramEl = $('ram'), stEl = $('st'), msgEl = $('msg'), tabsEl = $('tabs'), zsel = $('zsize'), autoSw = $('auto');
+    const N = 64;
+    const cells = Array.from({ length: N }, () => ramEl.appendChild(document.createElement('div')));
+    const num = (v) => v.toLocaleString('ja-JP');
+    const kib = (b) => (b / 1024).toLocaleString('ja-JP', { maximumFractionDigits: 1 }) + ' KiB';
+    let sim, slotKeys, cur = -1, profNo = 0, timer = 0, steps = 0;
+
+    function say(text) { msgEl.textContent = text; }
+
+    // マスの並びを前回からなるべく変えない。いなくなったものだけ外し、新しいものを空いたマスへ入れる
+    function layout() {
+      const want = new Map();
+      for (const p of sim.pages) if (p.where === 'ram') want.set('p' + p.id, p);
+      const pool = poolFrames(sim);
+      for (let k = 0; k < pool; k++) want.set('z' + k, k);
+      for (let i = 0; i < N; i++) if (slotKeys[i] && !want.has(slotKeys[i])) slotKeys[i] = null;
+      const placed = new Set(slotKeys.filter(Boolean));
+      let at = 0;
+      for (const key of want.keys()) {
+        if (placed.has(key)) continue;
+        while (at < N && slotKeys[at]) at++;
+        if (at < N) slotKeys[at] = key;
+      }
+      return want;
+    }
+
+    function render() {
+      const want = layout();
+      const pool = poolFrames(sim);
+      const lastFill = pool ? (sim.zbytes - (pool - 1) * PAGE) / PAGE : 1;
+      for (let i = 0; i < N; i++) {
+        const key = slotKeys[i], c = cells[i];
+        let cls = 'free', txt = '', f = '100%';
+        if (key && key[0] === 'p') {
+          const p = want.get(key);
+          cls = p.kind + (p.tab === cur ? ' cur' : '');
+          txt = String(p.tab + 1);
+        } else if (key) {
+          cls = 'z';
+          txt = 'z';
+          if (want.get(key) === pool - 1) f = Math.round(lastFill * 100) + '%';
+        }
+        if (c.className !== cls) c.className = cls;
+        if (c.textContent !== txt) c.textContent = txt;
+        c.style.setProperty('--f', f);
+      }
+      const s = stats(sim);
+      ramEl.setAttribute('aria-label', `RAM ${N} マスのうち、ページ ${s.ram} マス、zram の置き場 ${s.pool} マス、空き ${s.free} マス`);
+      const rows = [
+        ['RAM の中', `ページ ${s.ram}・zram ${s.pool}・空き ${s.free} マス`],
+        ['持っているデータ', `<span class="big">${kib(s.holds * PAGE)}</span>（RAM は ${kib(N * PAGE)}。${(s.holds / N).toFixed(2)} 倍）`],
+      ];
+      if (sim.zcap) {
+        rows.push(['zram のページ', `${s.stored} / ${sim.zcap}（0 だけ ${s.same}・縮まず生のまま ${s.huge}）`]);
+        rows.push(['zram の圧縮率', s.pool ? `元 ${kib(s.orig)} → 置き場 ${kib(s.memUsed)}（<b>1 : ${s.ratio.toFixed(2)}</b>）` : '—']);
+      } else {
+        rows.push(['zram', 'なし（足りなくなったらタブを閉じる）']);
+      }
+      rows.push(['タブ', `開いた ${s.opened}・生きている ${s.alive}・閉じられた ${s.killed}`]);
+      rows.push(['展開して戻した', `${num(sim.n.in)} ページ（元と同じ ${num(sim.n.ok)}）`]);
+      stEl.replaceChildren();
+      for (const [k, v] of rows) {
+        const dt = document.createElement('dt'), dd = document.createElement('dd');
+        dt.textContent = k;
+        dd.innerHTML = v;   // 中身はこのコードで作った数と決まった言葉だけ
+        stEl.append(dt, dd);
+      }
+      tabsEl.replaceChildren();
+      for (const t of sim.tabs) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'tab' + (t.id === cur && t.alive ? ' cur' : '');
+        b.dataset.id = t.id;
+        b.disabled = !t.alive;
+        const inRam = t.pages.filter((p) => p.where === 'ram').length, inZ = t.pages.filter((p) => p.where === 'zram').length;
+        const nm = document.createElement('b');
+        nm.textContent = `${t.id + 1} ${t.name}`;
+        const bar = document.createElement('span');
+        bar.className = 'bar';
+        const r1 = document.createElement('i'), r2 = document.createElement('i');
+        r1.className = 'r'; r1.style.flex = String(inRam);
+        r2.className = 'q'; r2.style.flex = String(inZ);
+        bar.append(r1, r2);
+        const info = document.createElement('span');
+        info.className = 'mut';
+        info.textContent = t.alive ? `RAM ${inRam}・zram ${inZ}` : '閉じられた';
+        b.append(nm, bar, info);
+        tabsEl.append(b);
+      }
+    }
+
+    function report(head) {
+      const e = sim.ev, parts = [head];
+      if (e.in) parts.push(`zram から ${e.in} ページを展開して戻した（元と1バイトずつ同じ: ${e.ok} ページ）。`);
+      if (e.out) parts.push(`RAM が足りないので、長く使われていないページ ${e.out} 個を圧縮して zram へ移した。`);
+      if (e.killed.length) {
+        const names = e.killed.map((t) => `「${t.id + 1} ${t.name}」`).join('');
+        parts.push(`${sim.zcap ? 'RAM も zram も足りないので' : 'RAM が足りないので'}、一番長く使われていない${names}のタブを閉じた。`);
+      }
+      say(parts.join(''));
+    }
+    function reset() {
+      sim = createSim(N, Math.round(N * Number(zsel.value)));
+      slotKeys = new Array(N).fill(null);
+      cur = -1;
+      profNo = 0;
+      steps = 0;
+      say('RAM は空です。');
+      render();
+    }
+    function doOpen() {
+      const t = openTab(sim, PROFILES[profNo++ % PROFILES.length]);
+      cur = t.alive ? t.id : -1;
+      report(`「${t.id + 1} ${t.name}」のタブを開いた（${t.pages.length} ページ）。`);
+      render();
+    }
+    function oldest() {
+      let o = null;
+      for (const t of sim.tabs) if (t.alive && t.id !== cur && (!o || t.last < o.last)) o = t;
+      return o;
+    }
+    function doTouch(t) {
+      if (!t || !t.alive) { say('切り替えられるタブがありません。'); return; }
+      touchTab(sim, t);
+      cur = t.alive ? t.id : -1;
+      report(`「${t.id + 1} ${t.name}」のタブへ切り替えた。`);
+      render();
+    }
+
+    // 自動で動かす: タブを開き、ときどき一番古いタブへ戻る。12 個開いたら最初から
+    function autoStep() {
+      steps++;
+      if (sim.tabs.length >= 12) { reset(); doOpen(); }
+      else if (steps % 3 === 0 && oldest()) doTouch(oldest());
+      else doOpen();
+    }
+    function loop() {
+      timer = setTimeout(() => { autoStep(); loop(); }, window.THUMB ? 650 : 1500);
+    }
+    function setAuto(on) {
+      autoSw.checked = on;
+      clearTimeout(timer);
+      if (on) loop();
+    }
+
+    $('bOpen').addEventListener('click', () => { setAuto(false); doOpen(); });
+    $('bOld').addEventListener('click', () => { setAuto(false); doTouch(oldest()); });
+    $('bReset').addEventListener('click', () => { reset(); doOpen(); });
+    zsel.addEventListener('change', () => { reset(); doOpen(); });
+    autoSw.addEventListener('change', () => setAuto(autoSw.checked));
+    tabsEl.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-id]');
+      if (!b || b.disabled) return;
+      setAuto(false);
+      doTouch(sim.tabs[Number(b.dataset.id)]);
+    });
+
+    // 1ページの中を見る
+    const KINDS = [['text', '文章（HTML）'], ['json', 'JSON'], ['heap', 'ヒープ'], ['media', '画像'], ['zero', '0 だけ']];
+    const kindsEl = $('kinds'), canvas = $('bytes'), vnum = $('vnum'), vtext = $('vtext');
+    const ctx = canvas.getContext('2d');
+    const dec = new TextDecoder();
+    for (const [k, label] of KINDS) {
+      const lab = document.createElement('label');
+      const r = document.createElement('input');
+      r.type = 'radio';
+      r.name = 'kind';
+      r.value = k;
+      r.checked = k === 'text';
+      lab.append(r, label);
+      kindsEl.append(lab);
+    }
+    kindsEl.addEventListener('change', (e) => { if (e.target.name === 'kind') showPage(e.target.value); });
+
+    function span(text, flag) {
+      const s = document.createElement('span');
+      s.className = flag === 1 ? 'cp' : flag === 2 ? 'same' : 'lit';
+      s.textContent = text;
+      return s;
+    }
+    function showPage(kind) {
+      const page = makePage(kind, 11);
+      const flags = new Uint8Array(PAGE);   // 0: そのまま、1: 写した、2: 同じ値だけ
+      const fill = sameFill(page);
+      let text;
+      if (fill >= 0) {
+        flags.fill(2);
+        text = `全部のバイトが ${fill} なので、zram は圧縮せずに「${fill} で埋まっている」とだけ覚える。置き場は使わない。`;
+      } else {
+        const c = compress(page);
+        let pos = 0, copied = 0, times = 0;
+        for (const q of sequences(c)) {
+          pos += q.lit;
+          if (q.len) { flags.fill(1, pos, pos + q.len); pos += q.len; copied += q.len; times++; }
+        }
+        text = `4,096 バイト → ${num(c.length)} バイト（1 : ${(PAGE / c.length).toFixed(2)}）。前から写したバイトは ${num(copied)}（${Math.round((copied / PAGE) * 100)}%）、写しの回数は ${num(times)} 回。`;
+        if (c.length > HUGE) text += '同じ並びがほとんど無く、圧縮すると逆に大きくなるので、zram はこのページを生のまま置く。';
+      }
+      vnum.textContent = text;
+      canvas.setAttribute('aria-label', text);
+      const img = ctx.createImageData(64, 64);
+      const COL = [[255, 176, 87], [63, 134, 224], [86, 97, 118]];
+      for (let i = 0; i < PAGE; i++) {
+        const c = COL[flags[i]], k = 0.45 + 0.55 * (page[i] / 255);
+        img.data[i * 4] = c[0] * k;
+        img.data[i * 4 + 1] = c[1] * k;
+        img.data[i * 4 + 2] = c[2] * k;
+        img.data[i * 4 + 3] = 255;
+      }
+      ctx.putImageData(img, 0, 0);
+      vtext.replaceChildren();
+      if (kind === 'text' || kind === 'json') {
+        // 文字の切れ目でまとめてから UTF-8 として読む
+        let start = 0, flag = flags[0], i = 0;
+        while (i < 480) {
+          const b = page[i], step = b < 0x80 ? 1 : b >= 0xe0 ? 3 : b >= 0xc0 ? 2 : 1;
+          if (flags[i] !== flag) { vtext.append(span(dec.decode(page.subarray(start, i)), flag)); start = i; flag = flags[i]; }
+          i += step;
+        }
+        vtext.append(span(dec.decode(page.subarray(start, i)), flag), document.createTextNode(' …'));
+      } else {
+        // 先頭の 128 バイトを 16 進数で並べる
+        for (let i = 0; i < 128; i++) {
+          vtext.append(span(page[i].toString(16).padStart(2, '0'), flags[i]), document.createTextNode(i % 16 === 15 ? '\n' : ' '));
+        }
+        vtext.append(document.createTextNode('…'));
+      }
+    }
+
+    // この端末で 1 ページの圧縮と展開にかかる時間を測る
+    function bench() {
+      const page = makePage('text', 3), R = 200;
+      let c = compress(page);
+      let t0 = performance.now();
+      for (let k = 0; k < R; k++) c = compress(page);
+      const tc = (performance.now() - t0) / R;
+      t0 = performance.now();
+      for (let k = 0; k < R; k++) decompress(c, PAGE);
+      const td = (performance.now() - t0) / R;
+      const us = (ms) => (ms * 1000).toFixed(1) + ' μs';
+      const mb = (ms) => (ms > 0 ? Math.round(PAGE / 1048576 / (ms / 1000)) + ' MB' : '—');
+      $('bench').textContent = `この端末での速さ（文章のページを ${R} 回ずつ処理した平均）: 1ページの圧縮 ${us(tc)}、展開 ${us(td)}。1秒あたり、圧縮は約 ${mb(tc)}、展開は約 ${mb(td)} のページを処理できる。`;
+    }
+
+    reset();
+    doOpen();
+    showPage('text');
+    setAuto(!!window.THUMB || !calm.matches);
+    if (!window.THUMB) setTimeout(bench, 600);
+  },
+});
