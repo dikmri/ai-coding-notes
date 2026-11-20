@@ -991,3 +991,96 @@ test('jj: 記事の流れで、税率を直すと上の変更が衝突し、squa
   J.TOUR.slice(0, u + 1).forEach((st) => J.act(S2, st));
   assert.equal(J.conflicts(S2.repo.changes[J.byDesc(S2.repo, '送料を足す')].tree), 1);
 });
+
+// 一般化リーマン予想の零点（ディリクレの L 関数）
+const GRH = 'tr-20261121-grh-zeros';
+function grh() {
+  return trendCore(GRH, ['makeFn', 'lfun', 'lgamma', 'hardyZ', 'refineZero', 'countZeros', 'mangoldt', 'constTerm', 'psiStep', 'psiWave']);
+}
+// Z(t) を刻み step で調べ、符号が変わる所の零点を返す
+function zerosUpTo(G, f, T, step = 0.1) {
+  const out = [];
+  let a = 0.05, za = G.hardyZ(a, f)[0];
+  for (let i = 1; a + step <= T; i++) {
+    const b = 0.05 + i * step, zb = G.hardyZ(b, f)[0];
+    if (za * zb < 0) out.push(G.refineZero(f, a, b, za, zb));
+    a = b; za = zb;
+  }
+  return out;
+}
+
+test('GRH: 指標の値と偶奇。対応しない法は例外', () => {
+  const G = grh();
+  assert.deepEqual(Array.from(G.makeFn(5).chi), [0, 1, -1, -1, 1]);
+  assert.deepEqual(Array.from(G.makeFn(4).chi), [0, 1, 0, -1]);
+  assert.deepEqual([1, 3, 4, 5, 7, 11, 13].map((q) => G.makeFn(q).kappa), [0, 1, 1, 0, 1, 1, 0]);
+  assert.throws(() => G.makeFn(6));
+  assert.throws(() => G.makeFn(9));
+});
+
+test('GRH: L 関数と log Γ の値が、知られている値と合う', () => {
+  const G = grh();
+  const z = G.makeFn(1), c4 = G.makeFn(4), c3 = G.makeFn(3);
+  assert.ok(near(G.lfun([0.5, 0], z)[0], -1.4603545088095868, 1e-10));
+  assert.ok(near(G.lfun([2, 0], z)[0], Math.PI ** 2 / 6, 1e-12));
+  assert.ok(near(G.lfun([0, 0], z)[0], -0.5, 1e-12));
+  assert.ok(near(G.lfun([0, 0], c4)[0], 0.5, 1e-12));
+  assert.ok(near(G.lfun([0, 0], c3)[0], 1 / 3, 1e-12));
+  assert.ok(near(G.lfun([1.5, 0], c4)[0], 0.8645026534612020, 1e-10));   // β(3/2)
+  const lg = G.lgamma([1, 1]);
+  assert.ok(near(lg[0], -0.6509231993018563, 1e-12) && near(lg[1], -0.3016403204675331, 1e-12));
+  assert.ok(near(G.lgamma([0.5, 0])[0], Math.log(Math.sqrt(Math.PI)), 1e-12));
+});
+
+test('GRH: Z(t) は実数で、零点が知られている値と 10 桁合う', () => {
+  const G = grh();
+  for (const q of [1, 3, 4, 5, 7, 11, 13]) {
+    const f = G.makeFn(q);
+    for (const t of [3.3, 17.7, 42.1, 99.9]) assert.ok(Math.abs(G.hardyZ(t, f)[1]) < 1e-8, `q=${q} t=${t}`);
+  }
+  const zeta = zerosUpTo(G, G.makeFn(1), 50);
+  const want = [14.134725141734693, 21.022039638771555, 25.010857580145688, 30.424876125859513, 32.935061587739189,
+    37.586178158825671, 40.918719012147495, 43.327073280914999, 48.005150881167159, 49.773832477672302];
+  assert.equal(zeta.length, want.length);
+  zeta.forEach((g, i) => assert.ok(near(g, want[i], 1e-8), `ζ ${i}: ${g}`));
+  const c4 = zerosUpTo(G, G.makeFn(4), 13.5);
+  [6.020948904697597, 10.243770304166555, 12.988098012312424].forEach((w, i) => assert.ok(near(c4[i], w, 1e-8), `χ4 ${i}: ${c4[i]}`));
+  assert.ok(near(zerosUpTo(G, G.makeFn(3), 9)[0], 8.039737155681468, 1e-8));
+});
+
+test('GRH: 偏角の原理の数は整数になり、臨界線の上の零点の数と同じ', () => {
+  const G = grh();
+  assert.ok(near(G.countZeros(G.makeFn(1), 50), 10, 1e-6));
+  assert.ok(near(G.countZeros(G.makeFn(4), 20), 5, 1e-6));
+  for (const q of [1, 5, 13]) {
+    const f = G.makeFn(q), n = G.countZeros(f, 60.3);
+    assert.ok(Math.abs(n - Math.round(n)) < 1e-6, `q=${q}: ${n}`);
+    assert.equal(zerosUpTo(G, f, 60.3).length, Math.round(n), `q=${q}`);
+  }
+});
+
+test('GRH: Λ(n)、明示公式の定数、零点の波の和が素数の階段に近づく', () => {
+  const G = grh();
+  const lam = G.mangoldt(100);
+  assert.ok(near(lam[8], Math.log(2)) && near(lam[9], Math.log(3)) && near(lam[97], Math.log(97)));
+  assert.equal(lam[6], 0);
+  assert.equal(lam[1], 0);
+  // L'/L(0, χ4) = −log 4 + 2 log(Γ(1/4) / Γ(3/4))
+  assert.ok(near(G.constTerm(G.makeFn(4)), -Math.log(4) + 2 * Math.log(3.6256099082219083 / 1.2254167024651776), 1e-7));
+  assert.ok(near(G.constTerm(G.makeFn(1)), Math.log(2 * Math.PI)));
+  for (const q of [1, 3, 5]) {
+    const f = G.makeFn(q), gam = zerosUpTo(G, f, 100), c0 = G.constTerm(f);
+    // 階段の段の真ん中では、零点を多く使った波の和が階段に近い。零点を使わないと遠い
+    let far = 0;
+    for (const x of [10.5, 20.5, 30.5]) {
+      const want = G.psiStep(x, f, lam);
+      assert.ok(Math.abs(G.psiWave(x, f, gam, gam.length, c0) - want) < 0.45, `q=${q} x=${x}`);
+      far = Math.max(far, Math.abs(G.psiWave(x, f, gam, 0, c0) - want));
+    }
+    assert.ok(far > 0.5, `q=${q}`);
+    // 広い範囲で平均すると、差はほぼ 0（定数の項が正しい）
+    let s = 0, n = 0;
+    for (let x = 3.01; x < 40; x += 0.037) { s += G.psiStep(x, f, lam) - G.psiWave(x, f, gam, gam.length, c0); n++; }
+    assert.ok(Math.abs(s / n) < 0.03, `q=${q} 平均 ${s / n}`);
+  }
+});

@@ -5204,3 +5204,590 @@ dekiru.add({
     setAuto(!!window.THUMB || !calm.matches);
   },
 });
+
+dekiru.add({
+  id: 'tr-20261121-grh-zeros', c: 'trend', lv: 3, date: '2026-11-21',
+  t: '一般化リーマン予想の零点を、ブラウザで探して数える（ディリクレの L 関数）',
+  y: 'いっぱんかりーまんよそうのれいてんをぶらうざでさがしてかぞえる',
+  tags: ['一般化リーマン予想', 'ディリクレの L 関数', 'オイラー・マクローリンの和公式', '明示公式', 'Canvas'],
+  d: '2026年11月20日、一般化リーマン予想（GRH）を証明したという発表が2つ続いた。Anthropic の数学者 Levent Alpöge さんは、Claude と一緒に作ったという Lean の証明を公開した。Scott Aaronson さんのブログによると、その長さは約1740万行である。Hacker News では 2100 点を超え、コメントは 1400 件を超えた。同じ日に、Stanford の Ravi Vakil さんが、Alessandro Masullo さんの証明の原稿を公開した。こちらは AI を使っていない人の手による証明で、Brian Conrad さんが数か月かけて確かめている。どちらも、専門家の確認はまだ終わっていない。GRH は「ディリクレの L 関数の、自明でない零点は、すべて実部が 1/2 の直線（臨界線）の上にある」という予想である。この見本は、リーマンのゼータ関数と、法 3・4・5・7・11・13 の実数の値をとる指標の L 関数を、一から計算する。臨界線の上で実数になる Z(t) の符号が変わる所から、零点を探して数える。偏角の原理で求めた「臨界帯の中にある零点の数」と比べ、同じなら、その高さまでの零点はすべて臨界線の上にある。上の色の図では、すべての色が集まる点が零点で、それが σ = 1/2 の線の上に並ぶ。後半は、見つけた零点を波として足し合わせ、素数の階段 ψ(x, χ) を組み立てる（明示公式）。浮動小数点の数値計算なので、厳密な証明ではない。複素数の値をとる指標、t が 100 より上の零点、発表された証明の中身は扱っていない。',
+  p: 'L(s, χ) = q^(−s) Σ χ(a) ζ(s, a/q) と書き直し、フルヴィッツのゼータ ζ(s, a) をオイラー・マクローリンの和公式で計算する。最初の N 項の和に、積分の項とベルヌーイ数の補正 10 項を足すと、級数が収束しない σ ≦ 1 の所でも値が出る。関数等式から、θ(t) = arg Γ((1/2 + κ + it)/2) + (t/2) log(q/π) を使った Z(t) = e^(iθ(t)) L(1/2 + it, χ) は実数になる（κ は χ(−1) = −1 なら 1、それ以外は 0）。Z(t) の符号が変わる所に零点があり、はさみうち法で 10 桁まで詰める。帯の中の零点の数は N(T) = (θ(T) + arg L(1/2 + iT)) / π（ζ では + 1）で、arg は 2 + iT から 1/2 + iT へ少しずつたどって求める。明示公式 ψ(x, χ) = −Σ x^ρ/ρ + 定数 + 自明な零点の項 では、零点 ρ = 1/2 + iγ の1つ1つが、大きさ 2√x/|ρ| で、log x について周期 2π/γ の波になる。零点が臨界線より右にあると、その波は √x より速く大きくなる。GRH が素数の数え方の誤差を決めるのは、このためである。',
+  refs: [
+    { title: 'Hacker News: Levent Alpöge claims proof of the Generalized Riemann Hypothesis', url: 'https://news.ycombinator.com/item?id=50574968' },
+    { title: 'Levent Alpöge の覚え書き（remark.pdf、Lean の証明へのリンク付き）', url: 'https://alpo.ge/remark.pdf' },
+    { title: 'Hurried Announcement: Alessandro Masullo GRH（Ravi Vakil）', url: 'https://math216.wordpress.com/2026/11/20/hurried-announcement-alessandro-masullo-grh/' },
+    { title: 'Unforced Euler singularity, unforced Navier-Stokes singularity, and the Generalized Riemann Hypothesis（Terence Tao）', url: 'https://terrytao.wordpress.com/2026/11/20/unforced-euler-singularity-unforced-navier-stokes-singularity-and-the-generalized-riemann-hypothesis/' },
+    { title: 'The stochastic parrots have apparently proved the Riemann Hypothesis（Scott Aaronson）', url: 'https://scottaaronson.blog/?p=10344' },
+  ],
+  html: `<div class="wrap">
+  <div class="ctl">
+    <label>関数
+      <select id="fn">
+        <option value="1">ζ(s)　リーマンのゼータ関数</option>
+        <option value="3">L(s, χ)　法 3</option>
+        <option value="4" selected>L(s, χ)　法 4</option>
+        <option value="5">L(s, χ)　法 5</option>
+        <option value="7">L(s, χ)　法 7</option>
+        <option value="11">L(s, χ)　法 11</option>
+        <option value="13">L(s, χ)　法 13</option>
+      </select>
+    </label>
+    <label>調べる高さ T
+      <input type="range" id="T" min="20" max="100" step="10" value="50">
+      <output id="Tv" for="T">50</output>
+    </label>
+  </div>
+  <p id="chi" class="mut small"></p>
+  <section>
+    <div class="hd">臨界帯 <span class="mut">横が t（0〜T）、縦が σ。色は L(σ + it) の向き（偏角）で、すべての色が集まる点が零点</span></div>
+    <canvas id="strip" role="img" aria-label="臨界帯の色の図"></canvas>
+    <div class="hd">σ = 1/2 での Z(t) <span class="mut">0 を横切る所が零点（桃色の点）</span></div>
+    <canvas id="zt" role="img" aria-label="Z(t) のグラフ"></canvas>
+  </section>
+  <div class="res">
+    <dl id="st" class="st"></dl>
+    <p id="msg" class="msg" role="status"></p>
+  </div>
+  <section class="part2">
+    <div class="hd">零点の波で素数の階段を組み立てる <span class="mut">明示公式 ψ(x, χ) = −Σ x^ρ/ρ + 定数 + …</span></div>
+    <div class="ctl">
+      <label>使う零点 <input type="range" id="K" min="0" max="0" value="0"> <output id="Kv" for="K">0</output> 組</label>
+      <label>x の範囲
+        <select id="X">
+          <option value="30">2〜30</option>
+          <option value="60" selected>2〜60</option>
+          <option value="100">2〜100</option>
+        </select>
+      </label>
+      <label class="sw"><input type="checkbox" switch id="auto"> 零点を1組ずつ足していく</label>
+    </div>
+    <canvas id="psi" role="img" aria-label="素数の階段と、零点の波の和のグラフ"></canvas>
+    <p class="legend mut small"><span><i class="s"></i>素数の階段 ψ(x, χ) = Σ χ(n) Λ(n)</span><span><i class="w"></i>零点 1/2 ± iγ の波の和</span></p>
+    <p id="race" class="small"></p>
+  </section>
+</div>`,
+  css: `:root { color-scheme: dark; --bg: #10131a; --fg: #e4e8f0; --mut: #9aa3b6; --line: #2b3346; --zline: #7fd4ff; --dot: #ff8fb3; --step: #ffc562; --wave: #7fd4ff; --panel: #161a23; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 system-ui, sans-serif; }
+    .wrap { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .ctl { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+    .ctl label { display: inline-flex; align-items: center; gap: 6px; }
+    select { font: inherit; min-block-size: 28px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 6px; background: #1e2433; color: var(--fg); }
+    input[type="range"] { accent-color: var(--zline); inline-size: 140px; margin: 0; }
+    output { display: inline-block; min-inline-size: 2em; font-variant-numeric: tabular-nums; }
+    :focus-visible { outline: 2px solid #ffd27a; outline-offset: 2px; }
+    .hd { font-weight: 600; }
+    .hd .mut { font-weight: 400; font-size: 12px; }
+    .mut { color: var(--mut); }
+    .small { font-size: 12px; margin: 0; }
+    section { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    canvas { display: block; inline-size: 100%; }
+    #strip { block-size: 110px; }
+    #zt { block-size: 140px; }
+    #psi { block-size: 200px; }
+    .res { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    @media (min-width: 640px) { .res { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+    .st { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; margin: 0; font-size: 13px; }
+    .st dt { color: var(--mut); }
+    .st dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .msg { margin: 0; padding: 6px 8px; border-inline-start: 3px solid var(--dot); background: var(--panel); border-radius: 4px; font-size: 13px; }
+    .part2 { border-block-start: 1px solid var(--line); padding-block-start: 8px; gap: 6px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+    .legend i { display: inline-block; inline-size: 16px; block-size: 3px; vertical-align: middle; margin-inline-end: 6px; border-radius: 2px; }
+    .legend .s { background: var(--step); }
+    .legend .w { background: var(--wave); }
+    input[type="checkbox"][switch] { accent-color: var(--dot); margin: 0; cursor: pointer; }
+    .thumb .wrap { padding: 6px; gap: 4px; }
+    .thumb .ctl, .thumb #chi, .thumb .res, .thumb .legend, .thumb #race, .thumb .hd { display: none; }
+    .thumb #strip { block-size: 24vh; }
+    .thumb #zt { block-size: 21vh; }
+    .thumb #psi { block-size: 44vh; }
+    .thumb .part2 { padding-block-start: 4px; }`,
+  core() {
+    // ディリクレの L 関数を、オイラー・マクローリンの和公式で一から計算する。複素数は [実部, 虚部] の配列で表す
+    const cmul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
+    const cdiv = (a, b) => { const d = b[0] * b[0] + b[1] * b[1]; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
+    const clog = (a) => [Math.log(Math.hypot(a[0], a[1])), Math.atan2(a[1], a[0])];
+    // 正の実数 x について x^(−s)
+    function powNeg(x, s) {
+      const L = Math.log(x), r = Math.exp(-s[0] * L);
+      return [r * Math.cos(s[1] * L), -r * Math.sin(s[1] * L)];
+    }
+
+    const MODS = [1, 3, 4, 5, 7, 11, 13];
+    // B2, B4, …, B20 と (2k)!
+    const BERN = [1 / 6, -1 / 30, 1 / 42, -1 / 30, 5 / 66, -691 / 2730, 7 / 6, -3617 / 510, 43867 / 798, -174611 / 330];
+    const FACT2K = [2, 24, 720, 40320, 3628800, 479001600, 87178291200, 20922789888000, 6402373705728000, 2432902008176640000];
+
+    function powMod(b, e, m) {
+      let r = 1;
+      b %= m;
+      while (e > 0) { if (e & 1) r = (r * b) % m; b = (b * b) % m; e >>= 1; }
+      return r;
+    }
+
+    // 法 q の、実数の値をとる原始的な指標 χ。q = 1 はリーマンのゼータ関数（どの n でも 1）
+    function makeFn(q) {
+      let chi;
+      if (q === 1) chi = [1];
+      else if (q === 4) chi = [0, 1, 0, -1];
+      else if (q > 2 && MODS.includes(q)) {
+        chi = new Array(q).fill(0);
+        for (let a = 1; a < q; a++) chi[a] = powMod(a, (q - 1) / 2, q) === 1 ? 1 : -1;   // ルジャンドル記号
+      } else throw new Error('この法には対応していません: ' + q);
+      const kappa = chi[q - 1] === -1 ? 1 : 0;   // χ(−1) = −1 なら奇の指標
+      return { q, chi, kappa };
+    }
+    const chiOf = (f, n) => f.chi[n % f.q];
+
+    // 足す項の数。|s + 2k| / (2π(N + a)) が 1/2 以下になるように選ぶ
+    const nTerms = (s) => Math.max(6, Math.ceil((Math.hypot(s[0], s[1]) + 20) / Math.PI));
+
+    // フルヴィッツのゼータ ζ(s, a) = Σ (n + a)^(−s) を、N 項の和 + 積分の項 + ベルヌーイ数の補正 10 項で求める
+    function hurwitz(s, a, N) {
+      let re = 0, im = 0;
+      for (let n = 0; n < N; n++) { const p = powNeg(n + a, s); re += p[0]; im += p[1]; }
+      const x = N + a, xs = powNeg(x, s);
+      const integral = cdiv([x * xs[0], x * xs[1]], [s[0] - 1, s[1]]);
+      re += integral[0] + xs[0] / 2; im += integral[1] + xs[1] / 2;
+      let rise = [s[0], s[1]];           // s(s+1)…(s+2k−2)
+      let pw = [xs[0] / x, xs[1] / x];   // x^(−s−2k+1)
+      for (let k = 1; k <= 10; k++) {
+        const c = BERN[k - 1] / FACT2K[k - 1], term = cmul(rise, pw);
+        re += c * term[0]; im += c * term[1];
+        rise = cmul(cmul(rise, [s[0] + 2 * k - 1, s[1]]), [s[0] + 2 * k, s[1]]);
+        pw = [pw[0] / (x * x), pw[1] / (x * x)];
+      }
+      return [re, im];
+    }
+
+    // L(s, χ) = q^(−s) Σ χ(a) ζ(s, a/q)
+    function lfun(s, f) {
+      const N = nTerms(s);
+      if (f.q === 1) return hurwitz(s, 1, N);
+      let re = 0, im = 0;
+      for (let a = 1; a < f.q; a++) {
+        if (!f.chi[a]) continue;
+        const h = hurwitz(s, a / f.q, N);
+        re += f.chi[a] * h[0]; im += f.chi[a] * h[1];
+      }
+      return cmul([re, im], powNeg(f.q, s));
+    }
+
+    // log Γ(z)（実部が正の z）。10 以上へずらしてスターリングの級数を使うので、虚部は t についてつながる
+    function lgamma(z) {
+      let re = z[0], sr = 0, si = 0;
+      const im = z[1];
+      while (re < 10) { const l = clog([re, im]); sr += l[0]; si += l[1]; re += 1; }
+      const w = [re, im], r = cmul([re - 0.5, im], clog(w));
+      r[0] += -re + 0.5 * Math.log(2 * Math.PI); r[1] -= im;
+      const inv = cdiv([1, 0], w), inv2 = cmul(inv, inv);
+      let p = inv;
+      for (let k = 1; k <= 7; k++) {
+        const c = BERN[k - 1] / (2 * k * (2 * k - 1));
+        r[0] += c * p[0]; r[1] += c * p[1];
+        p = cmul(p, inv2);
+      }
+      return [r[0] - sr, r[1] - si];
+    }
+
+    // θ(t) = arg Γ((1/2 + κ + it)/2) + (t/2) log(q/π)
+    const theta = (t, f) => lgamma([(0.5 + f.kappa) / 2, t / 2])[1] + (t / 2) * Math.log(f.q / Math.PI);
+
+    // Z(t) = e^(iθ(t)) L(1/2 + it, χ) は関数等式から実数になる。2つ目の値は計算で残った虚部（誤差の目安）
+    function hardyZ(t, f) {
+      const L = lfun([0.5, t], f), th = theta(t, f), c = Math.cos(th), sn = Math.sin(th);
+      return [L[0] * c - L[1] * sn, L[0] * sn + L[1] * c];
+    }
+
+    // 符号が変わる区間 [a, b] の中の零点を、はさみうち法（イリノイ法）で詰める
+    function refineZero(f, a, b, za, zb) {
+      if (za === undefined) za = hardyZ(a, f)[0];
+      if (zb === undefined) zb = hardyZ(b, f)[0];
+      if (za * zb > 0) throw new Error('符号が変わっていません');
+      // 直線で結んで 0 になる点 m へ b を動かす。動かなかった側の値は半分にして、片側だけが動き続けるのを防ぐ
+      for (let i = 0; i < 100 && Math.abs(b - a) > 1e-12; i++) {
+        let m = b - zb * (b - a) / (zb - za);
+        if (!(m > Math.min(a, b) && m < Math.max(a, b))) m = (a + b) / 2;
+        const zm = hardyZ(m, f)[0];
+        if (zm === 0) return m;
+        if (zm * zb < 0) { a = b; za = zb; } else za /= 2;
+        b = m; zb = zm;
+      }
+      return b;
+    }
+
+    // 偏角の原理で、臨界帯の 0 < Im s < T にある零点の数を求める（N(T) = (θ(T) + arg L(1/2 + iT)) / π、ζ では + 1）
+    // arg L は 2 + iT（実部が正なので主値でよい）から 1/2 + iT まで、向きの変わり方が小さくなる刻みでたどる
+    function countZeros(f, T) {
+      let sig = 2, v = lfun([sig, T], f), arg = Math.atan2(v[1], v[0]), h = 0.05;
+      while (sig > 0.5) {
+        const next = Math.max(0.5, sig - h), w = lfun([next, T], f);
+        let d = Math.atan2(w[1], w[0]) - Math.atan2(v[1], v[0]);
+        d -= 2 * Math.PI * Math.round(d / (2 * Math.PI));
+        if (Math.abs(d) > 0.3 && h > 1e-5) { h /= 2; continue; }
+        arg += d; v = w; sig = next;
+        if (Math.abs(d) < 0.1) h = Math.min(0.05, h * 1.5);
+      }
+      return (theta(T, f) + arg) / Math.PI + (f.q === 1 ? 1 : 0);
+    }
+
+    // フォン・マンゴルトの関数 Λ(n)（n が素数 p の累乗なら log p、それ以外は 0）を n ≤ M まで並べる
+    function mangoldt(M) {
+      const lam = new Float64Array(M + 1), comp = new Uint8Array(M + 1);
+      for (let p = 2; p <= M; p++) {
+        if (comp[p]) continue;
+        for (let m = p * p; m <= M; m += p) comp[m] = 1;
+        for (let pk = p; pk <= M; pk *= p) lam[pk] = Math.log(p);
+      }
+      return lam;
+    }
+
+    // 明示公式の定数の項。ζ は log 2π、奇の指標は L'/L(0, χ)、偶の指標は L'/L(s, χ) − 1/s の s → 0 の値
+    function constTerm(f) {
+      if (f.q === 1) return Math.log(2 * Math.PI);
+      const h = 0.01, L = (x) => lfun([x, 0], f)[0];
+      const p2 = L(2 * h), p1 = L(h), z0 = L(0), m1 = L(-h), m2 = L(-2 * h);
+      const d1 = (-p2 + 8 * p1 - 8 * m1 + m2) / (12 * h);
+      if (f.kappa === 1) return d1 / z0;
+      const d2 = (-p2 + 16 * p1 - 30 * z0 + 16 * m1 - m2) / (12 * h * h);
+      return d2 / (2 * d1);
+    }
+
+    // ψ(x, χ) = Σ_{n ≤ x} χ(n) Λ(n)（素数の階段）
+    function psiStep(x, f, lam) {
+      let s = 0;
+      for (let n = 2; n <= x && n < lam.length; n++) if (lam[n]) s += chiOf(f, n) * lam[n];
+      return s;
+    }
+
+    // 明示公式で、零点 1/2 ± iγ（γ は gammas の先頭 K 個）から ψ(x, χ) を組み立てる
+    function psiWave(x, f, gammas, K, c0) {
+      const lx = Math.log(x), sx = Math.sqrt(x);
+      let wave = 0;
+      for (let k = 0; k < K && k < gammas.length; k++) {
+        const g = gammas[k];
+        wave += 2 * sx * (0.5 * Math.cos(g * lx) + g * Math.sin(g * lx)) / (0.25 + g * g);   // 2 Re(x^ρ / ρ)
+      }
+      if (f.q === 1) return x - wave - c0 - 0.5 * Math.log(1 - 1 / (x * x));
+      if (f.kappa === 1) return -wave - c0 + 0.5 * Math.log((x + 1) / (x - 1));
+      return -wave - lx - c0 - 0.5 * Math.log(1 - 1 / (x * x));
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    if (window.THUMB) document.documentElement.classList.add('thumb');
+    const calm = matchMedia('(prefers-reduced-motion: reduce)');
+    const fnSel = $('fn'), tIn = $('T'), tOut = $('Tv'), kIn = $('K'), kOut = $('Kv'), xSel = $('X'), autoSw = $('auto');
+    const stripCv = $('strip'), ztCv = $('zt'), psiCv = $('psi');
+    const stEl = $('st'), msgEl = $('msg'), chiEl = $('chi'), raceEl = $('race');
+    const PAD_L = 34, PAD_R = 10, SIG_HI = 1.25, SIG_LO = -0.25;
+    const lam = mangoldt(1000);
+    const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888';
+    const COL = { mut: cssVar('--mut'), line: cssVar('--line'), z: cssVar('--zline'), dot: cssVar('--dot'), step: cssVar('--step'), wave: cssVar('--wave') };
+    const FONT = '11px system-ui, sans-serif';
+    // 長い計算の途中で、ときどきブラウザへ順番を返す（scheduler.yield が無いブラウザでは setTimeout）
+    const pause = () => (globalThis.scheduler && typeof scheduler.yield === 'function') ? scheduler.yield() : new Promise((r) => setTimeout(r, 0));
+    let run = 0, cur = null, autoTimer = 0, autoK = 0;
+
+    function say(text) { msgEl.textContent = text; }
+
+    // canvas の大きさを表示の大きさに合わせる。幅や高さが 0 のときも 1 にする
+    function fit(cv) {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const w = Math.max(1, cv.clientWidth), h = Math.max(1, cv.clientHeight);
+      const W = Math.max(1, Math.round(w * dpr)), H = Math.max(1, Math.round(h * dpr));
+      if (cv.width !== W) cv.width = W;
+      if (cv.height !== H) cv.height = H;
+      const g = cv.getContext('2d');
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, w, h);
+      return { g, w, h };
+    }
+
+    // 色相（0〜1）・彩度・明るさから RGB（0〜255）を作る
+    function hsl(hu, sa, li) {
+      const a = sa * Math.min(li, 1 - li);
+      const ch = (n) => { const k = (n + hu * 12) % 12; return 255 * (li - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))); };
+      return [ch(0), ch(8), ch(4)];
+    }
+    // L の値の向きを色相に、大きさを明るさにする。0 に近いほど暗い
+    function phaseColor(re, im) {
+      const mag = Math.hypot(re, im);
+      return hsl(Math.atan2(im, re) / (2 * Math.PI) + 0.5, 0.85, 0.1 + 0.55 * (1 - 1 / (1 + Math.pow(mag, 0.6))));
+    }
+
+    function drawStrip() {
+      const { g, w, h } = fit(stripCv);
+      if (!cur) return;
+      const T = cur.T, pw = Math.max(1, w - PAD_L - PAD_R), y0 = 4, ph = Math.max(1, h - 8);
+      const sy = (s) => y0 + (SIG_HI - s) / (SIG_HI - SIG_LO) * ph;
+      g.fillStyle = '#0a0c11';
+      g.fillRect(PAD_L, y0, pw, ph);
+      if (cur.filled > 0) {
+        cur.offCtx.putImageData(cur.img, 0, 0);
+        g.imageSmoothingEnabled = true;
+        g.imageSmoothingQuality = 'high';
+        g.drawImage(cur.off, 0, 0, cur.filled, cur.rows, PAD_L, y0, pw * cur.filled / cur.cols, ph);
+      }
+      // 臨界帯の端（σ = 0 と 1）と、臨界線（σ = 1/2）
+      g.lineWidth = 1;
+      g.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+      for (const s of [0, 1]) { g.beginPath(); g.moveTo(PAD_L, sy(s)); g.lineTo(PAD_L + pw, sy(s)); g.stroke(); }
+      g.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+      g.setLineDash([4, 3]);
+      g.beginPath(); g.moveTo(PAD_L, sy(0.5)); g.lineTo(PAD_L + pw, sy(0.5)); g.stroke();
+      g.setLineDash([]);
+      g.fillStyle = COL.mut; g.font = FONT; g.textAlign = 'right'; g.textBaseline = 'middle';
+      g.fillText('1', PAD_L - 5, sy(1)); g.fillText('σ=½', PAD_L - 3, sy(0.5)); g.fillText('0', PAD_L - 5, sy(0));
+      g.strokeStyle = '#fff'; g.lineWidth = 1.5;
+      for (const z of cur.zeros) {
+        if (z > T) continue;
+        g.beginPath(); g.arc(PAD_L + z / T * pw, sy(0.5), 3.2, 0, 2 * Math.PI); g.stroke();
+      }
+    }
+
+    function drawZ() {
+      const { g, w, h } = fit(ztCv);
+      if (!cur) return;
+      const T = cur.T, pw = Math.max(1, w - PAD_L - PAD_R), y0 = 6, ph = Math.max(1, h - 24);
+      let zmax = 1;
+      for (const p of cur.samples) if (p[0] <= T) zmax = Math.max(zmax, Math.abs(p[1]));
+      const lim = zmax * 1.08;
+      const X = (t) => PAD_L + t / T * pw, Y = (z) => y0 + ph / 2 - z / lim * ph / 2;
+      g.strokeStyle = COL.line; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(PAD_L, Y(0)); g.lineTo(PAD_L + pw, Y(0)); g.stroke();
+      g.fillStyle = COL.mut; g.font = FONT; g.textAlign = 'center'; g.textBaseline = 'top';
+      const tick = T <= 30 ? 5 : 10;
+      for (let t = 0; t <= T + 1e-9; t += tick) {
+        g.beginPath(); g.moveTo(X(t), y0 + ph); g.lineTo(X(t), y0 + ph + 3); g.stroke();
+        g.fillText(t === 0 ? 't = 0' : String(t), X(t) + (t === 0 ? 10 : 0), y0 + ph + 5);
+      }
+      g.textAlign = 'right'; g.textBaseline = 'middle';
+      g.fillText('0', PAD_L - 5, Y(0));
+      g.fillText('+' + zmax.toFixed(1), PAD_L - 3, Y(zmax));
+      g.fillText('−' + zmax.toFixed(1), PAD_L - 3, Y(-zmax));
+      g.strokeStyle = COL.z; g.lineWidth = 1.5;
+      g.beginPath();
+      let first = true;
+      for (const p of cur.samples) {
+        if (p[0] > T) break;
+        if (first) { g.moveTo(X(p[0]), Y(p[1])); first = false; } else g.lineTo(X(p[0]), Y(p[1]));
+      }
+      g.stroke();
+      g.fillStyle = COL.dot;
+      for (const z of cur.zeros) {
+        if (z > T) continue;
+        g.beginPath(); g.arc(X(z), Y(0), 3, 0, 2 * Math.PI); g.fill();
+      }
+    }
+
+    function drawPsi() {
+      const { g, w, h } = fit(psiCv);
+      kOut.textContent = kIn.value;
+      if (!cur || cur.c0 === null) {
+        g.fillStyle = COL.mut; g.font = '12px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText('零点を探しています…', w / 2, h / 2);
+        return;
+      }
+      const f = cur.f, XM = +xSel.value, K = +kIn.value, gam = cur.zeros.filter((z) => z <= cur.T);
+      const x0 = 2, y0 = 8, ph = Math.max(1, h - 28), pw = Math.max(1, w - PAD_L - PAD_R);
+      const steps = [];
+      let acc = 0, lo = 0, hi = 0, plus = 0, minus = 0, primes = 0;
+      for (let n = 2; n <= XM; n++) {
+        if (lam[n]) {
+          acc += chiOf(f, n) * lam[n];
+          if (Math.abs(lam[n] - Math.log(n)) < 1e-12) {   // n が素数
+            primes++;
+            if (chiOf(f, n) > 0) plus++; else if (chiOf(f, n) < 0) minus++;
+          }
+        }
+        steps.push([n, acc]);
+        lo = Math.min(lo, acc); hi = Math.max(hi, acc);
+      }
+      const span = Math.max(2, hi - lo);
+      lo -= span * 0.25; hi += span * 0.25;
+      const X = (x) => PAD_L + (x - x0) / (XM - x0) * pw;
+      const Y = (v) => y0 + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * ph;
+      g.strokeStyle = COL.line; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(PAD_L, Y(0)); g.lineTo(PAD_L + pw, Y(0)); g.stroke();
+      g.fillStyle = COL.mut; g.font = FONT; g.textAlign = 'center'; g.textBaseline = 'top';
+      const tick = XM <= 30 ? 5 : 10;
+      for (let x = tick; x <= XM; x += tick) {
+        g.beginPath(); g.moveTo(X(x), y0 + ph); g.lineTo(X(x), y0 + ph + 3); g.stroke();
+        g.fillText(String(x), X(x), y0 + ph + 5);
+      }
+      g.fillText('x', X(x0) + 4, y0 + ph + 5);
+      g.textAlign = 'right'; g.textBaseline = 'middle';
+      g.fillText('0', PAD_L - 5, Y(0));
+      // 素数の階段
+      g.strokeStyle = COL.step; g.lineWidth = 2;
+      g.beginPath();
+      steps.forEach(([n, v], i) => {
+        if (i === 0) g.moveTo(X(n), Y(v)); else g.lineTo(X(n), Y(v));
+        g.lineTo(X(Math.min(XM, n + 1)), Y(v));
+      });
+      g.stroke();
+      // 零点の波の和
+      const M = Math.max(60, Math.round(pw * 1.5));
+      g.strokeStyle = COL.wave; g.lineWidth = 1.5;
+      g.beginPath();
+      for (let i = 0; i <= M; i++) {
+        const x = x0 + (XM - x0) * i / M, y = Y(psiWave(x, f, gam, K, cur.c0));
+        if (i === 0) g.moveTo(X(x), y); else g.lineTo(X(x), y);
+      }
+      g.stroke();
+      const used = K > 0 ? `使っている零点は 1/2 ± iγ の ${K} 組（γ は ${gam[K - 1].toFixed(2)} まで）。` : '零点を 1 組も使っていないので、波の和は定数と自明な零点の項だけになる。';
+      let race;
+      if (f.q === 1) race = `x ≤ ${XM} の素数は ${primes} 個。ψ(x) は、素数の累乗 pᵏ ごとに log p ずつ上がる階段で、x に近づいていく（素数定理）。x からのずれを零点の波が表す。`;
+      else if (f.q === 4) race = `x ≤ ${XM} の素数のうち、4 で割って 1 余るもの（χ = +1）は ${plus} 個、3 余るもの（χ = −1）は ${minus} 個。階段は +1 の素数とその累乗で上がり、−1 の側で下がる。`;
+      else race = `x ≤ ${XM} の素数のうち、χ = +1 のもの（法 ${f.q} の平方剰余）は ${plus} 個、χ = −1 のものは ${minus} 個（${f.q} 自身は 0）。階段は +1 の側で上がり、−1 の側で下がる。`;
+      raceEl.textContent = race + used;
+      psiCv.setAttribute('aria-label', `素数の階段と、零点 ${K} 組の波の和のグラフ（x は 2 から ${XM}）`);
+    }
+
+    function drawAll() { drawStrip(); drawZ(); drawPsi(); }
+
+    function describeChi(f) {
+      let text;
+      if (f.q === 1) text = 'ζ(s) = 1 + 1/2ˢ + 1/3ˢ + …。どの n でも χ(n) = 1 とした場合にあたる。リーマン予想は、この関数の零点についての予想。';
+      else if (f.q === 4) text = 'L(s, χ) = 1 − 1/3ˢ + 1/5ˢ − 1/7ˢ + …。χ(n) は、n を 4 で割った余りが 1 なら +1、3 なら −1、偶数なら 0。';
+      else {
+        const res = [];
+        for (let a = 1; a < f.q; a++) if (f.chi[a] === 1) res.push(a);
+        text = `χ(n) は、n を ${f.q} で割った余りが ${res.join('・')}（ある数の 2 乗を ${f.q} で割った余りになる数）なら +1、それ以外なら −1、${f.q} の倍数なら 0（ルジャンドル記号）。`;
+      }
+      chiEl.textContent = text;
+    }
+
+    function renderStats() {
+      const st = cur, rows = [];
+      const nLine = st.lineN !== null ? st.lineN : st.zeros.filter((z) => z < st.T).length;
+      rows.push(['臨界線の上で見つけた零点', `${nLine} 個${st.count === null ? '（探しています）' : ''}`]);
+      rows.push(['帯の中の零点（偏角の原理）', st.count === null ? '—' : `N(${+st.Tc.toFixed(2)}) = ${st.count.toFixed(4)}`]);
+      rows.push(['一番低い零点', st.zeros.length ? `1/2 + ${st.zeros[0].toFixed(10)} i` : '—']);
+      rows.push(['計算の誤差の目安', st.maxIm ? `Z(t) に残った虚部の最大 ${st.maxIm.toExponential(1)}` : '—']);
+      rows.push(['かかった時間', st.msZero ? `零点 ${Math.round(st.msZero).toLocaleString('ja-JP')} ms、色の図 ${st.msAll ? Math.round(st.msAll - st.msZero).toLocaleString('ja-JP') + ' ms' : '（描いています）'}` : '—']);
+      stEl.replaceChildren(...rows.flatMap(([k, v]) => {
+        const dt = document.createElement('dt'), dd = document.createElement('dd');
+        dt.textContent = k; dd.textContent = v;
+        return [dt, dd];
+      }));
+    }
+
+    function verdict() {
+      const st = cur, N = Math.round(st.count), name = st.f.q === 1 ? 'リーマン予想' : '一般化リーマン予想';
+      const Tc = +st.Tc.toFixed(2);
+      if (Math.abs(st.count - N) > 0.05) say(`偏角の原理で数えた値が整数から離れた（${st.count.toFixed(3)}）。計算の誤差が大きい。`);
+      else if (st.lineN === N) say(`0 < t < ${Tc} の帯の中にある零点は ${N} 個で、${N} 個とも臨界線 σ = 1/2 の上で見つかった。この高さまでは${name}のとおりになっている。浮動小数点の計算なので、厳密な確かめではない。`);
+      else if (st.lineN < N) say(`帯の中の零点は ${N} 個なのに、臨界線の上では ${st.lineN} 個しか見つからなかった。刻みが粗くて、近い 2 つの零点を見落とした可能性がある。`);
+      else say(`臨界線の上で ${st.lineN} 個見つかり、帯の中の数 ${N} 個より多い。計算の誤差が大きい。`);
+      stripCv.setAttribute('aria-label', `臨界帯の色の図。零点 ${st.lineN} 個が σ = 1/2 の線の上に並ぶ`);
+      ztCv.setAttribute('aria-label', `Z(t) のグラフ（t は 0 から ${st.T}）。0 を横切る所が ${st.lineN} か所ある`);
+    }
+
+    // Z(t) を刻み step で並べ、符号が変わる所で零点を詰める。設定が変わったら false を返して止める
+    async function scan(st, my, step) {
+      const f = st.f, n = Math.ceil((st.T + 0.6) / step), samples = [], zeros = [];
+      let prev = null, deadline = performance.now() + 40;
+      for (let i = 0; i <= n; i++) {
+        const t = 0.05 + i * step, z = hardyZ(t, f);
+        st.maxIm = Math.max(st.maxIm, Math.abs(z[1]));
+        samples.push([t, z[0]]);
+        if (prev && prev[1] * z[0] < 0) zeros.push(refineZero(f, prev[0], t, prev[1], z[0]));
+        prev = [t, z[0]];
+        if (performance.now() >= deadline) {
+          st.samples = samples; st.zeros = zeros.slice();
+          drawZ(); drawStrip(); renderStats();
+          await pause();
+          if (my !== run) return false;
+          deadline = performance.now() + 40;
+        }
+      }
+      st.samples = samples; st.zeros = zeros;
+      return true;
+    }
+
+    async function compute() {
+      const my = ++run;
+      const f = makeFn(+fnSel.value), T = +tIn.value;
+      const cols = Math.max(8, Math.round(T * (window.THUMB ? 1.6 : 2.4))), rows = window.THUMB ? 14 : 28;
+      const off = document.createElement('canvas');
+      off.width = cols; off.height = rows;
+      const offCtx = off.getContext('2d');
+      cur = { f, T, samples: [], zeros: [], maxIm: 0, count: null, lineN: null, Tc: T, c0: null, off, offCtx, img: offCtx.createImageData(cols, rows), cols, rows, filled: 0, msZero: 0, msAll: 0 };
+      const st = cur, t0 = performance.now();
+      describeChi(f);
+      kIn.max = '0'; kIn.value = '0'; autoK = 0;
+      say('臨界線 σ = 1/2 の上で Z(t) を計算しています…');
+      renderStats(); drawAll();
+      if (!(await scan(st, my, 0.1))) return;
+      // 偏角の原理で帯の中の零点を数える。T のすぐ近くに零点があるときは、T を少し上へずらして数える
+      let Tc = T;
+      while (Tc < T + 0.5 && st.zeros.some((z) => Math.abs(z - Tc) < 0.05)) Tc += 0.07;
+      st.Tc = Tc;
+      st.count = countZeros(f, Tc);
+      st.lineN = st.zeros.filter((z) => z < Tc).length;
+      if (st.lineN < Math.round(st.count)) {
+        say('数が合わないので、刻みを 0.02 にして探し直しています…');
+        if (!(await scan(st, my, 0.02))) return;
+        st.lineN = st.zeros.filter((z) => z < Tc).length;
+      }
+      if (my !== run) return;
+      st.c0 = constTerm(f);
+      const nz = st.zeros.filter((z) => z <= T).length;
+      kIn.max = String(nz);
+      kIn.value = String(autoSw.checked ? 0 : nz);
+      st.msZero = performance.now() - t0;
+      renderStats(); verdict(); drawAll();
+      // 臨界帯の色の図を、列ごとに描き足す
+      const data = st.img.data;
+      let deadline = performance.now() + 40;
+      for (let i = 0; i < cols; i++) {
+        const t = (i + 0.5) * T / cols;
+        for (let j = 0; j < rows; j++) {
+          const v = lfun([SIG_HI - (j + 0.5) * (SIG_HI - SIG_LO) / rows, t], f), c = phaseColor(v[0], v[1]), k = (j * cols + i) * 4;
+          data[k] = c[0]; data[k + 1] = c[1]; data[k + 2] = c[2]; data[k + 3] = 255;
+        }
+        st.filled = i + 1;
+        if (performance.now() >= deadline) {
+          drawStrip();
+          await pause();
+          if (my !== run) return;
+          deadline = performance.now() + 40;
+        }
+      }
+      st.msAll = performance.now() - t0;
+      renderStats(); drawStrip();
+    }
+
+    function stepAuto() {
+      if (!cur || cur.c0 === null) return;
+      const max = +kIn.max;
+      autoK = autoK >= max + 8 ? 0 : autoK + 1;   // 全部を足したら少し止まってから、0 組に戻る
+      kIn.value = String(Math.min(autoK, max));
+      drawPsi();
+    }
+    function setAuto(on) {
+      autoSw.checked = on;
+      clearInterval(autoTimer);
+      autoTimer = 0;
+      if (on) {
+        autoK = +kIn.value >= +kIn.max ? 0 : +kIn.value;
+        autoTimer = setInterval(stepAuto, window.THUMB ? 160 : 240);
+      }
+    }
+
+    fnSel.addEventListener('change', compute);
+    tIn.addEventListener('input', () => { tOut.textContent = tIn.value; });
+    tIn.addEventListener('change', compute);
+    kIn.addEventListener('input', () => { setAuto(false); drawPsi(); });
+    xSel.addEventListener('change', drawPsi);
+    autoSw.addEventListener('change', () => setAuto(autoSw.checked));
+    new ResizeObserver(() => drawAll()).observe(document.querySelector('.wrap'));
+
+    if (window.THUMB) tIn.value = '40';
+    tOut.textContent = tIn.value;
+    setAuto(!!window.THUMB || !calm.matches);
+    compute();
+  },
+});
