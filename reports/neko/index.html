@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>コードだけで作る、野良猫の目線の 30 秒 ― 出来る！HTML/CSS/JavaScript</title>
+<meta name="description" content="Python が Blender を動かして描き、音は numpy で合成する。生成 AI を使わずに、地方の住宅街を歩く野良猫の目線の 30 秒の動画を作れるかを試した記録。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='46' font-size='40' text-anchor='middle' fill='%23fff' font-family='serif' font-weight='700'%3E%E5%87%BA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<style>
+body { font-size: 0.9375rem; }
+.report { max-inline-size: 60rem; margin-inline: auto; padding-block: 2rem 5rem; }
+.report :is(p, ul, ol, .note, details) { max-inline-size: 44rem; }
+.report p, .report li { text-wrap: pretty; }
+.report a { overflow-wrap: anywhere; }
+.kicker { margin: 0; color: var(--ink-2); font-weight: 600; font-size: 0.875rem; }
+.report h1 { margin: 0.2em 0 0.4em; font: 800 clamp(1.6rem, 1.2rem + 1.6vw, 2.4rem)/1.3 var(--serif); text-wrap: balance; }
+.lede { font-size: 1.0625rem; }
+.report h2 { margin: 3.5rem 0 1rem; padding-top: 0.6em; border-top: 2px solid var(--ink); font: 700 clamp(1.25rem, 1.1rem + 0.6vw, 1.6rem)/1.4 var(--serif); text-wrap: balance; }
+.report h3 { margin: 2.2rem 0 0.6rem; font-size: 1.0625rem; }
+.report figure { margin: 1.5rem 0; }
+.report figure :is(img, video) { display: block; inline-size: 100%; block-size: auto; border-radius: var(--r); border: 1px solid var(--rule); background: var(--paper-2); }
+.report video { aspect-ratio: 16 / 9; background: #000; }
+.report figcaption { margin-top: 0.4rem; color: var(--ink-2); font-size: 0.875rem; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: 1rem; margin: 1.5rem 0 0.4rem; }
+.pair figure { margin: 0; }
+.pair-cap { margin: 0 0 1.5rem; color: var(--ink-2); font-size: 0.875rem; }
+.small { color: var(--ink-2); font-size: 0.875rem; }
+.note { margin: 1.5rem 0; padding: 1rem 1.2rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
+.note > :first-child { margin-top: 0; }
+.note > :last-child { margin-bottom: 0; }
+.table-wrap { overflow: auto; max-inline-size: 100%; margin: 1rem 0 1.5rem; container-type: inline-size; }
+/* 幅が狭いときは、表の 1 行を縦に並べ、各欄の前に列の名前を出す */
+@container (width < 34rem) {
+  .report table.stack, .report table.stack :is(caption, tbody, tr, th, td) { display: block; }
+  .report table.stack thead { display: none; }
+  .report table.stack tr { padding: 0.6em 0; border-bottom: 1px solid var(--rule); }
+  .report table.stack :is(th, td) { padding: 0.1em 0; border: 0; }
+  .report table.stack td[data-label]::before { content: attr(data-label) "　"; color: var(--ink-2); font-size: 0.8125rem; font-weight: 600; }
+  .report table.stack .num { white-space: normal; }
+}
+.report table { border-collapse: collapse; font-size: 0.9375rem; }
+.report caption { text-align: start; font-weight: 700; padding-bottom: 0.4rem; }
+.report th, .report td { padding: 0.45em 0.8em; border-bottom: 1px solid var(--rule); text-align: start; vertical-align: top; }
+.report thead th { border-bottom: 2px solid var(--ink-3); text-wrap: balance; }
+.report tbody th { font-weight: 600; }
+.report tfoot :is(th, td) { font-weight: 700; border-top: 2px solid var(--ink-3); }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tag { display: inline-block; padding: 0 0.6em; border-radius: 999px; font-size: 0.8125rem; font-weight: 700; white-space: nowrap; background: var(--paper-2); }
+.tag.part { background: var(--mark); }
+.tag.drop { background: transparent; border: 1px solid var(--ink-3); }
+.report details { margin: 1rem 0; }
+.report details summary { cursor: pointer; font-weight: 700; }
+.prompt { margin: 0.8rem 0 0; padding: 1rem 1.2rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); white-space: pre-wrap; font: 0.8125rem/1.7 var(--mono); max-inline-size: 100%; overflow-wrap: anywhere; }
+.scenes { padding-inline-start: 0; list-style: none; }
+.scenes li { display: grid; grid-template-columns: 7.5em 1fr; gap: 0.2rem 0.8rem; padding: 0.35em 0; border-bottom: 1px solid var(--rule); }
+.scenes .t { font-variant-numeric: tabular-nums; color: var(--ink-2); font-weight: 600; }
+.foot { margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--rule); color: var(--ink-2); font-size: 0.875rem; }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="出来る！HTML/CSS/JavaScript 表紙へ">
+    <span class="brand-mark">出来る<em>！</em></span>
+    <span class="brand-sub">HTML<i>/</i>CSS<i>/</i>JavaScript</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="report">
+<article>
+  <p class="kicker">実験レポート ・ 2026 年 11 月 20 日</p>
+  <h1>コードだけで作る、野良猫の目線の 30 秒</h1>
+  <p class="lede">X で「Claude Fable 5.2 が、コードだけでリスの目線の 30 秒の動画を作った」という報告を見かけました。同じ決まりで、題材を「日本の地方都市の住宅街を歩く野良猫」に変えて、この PC で確かめました。動画は、Python のスクリプトが Blender を動かして描いた絵と、numpy で合成した音だけでできています。</p>
+
+  <figure>
+    <video controls preload="metadata" playsinline width="1920" height="1080" poster="img/final-0680.webp" aria-describedby="scenes-h">
+      <source src="neko.mp4" type="video/mp4">
+      <track src="captions.vtt" kind="captions" srclang="ja" label="日本語（音の説明）">
+    </video>
+    <figcaption>できた動画（30 秒、音あり、12.5 MB）。せりふはありません。字幕を入れると、鳴っている音の中身が出ます。場面の流れは<a href="#scenes">「動画の中身」</a>に文章で書きました。</figcaption>
+  </figure>
+
+  <h2>結果のまとめ</h2>
+  <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cap-sum">
+    <table class="stack">
+      <caption id="cap-sum">確かめたことと結果</caption>
+      <thead><tr><th scope="col">確かめたこと</th><th scope="col">結果</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">同じ決まりで、30 秒の動画が作れるか</th><td data-label="結果">作れた。1920×1080・24 fps・720 コマで、音も入っている。作る係の Claude Opus 5.5 が 1 回作り、Claude Fable 5.2 の点検を受けて 1 回直した</td></tr>
+        <tr><th scope="row">時間と費用は報告に近いか</th><td data-label="結果">AI が作業した時間は約 1 時間 30 分、費用は API 換算で <strong>$26.08</strong>。描画と mp4 に 2 時間 23 分 55 秒かかり、全体では 3 時間 54 分 21 秒。報告は全体 4 時間 15 分（うち描画 3 時間）・$34.76</td></tr>
+        <tr><th scope="row">生成 AI を使っていないと示せるか</th><td data-label="結果">外から入ったのは Poly Haven の 90 ファイルだけで、どれも Poly Haven が公開している md5 と一致した。公開したスクリプトを空のフォルダで流し直すと、目で見て区別のつかない絵になり（画素の差は最大 5/255）、音は md5 まで一致した</td></tr>
+        <tr><th scope="row">写真スキャンはどれだけ効いているか</th><td data-label="結果">地面と塀は、写真スキャンを外して手続きの模様にしても、ほぼ同じに見えた。差が出たのは、鉢植えの形と家の壁、それに夕日の場面の空と光（HDRI）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>元の報告</h2>
+  <ul>
+    <li>出どころ: Daniel Zambrini さんの <a href="https://x.com/DanielZambrini/status/2123360069513302141">X の投稿</a>（2026 年 11 月 19 日）。30 秒の動画が付いている</li>
+    <li>内容: Fable 5.2 に、リスの目から見た森の暮らしの動画を作らせた</li>
+    <li>作り方: 形・動き・描画は Python のスクリプトが Blender（Cycles）を動かして作り、音は numpy で合成した。動画や画像の生成モデルは使っていない。例外は、スクリプトが Poly Haven から取った CC0 の写真スキャン（森の HDRI、落ち葉と樹皮のテクスチャ、丸太・石・小枝のモデル）だけ</li>
+    <li>数字: API 換算で $34.76、全体で 4 時間 15 分（うち描画が 3 時間）</li>
+  </ul>
+  <p>指示の文面、スクリプト、使った PC、描画の設定、やり直しの回数は書かれていません。元の動画は見比べのために手元で見ましたが、このページには載せていません。リスの目の大写しで始まって終わり、その間は魚眼レンズの低い視点で、落ち葉の地面や倒木の上を走る作りでした。作る係には元の動画を見せていません。</p>
+
+  <h2>やり方</h2>
+  <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cap-cond">
+    <table class="stack">
+      <caption id="cap-cond">条件</caption>
+      <tbody>
+        <tr><th scope="row">題材</th><td>日本の地方都市の住宅街を歩く、野良猫の目線。時刻や猫の動きは作る係に任せた</td></tr>
+        <tr><th scope="row">作る係</th><td>Claude Opus 5.5（Claude Code のサブエージェント）</td></tr>
+        <tr><th scope="row">点検係</th><td>Claude Fable 5.2（8 コマの絵だけを見て、欠点を重い順に挙げる。コードは読まない）</td></tr>
+        <tr><th scope="row">道具</th><td>Blender 5.3.0（Cycles、OptiX）、Blender の中の Python 3.13 と numpy 2.3.4、ffmpeg</td></tr>
+        <tr><th scope="row">外から入れてよいもの</th><td>Poly Haven の CC0 の素材だけ。スクリプトで取る。2K 以下、合計 300 MB 以内</td></tr>
+        <tr><th scope="row">出来上がり</th><td>1920×1080、24 fps、30 秒（720 コマ）、音つきの mp4</td></tr>
+        <tr><th scope="row">PC</th><td>GeForce RTX 5060 Ti（16 GB）、Ryzen 5 3500、Windows 11</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <ol>
+    <li>作る係が、スクリプトを書き、試しに描いて自分で絵を見て直す、を繰り返す。最終の設定で 8 コマを描いたところで止める</li>
+    <li>点検係が 8 コマを見て、欠点を挙げる</li>
+    <li>作る係が、指摘をもとに 1 回だけ直す。指摘 12 件をそのまま渡し、重い順に直すこと、時間は 75 分を目安にすること、1 コマ 15 秒以内を保つことを伝えた</li>
+    <li>取りまとめ役（このセッションの Claude Opus 5.5）が、720 コマを裏で描き、素材とスクリプトを確かめる</li>
+  </ol>
+  <details>
+    <summary>作る係への依頼の全文</summary>
+    <div class="prompt">返答・報告・ログの地の文は日本語で書いてください。
+
+## 依頼
+
+日本の地方都市の住宅街を歩く、野良猫の目線で見た 30 秒の動画を作ってください。
+
+すべてコードで作ります。Python のスクリプトで Blender（Cycles）を動かして、形・動き・描画を作り、音は numpy で合成します。動画や画像の生成モデルは一切使いません。手続きで作らない素材として使ってよいのは、Poly Haven の CC0 の写真スキャン（HDRI、テクスチャ、モデル）だけで、それもスクリプトでダウンロードします。
+
+これは、X で見つけた「Fable 5.2 がコードだけでリスの目線の 30 秒の動画を作った（Python が Blender Cycles を動かし、音は numpy、素材は Poly Haven の CC0 だけ）」という報告を、題材を変えて確かめる実験です。かかった時間と使った量も比べます。うまくいかなかったことも、そのまま報告してください。
+
+## 出来上がりの条件
+
+- 1920×1080、24 fps、30 秒（720 コマ）。H.264 の mp4 に、numpy で作った音（AAC）を入れる
+- 題材の解釈（時刻、季節、天気、猫が何をするか、カメラの動き、音の中身）は任せます
+- 実在のブランド・会社の印・商品（自動販売機の銘柄、車のメーカーや車種、看板の店名など）を使わない。既存のアニメ・映画・ゲームの場面やキャラクターをまねない
+- 文字を出すなら、手続きで作れる範囲にとどめる（フォントのファイルを外から取らない）
+
+## 環境（Windows 11、Git Bash）
+
+- Blender 5.3.0: `"/c/Program Files (x86)/Steam/steamapps/common/Blender/blender.exe"`（パスに空白があるので必ず引用符で囲む）。`-b`（画面なし）で使う
+- GPU: NVIDIA GeForce RTX 5060 Ti（16 GB）。Cycles の OptiX が使える（確かめ済み）。CPU は Ryzen 5 3500
+- Blender の Python 3.13 に numpy 2.3.4 が入っている。音の合成やダウンロード（urllib）も Blender の Python で行える
+- ffmpeg は PATH にある
+- 作業フォルダ: `D:\soft\dekiru-html\runtime\neko`（git の対象外）。この中だけに書く。`ref/` は触らない・開かない（比較用の別の資料）。`logs/prompt.md` はこの依頼の写しなので書き換えない
+
+## 決まり
+
+- 生成 AI（画像・動画・音声の生成モデル、nanogpt-image や comfyui-art などのスキル）を使わない
+- ダウンロードしてよいのは Poly Haven（api.polyhaven.com と dl.polyhaven.org）の CC0 の素材だけ。解像度は 2K 以下、合計 300 MB 以内。取った素材は、名前・URL・ライセンス・大きさを一覧にする
+- ほかのフォルダ（`runtime/` のほかのフォルダ、リポジトリのファイル）に触れない。git のコミットや push をしない
+- 音を鳴らさない（スピーカーで再生しない）。確かめるときは波形や数値で確かめる
+- 新しい説明書きのファイル（README など）を作らない。記録は `logs/` に置く
+
+## 再現できる形にする
+
+- 空のフォルダから 1 つのコマンドで、素材の取得 → 場面の組み立て → 描画 → 音 → mp4 まで通るようにする（例: `bash make.sh`）。描画するコマの範囲を指定できるようにする
+- 乱数の種を固定し、同じコマンドで同じ絵になるようにする
+- `--no-scans` のような切り替えで、Poly Haven の素材をすべて手続きの代わりのもの（手続きのテクスチャや形、空の色）に替えて描けるようにする。写真スキャンの効果を見比べるために使う
+
+## 進め方
+
+1. 作る → 少ないサンプル数で要所のコマを試しに描く → 自分で絵を見て直す（PNG は Read で見られる）、を必要なだけ繰り返す
+2. 最終の設定で 1 コマにかかる秒数を測る。720 コマが 3 時間以内（1 コマ 15 秒以内）に描ける設定を選ぶ
+3. 最終の設定で、動画の全体から 8 コマを選んで `out/preview/` に描く
+4. **ここで止める。720 コマ全部の描画はしない**（取りまとめ役が裏で走らせる）
+5. `logs/build.log` に、時刻（ISO 形式）・段階・結果を 1 行ずつ残す（試しの描画にかかった秒数も）
+6. Bash の 1 回の実行は 10 分までなので、長い処理は分けるか、裏で走らせて終わりを確かめる
+
+## 報告に書くこと
+
+- 全部を描くコマンドと、1 コマの秒数の見込み
+- 取った素材の一覧（名前・URL・ライセンス・大きさ）
+- 手続きで作ったものと、写真スキャンを使ったものの区別
+- 場面の中身（時刻・季節・猫の動き・カメラ・音）
+- 8 コマのファイルの場所
+- うまくいかなかったこと、手放したこと
+
+あとで別の点検係が 8 コマを見て欠点を挙げます。その指摘を受け取ったら、1 回だけ直してもらいます。</div>
+  </details>
+
+  <h2 id="scenes">動画の中身</h2>
+  <p id="scenes-h">11 月下旬の晴れた夕方（太陽の高さ 9°、日没の 40 分ほど前）です。カメラは猫の目で、目の高さは地面で 23.5 cm、塀の上で約 1.4 m です。猫の体は画面に写らず、影だけが地面や塀に落ちます。</p>
+  <ol class="scenes">
+    <li><span class="t">0〜5.8 秒</span><span>ブロック塀に沿って道の端を歩く。鉢植えに顔を寄せる。塀に耳の形の影が映る</span></li>
+    <li><span class="t">5.8〜8.6 秒</span><span>止まって塀の上を見上げ、身を低くする</span></li>
+    <li><span class="t">8.6〜9.2 秒</span><span>高さ 1.19 m の塀へ跳び乗る</span></li>
+    <li><span class="t">9.7〜18.6 秒</span><span>塀の上を歩く。右下の道と自動販売機をのぞき、左の柿の実を見上げて首をかしげる。柿の葉が落ちる</span></li>
+    <li><span class="t">18.7〜23 秒</span><span>電柱と電線のカラスを見上げる。2 羽が鳴き、1 羽が飛び立つ</span></li>
+    <li><span class="t">23〜25.4 秒</span><span>塀の上で振り返る。遠くのスピーカーから夕方のチャイムが流れ始める</span></li>
+    <li><span class="t">25.4〜30 秒</span><span>座って、道の先の夕日を見る。のどを鳴らす</span></li>
+  </ol>
+  <p>音はすべて numpy で波形から作っています。風、遠くの車、秋の虫、カラスの声と羽音、自動販売機のうなり、猫の足音・跳躍と着地・のどを鳴らす音、夕方の町内チャイムです。チャイムの旋律は既存の曲ではなく、五音音階のオリジナルです。</p>
+  <div class="pair">
+    <figure>
+      <img src="img/final-0001.webp" width="1280" height="720" loading="lazy" alt="地面すれすれの視点。左にブロック塀と素焼きの鉢植え、右に白線のある道。奥に電柱と家並みと自動販売機が見える">
+      <figcaption>0.0 秒。塀に沿って歩き始める</figcaption>
+    </figure>
+    <figure>
+      <img src="img/final-0320.webp" width="1280" height="720" loading="lazy" alt="塀の上から見上げた柿の木。橙色の実と、赤や黄色の葉が枝についている。奥に家が並ぶ">
+      <figcaption>13.3 秒。塀の上から柿の実を見上げる</figcaption>
+    </figure>
+    <figure>
+      <img src="img/final-0520.webp" width="1280" height="720" loading="lazy" alt="青空と薄い巻雲を背に、電柱と電線。電線に黒いカラスが 2 羽止まっている">
+      <figcaption>21.6 秒。電線のカラス</figcaption>
+    </figure>
+    <figure>
+      <img src="img/final-0680.webp" width="1280" height="720" loading="lazy" alt="塀の上から見た、道の先に沈みかけた夕日。逆光の家並みと電柱、手前に柿の実の枝">
+      <figcaption>28.3 秒。座って夕日を見る</figcaption>
+    </figure>
+  </div>
+
+  <h2>時間と費用</h2>
+  <p>費用は、AI の作業の記録に残ったトークン数を、Anthropic の<a href="https://platform.claude.com/docs/en/about-claude/pricing">料金表</a>（2026 年 11 月 20 日に確認）で金額に直したものです。</p>
+  <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cap-cost">
+    <table class="stack">
+      <caption id="cap-cost">段階ごとの時間と費用</caption>
+      <thead><tr><th scope="col">段階</th><th scope="col">モデル</th><th scope="col">時間</th><th scope="col">モデルの呼び出し</th><th scope="col">費用（API 換算）</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">作る（8 コマまで）</th><td data-label="モデル">Opus 5.5</td><td class="num" data-label="時間">56 分 36 秒</td><td class="num" data-label="呼び出し">108 回</td><td class="num" data-label="費用">$14.80</td></tr>
+        <tr><th scope="row">点検</th><td data-label="モデル">Fable 5.2</td><td class="num" data-label="時間">2 分 1 秒</td><td class="num" data-label="呼び出し">2 回</td><td class="num" data-label="費用">$1.29</td></tr>
+        <tr><th scope="row">直す</th><td data-label="モデル">Opus 5.5</td><td class="num" data-label="時間">31 分 49 秒</td><td class="num" data-label="呼び出し">49 回</td><td class="num" data-label="費用">$9.99</td></tr>
+        <tr><th scope="row">720 コマの描画と mp4</th><td data-label="モデル">（AI は使わない）</td><td class="num" data-label="時間">2 時間 23 分 55 秒</td><td class="num" data-label="呼び出し">0 回</td><td class="num" data-label="費用">$0</td></tr>
+      </tbody>
+      <tfoot><tr><th scope="row">合計</th><td></td><td class="num" data-label="時間">3 時間 54 分 21 秒</td><td class="num" data-label="呼び出し">159 回</td><td class="num" data-label="費用">$26.08</td></tr></tfoot>
+    </table>
+  </div>
+  <ul>
+    <li>費用のほとんどは、作る係が毎回読み直すそれまでのやり取り（キャッシュの読み込み、合わせて約 5,859 万トークン）と、書いたコード（出力、約 35 万トークン）でした。</li>
+    <li>取りまとめ役の分（素材の確かめ、描画の指示、このレポート）は、同じ記録にほかの作業が混ざっていて切り分けられないので、含めていません。元の報告の $34.76 がどこまでを含むかは書かれていないので、金額は目安として比べてください。</li>
+    <li>描画は 96 サンプルで、720 コマに 8,543 秒、1 コマ平均 11.9 秒でした。地面すれすれを歩く最初の 10 秒がいちばん重く（平均約 15 秒）、空を見上げる 19〜23 秒は平均約 6 秒です。</li>
+  </ul>
+
+  <h2>点検で何が変わったか</h2>
+  <p>点検係の Fable 5.2 は、8 コマの絵だけを見て 12 件の欠点を挙げました（重い 5 件、中くらい 5 件、軽い 2 件）。作る係は 31 分で直し、「8 件を直し、4 件は一部だけ直した」と報告しました。描き上がった 720 コマを見ると、カラスは直りきっていなかったので、下の表では直した 7 件、一部 5 件としています。</p>
+  <div class="pair">
+    <figure>
+      <img src="img/r1-0680.webp" width="1280" height="720" loading="lazy" alt="直す前の夕日の場面。画面全体が白っぽくかすみ、太陽は輪郭のない明るいしみになっている">
+      <figcaption>直す前</figcaption>
+    </figure>
+    <figure>
+      <img src="img/final-0680.webp" width="1280" height="720" loading="lazy" alt="直した後の夕日の場面。もやが薄くなり、太陽の円と逆光の家並みが見える">
+      <figcaption>直した後</figcaption>
+    </figure>
+  </div>
+  <p class="pair-cap">いちばん重い指摘だった夕日の場面。もやを約 4 分の 1 にし、太陽の円が残るようにして、露出を下げた。</p>
+  <div class="pair">
+    <figure>
+      <img src="img/r1-0320.webp" width="1280" height="720" loading="lazy" alt="直す前の柿の木。枝は折れ線で、実はつやの強い球、葉は 1 色の平らな楕円">
+      <figcaption>直す前</figcaption>
+    </figure>
+    <figure>
+      <img src="img/final-0320.webp" width="1280" height="720" loading="lazy" alt="直した後の柿の木。枝は滑らかに曲がって先が細く、葉は赤・橙・黄のまだら。空に薄い巻雲がある">
+      <figcaption>直した後</figcaption>
+    </figure>
+  </div>
+  <p class="pair-cap">柿の木と空。枝を滑らかにし、実の形と葉の色を変え、薄い巻雲を足した。</p>
+  <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cap-review">
+    <table class="stack">
+      <caption id="cap-review">点検の指摘と、直した結果</caption>
+      <thead><tr><th scope="col">指摘</th><th scope="col">重さ</th><th scope="col">結果</th><th scope="col">直した内容</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">最後の夕日の絵が全体に白く、太陽の円が見えない</th><td data-label="重さ">重い</td><td data-label="結果"><span class="tag">直した</span></td><td data-label="内容">もやを約 4 分の 1 に。太陽の明るさの上限を上げ、周りだけをにじませる。露出を下げる</td></tr>
+        <tr><th scope="row">家が箱で、同じ家が並び、暮らしの物がない</th><td data-label="重さ">重い</td><td data-label="結果"><span class="tag part">一部</span></td><td data-label="内容">窓をガラス・枠・奥の部屋の 3 層にし、約 25% を明るく。外壁 12 種、屋根 7 色。アンテナ・洗濯物・ボンベ・銘柄のない軽自動車・自転車を置く。屋根の形は増やせず、奥の家はまだ似ている</td></tr>
+        <tr><th scope="row">柿の木が作り物に見える</th><td data-label="重さ">重い</td><td data-label="結果"><span class="tag">直した</span></td><td data-label="内容">枝を滑らかにして先を細く。実をつぶして溝と白い粉。葉を反らせ、色をまだらに</td></tr>
+        <tr><th scope="row">カラスがつやのある置物に見える</th><td data-label="重さ">重い</td><td data-label="結果"><span class="tag part">一部</span></td><td data-label="内容">全長 0.54 m にし、胴・頭・くちばし・翼・尾・脚を分けて作る。つや消しの黒。止まった所で電線をたわませる。ただし近くに写る場面では灰褐色に見え、丸い部品をつないだ形が分かる</td></tr>
+        <tr><th scope="row">着地直後の絵が全面ぼける</th><td data-label="重さ">重い</td><td data-label="結果"><span class="tag">直した</span></td><td data-label="内容">絞りを f/8 に。ピントの範囲を 1〜30 m に。着地の揺れを 0.2 秒で収める。塀の継ぎ目の線を消す</td></tr>
+        <tr><th scope="row">落ち葉が同じ形の橙色の板</th><td data-label="重さ">中くらい</td><td data-label="結果"><span class="tag">直した</span></td><td data-label="内容">形 4 種、大きさと色を散らし、8 割を塀の根元と路肩に寄せる</td></tr>
+        <tr><th scope="row">ブロック塀の質感と目地</th><td data-label="重さ">中くらい</td><td data-label="結果"><span class="tag part">一部</span></td><td data-label="内容">灰色にし、雨だれとこけを足す。目地を浅く明るく。門は足せなかった</td></tr>
+        <tr><th scope="row">道が地平線まで一直線</th><td data-label="重さ">中くらい</td><td data-label="結果"><span class="tag part">一部</span></td><td data-label="内容">丁字路と突き当たりの家、遠くの山の稜線を足す。電柱の間隔を散らす。電柱の傾きは手放した</td></tr>
+        <tr><th scope="row">自動販売機がおもちゃに見える</th><td data-label="重さ">中くらい</td><td data-label="結果"><span class="tag">直した</span></td><td data-label="内容">缶とボトルの見本、光る棚、ガラス、値札・ボタン・取り出し口。前の地面を照らす</td></tr>
+        <tr><th scope="row">空が昼の青で、夕方の色がない</th><td data-label="重さ">中くらい</td><td data-label="結果"><span class="tag part">一部</span></td><td data-label="内容">地平近くを桃色〜橙に補正し、薄い巻雲を足す。巻雲は白っぽいまま</td></tr>
+        <tr><th scope="row">地面の境目と庭がきれいすぎる</th><td data-label="重さ">軽い</td><td data-label="結果"><span class="tag">直した</span></td><td data-label="内容">路肩に砂と土の帯、境目に草 50 株、側溝のふたの手掛け、砂利</td></tr>
+        <tr><th scope="row">白線のふちと、電柱・電線の細部</th><td data-label="重さ">軽い</td><td data-label="結果"><span class="tag">直した</span></td><td data-label="内容">白線を路面の模様にし、ふちをがたつかせる。がいしと変圧器。電線の太さを 3 段に</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>直したあとも、最後の場面を除くと空は昼に近い青のままで、夕方らしさは弱いと感じました。直す前は 1 コマ約 9.5 秒でしたが、直したあとは平均 11.9 秒になりました。</p>
+
+  <h2>生成 AI を使っていないことの確かめ</h2>
+  <p>「コードだけで作った」は、作った本人の申告だけでは確かめられません。そこで、外から入ったものと、スクリプトが読み込むものを調べました。</p>
+  <ul>
+    <li><strong>外から入ったもの:</strong> スクリプトが取った 90 ファイル（153 MB）は、どれも Poly Haven の API が公開している md5 と一致しました。素材のフォルダにあるほかのファイルは、スクリプト自身が書いた目録だけです。</li>
+    <li><strong>スクリプトが読み込むもの:</strong> 画像とモデルを読み込む所は、どれも素材のフォルダの中を指していました。スクリプトに書かれた URL は Poly Haven の 3 つだけです。</li>
+    <li><strong>流し直したときの絵:</strong> 公開したソースを空のフォルダへ写し、素材は手元の 90 ファイルを写して、<code>bash make.sh --frames 677-684</code> を流しました。続けて最初の 4 コマも描きました。素材を取る処理は Poly Haven の API に問い合わせて目録を作り直し、大きさの合うファイルは取り直さないので、ダウンロードは 0 件でした。作り直した目録は、元と md5 まで一致しました。描いた 12 コマは、約 95% の画素が元と完全に一致し、違う画素も差は最大 5（255 段階）で、PSNR は約 66 dB でした。PNG のファイルがバイト単位で一致しない原因は、GPU の計算の細かい誤差と考えられます（確かめてはいません）。</li>
+    <li><strong>音:</strong> 波形はすべて numpy の計算です。流し直した音のファイルは、md5 まで元と一致しました。</li>
+  </ul>
+  <p>ただし、作る係が考える途中で何を参考にしたかまでは、外からは分かりません。確かめられるのは、出来上がりがスクリプトと Poly Haven の素材だけから作り直せる、というところまでです。</p>
+
+  <h2>写真スキャンはどれだけ効いているか</h2>
+  <p>作る係には、Poly Haven の素材をすべて手続きの代わりのもの（ノイズの模様のテクスチャ、手続きの鉢や雑草、Blender の空のシェーダー）に替えて描く切り替えも作らせました。同じカメラで描いて比べます。</p>
+  <div class="pair">
+    <figure>
+      <img src="img/final-0001.webp" width="1280" height="720" loading="lazy" alt="写真スキャンを使った版の最初の場面。素焼きの鉢に浮き彫りと汚れがあり、観葉植物の葉に葉脈がある">
+      <figcaption>写真スキャンあり</figcaption>
+    </figure>
+    <figure>
+      <img src="img/noscans-0001.webp" width="1280" height="720" loading="lazy" alt="手続きだけの版の同じ場面。鉢は模様のない単純な形で、ほかの部分はほぼ同じに見える">
+      <figcaption>手続きだけ</figcaption>
+    </figure>
+  </div>
+  <p class="pair-cap">最初の場面。鉢植えの形と細かさが違う。アスファルトと塀は、手続きの模様でもほぼ同じに見える。</p>
+  <div class="pair">
+    <figure>
+      <img src="img/final-0680.webp" width="1280" height="720" loading="lazy" alt="写真スキャンを使った版の夕日の場面。空に太陽の円があり、逆光で家並みが暗く、空が暖かい色にかすむ">
+      <figcaption>写真スキャンあり</figcaption>
+    </figure>
+    <figure>
+      <img src="img/noscans-0680.webp" width="1280" height="720" loading="lazy" alt="手続きだけの版の夕日の場面。太陽は画面に写らず、空は青い。家並みは明るく、左の家の壁に、さびのような汚れの模様が出ている">
+      <figcaption>手続きだけ</figcaption>
+    </figure>
+  </div>
+  <p class="pair-cap">夕日の場面。写真スキャンの版は、空の HDRI にある太陽と、それが作る逆光の色がある。手続きだけの版は、空のシェーダーの太陽が画面に写らず、空が青い。左の家の壁の模様も違う。</p>
+  <p>地面すれすれの場面では、絵の印象のほとんどを、手続きで作った形（ブロックを 1 個ずつ積んだ塀、家、電柱と電線、柿の木、カラス）と、低い日ざしの光が決めていました。写真スキャンが効いていたのは、近くに写る鉢植えのような形の細かい物と、夕日の場面の空と光です。</p>
+
+  <h2>分かったこと</h2>
+  <ul>
+    <li>報告にあった作り方（Python が Blender を動かし、音は numpy、素材は Poly Haven の CC0 だけ）で、30 秒の動画は作れました。費用も報告と同じくらいの大きさでした。</li>
+    <li>作る係は、試しに描いた絵を自分で見て直すことができ、1 回目で場面としてまとまった動画になりました。点検係の指摘を受けた 2 回目では、指摘した場所がはっきり良くなりました。ただし、作る係が「直した」と報告したカラスは、描き上がった動画では直りきっていませんでした。直したかどうかは、作った本人の報告ではなく、出来上がりの絵で確かめる必要があります。</li>
+    <li>一方で、絵だけを見れば CG だと分かります。家の形、空の色、遠景の作り込みは、1 回の直しでは届きませんでした。元の報告のリスの動画（森の地面と樹皮を大写しにする作り）と比べると、街並みは作る物の種類が多く、細部まで作り込みにくい題材でした。</li>
+    <li>「生成 AI を使っていない」は、素材の md5 とスクリプトの読み込み先を調べ、流し直してほぼ同じ絵（画素の差は最大 5/255）と同じ音になることで、外から確かめられました。</li>
+  </ul>
+
+  <h2>ソースコードと素材</h2>
+  <p>ソースコード（GitHub）: <a href="https://github.com/dikmri/dekiru-html/tree/main/reports/neko/src">野良猫の目線の 30 秒のソースのフォルダ</a>（<code>make.sh</code> と Python 7 本、合わせて 3,997 行）</p>
+  <ul>
+    <li><code>bash make.sh</code> で、素材の取得 → 場面の組み立て → 720 コマの描画 → 音 → mp4 まで通ります。Blender の場所は、環境変数 <code>BLENDER</code> で変えられます。</li>
+    <li><code>--no-scans</code> で写真スキャンを外した版、<code>--preview</code> で 8 コマだけ、<code>--frames 1-48</code> で範囲を指定して描けます。</li>
+  </ul>
+  <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cap-assets">
+    <table class="stack">
+      <caption id="cap-assets">使った Poly Haven の素材（すべて CC0 1.0、2K）</caption>
+      <thead><tr><th scope="col">素材</th><th scope="col">種類</th><th scope="col">使った所</th></tr></thead>
+      <tbody>
+        <tr><th scope="row"><a href="https://polyhaven.com/a/qwantani_sunset_puresky">Qwantani Sunset (Pure Sky)</a></th><td data-label="種類">HDRI</td><td data-label="使った所">空</td></tr>
+        <tr><th scope="row"><a href="https://polyhaven.com/a/asphalt_02">Asphalt 02</a></th><td data-label="種類">テクスチャ</td><td data-label="使った所">道</td></tr>
+        <tr><th scope="row"><a href="https://polyhaven.com/a/rough_concrete">Rough Concrete</a></th><td data-label="種類">テクスチャ</td><td data-label="使った所">ブロック塀、側溝のふた、電柱</td></tr>
+        <tr><th scope="row"><a href="https://polyhaven.com/a/white_stucco_02">White Stucco 02</a>、<a href="https://polyhaven.com/a/beige_wall_002">Beige Wall 002</a>、<a href="https://polyhaven.com/a/weathered_plank_siding">Weathered Plank Siding</a></th><td data-label="種類">テクスチャ</td><td data-label="使った所">家の壁</td></tr>
+        <tr><th scope="row"><a href="https://polyhaven.com/a/grey_roof_tiles">Grey Roof Tiles</a>、<a href="https://polyhaven.com/a/worn_corrugated_iron">Worn Corrugated Iron</a></th><td data-label="種類">テクスチャ</td><td data-label="使った所">瓦、トタン</td></tr>
+        <tr><th scope="row"><a href="https://polyhaven.com/a/raked_dirt">Raked Dirt</a></th><td data-label="種類">テクスチャ</td><td data-label="使った所">庭の土</td></tr>
+        <tr><th scope="row"><a href="https://polyhaven.com/a/potted_plant_01">Potted Plant 01</a>、<a href="https://polyhaven.com/a/potted_plant_02">02</a>、<a href="https://polyhaven.com/a/potted_plant_04">04</a>、<a href="https://polyhaven.com/a/planter_pot_clay">Planter Pot Clay</a></th><td data-label="種類">モデル</td><td data-label="使った所">鉢植え</td></tr>
+        <tr><th scope="row"><a href="https://polyhaven.com/a/exterior_aircon_unit">Exterior Aircon Unit</a></th><td data-label="種類">モデル</td><td data-label="使った所">室外機</td></tr>
+        <tr><th scope="row"><a href="https://polyhaven.com/a/weed_plant_02">Weed Plant 02</a>、<a href="https://polyhaven.com/a/dandelion_01">Dandelion 01</a>、<a href="https://polyhaven.com/a/shrub_04">Shrub 04</a>、<a href="https://polyhaven.com/a/grass_medium_01">Grass Medium 01</a></th><td data-label="種類">モデル</td><td data-label="使った所">雑草、たんぽぽ、低木、草</td></tr>
+        <tr><th scope="row"><a href="https://polyhaven.com/a/watering_can_metal_01">Watering Can Metal 01</a></th><td data-label="種類">モデル</td><td data-label="使った所">じょうろ</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="small">素材のファイルはリポジトリに入れていません。<code>make.sh</code> が Poly Haven から取ります。</p>
+
+  <p class="foot"><a href="../">実験レポートの一覧へ戻る</a> ・ <a href="../../">図鑑の表紙へ戻る</a></p>
+</article>
+</main>
+</body>
+</html>
