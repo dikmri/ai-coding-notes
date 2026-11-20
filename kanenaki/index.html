@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="ブラウザで遊ぶ、クリックで歩いて戦う 1 人用のハクスラ。世界の計算はこのページの中で動き、キャラはブラウザに保存する。">
+<title>鐘なき王国</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="client/style.css">
+<script type="module" src="client/main.mjs"></script>
+</head>
+<body>
+<main id="stage" aria-label="ゲームの画面">
+  <canvas id="view"></canvas>
+  <canvas id="over" aria-hidden="true"></canvas>
+</main>
+<div id="hud"></div>
+<div id="live" class="visually-hidden" aria-live="polite"></div>
+<div id="boot" class="boot" role="status">鐘なき王国を読み込んでいます…</div>
+<noscript><p class="boot">このゲームは JavaScript を使います。</p></noscript>
+</body>
+</html>
