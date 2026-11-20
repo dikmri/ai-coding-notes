@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sprite Stack Viewer</title>
+<style>
+  :root {
+    --bg: #f1f4f8;
+    --surface: #ffffff;
+    --border: #dde3ec;
+    --text: #141820;
+    --muted: #667085;
+    --accent: #2563eb;
+  }
+  * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: #c6ceda transparent; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font: 13px/1.4 ui-sans-serif, -apple-system, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  body { display: grid; grid-template-rows: auto 1fr auto; }
+  header {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--surface);
+  }
+  .title { font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+  .meta { font: 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .modes, .actions { display: flex; align-items: center; gap: 4px; }
+  button, label.btn {
+    appearance: none; border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    padding: 4px 9px; border-radius: 4px; font: inherit; font-size: 12px; line-height: 1.2; cursor: pointer; user-select: none;
+    transition: background 120ms ease, border-color 120ms ease;
+  }
+  button:hover, label.btn:hover { background: #f6f8fb; border-color: #c5cedb; }
+  button[aria-pressed="true"] { background: var(--text); color: #fff; border-color: var(--text); }
+  main { position: relative; display: grid; place-items: center; overflow: hidden; cursor: grab; touch-action: none; }
+  main:active { cursor: grabbing; }
+  canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+  .readout {
+    position: absolute; right: 16px; bottom: 14px;
+    font: 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums;
+    color: var(--muted); letter-spacing: 0.04em; pointer-events: none;
+  }
+  .drop-hint {
+    position: absolute; inset: 16px; border: 1px dashed #9fb0c8; border-radius: 6px;
+    display: none; place-items: center; background: rgba(241, 244, 248, 0.92); color: var(--text); font-weight: 500;
+  }
+  body.dragging .drop-hint { display: grid; }
+  footer {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 14px 18px;
+    padding: 10px 16px; border-top: 1px solid var(--border); background: var(--surface);
+  }
+  .ctrl { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+  .ctrl output {
+    min-width: 34px; text-align: right; color: var(--text);
+    font: 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums;
+  }
+  input[type="range"] { width: 92px; accent-color: var(--text); margin: 0; }
+  input[type="number"] {
+    width: 52px; padding: 3px 5px; border: 1px solid var(--border); border-radius: 4px;
+    font: 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text);
+  }
+  input[type="checkbox"] { accent-color: var(--text); margin: 0; }
+  .spacer { flex: 1; }
+  #fileInput { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <div class="title">
+    <span id="titleText">Sprite Stack</span>
+    <span class="meta" id="metaText">Drop a slice sheet PNG</span>
+  </div>
+  <div class="modes" role="group" aria-label="View mode">
+    <button data-mode="turntable" aria-pressed="true">Turntable</button>
+    <button data-mode="scan" aria-pressed="false">Slice scan</button>
+    <button data-mode="exploded" aria-pressed="false">Exploded</button>
+  </div>
+  <div class="actions">
+    <button id="playBtn" title="Space">Pause</button>
+    <button id="exportBtn" title="Export 16-angle sprite sheet PNG">Export 16-dir</button>
+    <label class="btn" for="fileInput">Load PNG</label>
+    <input id="fileInput" type="file" accept="image/png,image/webp" />
+  </div>
+</header>
+
+<main id="stage">
+  <canvas id="view"></canvas>
+  <div class="readout" id="readout"></div>
+  <div class="drop-hint">Drop a horizontal slice sheet PNG</div>
+</main>
+
+<footer>
+  <label class="ctrl">Angle
+    <input id="angleRange" type="range" min="0" max="360" step="1" value="35" />
+    <output id="angleOut">35°</output>
+  </label>
+  <label class="ctrl">Squash
+    <input id="squashRange" type="range" min="0.45" max="1" step="0.01" value="0.75" />
+    <output id="squashOut">0.75</output>
+  </label>
+  <label class="ctrl">Spacing
+    <input id="spacingRange" type="range" min="0" max="4" step="0.05" value="1" />
+    <output id="spacingOut">1.00</output>
+  </label>
+  <label class="ctrl">Scale
+    <input id="scaleRange" type="range" min="2" max="14" step="1" value="6" />
+    <output id="scaleOut">6x</output>
+  </label>
+  <label class="ctrl">Slices
+    <input id="slicesInput" type="number" min="1" max="256" value="15" />
+  </label>
+  <label class="ctrl"><input id="shadowChk" type="checkbox" checked /> Shadow</label>
+  <label class="ctrl"><input id="outlineChk" type="checkbox" checked /> Outline</label>
+  <span class="spacer"></span>
+  <span class="meta">Drag to orbit · Space to pause</span>
+</footer>
+
+<script>
+const EMBEDDED = {"title": "adventurer idle", "slices": 20, "sliceWidth": 12, "sliceHeight": 26, "sheet": "data:image/png;base64,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", "top": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAANCAYAAAB/9ZQ7AAAAy0lEQVR4nGNgQAOROvL/QZgBC2CclGoPl3hx9S2KpIS2MJydN/sgIwuyQiYJNhTFIDFkDYwwRk2QEdgGSQ0RMP/5jTdgumXdObgauMnbbrEw8PFyMzA8/w0V4Wf49Pkrik1M144u+d+QHoTVQyAAkgOpASuGCU5Ks8JQiC7GomUdA3aTy6QCrKYzvbjMsKbrMsONtVH/4Y4HgSNoGvbt3crgULIUzBZ7NQGXSxHg0OFT/0EY7AxCiq/cvIdwMyHFOupKxCueM389nA0ADBtIFLuCC78AAAAASUVORK5CYII=", "side": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA0AAAASCAYAAACAa1QyAAABPUlEQVR4nGNkwAIcLB3/I/NDHVkZstt2McL4cAYMvD4//f/NwzfB7LxZx8C0l9ofBkkNEbhGJgY0cBOqAR08v/EGzsbQFNayAUPDtlssYIxT06qaAKw2JVhyMkxKtf+PVZNN3gTGk0dugNmT0qwY3n/8yHDuyinGF1ffMoAwCCDsRALHPz5n8DSOAbNLYq8xvPpr+P/W1uNweayaPr38zHDn9g14ALyR+MPAb6cMkbzyENN5xACSNU2tcvuPVZOZkgBOTSDnYtV06t4HBqFPX8AYxEYGLevOMaIExKHDp/6LvZrA0FS2Cy6268I9RoYL91A0MsIUM4AC5uY9BrkP0yAmTroNpk88eo6RPllAGkCKYcCn5BBYkZ+ZBiSlP3qO4XwWmIaslAgME0kGdnpq/0EYmxzW0PNyNMaqGAYAXlp99VxUUYwAAAAASUVORK5CYII=", "front": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAASCAYAAACNdSR1AAABJklEQVR4nGNkQAIOlo7/kfkHju9nRObDOa/PT/9/8/BNZDkGdVt1BlHDTLgaJhjjJppCbGJwxSAQ1rIBKxsGGCel2oPdaaRryIANnLt8HkznzT7IyPLi6lswp3LVaoYAd10GcxsNMP/kkRsMG3ZeZrDVFoRrZInprgAzbjV1M7z/84rhHZ8JmA9ii1uIMMTUlYL5bdYxDCx3bt8Acz69/MzAoCSA4gSQGEwew4OEAAu6wKlN23AqhptshuYEbGIsQp++QEy89wFM58XIgOlJS56AaQ+oPIozONjYwLRPySFw9PqZafxPCxNj+GcYBRa/sfbVfxabvAlwSXyeu3P/Cf7QaJl0m+HKzXtgDLIRr2IxCX5UD8IYH378Q5GA8bNSIjCTKDEAAAsDaAav78e4AAAAAElFTkSuQmCC", "back": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAASCAYAAACNdSR1AAAA8UlEQVR4nGNkQAMOlo7/Qx1ZwezV+38zHDi+nxEmx4iu0EbyI4rmI8/54RqYkCVsoAq33WIBY2QxEICIQME2qAJcfLDxk1Lt/yMLvrj6FkxLaAujKGZBlkQH6OJgxfcZ2cEcZXEUC+Dg7ktIOIDJTQtqwKq2nTqGVbGXmRUDRmgQAlgVi7z4AMZEKcYFwB4U+vQFRfCNhAAKHybPcmNt1P83TyGC+5eeB9M3P74He1ydXxDs8ZhmPYjiO/efMJw7fBrMUVcXhyg+9R6Fb5M3AZI2fEoOMd4RDmEAYUKAdA8umtcOtsZOTw0lCj/8+Ee+yQAlRlPtG9ThYgAAAABJRU5ErkJggg=="};
+
+const state = {
+  mode: "turntable",
+  playing: true,
+  angle: 35,
+  squash: 0.75,
+  spacing: 1.0,
+  scale: 6,
+  slices: 15,
+  shadow: true,
+  outline: true,
+  scanZ: 1,
+  explodePhase: 0,
+  sheetImg: null,
+  sliceData: null, // Array of { w, h, data: Uint8ClampedArray }
+  footprint: null, // Uint8Array(w * h)
+  topImg: null,
+  sideImg: null,
+};
+
+const canvas = document.getElementById("view");
+const ctx = canvas.getContext("2d");
+const stage = document.getElementById("stage");
+const readout = document.getElementById("readout");
+const titleText = document.getElementById("titleText");
+const metaText = document.getElementById("metaText");
+
+const els = {
+  angle: document.getElementById("angleRange"),
+  angleOut: document.getElementById("angleOut"),
+  squash: document.getElementById("squashRange"),
+  squashOut: document.getElementById("squashOut"),
+  spacing: document.getElementById("spacingRange"),
+  spacingOut: document.getElementById("spacingOut"),
+  scale: document.getElementById("scaleRange"),
+  scaleOut: document.getElementById("scaleOut"),
+  slices: document.getElementById("slicesInput"),
+  shadow: document.getElementById("shadowChk"),
+  outline: document.getElementById("outlineChk"),
+  play: document.getElementById("playBtn"),
+  exportBtn: document.getElementById("exportBtn"),
+};
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function extractSlices(img, count) {
+  const w = Math.floor(img.width / count);
+  const h = img.height;
+  if (w < 1 || h < 1) return;
+  const off = document.createElement("canvas");
+  off.width = img.width;
+  off.height = img.height;
+  const octx = off.getContext("2d", { willReadFrequently: true });
+  octx.imageSmoothingEnabled = false;
+  octx.drawImage(img, 0, 0);
+
+  const list = [];
+  const footprint = new Uint8Array(w * h);
+  for (let z = 0; z < count; z++) {
+    const data = octx.getImageData(z * w, 0, w, h).data;
+    for (let i = 0; i < w * h; i++) {
+      if (data[i * 4 + 3] > 0) footprint[i] = 1;
+    }
+    list.push({ w, h, data });
+  }
+  state.sliceData = list;
+  state.footprint = footprint;
+  state.scanZ = count;
+  metaText.textContent = `${count} slices · ${w}×${h}px`;
+
+  // Pick a comfortable integer scale automatically on load
+  const ideal = Math.max(2, Math.min(10, Math.floor(320 / Math.max(w, h, count * 2))));
+  state.scale = ideal;
+  els.scale.value = String(ideal);
+  els.scaleOut.textContent = `${ideal}x`;
+}
+
+// Crisp nearest-neighbor software rasterizer in art-pixel space so outer outline & shadow are 100% pixel-perfect
+function renderStackBuffer({ angleDeg, squash, spacing, maxSlices, shadow, outline, room = spacing }) {
+  const list = state.sliceData;
+  if (!list || !list.length) return null;
+  const n = Math.min(list.length, Math.max(1, maxSlices));
+  const { w, h } = list[0];
+  const diag = Math.ceil(Math.hypot(w, h)) + 6;
+  const liftMax = Math.ceil((list.length - 1) * Math.max(room, 1)); // room: spacing the buffer is sized for
+  const cw = diag + 12;
+  const ch = Math.ceil(diag * squash) + liftMax + 16;
+  const cx = cw >> 1;
+  const baseY = ch - Math.ceil((diag * squash) / 2) - 6;
+
+  const rad = (angleDeg * Math.PI) / 180;
+  const ca = Math.cos(rad);
+  const sa = Math.sin(rad);
+  const invSquash = 1 / Math.max(squash, 0.1);
+
+  const out = new Uint8ClampedArray(cw * ch * 4);
+  const body = new Uint8ClampedArray(cw * ch * 4);
+  const alphaMask = new Uint8Array(cw * ch);
+
+  if (shadow && state.footprint) {
+    const fp = state.footprint;
+    for (let y = 0; y < ch; y++) {
+      const dy = (y - (baseY + 3)) * invSquash;
+      for (let x = 0; x < cw; x++) {
+        const dx = x - (cx + 2);
+        const sx = Math.floor(dx * ca + dy * sa + w * 0.5);
+        const sy = Math.floor(-dx * sa + dy * ca + h * 0.5);
+        if (sx >= 0 && sx < w && sy >= 0 && sy < h && fp[sy * w + sx]) {
+          const p = (y * cw + x) * 4;
+          out[p] = 188; out[p + 1] = 200; out[p + 2] = 214; out[p + 3] = 255;
+        }
+      }
+    }
+  }
+
+  for (let z = 0; z < n; z++) {
+    const sl = list[z].data;
+    const lift = Math.round(z * spacing);
+    const yCenter = baseY - lift;
+    const yMin = Math.max(0, Math.floor(yCenter - (diag * squash) / 2) - 1);
+    const yMax = Math.min(ch - 1, Math.ceil(yCenter + (diag * squash) / 2) + 1);
+    const xMin = Math.max(0, Math.floor(cx - diag / 2) - 1);
+    const xMax = Math.min(cw - 1, Math.ceil(cx + diag / 2) + 1);
+
+    for (let y = yMin; y <= yMax; y++) {
+      const dy = (y - yCenter) * invSquash;
+      for (let x = xMin; x <= xMax; x++) {
+        const dx = x - cx;
+        const sx = Math.floor(dx * ca + dy * sa + w * 0.5);
+        const sy = Math.floor(-dx * sa + dy * ca + h * 0.5);
+        if (sx < 0 || sx >= w || sy < 0 || sy >= h) continue;
+        const sp = (sy * w + sx) * 4;
+        if (sl[sp + 3] === 0) continue;
+        const idx = y * cw + x;
+        const dp = idx * 4;
+        body[dp] = sl[sp];
+        body[dp + 1] = sl[sp + 1];
+        body[dp + 2] = sl[sp + 2];
+        body[dp + 3] = 255;
+        alphaMask[idx] = 1;
+      }
+    }
+  }
+
+  if (outline) {
+    for (let y = 1; y < ch - 1; y++) {
+      for (let x = 1; x < cw - 1; x++) {
+        const idx = y * cw + x;
+        if (alphaMask[idx]) continue;
+        if (alphaMask[idx - 1] || alphaMask[idx + 1] || alphaMask[idx - cw] || alphaMask[idx + cw]) {
+          const p = idx * 4;
+          out[p] = 24; out[p + 1] = 28; out[p + 2] = 36; out[p + 3] = 255;
+        }
+      }
+    }
+  }
+
+  for (let i = 0; i < cw * ch; i++) {
+    if (!alphaMask[i]) continue;
+    const p = i * 4;
+    out[p] = body[p]; out[p + 1] = body[p + 1]; out[p + 2] = body[p + 2]; out[p + 3] = 255;
+  }
+
+  const off = document.createElement("canvas");
+  off.width = cw;
+  off.height = ch;
+  off.getContext("2d").putImageData(new ImageData(out, cw, ch), 0, 0);
+  return off;
+}
+
+function drawFrame() {
+  if (!state.sliceData) return;
+  const s = state.scale;
+
+  if (state.mode === "scan" && state.sideImg && state.topImg) {
+    const zCount = Math.max(1, Math.min(state.slices, Math.round(state.scanZ)));
+    const stackBuf = renderStackBuffer({
+      angleDeg: state.angle,
+      squash: state.squash,
+      spacing: state.spacing,
+      maxSlices: zCount,
+      shadow: state.shadow,
+      outline: state.outline,
+    });
+    const gap = 40;
+    const sideW = state.sideImg.width * s;
+    const sideH = state.sideImg.height * s;
+    const topW = state.topImg.width * s;
+    const topH = state.topImg.height * s;
+    const stW = stackBuf.width * s;
+    const stH = stackBuf.height * s;
+
+    const totalW = sideW + topW + stW + gap * 4;
+    const totalH = Math.max(sideH, topH, stH) + 80;
+    if (canvas.width !== totalW || canvas.height !== totalH) {
+      canvas.width = totalW;
+      canvas.height = totalH;
+    }
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = "#f1f4f8";
+    ctx.fillRect(0, 0, totalW, totalH);
+
+    const midY = Math.floor(totalH / 2);
+    const sideX = gap;
+    const sideY = Math.floor(midY - sideH / 2);
+    ctx.drawImage(state.sideImg, sideX, sideY, sideW, sideH);
+
+    // Live scanline matching current Z slice
+    const scanFrac = 1 - (zCount - 0.5) / state.slices;
+    const lineY = Math.round(sideY + scanFrac * sideH);
+    ctx.fillStyle = "#2563eb";
+    ctx.fillRect(sideX - 10, lineY, sideW + 20, Math.max(2, Math.floor(s / 2)));
+
+    const topX = sideX + sideW + gap;
+    const topY = Math.floor(midY - topH / 2);
+    ctx.drawImage(state.topImg, topX, topY, topW, topH);
+
+    const stX = topX + topW + gap;
+    const stY = Math.floor(midY - stH / 2);
+    ctx.drawImage(stackBuf, stX, stY, stW, stH);
+
+    ctx.fillStyle = "#667085";
+    ctx.font = "11px ui-monospace, SFMono-Regular, Menlo, monospace";
+    ctx.fillText("SIDE", sideX, sideY + sideH + 18);
+    ctx.fillText("TOP", topX, topY + topH + 18);
+    readout.textContent = `Z-${String(zCount).padStart(2, "0")} / ${state.slices}`;
+    return;
+  }
+
+  const spacing = state.mode === "exploded" && state.playing
+    ? 1.0 + (0.5 - 0.5 * Math.cos(state.explodePhase)) * 2.4
+    : state.spacing;
+
+  const buf = renderStackBuffer({
+    angleDeg: state.angle,
+    squash: state.squash,
+    spacing,
+    maxSlices: state.slices,
+    shadow: state.shadow,
+    outline: state.outline,
+    // Exploded spacing peaks at 3.4: size for it so the canvas and ground point hold still.
+    room: state.mode === "exploded" ? Math.max(spacing, 3.4) : spacing,
+  });
+  const cw = buf.width * s;
+  const ch = buf.height * s;
+  if (canvas.width !== cw || canvas.height !== ch) {
+    canvas.width = cw;
+    canvas.height = ch;
+  }
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, cw, ch);
+  ctx.drawImage(buf, 0, 0, cw, ch);
+  readout.textContent = `${Math.round(((state.angle % 360) + 360) % 360)}° · squash ${state.squash.toFixed(2)} · spacing ${spacing.toFixed(2)}`;
+}
+
+let lastT = performance.now();
+function tick(now) {
+  const dt = Math.min(0.05, (now - lastT) / 1000);
+  lastT = now;
+  if (state.playing && state.sliceData) {
+    if (state.mode === "turntable") {
+      state.angle = (state.angle + dt * 55) % 360;
+      els.angle.value = String(Math.round(state.angle));
+      els.angleOut.textContent = `${Math.round(state.angle)}°`;
+    } else if (state.mode === "scan") {
+      state.scanZ += dt * Math.max(8, state.slices * 0.42);
+      if (state.scanZ > state.slices + 6) state.scanZ = 1;
+    } else if (state.mode === "exploded") {
+      state.explodePhase += dt * 1.6;
+      state.angle = (state.angle + dt * 28) % 360;
+    }
+  }
+  drawFrame();
+  requestAnimationFrame(tick);
+}
+
+// Pointer drag to orbit & tilt
+let drag = null;
+stage.addEventListener("pointerdown", (e) => {
+  stage.setPointerCapture(e.pointerId);
+  drag = { x: e.clientX, y: e.clientY, angle: state.angle, squash: state.squash };
+  if (state.mode === "turntable") { state.playing = false; els.play.textContent = "Play"; }
+});
+stage.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  state.angle = ((drag.angle + (e.clientX - drag.x) * 0.6) % 360 + 360) % 360;
+  state.squash = Math.max(0.45, Math.min(1.0, drag.squash + (e.clientY - drag.y) * 0.002));
+  els.angle.value = String(Math.round(state.angle));
+  els.angleOut.textContent = `${Math.round(state.angle)}°`;
+  els.squash.value = state.squash.toFixed(2);
+  els.squashOut.textContent = state.squash.toFixed(2);
+});
+stage.addEventListener("pointerup", () => { drag = null; });
+
+// Controls
+document.querySelectorAll("[data-mode]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    state.mode = btn.dataset.mode;
+    document.querySelectorAll("[data-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+    if (state.mode === "scan") state.scanZ = 1;
+    if (state.mode === "exploded") state.explodePhase = 0;
+  });
+});
+
+els.play.addEventListener("click", () => {
+  state.playing = !state.playing;
+  els.play.textContent = state.playing ? "Pause" : "Play";
+});
+window.addEventListener("keydown", (e) => {
+  if (e.code === "Space" && e.target.tagName !== "INPUT") {
+    e.preventDefault();
+    els.play.click();
+  }
+});
+
+els.angle.addEventListener("input", () => {
+  state.angle = Number(els.angle.value);
+  els.angleOut.textContent = `${state.angle}°`;
+  state.playing = false;
+  els.play.textContent = "Play";
+});
+els.squash.addEventListener("input", () => {
+  state.squash = Number(els.squash.value);
+  els.squashOut.textContent = state.squash.toFixed(2);
+});
+els.spacing.addEventListener("input", () => {
+  state.spacing = Number(els.spacing.value);
+  els.spacingOut.textContent = state.spacing.toFixed(2);
+});
+els.scale.addEventListener("input", () => {
+  state.scale = Number(els.scale.value);
+  els.scaleOut.textContent = `${state.scale}x`;
+});
+els.slices.addEventListener("change", () => {
+  const n = Math.max(1, Number(els.slices.value) || 1);
+  state.slices = n;
+  if (state.sheetImg) extractSlices(state.sheetImg, n);
+});
+els.shadow.addEventListener("change", () => { state.shadow = els.shadow.checked; });
+els.outline.addEventListener("change", () => { state.outline = els.outline.checked; });
+
+// Export 16-direction baked sprite sheet
+els.exportBtn.addEventListener("click", () => {
+  if (!state.sliceData) return;
+  const dirs = 16;
+  const frames = [];
+  for (let i = 0; i < dirs; i++) {
+    frames.push(renderStackBuffer({
+      angleDeg: (i * 360) / dirs,
+      squash: state.squash,
+      spacing: state.spacing,
+      maxSlices: state.slices,
+      shadow: state.shadow,
+      outline: state.outline,
+    }));
+  }
+  const fw = frames[0].width;
+  const fh = frames[0].height;
+  const out = document.createElement("canvas");
+  out.width = fw * dirs;
+  out.height = fh;
+  const octx = out.getContext("2d");
+  octx.imageSmoothingEnabled = false;
+  frames.forEach((f, i) => octx.drawImage(f, i * fw, 0));
+  const a = document.createElement("a");
+  a.download = `${titleText.textContent.toLowerCase().replace(/\s+/g, "-")}-16dir.png`;
+  a.href = out.toDataURL("image/png");
+  a.click();
+});
+
+// File load / drag-drop
+async function loadFile(file) {
+  const url = URL.createObjectURL(file);
+  const img = await loadImage(url);
+  state.sheetImg = img;
+  state.topImg = null;
+  state.sideImg = null;
+  titleText.textContent = file.name.replace(/\.[^.]+$/, "");
+  extractSlices(img, state.slices);
+}
+document.getElementById("fileInput").addEventListener("change", (e) => {
+  if (e.target.files[0]) loadFile(e.target.files[0]);
+});
+window.addEventListener("dragover", (e) => { e.preventDefault(); document.body.classList.add("dragging"); });
+window.addEventListener("dragleave", (e) => { if (e.target === document.documentElement) document.body.classList.remove("dragging"); });
+window.addEventListener("drop", (e) => {
+  e.preventDefault();
+  document.body.classList.remove("dragging");
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+
+async function init() {
+  if (EMBEDDED) {
+    titleText.textContent = EMBEDDED.title || "Sprite Stack";
+    state.slices = EMBEDDED.slices;
+    els.slices.value = String(EMBEDDED.slices);
+    state.sheetImg = await loadImage(EMBEDDED.sheet);
+    if (EMBEDDED.top) state.topImg = await loadImage(EMBEDDED.top);
+    if (EMBEDDED.side) state.sideImg = await loadImage(EMBEDDED.side);
+    extractSlices(state.sheetImg, state.slices);
+  }
+  requestAnimationFrame(tick);
+}
+init();
+</script>
+</body>
+</html>

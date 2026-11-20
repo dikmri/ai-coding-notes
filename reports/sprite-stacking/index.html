@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>回せるドット絵のスキル sprite-stacking で、ゲームの絵を 54 種類作った ― AI コーディングノート</title>
+<meta name="description" content="4 方向の絵から、回せる立体のドット絵を作る AI エージェント用のスキル sprite-stacking を、1 人用のハクスラの絵 54 種類（127 の姿勢）で試した記録。すぐ試せる手順と、その場で回せる見本つき。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='800'%3EAI%3C/text%3E%3Cpath d='M15 51H49' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<style>
+body { font-size: 0.9375rem; }
+.report { max-inline-size: 60rem; margin-inline: auto; padding-block: 2rem 5rem; }
+.report :is(p, ul, ol, .note, details) { max-inline-size: 44rem; }
+.report p, .report li { text-wrap: pretty; }
+.report a { overflow-wrap: anywhere; }
+.kicker { margin: 0; color: var(--ink-2); font-weight: 600; font-size: 0.875rem; }
+.report h1 { margin: 0.2em 0 0.4em; font: 800 clamp(1.6rem, 1.2rem + 1.6vw, 2.4rem)/1.3 var(--serif); text-wrap: balance; }
+.lede { font-size: 1.0625rem; }
+.report h2 { margin: 3.5rem 0 1rem; padding-top: 0.6em; border-top: 2px solid var(--ink); font: 700 clamp(1.25rem, 1.1rem + 0.6vw, 1.6rem)/1.4 var(--serif); text-wrap: balance; }
+.report h3 { margin: 2.2rem 0 0.6rem; font-size: 1.0625rem; }
+.report figure { margin: 1.5rem 0; }
+.report figure img { display: block; inline-size: 100%; block-size: auto; border-radius: var(--r); border: 1px solid var(--rule); background: #f1f4f8; image-rendering: pixelated; }
+.report figcaption { margin-top: 0.4rem; color: var(--ink-2); font-size: 0.875rem; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: 1rem; margin: 1.5rem 0 0.4rem; }
+.pair figure { margin: 0; }
+.small { color: var(--ink-2); font-size: 0.875rem; }
+.note { margin: 1.5rem 0; padding: 1rem 1.2rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
+.note > :first-child { margin-top: 0; }
+.note > :last-child { margin-bottom: 0; }
+.table-wrap { overflow: auto; max-inline-size: 100%; margin: 1rem 0 1.5rem; container-type: inline-size; }
+@container (width < 34rem) {
+  .report table.stack, .report table.stack :is(caption, tbody, tr, th, td) { display: block; }
+  .report table.stack thead { display: none; }
+  .report table.stack tr { padding: 0.6em 0; border-bottom: 1px solid var(--rule); }
+  .report table.stack :is(th, td) { padding: 0.1em 0; border: 0; }
+  .report table.stack td[data-label]::before { content: attr(data-label) "　"; color: var(--ink-2); font-size: 0.8125rem; font-weight: 600; }
+}
+.report table { border-collapse: collapse; font-size: 0.9375rem; }
+.report caption { text-align: start; font-weight: 700; padding-bottom: 0.4rem; }
+.report th, .report td { padding: 0.45em 0.8em; border-bottom: 1px solid var(--rule); text-align: start; vertical-align: top; }
+.report thead th { border-bottom: 2px solid var(--ink-3); text-wrap: balance; }
+.report tbody th { font-weight: 600; }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.code { margin: 0.8rem 0 1.2rem; padding: 1rem 1.2rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); font: 0.8125rem/1.7 var(--mono); max-inline-size: 100%; overflow: auto; tab-size: 2; }
+.steps { padding-inline-start: 1.4em; }
+.steps > li { margin: 0 0 1.4rem; max-inline-size: 44rem; }
+.steps > li > strong:first-child { display: block; margin-bottom: 0.3rem; }
+/* その場で回す見本 */
+.spin { margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
+.spin-stage { display: grid; place-items: center; background: #2b2f2a; border-radius: calc(var(--r) - 2px); }
+.spin canvas { inline-size: min(100%, 480px); aspect-ratio: 4 / 3; image-rendering: pixelated; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.spin canvas:active { cursor: grabbing; }
+.spin canvas:focus-visible { outline: 3px solid var(--shu); outline-offset: 2px; }
+.spin-bar { display: flex; flex-wrap: wrap; gap: 0.6rem 1.2rem; align-items: center; margin-top: 0.8rem; font-size: 0.875rem; }
+.visually-hidden:where(:not(:focus-within, :active)) { position: absolute !important; clip-path: inset(50%) !important; overflow: hidden !important; width: 1px !important; height: 1px !important; margin: -1px !important; padding: 0 !important; border: 0 !important; white-space: nowrap !important; }
+.nw { white-space: nowrap; }
+.foot { margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--rule); color: var(--ink-2); font-size: 0.875rem; }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="report">
+<article>
+  <p class="kicker">実験レポート ・ 2026 年 11 月 21 日</p>
+  <h1>回せるドット絵のスキル <span class="nw">sprite-stacking</span> で、ゲームの絵を 54 種類作った</h1>
+  <p class="lede">X で、AI エージェントに「何でも回る 3D のドット絵にする」スキルが公開されました。上・横・前・後ろの 4 方向の絵から立体を割り出し、薄い板を重ねて描く手法です。このスキルを使って、作っている 1 人用のハクスラ『鐘なき王国』の絵を、人物・魔物・建物・床まで全部作りました。下の見本は、その絵をこのページの中で重ねて描いたものです。引きずると回ります。</p>
+
+  <section id="spin" class="spin" aria-labelledby="spin-h">
+    <h2 id="spin-h" class="visually-hidden">その場で回す見本</h2>
+    <div class="spin-stage">
+      <canvas width="480" height="360" tabindex="0" role="img" aria-label="回せるドット絵の見本" aria-describedby="spin-help"></canvas>
+    </div>
+    <div class="spin-bar">
+      <label>絵 <select id="spin-art"></select></label>
+      <label>姿勢 <select id="spin-pose"></select></label>
+      <label><input type="checkbox" id="spin-auto"> 自動で回す</label>
+      <label><input type="checkbox" id="spin-walk"> 歩かせる</label>
+    </div>
+    <p id="spin-help" class="small">絵を左右に引きずるか、絵を選んで左右の矢印キーを押すと回ります（矢印キーは 22.5 度ずつ）。描いているのは、下の「自分のゲームに入れる」の節に載せたコードそのものです。</p>
+    <p id="spin-live" class="visually-hidden" aria-live="polite"></p>
+    <noscript><p>この見本は JavaScript で描いています。</p></noscript>
+  </section>
+
+  <h2>結果のまとめ</h2>
+  <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cap-sum">
+    <table class="stack">
+      <caption id="cap-sum">確かめたことと結果</caption>
+      <thead><tr><th scope="col">確かめたこと</th><th scope="col">結果</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">ゲームの絵を全部このスキルで作れるか</th><td data-label="結果">作れた。人物 7・魔物 15・NPC 11・物 21 の 54 種類を、姿勢ごとに 127 本のスライスの帯にした。床 8 とスタンプ 13 は平らな絵。作る係の Claude Opus 5.5 が 51 分 40 秒で仕上げた（API 換算 <strong>$14.15</strong>）</td></tr>
+        <tr><th scope="row">スキルの手順どおりで、そのまま使える絵になるか</th><td data-label="結果"><strong>小さな人物では、そのままでは足りなかった。</strong>4 方向の絵から割り出す仕組みのせいで、歩く足が 1 つの塊になり、体が太る。全体で 17.3%（人物は 26%）の余分な点が付いた。作る係が、元の形と比べて余分を消す処理を自分で足して直した</td></tr>
+        <tr><th scope="row">読者がすぐ試せるか</th><td data-label="結果">試せる。スキルを入れ、Python で 1 行流すと、1.5 秒でスライスの帯・確かめの絵・回せる表示器ができた（下の手順で確かめ済み）</td></tr>
+        <tr><th scope="row">自分のゲームに組み込めるか</th><td data-label="結果">組み込める。描く処理は約 20 行の JavaScript で、このページの見本もそのコードで動いている</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>元の報告</h2>
+  <p>2026 年 11 月 20 日、デザイナーの Daniel White さんが、AI エージェント用のスキル <a href="https://github.com/danielwh2/sprite-stacking">sprite-stacking</a> を公開しました（<a href="https://x.com/dwhitedesign/status/2123787861392855388">X の投稿</a>）。中身は、説明書（SKILL.md）、Python の切り分けの台本、確かめ用の表示器の 3 つで、MIT ライセンスです。Claude Code、Codex、Cursor などで使えます。</p>
+  <p>sprite stacking（スライスを重ねる描き方）は、インディーゲームで昔から使われている手法です。スキルが新しく足したのは、4 方向の絵から板を割り出す手順と、AI エージェント向けの進め方だと、作者自身が書いています。</p>
+
+  <h2>仕組み</h2>
+  <ol>
+    <li><strong>4 方向の絵</strong>: 上・横・前・後ろを、遠近なしで、同じ大きさで 1 列に並べる。</li>
+    <li><strong>削り出し</strong>: 4 枚すべてで塗られている所だけを、立体の点として残す（visual hull と呼ばれる方法）。</li>
+    <li><strong>板に切る</strong>: 立体を、地面から上へ薄い板に切って、横に並べた 1 枚の絵（スライスの帯）にする。</li>
+    <li><strong>重ねて描く</strong>: 板を下から順に、同じ角度で回し、縦に 0.75 倍に縮め、1 枚ごとに 1 ドットずつ持ち上げて描く。どの角度でも、くっきりしたドット絵になる。</li>
+  </ol>
+  <figure>
+    <img src="img/adv-walk1-views.webp" width="624" height="240" fetchpriority="high" alt="冒険者の歩く姿勢を、上・横・前・後ろから描いた 4 枚のドット絵">
+    <figcaption>1. 4 方向の絵（冒険者の「歩き 1」）。左から上・横・前・後ろ。作る係が Python で 1 ドットずつ描いた。</figcaption>
+  </figure>
+  <figure>
+    <img src="img/adv-walk1-hull.webp" width="1071" height="584" loading="lazy" alt="スキルの確かめの絵。4 方向の絵、4 つの角度から見た立体、板をばらした様子が並ぶ。足が 1 つの塊になっている">
+    <figcaption>2〜4. スキルの台本がそのまま作った結果の確かめの絵（check.png）。上に読み取った 4 方向、下に 35・135・225・315 度から見た姿と、板をばらした姿。<strong>足が 1 つの塊になり、体が太っている</strong>（理由は「スキルの癖」の節）。</figcaption>
+  </figure>
+
+  <h2 id="try">すぐ試せる手順</h2>
+  <p>Windows・Mac・Linux のどれでも試せます。下の 3 の命令と結果は、このレポートを書くときに実際に流して確かめました。</p>
+  <ol class="steps">
+    <li><strong>スキルを入れる</strong>
+      Claude Code なら、次のどちらかです。
+      <pre class="code"><code># skills の道具で入れる（Node 22.20 以上）
+npx skills add danielwh2/sprite-stacking
+
+# または、リポジトリから写す
+git clone https://github.com/danielwh2/sprite-stacking
+cp -r sprite-stacking/skills/sprite-stacking ~/.claude/skills/</code></pre>
+      このあと AI に「回せるドット絵の樽を作って」「この 4 方向の絵を sprite stacking にして」のように頼むと、スキルの手順で作ります。画像を作る AI が無くても、AI が Python で 4 方向の絵を描きます。
+    </li>
+    <li><strong>Python の準備</strong>
+      Python 3 に Pillow と NumPy が要ります。<code>pip install pillow numpy</code> でも入りますが、ほかの環境を変えたくないときは <a href="https://docs.astral.sh/uv/">uv</a> の使い捨ての環境で動かせます（下の命令の <code>uv run …</code>）。
+    </li>
+    <li><strong>見本の 4 方向の絵で、切り分けを試す</strong>
+      見本の絵 <a href="try/bone_soldier_views.png" download>bone_soldier_views.png</a>（骨の兵、2 KB）を保存して、次を流します。<code>--slices</code> は横の絵の高さ（この見本は 18 ドット）、<code>--top-nose down</code> は乗り物以外に付けます。
+      <pre class="code"><code>uv run --no-project --with pillow --with numpy python sprite-stacking/skills/sprite-stacking/scripts/views_to_slices.py \
+  bone_soldier_views.png slices.png --slices 18 --top-nose down --preview check.png --html viewer.html</code></pre>
+      約 1.5 秒で、<code>slices.png</code>（スライスの帯、18 枚 × 11×10 ドット）、<code>check.png</code>（確かめの絵）、<code>viewer.html</code>（ブラウザで開くと回せる表示器）ができます。
+      <figure>
+        <img src="img/bone-try-check.webp" width="971" height="569" loading="lazy" alt="見本を切り分けた確かめの絵。骨の兵が 4 つの角度で描かれている">
+        <figcaption>上の命令で出た check.png。骨の兵が立体になっているが、やや太く、色が混ざっている（理由は次の節）。</figcaption>
+      </figure>
+    </li>
+    <li><strong>自分のゲームに入れる</strong>
+      スライスの帯を Canvas に重ねて描く処理は、次の約 20 行です。このページの見本も、このファイル（<a href="demo/stack.js">demo/stack.js</a>）をそのまま読み込んで動いています。
+      <pre class="code"><code id="stack-src">（JavaScript を読み込むと、ここに demo/stack.js の中身が出ます）</code></pre>
+      使い方: 絵の解像度の小さな canvas に <code>drawStack()</code> で描き、<code>withOutline()</code> で輪郭を 1 回だけ付けてから、整数倍に拡大して画面に描きます（拡大の前後とも <code>imageSmoothingEnabled = false</code>）。人物の向きは <code>turn = atan2(vy, vx) − π/2</code>。動かない木や建物は、読み込みのときに向きごとに 1 枚の絵へ焼き付けておくと、1 コマあたりの描画の数が増えません（200 本の木 × 30 枚 = 6,000 回を毎コマ描かずに済む）。
+    </li>
+  </ol>
+  <p class="small">スキルが作る表示器の見本: <a href="demo/skill-viewer-adventurer.html">冒険者の待機の姿勢（skill-viewer-adventurer.html）</a>。ターンテーブル、板の順番の表示、ばらした表示、16 方向の PNG の書き出しができます。このファイルはスキルの表示器のひな形から作ったもので、<a href="demo/LICENSE-sprite-stacking.txt">MIT ライセンス（© 2026 Daniel White）</a>です。</p>
+
+  <h2>作ったもの</h2>
+  <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cap-made">
+    <table class="stack">
+      <caption id="cap-made">作った絵の数</caption>
+      <thead><tr><th scope="col">種類</th><th scope="col">数</th><th scope="col">姿勢</th><th scope="col">板の枚数</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">職業</th><td data-label="数" class="num">7</td><td data-label="姿勢">待機・歩き 2 つ・攻撃・呪文（35 本）</td><td data-label="板の枚数" class="num">19〜27</td></tr>
+        <tr><th scope="row">魔物</th><td data-label="数" class="num">15</td><td data-label="姿勢">待機・歩き 2 つ・攻撃（60 本）</td><td data-label="板の枚数" class="num">7〜26、ボスは 46</td></tr>
+        <tr><th scope="row">NPC</th><td data-label="数" class="num">11</td><td data-label="姿勢">待機（11 本）</td><td data-label="板の枚数" class="num">18〜23</td></tr>
+        <tr><th scope="row">物（家・木・岩・鐘楼など）</th><td data-label="数" class="num">21</td><td data-label="姿勢">1 つ（21 本）</td><td data-label="板の枚数" class="num">4〜63</td></tr>
+        <tr><th scope="row">床・スタンプ</th><td data-label="数" class="num">8・13</td><td data-label="姿勢">平らな 16×16</td><td data-label="板の枚数">－</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <figure>
+    <img src="img/lineup-classes.webp" width="1888" height="1272" loading="lazy" alt="7 つの職業の待機の姿勢を、それぞれ 4 つの角度から描いた一覧">
+    <figcaption>職業 7（冒険者・剣士・戦士・盗賊・司祭・ネクロマンサー・モンク）。待機の姿勢を 4 つの角度から。</figcaption>
+  </figure>
+  <figure>
+    <img src="img/lineup-monsters.webp" width="1392" height="1912" loading="lazy" alt="15 種類の魔物を、それぞれ 4 つの角度から描いた一覧">
+    <figcaption>魔物 15。野良犬・骨の兵・泥小鬼・屍鴉・沼の亡者・毒蛙・霧の魔女・吸い蛭の群れ・鐘楼の屍鬼・呪われた侍祭・青銅の番兵・鐘守りの亡者（ボス）と、ネクロマンサーが呼ぶ骨の兵 2 種。</figcaption>
+  </figure>
+  <div class="pair">
+    <figure>
+      <img src="img/lineup-houses.webp" width="3200" height="1164" loading="lazy" alt="3 種類の家と崩れた鐘楼を、それぞれ 4 つの角度から描いた一覧">
+      <figcaption>家 3 種と崩れた鐘楼（3〜4 マス分）。</figcaption>
+    </figure>
+    <figure>
+      <img src="img/lineup-npcs.webp" width="1600" height="1596" loading="lazy" alt="11 人の NPC を描いた一覧">
+      <figcaption>NPC 11。転職の師範は、職業の絵の色を変えて作った。</figcaption>
+    </figure>
+  </div>
+  <figure>
+    <img src="img/lineup-props.webp" width="1824" height="3150" loading="lazy" alt="木・岩・柵・墓石・木箱・樽・宝箱・たいまつ・火鉢などの物の一覧">
+    <figcaption>物。木・岩・柵・墓石・木箱・樽・宝箱・たいまつ・火鉢・鐘のかけら・ワープの台・壁・扉。</figcaption>
+  </figure>
+  <div class="pair">
+    <figure>
+      <img src="img/floors.webp" width="1200" height="600" loading="lazy" alt="8 種類の床の模様を 3×3 に並べて、継ぎ目を確かめた絵">
+      <figcaption>床 8 種（3×3 に並べて継ぎ目を確かめた）。</figcaption>
+    </figure>
+    <figure>
+      <img src="img/stamps.webp" width="816" height="816" loading="lazy" alt="13 個のスタンプの絵">
+      <figcaption>スタンプ 13。多くは、この世界の印の小さな鐘に顔を付けた。</figcaption>
+    </figure>
+  </div>
+
+  <h2>スキルの癖と、直し方</h2>
+  <p>作る係は、スキルの説明書の手順どおりに進め、切り分けるたびに確かめの絵を見ました。そこで当たった問題を、多かった順に並べます。</p>
+
+  <h3>1. 歩く足が 1 つの塊になり、体が太る</h3>
+  <p>4 方向の絵から割り出す方法は、「4 枚すべてで塗られている所」を残します。横から見て足が前後に開いていても、前から見ると 2 本の足は重なって見えるので、その間も「塗られている」と判断されます。その結果、開いた足の間が埋まり、体の横も膨らみます。歩き 1 と歩き 2 は、97% 同じ形になりました。全部の絵で数えると、元の形より 17.3%（人物は 26%）多い点が付いていました。</p>
+  <p>作る係は、4 方向の絵を描く元になった小さな立体の模型（Python で箱と楕円体を組み合わせた物）と、切り分けた結果を比べ、模型に無い点を消す処理を足しました。消したあとに見えるようになった面は、模型の材質の色で塗り直します。</p>
+  <div class="pair">
+    <figure>
+      <img src="img/adv-walk1-hull.webp" width="1071" height="584" loading="lazy" alt="直す前の冒険者。足が塊で、体が太い">
+      <figcaption>直す前（スキルの台本のまま）。</figcaption>
+    </figure>
+    <figure>
+      <img src="img/adv-walk1-fixed.webp" width="1076" height="536" loading="lazy" alt="直したあとの冒険者。足が分かれ、体が細い">
+      <figcaption>直したあと。足の形と陰影が分かる。</figcaption>
+    </figure>
+  </div>
+  <div class="pair">
+    <figure>
+      <img src="img/bone-try-check.webp" width="971" height="569" loading="lazy" alt="スキルの台本のままの骨の兵。太く、色が混ざっている">
+      <figcaption>骨の兵、スキルの台本のまま（手順 3 と同じ）。</figcaption>
+    </figure>
+    <figure>
+      <img src="img/bone-fixed-check.webp" width="1036" height="512" loading="lazy" alt="直したあとの骨の兵。細く、骨らしい">
+      <figcaption>直したあと。骨らしい細さになった。</figcaption>
+    </figure>
+  </div>
+  <p>つまり、きれいな結果を得るには、<strong>4 方向の絵の元になる立体の模型が手元に要りました</strong>。模型があれば、それを直接板に切ることもできます。今回、スキルがいちばん役に立ったのは、4 方向からの削り出しそのものより、確かめの絵（1 枚で 4 方向・4 角度・ばらした姿が見える）と、描くときの数字（縮み 0.75、1 ドットずつ持ち上げる、輪郭は最後に 1 回）と、失敗例の表（Lessons）でした。</p>
+
+  <h3>2. 説明書の「輪郭を付ける」が、小さな人物に合わない</h3>
+  <p>説明書は、4 方向の絵に 1 ドットの暗い輪郭を付けるよう書いています。幅 10 ドットほどの人物でこれをすると、輪郭が立体の殻になり、足の間や腕と胴の間の 1〜2 ドットの隙間が暗い点で埋まりました。冒険者の 5 つの姿勢で、余分な点は 951 から 4,920 に増えました。作る係は 1 回試してやめ、輪郭は描くときに 1 回だけ付けることにしました。</p>
+  <figure>
+    <img src="img/adv-outline-check.webp" width="876" height="440" loading="lazy" alt="4 方向の絵に輪郭を付けて切り分けた冒険者。黒い点で埋まっている">
+    <figcaption>4 方向の絵に輪郭を付けて切り分けた冒険者。隙間が黒く埋まった。</figcaption>
+  </figure>
+
+  <h3>3. 片側の色が、反対側にも付く</h3>
+  <p>横の絵は 1 枚（左向き）だけなので、片手に持った盾や杖の色が、反対側の面にも付きます。ネクロマンサーでは、頭の骨の飾りの色が衣の中に斑点として出ました。作る係は、点の材質に合わない色を、材質の中間の色に置き換えて直しました。</p>
+  <div class="pair">
+    <figure>
+      <img src="img/necro-speckle-before.webp" width="1076" height="572" loading="lazy" alt="衣に明るい斑点が出ているネクロマンサー">
+      <figcaption>直す前。衣に骨の色の斑点。</figcaption>
+    </figure>
+    <figure>
+      <img src="img/necro-speckle-after.webp" width="1076" height="572" loading="lazy" alt="斑点の消えたネクロマンサー">
+      <figcaption>直したあと。</figcaption>
+    </figure>
+  </div>
+
+  <h3>4. 離れた部品が、知らせなしに消える</h3>
+  <p>盗賊の攻撃の姿勢で、手から 1 ドット離して描いた短剣が消えました。台本は離れた小さな塊を「ごみ」として捨てますが、そのことを知らせません。さらに 4 方向の大きさが合わなくなり、形がずれました。短剣を手につないで直し、作る係の組み立ての台本に「離れた部品があれば知らせる」確かめを足しました。</p>
+  <div class="pair">
+    <figure>
+      <img src="img/rogue-dagger-views.webp" width="616" height="240" loading="lazy" alt="盗賊の攻撃の 4 方向の絵。短剣が手から離れている">
+      <figcaption>4 方向の絵。短剣が手から 1 ドット離れている。</figcaption>
+    </figure>
+    <figure>
+      <img src="img/rogue-dagger-hull.webp" width="996" height="569" loading="lazy" alt="切り分けた結果。短剣が無い">
+      <figcaption>切り分けた結果。短剣が消えた。</figcaption>
+    </figure>
+  </div>
+
+  <h3>5. どこからも見えない空洞が埋まる</h3>
+  <p>扉の奥や、崩れた鐘楼の中の空洞は、4 方向のどの絵にも映らないので、中身の詰まった塊になります（扉は 56% 余分）。説明書の失敗例の表にも「切ったあとで手で直す」とあります。模型と比べる処理で直しました。崩れた鐘楼は、窓が埋まる、細い突起が出るなどで 5 回描き直しました。</p>
+  <div class="pair">
+    <figure>
+      <img src="img/belltower-hull.webp" width="936" height="668" loading="lazy" alt="直す前の崩れた鐘楼。中が詰まっている">
+      <figcaption>崩れた鐘楼、直す前。</figcaption>
+    </figure>
+    <figure>
+      <img src="img/belltower-fixed-check.webp" width="1046" height="686" loading="lazy" alt="直したあとの崩れた鐘楼。窓と中の空洞が開いている">
+      <figcaption>直したあと。</figcaption>
+    </figure>
+  </div>
+
+  <h3>6. そのほか</h3>
+  <ul>
+    <li><strong>4 ドットより薄い物は 4 ドットに広げられる</strong>: 台本が最小の厚みを 4 にしているため、厚み 2 ドットで描いた柵が 4 ドットになり、大きさが合わなくなりました。柵の柱を 4 ドットにして直しました。</li>
+    <li><strong>説明書の決まりが効いた所</strong>: 煙突を屋根の稜線に立てる、壁から出る物は平らに描く、隙間を外までつなげる、の 3 つを守った家は、余分な点が 0〜3% でした。細い部分を見つける確かめ（thin_runs）は、1 ドットの突起を 2 回見つけました。丸い物の <code>--round</code> で、木の幹・樽・ワープの台が丸く切れました。</li>
+    <li><strong>スキルの外の失敗</strong>: 床の模様を正弦波の足し合わせで作ったら、斜めの縞が出ました（下の左）。周期のあるノイズに替えて直しました（上の「作ったもの」の床）。</li>
+  </ul>
+  <figure>
+    <img src="img/floors-stripes.webp" width="1200" height="600" loading="lazy" alt="斜めの縞が出た床の模様">
+    <figcaption>縞が出た床の模様（直す前）。</figcaption>
+  </figure>
+  <div class="note">
+    <p>作る係は、説明書の失敗例の表（Lessons）に 5 行を足すことを勧めています。離れた部品が知らせなしに消える、4 ドット未満が広げられる、輪郭が小さな人物の隙間を埋める、4 方向の削り出しは歩く足を表せない、横の絵 1 枚で両側に色が付く、の 5 つです。</p>
+  </div>
+
+  <h2>時間と費用</h2>
+  <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cap-cost">
+    <table class="stack">
+      <caption id="cap-cost">絵を作った係の時間と費用</caption>
+      <thead><tr><th scope="col">項目</th><th scope="col">値</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">作る係</th><td data-label="値">Claude Opus 5.5（Claude Code のサブエージェント）</td></tr>
+        <tr><th scope="row">時間</th><td data-label="値" class="num">51 分 40 秒</td></tr>
+        <tr><th scope="row">AI の呼び出し</th><td data-label="値" class="num">118 回</td></tr>
+        <tr><th scope="row">出力のトークン</th><td data-label="値" class="num">237,672</td></tr>
+        <tr><th scope="row">費用（API 換算）</th><td data-label="値" class="num">$14.15</td></tr>
+        <tr><th scope="row">全部の絵を作り直す時間</th><td data-label="値" class="num">約 4 分（台本を流すだけ）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="small">費用は 2026 年 11 月の料金表（Opus 5.5: 入力 $4、5 分のキャッシュの書き込み $5、キャッシュの読み込み $0.20、出力 $20、いずれも 100 万トークンあたり）で計算しました。読み込んだ文脈の大半はキャッシュの読み込み（約 3,441 万トークン）です。</p>
+
+  <h2>分かったこと</h2>
+  <ul>
+    <li>このスキルで、ゲームの絵を一通り（54 種類・127 姿勢）作れました。描き方の数字と確かめの絵が決まっているので、AI が描いた絵の良し悪しを、人が 1 枚の絵で判断できます。</li>
+    <li>ただし、4 方向の絵から削り出す方法には限界があります。幅 10 ドットほどの人物では、歩く足が塊になり、体が太ります。きれいにするには、元になる立体の模型と比べて直す処理が要りました。</li>
+    <li>建物・木・樽のような、4 方向から見て形が分かる物は、説明書の決まりを守ればほぼそのまま使えました。</li>
+    <li>描く処理は約 20 行で、どんな Canvas のゲームにも入れられます。動かない物は向きごとに焼き付けておくと軽くなります。</li>
+  </ul>
+
+  <h2>ソースコード</h2>
+  <ul>
+    <li><a href="demo/stack.js">demo/stack.js</a>: 重ねて描く処理（このページの見本と同じ）。<a href="demo/demo.js">demo/demo.js</a> が見本の操作。</li>
+    <li><a href="https://github.com/dikmri/ai-coding-notes/tree/main/reports/sprite-stacking/src">src/（GitHub）</a>: 作る係が書いた絵の台本（Python 10 本、3,112 行）。<code>vox.py</code> と <code>shapes.py</code> が立体の模型、<code>classes.py</code>・<code>monsters.py</code>・<code>npcs.py</code>・<code>props.py</code>・<code>tiles.py</code> が各絵、<code>build.py</code> が 4 方向の絵を描いてスキルの台本で切り分け、模型と比べて直す。台本の中の手元のフォルダの場所は、自分の環境に合わせて書き換えてください。</li>
+    <li>この絵を使う 1 人用のハクスラ『鐘なき王国』は、いま作っています。公開したら、ここにリンクを足します。</li>
+  </ul>
+
+  <p class="foot"><a href="../">実験レポートの一覧へ戻る</a> ・ <a href="../../">図鑑の表紙へ戻る</a></p>
+</article>
+</main>
+<script type="module" src="demo/demo.js"></script>
+</body>
+</html>
