@@ -27,7 +27,7 @@ dekiru.add({
   css: `body { display: grid; place-items: center; background: #f3f0fa; } .box { display: grid; gap: 8px; justify-items: start; }`,
   js() {
     const show = () => { document.getElementById('perm').textContent = 'Notification' in window ? { granted: '許可済み', denied: '拒否', default: 'まだ聞いていない' }[Notification.permission] : '非対応'; };
-    const notify = () => { if (Notification.permission === 'granted') new Notification('出来る！図鑑', { body: 'ブラウザから通知を出しました。', tag: 'dekiru' }); else console.warn('通知の許可がありません'); };
+    const notify = () => { if (Notification.permission === 'granted') new Notification('AI コーディングノート', { body: 'ブラウザから通知を出しました。', tag: 'dekiru' }); else console.warn('通知の許可がありません'); };
     document.getElementById('ask').onclick = async () => { await Notification.requestPermission(); show(); };
     document.getElementById('now').onclick = notify;
     document.getElementById('later').onclick = () => setTimeout(notify, 3000);
@@ -83,10 +83,10 @@ dekiru.add({
   t: 'スマホの共有シートを開く', y: 'すまほのきょうゆうしーとをひらく',
   tags: ['Web Share', '共有', 'SNS', 'スマホ'],
   d: 'navigator.share() を呼ぶと、スマホでおなじみの共有シート（LINE やメールなどを選ぶ画面）が開く。対応していない環境では、代わりにリンクをコピーする。',
-  html: `<article class="card"><h2>出来る！図鑑</h2><p>ライブラリなしで作られた見本の図鑑。</p><button id="share">共有する</button><p id="msg"></p></article>`,
+  html: `<article class="card"><h2>AI コーディングノート</h2><p>ライブラリなしで作られた見本の図鑑。</p><button id="share">共有する</button><p id="msg"></p></article>`,
   css: `body { display: grid; place-items: center; background: #fff3ec; } .card { width: min(360px, 90vw); background: #fff; padding: 18px; border-radius: 14px; box-shadow: 0 2px 10px #0001; } #msg { font-size: 13px; color: #555; }`,
   js() {
-    const data = { title: '出来る！HTML/CSS/JavaScript', text: 'ライブラリなしでここまで出来る、という見本の図鑑', url: 'https://example.com/dekiru' };
+    const data = { title: 'AI コーディングノート', text: 'ライブラリなしでここまで出来る、という見本の図鑑', url: 'https://example.com/dekiru' };
     document.getElementById('share').onclick = async () => {
       if (navigator.share && (!navigator.canShare || navigator.canShare(data))) {
         try { await navigator.share(data); document.getElementById('msg').textContent = '共有しました'; } catch (e) { document.getElementById('msg').textContent = e.name === 'AbortError' ? 'やめました' : '共有できませんでした: ' + e.message; }

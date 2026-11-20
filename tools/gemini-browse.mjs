@@ -35,7 +35,7 @@ for (let i = 0; i < args.length; i++) {
   else if (task === null) task = a;
 }
 
-const RULES = `あなたは「Future OS」（ブラウザで動くレトロフューチャーな OS）と図鑑サイト「出来る！HTML/CSS/JavaScript」の動作を確かめる係です。
+const RULES = `あなたは「Future OS」（ブラウザで動くレトロフューチャーな OS）と図鑑サイト「AI コーディングノート」の動作を確かめる係です。
 画面を見て、マウスとキーボードで操作し、次の「やること」を確かめてください。
 
 ===== やること =====

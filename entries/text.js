@@ -84,7 +84,7 @@ dekiru.add({
   js() {
     const h = document.getElementById('h');
     const pool = '!<>-_\\/[]{}=+*^?#ｱｲｳｴｵｶｷｸｹｺ01';
-    const words = ['ACCESS GRANTED', '出来る！図鑑', 'HELLO, BROWSER', 'ライブラリ不要'];
+    const words = ['ACCESS GRANTED', 'ブラウザ図鑑', 'HELLO, BROWSER', 'ライブラリ不要'];
     let wi = 0;
     function play(target) {
       const start = performance.now(), len = [...target].length;
@@ -104,7 +104,7 @@ dekiru.add({
   t: '1文字ずつ跳ねる', y: 'いちもじずつはねる',
   tags: ['文字分割', 'animation-delay', 'CSS変数', '見出し'],
   d: '文字を1文字ずつ span で包み、それぞれに番号を CSS 変数で渡す。番号に比例して動き出しを遅らせると、波のように順に跳ねる。',
-  html: `<h1 id="h" aria-label="ようこそ出来る図鑑へ">ようこそ出来る図鑑へ</h1>`,
+  html: `<h1 id="h" aria-label="ようこそブラウザ図鑑へ">ようこそブラウザ図鑑へ</h1>`,
   css: `
     body { display: grid; place-items: center; background: #fdf0d5; }
     h1 { margin: 0; font: 900 9vmin serif; color: #c23b22; }

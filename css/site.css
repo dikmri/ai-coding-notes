@@ -1,4 +1,4 @@
-/* 出来る！HTML/CSS/JavaScript ― 図鑑の体裁
+/* AI コーディングノート ― 図鑑の体裁
  * 紙と墨、朱の印。明暗どちらの配色にも追従する。 */
 
 :root {
@@ -86,9 +86,10 @@ label { display: inline-flex; align-items: center; gap: .4em; }
   border-bottom: 1px solid var(--rule);
 }
 .brand { display: grid; line-height: 1.05; color: inherit; text-decoration: none; flex: none; }
-.brand-mark { font: 800 26px/1 var(--serif); letter-spacing: .02em; }
+/* 名前（AI コーディングノート）は 10 文字あるので、検索欄の幅を残すために 20px にする */
+.brand-mark { font: 800 20px/1.1 var(--serif); }
 .brand-mark em, h1 em { font-style: normal; color: var(--shu); }
-.brand-sub { font: 600 10.5px/1.4 var(--mono); letter-spacing: .08em; color: var(--ink-2); }
+.brand-sub { font: 600 10.5px/1.4 var(--mono); letter-spacing: .02em; color: var(--ink-2); }
 .brand-sub i { font-style: normal; color: var(--shu); margin: 0 .15em; }
 
 .search { position: relative; flex: 1; display: flex; align-items: center; gap: 6px; max-width: 640px; }
@@ -108,7 +109,8 @@ label { display: inline-flex; align-items: center; gap: .4em; }
 .mainnav a:hover { background: var(--paper-2); }
 .mainnav a:is([aria-current="page"], [aria-current="true"]) { background: var(--ink); color: var(--paper); }
 
-@media (width < 1100px) {
+/* 1200px 未満では、名前・検索欄・ボタンが 1 段に収まらないので、検索欄を 2 段目に回す */
+@media (width < 1200px) {
   .masthead { flex-wrap: wrap; }
   .search { order: 3; flex-basis: 100%; max-width: none; }
 }
@@ -131,7 +133,7 @@ main { padding: 0 clamp(16px, 3vw, 32px) 80px; }
   min-height: min(560px, 72vh); padding: 28px 0 8px;
 }
 .kicker { font: 600 12px/1 var(--mono); letter-spacing: .12em; color: var(--shu); margin: 0 0 14px; }
-.hero h1 { font: 800 clamp(48px, 9vw, 112px)/1 var(--serif); margin: 0; letter-spacing: .01em; }
+.hero h1 { font: 800 clamp(44px, 7vw, 92px)/1 var(--serif); margin: 0; letter-spacing: .01em; }
 .hero h1 small { display: block; font: 600 clamp(14px, 1.8vw, 20px)/1.6 var(--mono); letter-spacing: .1em; color: var(--ink-2); margin-top: 14px; }
 .lead { font-size: 16.5px; max-width: 34em; color: var(--ink-2); margin: 22px 0; text-wrap: pretty; }
 .trend-note { margin: -8px 0 16px; padding: 8px 12px; max-width: 36em; font-size: 14px; border-left: 3px solid var(--shu); background: color-mix(in oklab, var(--shu) 8%, transparent); }
@@ -162,7 +164,7 @@ main { padding: 0 clamp(16px, 3vw, 32px) 80px; }
   background: var(--paper);
   border-bottom: 1px solid var(--rule);
 }
-@media (width < 1100px) { .toolbar { position: static; } }
+@media (width < 1200px) { .toolbar { position: static; } }
 .chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: thin; }
 .chips button { white-space: nowrap; font-size: 13px; padding: .25em .85em; flex: none; }
 .chips button .n { color: var(--ink-3); font-size: 11px; margin-left: .3em; }

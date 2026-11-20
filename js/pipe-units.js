@@ -157,7 +157,7 @@
 
   /* ================= 材料を出す ================= */
   def('source', 'text', { in: 'text?', out: 'text', args: '[文字…]', kana: 'てきすと もじ', desc: '文字を出す。引数がなければ前の段の文字を通す', ex: 'text 出来る！ | big',
-    fn: (v, a) => (a.length ? a.join(' ') : v ?? '出来る！HTML/CSS/JavaScript') });
+    fn: (v, a) => (a.length ? a.join(' ') : v ?? 'AI コーディングノート') });
   def('source', 'sample', { in: 'none', out: 'text', args: '[iroha|poem|jugemu|csv|json|md|en|nums]', kana: 'みほん さんぷる れいぶん', desc: '見本の文章を出す', ex: 'sample jugemu | chars | freq | head 10 | bar',
     fn: (v, [k = 'iroha']) => { if (!(k in SAMPLES)) throw new Error(`見本「${k}」はありません（${Object.keys(SAMPLES).join(', ')}）`); return SAMPLES[k]; } });
   def('source', 'seq', { in: 'none', out: 'list', args: '開始 [終了] [刻み]', kana: 'すうれつ れんばん', desc: '数を並べる。seq 10 なら 1〜10', ex: 'seq 1 30 | fizzbuzz | join " "',

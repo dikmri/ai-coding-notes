@@ -8,7 +8,7 @@ dekiru.add({
   css: `body { padding: 8px; background: #f6f6f3; } .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; height: 100%; } textarea { font: 12px/1.5 ui-monospace, monospace; height: 100%; } .out { overflow: auto; background: #fff; border-radius: 8px; padding: 8px; font: 12px/1.6 ui-monospace, monospace; } details { margin-left: 14px; } summary { cursor: pointer; } .k { color: #7a3e9d; } .s { color: #2f855a; } .n { color: #c05621; } .b { color: #2b6cb0; } .err { color: #c23b22; } pre { margin: 8px 0 0; border-top: 1px dashed #ddd; padding-top: 6px; }`,
   js() {
     const inp = document.getElementById('in');
-    inp.value = '{"名前":"出来る図鑑","収録":290,"道具":["HTML","CSS","JavaScript"],"設定":{"暗い配色":true,"言語":"ja","ライブラリ":null}}';
+    inp.value = '{"名前":"ブラウザ図鑑","収録":290,"道具":["HTML","CSS","JavaScript"],"設定":{"暗い配色":true,"言語":"ja","ライブラリ":null}}';
     const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
     function node(v, key) {
       const k = key !== undefined ? `<span class="k">${esc(key)}</span>: ` : '';
@@ -58,7 +58,7 @@ dekiru.add({
   tags: ['Base64', 'TextEncoder', 'データURL', 'エンコード'],
   d: '日本語の文字を UTF-8 のバイト列にしてから Base64 に直し、また元に戻す。ファイルを選ぶと、そのファイルを丸ごと埋め込める data URL にもする。',
   p: 'btoa() は1文字1バイトの文字しか受け付けない。日本語はまず TextEncoder でバイト列にする。',
-  html: `<label>元の文字 <textarea id="a" rows="3">出来る！HTML/CSS/JavaScript</textarea></label><label>Base64 <textarea id="b" rows="3"></textarea></label><label>ファイルを data URL に <input type="file" id="f"></label><textarea id="url" rows="3" readonly aria-label="data URL"></textarea>`,
+  html: `<label>元の文字 <textarea id="a" rows="3">AI コーディングノート</textarea></label><label>Base64 <textarea id="b" rows="3"></textarea></label><label>ファイルを data URL に <input type="file" id="f"></label><textarea id="url" rows="3" readonly aria-label="data URL"></textarea>`,
   css: `body { display: grid; gap: 8px; padding: 10px; background: #f6f4ff; align-content: start; } label { display: grid; gap: 4px; font-size: 13px; } textarea { font: 13px ui-monospace, monospace; word-break: break-all; }`,
   js() {
     const a = document.getElementById('a'), b = document.getElementById('b');

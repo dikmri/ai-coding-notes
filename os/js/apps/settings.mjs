@@ -44,10 +44,10 @@ export async function launch(os, args = {}, rect = {}) {
           <p class="ai-note">${AI_TEXT.store}</p>
           <p class="ai-note">${AI_TEXT.cost} <a data-keypage target="_blank" rel="noopener noreferrer">鍵を作るページ</a></p></div>
         <div class="tab-page" hidden><div class="msgbox-body" style="padding:6px 0"><img src="icons/logo.svg" alt="" width="48" height="48" style="image-rendering:pixelated"><div class="col" style="gap:6px">
-          <b style="font-weight:400">FUTURE OS // ARCADIA-91（出来る！エディション）</b>
+          <b style="font-weight:400">FUTURE OS // ARCADIA-91（AI コーディングノート版）</b>
           <span>1991年に作られ、計画の凍結で消えた幻のリゾート端末、という設定のブラウザの中の OS です。</span>
           <span>ライブラリを使わず、HTML・CSS・JavaScript だけで作っています。</span>
-          <span data-ua></span><a href="../" target="_blank" rel="noopener">図鑑「出来る！HTML/CSS/JavaScript」</a></div></div></div>
+          <span data-ua></span><a href="../" target="_blank" rel="noopener">「AI コーディングノート」の図鑑</a></div></div></div>
       </div>
       <div class="button-row"><button type="button" class="default" data-ok>OK</button><button type="button" data-cancel>キャンセル</button><button type="button" data-apply disabled>適用(<u>A</u>)</button></div></div>`;
     },
