@@ -39,7 +39,7 @@ export async function launch(os, args = {}, rect = {}) {
   for (const id of GUIDES) { try { guides.push(await (await fetch(new URL(`../assistant/guides/${id}.json`, import.meta.url))).json()); } catch (e) { log('assistant.guide', { id }, 'error: ' + e.message); } }
   const can = await mcp.available();
   const st = mcp.status();
-  const root = (st.root || '（出来る！のフォルダ）').replaceAll('\\', '/'), port = st.port || 8765;
+  const root = (st.root || '（AI コーディングノートのフォルダ）').replaceAll('\\', '/'), port = st.port || 8765;
   const cmd = `claude mcp add future-os -- node "${root}/tools/mcp-bridge.mjs" --port ${port}`;
   const json = JSON.stringify({ mcpServers: { 'future-os': { command: 'node', args: [`${root}/tools/mcp-bridge.mjs`, '--port', String(port)] } } }, null, 2);
   const win = wm.open({

@@ -1,6 +1,8 @@
 // 一覧のカードの静止画の目録。node tools/thumbs.mjs が作る。手で直さない
-window.DEKIRU_THUMBS = {"v":1,"w":400,"h":250,"cols":4,"rows":2,"sheets":["68d72c","4e08da","19ffa2","dd35ff","dd3a9c","60fbf0","63e81e","b7a4d3","686b21","92cefe","eb8186","f2066e","45a218","2a91ab","37d693","24ab4a","5a54cd","f752e7","d5e527","6c6f03","a925dd","52db0c","cf580e","4ff3cb","e52822","8d4c85","86cb75","aea336","88ed5d","d743dc","151077","a2a63d","026310","3bb873","eda318","f2d7f7","5b432b","315430","5da556","f6d5b0","4c1b0f","a1602a","17a31a","899807","4aa5ef","74e1f4","5c3a3a","18757a","ce7b78","9b8854","d15b89","b18e2c","f68cc0","50dd37","d7bec3","1b14a4","c3c5fd","fbea8e","9b356e","5efb07","b5f169","62dca2","56ed6c"],"at":{
+window.DEKIRU_THUMBS = {"v":1,"w":400,"h":250,"cols":4,"rows":2,"sheets":["68d72c","4e08da","19ffa2","dd35ff","dd3a9c","60fbf0","63e81e","b7a4d3","686b21","92cefe","eb8186","f2066e","45a218","2a91ab","37d693","24ab4a","5a54cd","f752e7","d5e527","6c6f03","7592f9","52db0c","cf580e","4ff3cb","e52822","8d4c85","86cb75","aea336","88ed5d","d743dc","151077","a2a63d","026310","3bb873","eda318","f2d7f7","5b432b","315430","5da556","f6d5b0","4c1b0f","3805c0","17a31a","899807","4aa5ef","74e1f4","061158","18757a","ce7b78","9b8854","d15b89","b18e2c","f68cc0","50dd37","d7bec3","1b14a4","d88bd0","fbea8e","9b356e","5efb07","b5f169","62dca2","56ed6c","d956a7"],"at":{
 "tr-20261120-one-sheet-zine":[62,6,"4247fe3132"],
+"tr-20261120-zram-compress":[63,0,"46826d0207"],
+"tr-20261120-jj-auto-rebase":[63,1,"1729bc6147"],
 "tr-20261119-partial-eval":[60,0,"d237915398"],
 "tr-20261119-h2-window-underflow":[62,3,"5437b6d605"],
 "tr-20261119-upcase-overflow":[62,4,"9067f99f81"],
@@ -171,8 +173,8 @@ window.DEKIRU_THUMBS = {"v":1,"w":400,"h":250,"cols":4,"rows":2,"sheets":["68d72
 "tx-extruded-shadow":[19,5,"caae43812b"],
 "tx-vertical":[19,6,"e3bb0a18e4"],
 "tx-ruby-toggle":[19,7,"c6d298205f"],
-"tx-scramble":[20,0,"cfb2a00a16"],
-"tx-bounce-letters":[20,1,"00bdb6bf83"],
+"tx-scramble":[20,0,"dbe969a56e"],
+"tx-bounce-letters":[20,1,"8497838666"],
 "tx-countup":[20,2,"eaf320860f"],
 "tx-marker":[20,3,"d72f59419f"],
 "tx-outline-text":[20,4,"e7ed2abd6c"],
@@ -348,9 +350,9 @@ window.DEKIRU_THUMBS = {"v":1,"w":400,"h":250,"cols":4,"rows":2,"sheets":["68d72
 "mt-convex-hull":[40,6,"cd799f9135"],
 "mt-collatz":[40,7,"172264ccd6"],
 "astra-shadow-scan":[59,6,"f17e517b17"],
-"dt-json-viewer":[41,0,"6aa62ecec6"],
+"dt-json-viewer":[41,0,"ca4898d264"],
 "dt-csv-table":[41,1,"63b84fa32e"],
-"dt-base64":[41,2,"718272a81a"],
+"dt-base64":[41,2,"0b2ac2e172"],
 "dt-hash":[41,3,"a520f33569"],
 "dt-uuid":[41,4,"238f9db375"],
 "dt-password-generator":[41,5,"8f2f005b06"],
@@ -392,7 +394,7 @@ window.DEKIRU_THUMBS = {"v":1,"w":400,"h":250,"cols":4,"rows":2,"sheets":["68d72
 "ap-clipboard":[46,0,"0a315ba9de"],
 "ap-fullscreen":[46,1,"eafbde0ded"],
 "ap-vibrate":[46,2,"a88bd5811a"],
-"ap-web-share":[46,3,"0b34df0171"],
+"ap-web-share":[46,3,"d3fe51fac1"],
 "ap-localstorage":[46,4,"9ce935ab8b"],
 "ap-indexeddb":[46,5,"3b1c660068"],
 "ap-broadcast-channel":[46,6,"a94079efbe"],
@@ -500,8 +502,8 @@ window.DEKIRU_THUMBS = {"v":1,"w":400,"h":250,"cols":4,"rows":2,"sheets":["68d72
 "app-flashcards":[56,0,"d1fcf7c498"],
 "app-pixel-editor":[56,1,"bb380bd368"],
 "app-markdown-notes":[56,2,"c1bc444203"],
-"app-slides":[56,3,"1731b767ab"],
+"app-slides":[56,3,"6c2065076a"],
 "app-proofreader":[56,4,"0e01670bfe"],
-"app-mindmap":[56,5,"558abc0531"],
+"app-mindmap":[56,5,"e39400ad42"],
 "app-vector-draw":[56,6,"6ebb8a6959"]
 }};

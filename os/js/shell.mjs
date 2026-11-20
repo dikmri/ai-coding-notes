@@ -502,7 +502,7 @@ async function shutdownDialog() {
     <p>次の中から選んでください:</p>
     <label><input type="radio" name="sd" value="off" checked> 電源を切れる状態にする(<u>S</u>)</label>
     <label><input type="radio" name="sd" value="reboot"> 再起動する(<u>R</u>)</label>
-    <label><input type="radio" name="sd" value="guide"> 図鑑「出来る！」へ戻る(<u>B</u>)</label></div></div>
+    <label><input type="radio" name="sd" value="guide"> 図鑑へ戻る(<u>B</u>)</label></div></div>
     <div class="button-row"><button type="button" class="default" data-close="ok">OK</button><button type="button" data-close="">キャンセル</button></div></div>`;
   document.body.append(dlg);
   sound.play('notify');

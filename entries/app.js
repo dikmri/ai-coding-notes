@@ -700,7 +700,7 @@ dekiru.add({
   },
   js() {
     const KEY = 'dekiru-slides', $ = (id) => document.getElementById(id);
-    const SAMPLE = '# 出来る！のひみつ\n## ブラウザだけで作る図鑑\n---\n# 道具は3つだけ\n- HTML で骨組み\n- CSS で見た目\n- JavaScript で動き\n---\n# 小さく作る\n1つの見本は数十行。\n小さいから、読める。直せる。\n---\n# つなげて大きく\n- パイプ工房\n- 合わせ技の小品\n- そのまま使えるアプリ\n---\n# ありがとうございました\n## 質問をどうぞ';
+    const SAMPLE = '# 図鑑のひみつ\n## ブラウザだけで作る図鑑\n---\n# 道具は3つだけ\n- HTML で骨組み\n- CSS で見た目\n- JavaScript で動き\n---\n# 小さく作る\n1つの見本は数十行。\n小さいから、読める。直せる。\n---\n# つなげて大きく\n- パイプ工房\n- 合わせ技の小品\n- そのまま使えるアプリ\n---\n# ありがとうございました\n## 質問をどうぞ';
     try { $('src').value = localStorage.getItem(KEY) || SAMPLE; } catch { $('src').value = SAMPLE; }
     try { $('theme').value = localStorage.getItem(KEY + '-theme') || 'paper'; } catch { /* 読めない */ }
     const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -853,7 +853,7 @@ dekiru.add({
     const mk = (text, children = []) => ({ id: 'n' + uid++, text, children });
     let root;
     try { root = JSON.parse(localStorage.getItem(KEY)); } catch { root = null; }
-    if (!root) root = mk('出来る！図鑑', [mk('見た目', [mk('CSS アート'), mk('光と演出'), mk('立体・3D')]), mk('動き', [mk('アニメーション'), mk('物理')]), mk('使える', [mk('家計簿'), mk('単語帳'), mk('表計算')]), mk('つなげる', [mk('パイプ工房')])]);
+    if (!root) root = mk('ブラウザ図鑑', [mk('見た目', [mk('CSS アート'), mk('光と演出'), mk('立体・3D')]), mk('動き', [mk('アニメーション'), mk('物理')]), mk('使える', [mk('家計簿'), mk('単語帳'), mk('表計算')]), mk('つなげる', [mk('パイプ工房')])]);
     const walk = (n, f, parent = null, depth = 1) => { f(n, parent, depth); (n.children || []).forEach((c) => walk(c, f, n, depth + 1)); };
     walk(root, (n) => { uid = Math.max(uid, parseInt(n.id.slice(1), 10) + 1); });
     let selId = root.id, pan = { x: 60, y: 0 }, zoom = 1;

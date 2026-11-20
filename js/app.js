@@ -1,4 +1,4 @@
-/* 出来る！HTML/CSS/JavaScript ― 画面の本体 */
+/* AI コーディングノート ― 画面の本体 */
 (function () {
   'use strict';
   const D = window.dekiru;
@@ -111,7 +111,7 @@ canvas, img, video { display: block; max-width: 100%; }
     html = html ?? e.src.html;
     css = css ?? e.src.css;
     js = js ?? e.src.js;
-    const top = mode === 'export' ? `<!-- 出来る！HTML/CSS/JavaScript No.${pad(e.no)} ${e.t} -->\n` : '';
+    const top = mode === 'export' ? `<!-- AI コーディングノート No.${pad(e.no)} ${e.t} -->\n` : '';
     const bridge = mode === 'export' ? '' : `<link rel="icon" href="data:,">\n<script>${prelude(mode)}<\/script>\n`;
     const head = `<!doctype html>\n${top}<html lang="ja">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${esc(e.t)}</title>\n${bridge}<style>\n${BASE_CSS}\n</style>\n<style>\n${css.replace(/<\/style/gi, '<\\/style')}\n</style>\n${dataTags(e, inline)}</head>\n<body>\n${html}\n<script>\n`;
     const doc = head + js.replace(/<\/script/gi, '<\\/script') + '\n<\/script>\n</body>\n</html>\n';
@@ -1080,7 +1080,7 @@ canvas, img, video { display: block; max-width: 100%; }
   function hero() {
     const cv = $('#heroCanvas');
     const ctx = cv.getContext('2d');
-    const WORDS = ['出来る！', '描ける', '鳴らせる', '動かせる', '遊べる', '計算できる', '出来る！'];
+    const WORDS = ['試せる！', '描ける', '鳴らせる', '動かせる', '遊べる', '計算できる', '試せる！'];
     const N = 1700;
     let W = 0, Hh = 0, dpr = 1, parts = [], wi = 0, raf = 0, onScreen = true, timer = 0;
     let running = !reduceMotion.matches;
