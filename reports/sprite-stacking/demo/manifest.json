@@ -1,0 +1,220 @@
+{
+ "version": 1,
+ "tile": 16,
+ "art": {
+  "adventurer": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "anchor": [
+    6,
+    13
+   ],
+   "shadow": [
+    5,
+    5
+   ],
+   "poses": {
+    "idle": {
+     "file": "demo/adventurer_idle.png",
+     "w": 12,
+     "h": 26,
+     "count": 20
+    },
+    "walk1": {
+     "file": "demo/adventurer_walk1.png",
+     "w": 12,
+     "h": 26,
+     "count": 20
+    },
+    "walk2": {
+     "file": "demo/adventurer_walk2.png",
+     "w": 12,
+     "h": 26,
+     "count": 20
+    },
+    "attack": {
+     "file": "demo/adventurer_attack.png",
+     "w": 12,
+     "h": 26,
+     "count": 20
+    },
+    "cast": {
+     "file": "demo/adventurer_cast.png",
+     "w": 12,
+     "h": 26,
+     "count": 20
+    }
+   }
+  },
+  "necromancer": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "anchor": [
+    6,
+    13
+   ],
+   "shadow": [
+    3,
+    3
+   ],
+   "poses": {
+    "idle": {
+     "file": "demo/necromancer_idle.png",
+     "w": 12,
+     "h": 26,
+     "count": 22
+    },
+    "cast": {
+     "file": "demo/necromancer_cast.png",
+     "w": 12,
+     "h": 26,
+     "count": 22
+    }
+   }
+  },
+  "bone_soldier": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "anchor": [
+    6,
+    12
+   ],
+   "shadow": [
+    5,
+    5
+   ],
+   "poses": {
+    "idle": {
+     "file": "demo/bone_soldier_idle.png",
+     "w": 12,
+     "h": 24,
+     "count": 18
+    }
+   }
+  },
+  "bell_warden": {
+   "kind": "actor",
+   "footprint": [
+    2,
+    2
+   ],
+   "anchor": [
+    17,
+    27
+   ],
+   "shadow": [
+    13,
+    13
+   ],
+   "poses": {
+    "idle": {
+     "file": "demo/bell_warden_idle.png",
+     "w": 34,
+     "h": 54,
+     "count": 46
+    }
+   }
+  },
+  "belltower_ruin": {
+   "kind": "prop",
+   "footprint": [
+    4,
+    4
+   ],
+   "anchor": [
+    23,
+    29
+   ],
+   "shadow": [
+    21,
+    24
+   ],
+   "poses": {
+    "idle": {
+     "file": "demo/belltower_ruin_idle.png",
+     "w": 46,
+     "h": 58,
+     "count": 63
+    }
+   }
+  },
+  "house_a": {
+   "kind": "prop",
+   "footprint": [
+    3,
+    3
+   ],
+   "anchor": [
+    22,
+    20
+   ],
+   "shadow": [
+    22,
+    20
+   ],
+   "poses": {
+    "idle": {
+     "file": "demo/house_a_idle.png",
+     "w": 44,
+     "h": 40,
+     "count": 40
+    }
+   }
+  },
+  "tree_oak": {
+   "kind": "prop",
+   "footprint": [
+    2,
+    2
+   ],
+   "anchor": [
+    12,
+    12
+   ],
+   "shadow": [
+    12,
+    12
+   ],
+   "poses": {
+    "idle": {
+     "file": "demo/tree_oak_idle.png",
+     "w": 24,
+     "h": 24,
+     "count": 36
+    }
+   }
+  },
+  "brazier": {
+   "kind": "prop",
+   "footprint": [
+    1,
+    1
+   ],
+   "anchor": [
+    5,
+    6
+   ],
+   "shadow": [
+    5,
+    5
+   ],
+   "poses": {
+    "idle": {
+     "file": "demo/brazier_idle.png",
+     "w": 10,
+     "h": 12,
+     "count": 12
+    }
+   }
+  }
+ }
+}
