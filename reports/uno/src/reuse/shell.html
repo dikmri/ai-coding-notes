@@ -1,0 +1,85 @@
+<!doctype html>
+<!--
+  Required Notice: Copyright (c) 2026 ViktorKav (https://github.com/viktorkav/uno-com-escada)
+  License: PolyForm Noncommercial 1.0.0 (https://polyformproject.org/licenses/noncommercial/1.0.0)
+  これは上の作品の Fable 5.2 の版を、非営利の実験として改変したもの（車・コース・時刻を差し替え）。
+-->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>夕暮れ峠サーキット</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;font:14px/1.4 -apple-system,Helvetica,Arial,sans-serif;color:#ddd}
+#c{position:absolute;inset:0;margin:auto;width:100vw;height:100vh;display:block;object-fit:contain}
+#msg{position:absolute;left:0;right:0;top:45%;text-align:center;letter-spacing:.08em;white-space:pre-wrap}
+#hint{position:absolute;left:14px;bottom:10px;opacity:.75;text-shadow:0 1px 2px #000;transition:opacity 1.5s;pointer-events:none}
+#hg,#ht,#hs,#tag,#ui{display:none;position:absolute;pointer-events:none}
+#hg{right:1.6vh;bottom:1.6vh}
+#ht{left:50%;top:1.6vh;transform:translateX(-50%)}
+#hs{left:1.6vh;top:1.6vh}
+#tag{left:50%;bottom:2.2vh;transform:translateX(-50%);padding:.45em 1.1em;border-radius:1.2em;background:rgba(9,11,14,.62);color:#fff;white-space:nowrap}
+#ui{inset:0;pointer-events:auto;align-items:center;justify-content:center;background:rgba(6,8,10,.62);font-size:clamp(11px,1.72vh,17px)}
+#ui.ini{background:linear-gradient(rgba(6,8,10,.5),rgba(6,8,10,.82))}
+#ui>div{max-width:94vw;max-height:96vh;overflow:auto;padding:1.4em 2.2em;box-sizing:border-box;text-align:center}
+#ui h1{margin:0;font-size:3.1em;line-height:1.1;letter-spacing:.02em;color:#fff}
+#ui .sub{margin:.3em 0 1.3em;opacity:.8;letter-spacing:.12em;text-transform:uppercase;font-size:.9em}
+#ui h2{margin:0 0 .5em;font-size:1.05em;letter-spacing:.1em;text-transform:uppercase;color:#ff8a6a}
+#ui .cols{display:flex;gap:3.2em;justify-content:center;flex-wrap:wrap;text-align:left}
+#ui table{border-collapse:collapse}
+#ui td,#ui th{padding:.13em .7em .13em 0;font-weight:400;text-align:left}
+#ui td:first-child{color:#fff;font-weight:600;white-space:nowrap;padding-right:1.3em}
+#res{display:none;margin:0 0 1.4em;padding:1em 1.4em;border-radius:.8em;background:rgba(255,255,255,.07)}
+#res table{margin:0 auto}#res th,#res td{padding:.2em 1.1em;text-align:right}#res td{color:#fff;font-weight:600;font-variant-numeric:tabular-nums}#res p{margin:.7em 0 0}
+#ui .bt{margin-top:1.5em}
+#ui button{font:inherit;font-size:1.15em;font-weight:600;color:#fff;background:#d8351c;border:0;border-radius:.5em;padding:.6em 2em;margin:0 .4em;cursor:pointer}
+#ui button+button{background:rgba(255,255,255,.16)}
+#ui button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="msg">読み込み中…</div>
+<div id="hint">W 加速 · S ブレーキと後退 · A/D 曲がる · Space サイドブレーキ · C カメラ · R コースに戻る</div>
+<canvas id="hg"></canvas><canvas id="ht"></canvas><canvas id="hs"></canvas><div id="tag"></div>
+<div id="ui"><div>
+<h1>夕暮れ峠サーキット</h1>
+<p class="sub">小型ハッチバック「モンテ」 · 山の周回コース</p>
+<div id="res"></div>
+<div class="cols">
+<div><h2>キーボード</h2><table>
+<tr><td>W または ↑</td><td>加速</td></tr>
+<tr><td>S または ↓</td><td>ブレーキ・後退</td></tr>
+<tr><td>A D または ← →</td><td>曲がる</td></tr>
+<tr><td>Space</td><td>サイドブレーキ</td></tr>
+<tr><td>C</td><td>カメラを切り替える</td></tr>
+<tr><td>V（押したまま）</td><td>後ろを見る</td></tr>
+<tr><td>R</td><td>車をコースに戻す</td></tr>
+<tr><td>Esc</td><td>一時停止して、このメニューを開く</td></tr>
+</table></div>
+<div><h2>ゲームパッド</h2><table>
+<tr><td>右トリガー</td><td>加速</td></tr>
+<tr><td>左トリガー</td><td>ブレーキ・後退</td></tr>
+<tr><td>左スティック</td><td>曲がる</td></tr>
+<tr><td>A</td><td>サイドブレーキ</td></tr>
+<tr><td>Y</td><td>カメラを切り替える</td></tr>
+<tr><td>RB（押したまま）</td><td>後ろを見る</td></tr>
+<tr><td>X</td><td>車をコースに戻す</td></tr>
+<tr><td>Start</td><td>このメニューを開く</td></tr>
+</table></div>
+<div><h2>道具</h2><table>
+<tr><td>M</td><td>音の入り切り</td></tr>
+<tr><td>H</td><td>性能の表示</td></tr>
+<tr><td>B</td><td>性能を測る（決まった運転 60 秒）</td></tr>
+<tr><td>F</td><td>決まった運転を見る</td></tr>
+<tr><td>1〜6</td><td>固定カメラ</td></tr>
+<tr><td colspan="2" style="font-weight:400;color:#ddd;opacity:.75;padding-top:.5em">変速は自動 · スタートラインを越えると<br>1 周として数える</td></tr>
+</table></div>
+</div>
+<div class="bt"><button id="b0">始める</button><button id="b1">性能を測る</button></div>
+</div></div>
+<script>
+/*__CODE__*/
+</script>
+</body>
+</html>

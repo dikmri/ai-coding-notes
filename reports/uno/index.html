@@ -28,6 +28,7 @@ body { font-size: 0.9375rem; }
 .play { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 1.2rem 0; }
 .play a { display: inline-block; padding: 0.55em 1.2em; border-radius: 999px; background: var(--shu); color: var(--shu-ink); font-weight: 700; text-decoration: none; }
 .play a.sub { background: transparent; color: var(--ink); border: 1.5px solid var(--ink-3); padding-block: calc(0.55em - 1.5px); }
+.src { margin-top: -0.4rem; font-size: 0.875rem; }
 .small { color: var(--ink-2); font-size: 0.875rem; }
 .note { margin: 1.5rem 0; padding: 1rem 1.2rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
 .note > :first-child { margin-top: 0; }
@@ -139,6 +140,7 @@ body { font-size: 0.9375rem; }
     <div class="play">
       <a href="drive.html">薄明峠サーキットを遊ぶ</a>
     </div>
+    <p class="src">ソースコード（GitHub）: <a href="https://github.com/dikmri/dekiru-html/blob/main/reports/uno/drive.html">薄明峠サーキットのソース（1 つの HTML ファイル）</a></p>
     <p class="small">開いてから画面を 1 回押すと始まります。音はそのあとに鳴ります。キーは W・S・A・D・Space・R のほか、C でカメラ（追いかけ・ボンネット・テレビ）、M で音の入り切りです。</p>
 
     <div class="pair">
@@ -205,6 +207,7 @@ body { font-size: 0.9375rem; }
       <a href="reuse.html">夕暮れ峠サーキットを遊ぶ</a>
       <a class="sub" href="reuse.html?fly">コースの上空を飛ぶ映像を見る</a>
     </div>
+    <p class="src">ソースコード（GitHub）: <a href="https://github.com/dikmri/dekiru-html/tree/main/reports/uno/src/reuse">夕暮れ峠サーキットのソースのフォルダ</a>、<a href="https://github.com/dikmri/dekiru-html/blob/main/reports/uno/src/reuse.diff">流用で元の版から変えた所（差分）</a></p>
 
     <div class="pair">
       <figure>
@@ -265,6 +268,7 @@ body { font-size: 0.9375rem; }
       <a href="polish.html">ブラッシュアップした版を遊ぶ</a>
       <a class="sub" href="https://viktorkav.com.br/apoio/uno-com-escada/fable/">元の版を遊ぶ（作者のサイト）</a>
     </div>
+    <p class="src">ソースコード（GitHub）: <a href="https://github.com/dikmri/dekiru-html/tree/main/reports/uno/src/polish">ブラッシュアップした版のソースのフォルダ</a>、<a href="https://github.com/dikmri/dekiru-html/blob/main/reports/uno/src/polish.diff">ブラッシュアップで元の版から変えた所（差分）</a></p>
     <p class="small">画面の文字は元のポルトガル語のままです。始めるボタンは「Começar」です。公開にあたり、車体にある実在のメーカーの印（前のグリルの印と、後ろの文字の札 2 枚）を外しました。それ以外は実験の成果のままです。</p>
 
     <h3>速さと大きさ</h3>
@@ -363,6 +367,11 @@ body { font-size: 0.9375rem; }
     <h2 id="h-license">ライセンス</h2>
     <p>実験 2 と実験 3 のゲームは、ViktorKav さんの「Uno com escada」を改変したものです。元の作品のライセンス（<a href="https://polyformproject.org/licenses/noncommercial/1.0.0">PolyForm Noncommercial 1.0.0</a>）に従い、非営利で公開しています。実験 1 のゲーム（drive.html）は、元のコードを使わずに Astra が書いたものです。</p>
     <p class="notice">Required Notice: Copyright (c) 2026 ViktorKav (https://github.com/viktorkav/uno-com-escada)</p>
+    <p>実験 2 と実験 3 のソースのフォルダ（<code>reports/uno/src/</code>）にも、元の作品のライセンスの本文を入れています。差分は、元の Fable 5.2 版のソース（<code>orig</code>）と比べたものです。フォルダの中で次のコマンドを実行すると、このページで遊べる版と同じファイルができます（2026-11-20 に、1 バイトも違わないことを確かめました）。</p>
+    <ul>
+      <li>流用した版: <code>node build.mjs --src . --out reuse.html</code></li>
+      <li>ブラッシュアップした版: <code>node build.mjs --src . --min --pack --out polish.html</code></li>
+    </ul>
   </section>
 
   <p class="foot"><a href="../../">図鑑の表紙へ戻る</a></p>

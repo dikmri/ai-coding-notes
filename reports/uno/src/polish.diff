@@ -1,0 +1,2697 @@
+diff --git a/orig/build.mjs b/polish/build.mjs
+index e89e162..6861cd2 100644
+--- a/orig/build.mjs
++++ b/polish/build.mjs
+@@ -1,14 +1,16 @@
+ // Monta um único index.html autocontido a partir de source/js/*.js e source/wgsl/*.wgsl.
+-// uso: node source/build.mjs [--src DIR] [--out ARQUIVO] [--min]
++// uso: node source/build.mjs [--src DIR] [--out ARQUIVO] [--min] [--pack]
++// --pack: o código vai comprimido (deflate-raw em base64) e é descomprimido na abertura com DecompressionStream, nativo do navegador
+ import fs from 'node:fs';
+ import path from 'node:path';
+ import { fileURLToPath } from 'node:url';
++import zlib from 'node:zlib';
+ const args = process.argv.slice(2);
+ const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
+ const here = path.dirname(fileURLToPath(import.meta.url));
+ const src = path.resolve(opt('--src', here));
+ const out = path.resolve(opt('--out', path.join(here, '..', 'index.html')));
+-const min = args.includes('--min');
++const min = args.includes('--min'), pack = args.includes('--pack');
+ const ls = (d, ext) => fs.readdirSync(path.join(src, d)).filter(f => f.endsWith(ext)).sort();
+ const stripWgsl = s => s.replace(/\/\/(?! @dyn)[^\n]*/g, '').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').replace(/^ +/gm, '');
+ let wg = 'const WGSL = {};\n';
+@@ -26,7 +28,14 @@ for (const f of ls('js', '.js')) {
+ if (min) js = js.split('\n').map(l => l.replace(/^\s+/, '')).filter(l => l && !/^\/\/(?!#)/.test(l)).join('\n');
+ let html = fs.readFileSync(path.join(src, 'shell.html'), 'utf8');
+ if (js.includes('</script')) throw new Error('fonte contém </script');
+-html = html.replace('/*__CODE__*/', () => `(()=>{'use strict';\n${wg}${js}\n})();`);
++let code = `(()=>{'use strict';\n${wg}${js}\n})();`;
++if (pack) {
++  const b64 = zlib.deflateRawSync(Buffer.from(code, 'utf8'), { level: 9 }).toString('base64');
++  code = `(async()=>{try{const b=atob('${b64}'),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);` +
++    `const s=document.createElement('script');s.textContent=await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();document.body.appendChild(s);}` +
++    `catch(e){document.getElementById('msg').textContent='erro: '+e.message;}})();`;
++}
++html = html.replace('/*__CODE__*/', () => code);
+ fs.mkdirSync(path.dirname(out), { recursive: true });
+ fs.writeFileSync(out, html);
+ console.log(`ok ${out} ${(html.length / 1024).toFixed(1)} KiB`);
+diff --git a/orig/js/10_track.js b/polish/js/10_track.js
+index e459cf5..a97268a 100644
+--- a/orig/js/10_track.js
++++ b/polish/js/10_track.js
+@@ -165,6 +165,17 @@ function trackBuild() {
+     for (let i = 0; i < N; i++) { const dx = X[i] - px, dz = Z[i] - pz, d2 = dx * dx + dz * dz; if (d2 < bd) { bd = d2; best = i; } if (d2 < 125 * 125) tmpL.push(i); }
+     const c = gz * TRK.gridW + gx; TRK.grid[c] = best; TRK.gridDist[c] = Math.sqrt(bd); TRK.cellList[c] = tmpL.length ? Int32Array.from(tmpL) : null;
+   }
++  // Candidatos da busca do ponto mais próximo (trackLocateQ), por célula: só as amostras que podem ser a mais próxima de
++  // algum ponto da célula — até (distância da mais próxima do centro + 2 meias-diagonais) do centro. Mesma resposta da
++  // busca antiga (mesma ordem crescente de índice, então o mesmo desempate), com listas bem menores: a geração do
++  // terreno, do mapa e da mata chama a busca milhões de vezes (era ~1,3 s da carga; fora dos 125 m varria a pista inteira).
++  TRK.cellNear = new Array(TRK.gridW * TRK.gridH);
++  const hd = cell * 0.70711;
++  for (let gz = 0; gz < TRK.gridH; gz++) for (let gx = 0; gx < TRK.gridW; gx++) {
++    const c = gz * TRK.gridW + gx, px = TRK.gridX0 + (gx + 0.5) * cell, pz = TRK.gridZ0 + (gz + 0.5) * cell, lim = TRK.gridDist[c] + 2 * hd + 0.01, l2 = lim * lim; tmpL.length = 0;
++    for (let i = 0; i < N; i++) { const dx = X[i] - px, dz = Z[i] - pz; if (dx * dx + dz * dz <= l2) tmpL.push(i); }
++    TRK.cellNear[c] = Int32Array.from(tmpL);
++  }
+ }
+ // distância aproximada (limite inferior) do ponto ao eixo da pista; barato. Retorna 1e9 fora da grade.
+ function trackFarDist(x, z) {
+@@ -184,7 +195,7 @@ function trackLocateQ(hint, q) {
+   if (hint < 0) {
+     // busca global: usa a lista de candidatos da célula; fora da grade (ou longe), varre tudo
+     const gx = Math.floor((x - TRK.gridX0) / TRK.gridCell), gz = Math.floor((z - TRK.gridZ0) / TRK.gridCell);
+-    const lst = (gx >= 0 && gz >= 0 && gx < TRK.gridW && gz < TRK.gridH) ? TRK.cellList[gz * TRK.gridW + gx] : null;
++    const lst = (gx >= 0 && gz >= 0 && gx < TRK.gridW && gz < TRK.gridH) ? TRK.cellNear[gz * TRK.gridW + gx] : null;
+     if (lst) { for (let k = 0; k < lst.length; k++) { const i = lst[k], dx = X[i] - x, dz = Z[i] - z, d2 = dx * dx + dz * dz; if (d2 < bd) { bd = d2; best = i; } } }
+     else for (let i = 0; i < N; i++) { const dx = X[i] - x, dz = Z[i] - z, d2 = dx * dx + dz * dz; if (d2 < bd) { bd = d2; best = i; } }
+   } else {
+diff --git a/orig/js/20_renderer.js b/polish/js/20_renderer.js
+index bf51866..c2ae0f5 100644
+--- a/orig/js/20_renderer.js
++++ b/polish/js/20_renderer.js
+@@ -1,8 +1,23 @@
+ // Núcleo do renderizador diferido: recursos, uniformes de quadro, famílias de material e o grafo de passes.
+ const SHADOW_RES = 2048, SHADOW_S_RES = 4096, ENV_RES = 512, ENV_MIPS = 7, SKY_W = 4096, SKY_H = 1024, VOL_DIST = 220;
+ const SKY_EL0 = -0.14, SKY_ELR = PI / 2 + 0.14;
+-const SH_DEFS = { SHADOW_RES: SHADOW_RES + '.0', ENV_MIPS: ENV_MIPS + '.0', ENV_MIP_K: (ENV_RES * 2 / (PI * 1.5)).toFixed(2), VOL_DIST: VOL_DIST + '.0', SKY_EL0: SKY_EL0.toFixed(5), SKY_ELR: SKY_ELR.toFixed(5) };
+-const KIND = { GBUF: 0, SHADOW: 1, CUBE: 2 };
++// Qualidade e distâncias num lugar só (revisão 2): números que o JS (seleção de células e raios) e o WGSL (transições,
++// laços) têm de concordar. Os raios do JS somam vegMargin aos do shader para nunca cortar uma árvore que o shader mostra.
++const QUAL = {
++  vegD0: 90, vegD1: 112,          // troca malha → impostor (m, distância efetiva com o zoom da lente)
++  vegU0: 60, vegU1: 80,           // sub-bosque some entre U0 e U1
++  vegL0: 26, vegL1: 38, vegLeafRk: 1.6,   // folhas individuais (a mais distante some em L1 × vegLeafRk)
++  vegSh0: [68, 88], vegSh1: [38, 54],     // troca nas cascatas de sombra 0 e 1
++  vegMargin: 2, vegZoomMin: 0.52, vegLeafZoomMin: 0.68,   // lente longa: o zoom efetivo não desce disto (limita o alcance)
++  ssrSteps: 24, ssrGrow: 1.25, fogSteps: 12, mbMaxSamples: 24,
++};
++const _f = x => (Number.isInteger(x) ? x + '.0' : String(x));
++const SH_DEFS = { VEGQ_D0: _f(QUAL.vegD0), VEGQ_D1: _f(QUAL.vegD1), VEGQ_U0: _f(QUAL.vegU0), VEGQ_U1: _f(QUAL.vegU1), VEGQ_L0: _f(QUAL.vegL0), VEGQ_L1: _f(QUAL.vegL1),
++  VEGQ_LEAFRK: _f(QUAL.vegLeafRk), VEGQ_SH0A: _f(QUAL.vegSh0[0]), VEGQ_SH0B: _f(QUAL.vegSh0[1]), VEGQ_SH1A: _f(QUAL.vegSh1[0]), VEGQ_SH1B: _f(QUAL.vegSh1[1]),
++  VEGQ_ZOOM: _f(QUAL.vegZoomMin), VEGQ_LEAFZOOM: _f(QUAL.vegLeafZoomMin),
++  SSR_STEPS: String(QUAL.ssrSteps), SSR_GROW: _f(QUAL.ssrGrow), FOG_NV: String(QUAL.fogSteps), MB_NSMAX: String(QUAL.mbMaxSamples),
++  SHADOW_RES: SHADOW_RES + '.0', ENV_MIPS: ENV_MIPS + '.0', ENV_MIP_K: (ENV_RES * 2 / (PI * 1.5)).toFixed(2), VOL_DIST: VOL_DIST + '.0', SKY_EL0: SKY_EL0.toFixed(5), SKY_ELR: SKY_ELR.toFixed(5) };
++const KIND = { GBUF: 0, SHADOW: 1, CUBE: 2, PRE: 3 };   // PRE: pré-passe de profundidade das famílias com def.prepass
+ 
+ // ---- struct Frame: lista de campos gera o WGSL e os deslocamentos ----
+ const FRAME_FIELDS = [
+@@ -85,11 +100,15 @@ const objParams = i => _objViews[i][2];
+ // ---- famílias de material ----
+ // def: { src: nome do wgsl (define VIn, vert(), surf() e opcionalmente surfAlpha()), buffers: [layouts de vértice], alpha, cull, defs, noCube, noShadow, topology }
+ function mkFamily(name, def) {
+-  const fam = { name, def, pipe: [null, null, null], bgl3: null };
+-  const kinds = [['PASS_GBUF', 0], ['PASS_SHADOW', 1], ['PASS_CUBE', 2]];
++  const fam = { name, def, pipe: [null, null, null, null], bgl3: null };
++  // def.prepass (só famílias com alfa): uma variante extra só de profundidade (PASS_PRE, com o mesmo vértice do G-buffer) e
++  // o G-buffer passa a testar 'equal' sem escrever profundidade: cada pixel visível é sombreado uma vez (o descarte continua,
++  // com a mesma decisão nos dois passes, porque a pré-passe chama o próprio surf())
++  const kinds = [['PASS_GBUF', 0], ['PASS_SHADOW', 1], ['PASS_CUBE', 2]].concat(def.prepass ? [['PASS_PRE', 3]] : []);
+   for (const [kdef, k] of kinds) {
+     if ((k === 1 && def.noShadow) || (k === 2 && def.noCube)) continue;
+     const defs = Object.assign({}, SH_DEFS, def.defs || {}); defs[kdef] = ''; if (def.alpha) defs.ALPHA = '';
++    if (k === 3) defs.PASS_GBUF = '';                 // o vértice da pré-passe é o do G-buffer
+     WGSL['__fam_' + name] = `#include common\n#include gbuf\n#include ${def.src}\n#include entry\n`;
+     const code = wgslPP('__fam_' + name, defs), mod = mkShader('__fam_' + name, defs), bgls = reflectBGLs(code);
+     bgls[0] = R.bgl0; bgls[2] = R.bgl2;
+@@ -101,6 +120,9 @@ function mkFamily(name, def) {
+     };
+     if (k === 0) {
+       d.fragment = { module: mod, entryPoint: 'fs', targets: [{ format: 'rgba8unorm-srgb' }, { format: 'rgba16float' }, { format: 'rgba8unorm' }, { format: 'rg16float' }] };
++      d.depthStencil = def.prepass ? { format: 'depth32float', depthWriteEnabled: false, depthCompare: 'equal' } : { format: 'depth32float', depthWriteEnabled: true, depthCompare: 'greater' };
++    } else if (k === 3) {
++      d.fragment = { module: mod, entryPoint: 'fs', targets: [] };
+       d.depthStencil = { format: 'depth32float', depthWriteEnabled: true, depthCompare: 'greater' };
+     } else if (k === 1) {
+       if (def.alpha) d.fragment = { module: mod, entryPoint: 'fs', targets: [] };
+@@ -181,6 +203,7 @@ function rendererInit() {
+   // descritores de passe
+   const D = R.pd = {};
+   D.gbuf = mkPassDesc(4, 'clear', true, 'gbuf'); D.gbuf.colorAttachments[0].view = V.gA; D.gbuf.colorAttachments[1].view = V.gB; D.gbuf.colorAttachments[2].view = V.gC; D.gbuf.colorAttachments[3].view = V.gV; D.gbuf.depthStencilAttachment.view = V.depth;
++  D.pre = mkPassDesc(0, 'clear', true, 'pre'); D.pre.depthStencilAttachment.view = V.depth;   // pré-passe: só profundidade (limpa em 0, Z invertido)
+   D.shadow = [0, 1, 2].map(i => { const d = mkPassDesc(0, 'clear1', true, 'shadow' + i); d.depthStencilAttachment.view = V.shadowL[i]; return d; });
+   D.shadowS = mkPassDesc(0, 'clear1', true, 'shadowS'); D.shadowS.depthStencilAttachment.view = V.shadowS;
+   D.cube = [0, 1, 2, 3, 4, 5].map(f => { const d = mkPassDesc(1, 'clear1', true, 'cube' + f); d.colorAttachments[0].view = V.envFace[f][0]; d.depthStencilAttachment.view = V.envDepth; return d; });
+@@ -254,6 +277,12 @@ function cascadeSetup(i) {
+   if (cd > fa) { cd = fa; rad = fa * Math.sqrt(th * th + tw * tw); } else { const a = fa - cd, b = fa * Math.sqrt(th * th + tw * tw); rad = Math.sqrt(a * a + b * b); }
+   rad = ((rad * 16 + 0.999999) | 0) / 16;
+   const px = c.pos[0] + c.fwd[0] * cd, py = c.pos[1] + c.fwd[1] * cd, pz = c.pos[2] + c.fwd[2] * cd;
++  _cc[0] = px; _cc[1] = py; _cc[2] = pz; _cc[3] = rad; cascadeFit(i);
++}
++// parte comum das duas formas de cascata: esfera (_cc: centro e raio) → projeção ortográfica da luz encaixada na grade de texels
++const _cc = new Float64Array(4);
++function cascadeFit(i) {
++  const cs = R.casc, px = _cc[0], py = _cc[1], pz = _cc[2], rad = _cc[3];
+   lightView(cs.view);
+   // centro em espaço de luz, encaixado na grade de texels
+   const m = cs.view; let lx = m[0] * px + m[4] * py + m[8] * pz + m[12], ly = m[1] * px + m[5] * py + m[9] * pz + m[13]; const lz = m[2] * px + m[6] * py + m[10] * pz + m[14];
+@@ -267,14 +296,7 @@ function cascadeSetup(i) {
+ // ter resolução onde a lente está olhando, a qualquer distância da câmera.
+ const FOCUS_R = [9, 30, 105];
+ function cascadeFocus(i) {
+-  const cs = R.casc, rad = FOCUS_R[i], px = cs.focus[0], py = cs.focus[1], pz = cs.focus[2];
+-  lightView(cs.view);
+-  const m = cs.view; let lx = m[0] * px + m[4] * py + m[8] * pz + m[12], ly = m[1] * px + m[5] * py + m[9] * pz + m[13]; const lz = m[2] * px + m[6] * py + m[10] * pz + m[14];
+-  const tex = 2 * rad / SHADOW_RES; const qx = lx / tex, qy = ly / tex; lx = (qx >= 0 ? (qx + 0.5) | 0 : -((0.5 - qx) | 0)) * tex; ly = (qy >= 0 ? (qy + 0.5) | 0 : -((0.5 - qy) | 0)) * tex;
+-  const o = cs.tmp, l = lx - rad, r = lx + rad, b = ly - rad, t = ly + rad, nn = -lz - 105, ff = -lz + rad + 30;
+-  o.fill(0); o[0] = 2 / (r - l); o[5] = 2 / (t - b); o[10] = 1 / (nn - ff); o[12] = (l + r) / (l - r); o[13] = (t + b) / (b - t); o[14] = nn / (nn - ff); o[15] = 1;
+-  m4mul(cs.vp[i], o, cs.view); cs.texel[i] = tex;
+-  FR.data.set(cs.vp[i], FO.shadowVP + i * 16);
++  const cs = R.casc; _cc[0] = cs.focus[0]; _cc[1] = cs.focus[1]; _cc[2] = cs.focus[2]; _cc[3] = FOCUS_R[i]; cascadeFit(i);
+ }
+ function staticShadowSetup() {
+   const cs = R.casc, rad = 1250;
+@@ -311,8 +333,12 @@ function apiFinish(enc) { return enc.finish(); }
+ function apiCanvasView() { return G.ctx.getCurrentTexture().createView(); }
+ function renderFrame() {
+   const dev = G.dev, c = R.cam, D = R.pd;
++  // Cascatas 1 e 2 alternadas (quadro par: 0 e 1; ímpar: 0 e 2): no quadro em que uma não é renderizada, a matriz e o mapa
++  // do quadro anterior continuam valendo juntos (a sombra estática fica certa; o carro de perto está na cascata 0, e no modo
++  // foco da TV também). Num corte de câmera as três são refeitas. Cada quadro paga 2 cascatas em vez de 3.
++  const even = (R.frameIdx & 1) === 0, c1 = even || c.first, c2 = !even || c.first;
+   frameUniforms();
+-  for (let i = 0; i < 3; i++) cascadeSetup(i);
++  for (let i = 0; i < 3; i++) if (i === 0 || (i === 1 ? c1 : c2)) cascadeSetup(i);
+   setPass(0, c.vpJ, c.pos);
+   for (let i = 0; i < 3; i++) setPass(1 + i, R.casc.vp[i], c.pos);
+   // uma face do cubemap de ambiente por quadro (ciclo completo a cada 6 quadros)
+@@ -326,6 +352,7 @@ function renderFrame() {
+   const enc = apiEncoder();
+   // sombras
+   for (let i = 0; i < 3; i++) {
++    if ((i === 1 && !c1) || (i === 2 && !c2)) continue;
+     const p = apiPass(enc, D.shadow[i]);
+     drawAll(p, ctxFrom(KIND.SHADOW, R.casc.vp[i], 6, c.pos, i), 1 + i, R.passBG); p.end();
+   }
+@@ -338,7 +365,21 @@ function renderFrame() {
+     envMips(enc, f);
+   }
+   // G-buffer
+-  {
++  // pré-passe de profundidade (só se algum drawable pedir: d.prepass); o G-buffer então carrega a profundidade
++  let pre = false;
++  for (let i = 0; i < R.drawables.length; i++) if (R.drawables[i].prepass) { pre = true; break; }
++  if (pre) {
++    const p = apiPass(enc, D.pre), ctx = ctxFrom(KIND.PRE, c.vpJ, 5, c.pos, 0);
++    p.setBindGroup(0, R.globBG); R.dyn1[0] = 0; p.setBindGroup(1, R.passBG, R.dyn1, 0, 1); R.dyn2[0] = 0; p.setBindGroup(2, R.objBG, R.dyn2, 0, 1);
++    for (let i = 0; i < R.drawables.length; i++) { const d = R.drawables[i]; if (d.prepass) d.draw(p, ctx); }
++    p.end();
++  }
++  D.gbuf.depthStencilAttachment.depthLoadOp = pre ? 'load' : 'clear';
++  if (D.gbufSplit) D.gbufSplit[0].depthStencilAttachment.depthLoadOp = pre ? 'load' : 'clear';
++  if (D.gbufSplit) {   // ?perf=split: um passe por drawable, para medir o custo de cada um no G-buffer
++    const S = D.gbufSplit, ctx = ctxFrom(KIND.GBUF, c.vpJ, 5, c.pos, 0);
++    for (let i = 0; i < S.length; i++) { const p = apiPass(enc, S[i]); drawRange(p, ctx, 0, R.passBG, i, i + 1); p.end(); }
++  } else {
+     const p = apiPass(enc, D.gbuf);
+     drawAll(p, ctxFrom(KIND.GBUF, c.vpJ, 5, c.pos, 0), 0, R.passBG); p.end();
+   }
+@@ -349,6 +390,21 @@ function renderFrame() {
+   R.frameIdx++;
+ }
+ R.preFrame = [];
++// Ordem de desenho dos opacos: o que cobre mais tela e tem sombreamento mais caro (terreno: ~17-27 leituras de ruído por
++// pixel) vai por último, para o teste de profundidade antecipado descartar o que já foi coberto por pista, cenário e mata.
++// Cada drawable pode trazer o próprio `order`; sem ele, vale a tabela pelo nome da família. Ordenado uma vez, na carga.
++const DRAW_ORDER = { track: 10, props: 20, propsDS: 22, crowd: 25, vegTree: 40, vegGrass: 50, terrain: 90 };
++function drawOrder(d) {
++  if (typeof d.order === 'number') return d.order;   // mata (40) e grama (50) trazem o próprio
++  const n = d.fam && d.fam.name; if (n && n in DRAW_ORDER) return DRAW_ORDER[n];
++  return 0;   // carro e demais objetos: primeiro (estão na frente e cobrem pouco)
++}
++function drawName(d) { return d.name || (d.fam && d.fam.name) || ({ 40: 'veg', 50: 'grass' })[drawOrder(d)] || 'carro'; }
++function sortDrawables() {
++  const a = R.drawables.map((d, i) => [drawOrder(d), i, d]); a.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
++  for (let i = 0; i < a.length; i++) R.drawables[i] = a[i][2];
++  R.drawOrder = a.map(e => e[0]);
++}
+ // renderiza o mapa de sombras estático do mundo (uma vez, depois que todas as malhas estáticas existem)
+ function renderStaticShadow() {
+   const ctr = new Float32Array([TRK.cx, 0, TRK.cz]);
+diff --git a/orig/js/30_car_a_shape.js b/polish/js/30_car_a_shape.js
+index 146142f..797cc85 100644
+--- a/orig/js/30_car_a_shape.js
++++ b/polish/js/30_car_a_shape.js
+@@ -16,7 +16,8 @@ function csmax(a, b, k) { return -csmin(-a, -b, k); }
+ // perfil superior no plano de borda: capô, para-brisa, teto, vigia, tampa, frente
+ function carYT(x) {
+   const fascia = 0.765 - 4.3 * (x - 1.752);
+-  const hood = 0.96 - 0.1806 * (x - 0.672) + 0.012 * (1 - csq((x - 1.21) / 0.54));
++  const rise = 0.012 + 0.010 * smooth(0.70, 0.88, x) * (1 - smooth(1.51, 1.70, x));
++  const hood = 0.96 - 0.1806 * (x - 0.672) + rise * (1 - csq((x - 1.21) / 0.54));
+   const wind = 0.96 - 0.81 * (x - 0.672);
+   const a = x + 0.35, roof = 1.445 - (a > 0 ? 0.26 * a * a : 0.041 * a * a) + (x > 0.2 ? 6 * csq(x - 0.2) : 0);
+   const hatch = 0.93 + 1.78 * (x + 1.585);
+@@ -27,15 +28,15 @@ function carYT(x) {
+ }
+ // abaulamento em planta: o centro fica mais à frente (para-brisa, frente) ou mais atrás (traseira) que as bordas
+ function carBulge(x) { return 0.055 * smooth(-0.15, 0.25, x) - 0.036 * smooth(-1.15, -1.42, x); }
+-function carCrown(x) { return 0.02 * smooth(0.62, 0.9, x) * smooth(1.8, 1.7, x) + 0.032 * smooth(0.2, -0.1, x) * smooth(-1.5, -1.3, x); }
++function carCrown(x) { return (0.02 + 0.009 * (1 - smooth(1.51, 1.70, x))) * smooth(0.62, 0.9, x) * smooth(1.8, 1.7, x) + 0.032 * smooth(0.2, -0.1, x) * smooth(-1.5, -1.3, x); }
+ function carYtop(x, z) {
+   const zz = z / 0.72, xi = carBulge(x) * (1 - zz * zz);
+   let y = carYT(x - xi) - carCrown(x) * zz * zz;
+   // ressalto central do capô (dois vincos que convergem para a frente)
+   if (x > 0.6) {
+-    // (posição medida na foto de frente: ~0,51 m do eixo junto ao para-brisa, ~0,37 m na frente; degrau de 9 mm com aresta viva)
++    // A dobra ocupa várias células da malha para o reflexo não recortar cada triângulo.
+     const zc = 0.515 - 0.145 * sat((x - 0.72) / 1.03);
+-    y += 0.0095 * (1 - smooth(zc - 0.0065, zc + 0.0065, z)) * smooth(0.77, 0.9, x - xi) * smooth(1.78, 1.70, x - xi);
++    y += 0.0065 * (1 - smooth(zc - 0.020, zc + 0.020, z)) * smooth(0.77, 0.9, x - xi) * smooth(1.78, 1.70, x - xi);
+   }
+   return y;
+ }
+@@ -48,6 +49,8 @@ function carZL(x, y) {
+   let z = carWPlan(x);
+   const d = y - 0.63; z -= d < 0 ? 0.03 * csq(d / 0.43) : 0.022 * csq(d / 0.30);
+   z -= 0.003 * smooth(0.44, 0.53, y) * (1 - smooth(0.585, 0.675, y));   // transições largas: sem brilho ondulado na malha
++  // Arredondamento da chapa sob a cintura; volta ao perfil original antes do vidro.
++  z += 0.0045 * smooth(0.70, 0.825, y) * (1 - smooth(0.825, 0.92, y)) * (1 - smooth(1.54, 1.70, Math.abs(x)));
+   if (y < 0.25) z -= 0.03 * csq((0.25 - y) / 0.06);
+   const df = Math.hypot(x - CS.AXF, y - CS.ARCH_Y) - CS.ARCH_R, dr = Math.hypot(x - CS.AXR, y - CS.ARCH_Y) - CS.ARCH_R, da = Math.min(df, dr);
+   if (da < 0.3) z += 0.0024 * Math.exp(-csq((da - 0.01) / 0.1));
+diff --git a/orig/js/30_car_b_body.js b/polish/js/30_car_b_body.js
+index 3a44be9..7e09ade 100644
+--- a/orig/js/30_car_b_body.js
++++ b/polish/js/30_car_b_body.js
+@@ -57,7 +57,8 @@ function carBuildBody(mb, gl) {
+   mb.quad(carTopX(0.3565, 0.6845, false) - 0.003, 0.6845, 0.3565, carTopX(0, 0.6845, false) - 0.003, 0.6845, 0, carTopX(0, 0.6845, false) - 0.02, 0.6845, 0, carTopX(0.3565, 0.6845, false) - 0.02, 0.6845, 0.3565);
+   mb.quad(carTopX(0, 0.7045, false) - 0.003, 0.7045, 0, carTopX(0.3565, 0.7045, false) - 0.003, 0.7045, 0.3565, carTopX(0.3565, 0.7045, false) - 0.02, 0.7045, 0.3565, carTopX(0, 0.7045, false) - 0.02, 0.7045, 0);
+   // --- forro interno (visto pelos vidros): portas/laterais escuras, teto claro ---
+-  const inner = (u, v, P) => -(Math.min(carWinDoor(P), carWinQuarter(P), v > 0.55 ? Math.min(carWindshield(P), carHatchGlass(P)) : 1) - 0.014);
++  const inner = (u, v, P) => Math.max(0.014 - Math.min(carWinDoor(P), carWinQuarter(P), v > 0.55 ? Math.min(carWindshield(P), carHatchGlass(P)) : 1),
++    Math.min(CS.AXR - P[0], 0.40 - P[1]));   // o forro do porta-malas termina dentro do para-choque
+   mb.mat(CM.INTERIOR).color(0.075, 0.078, 0.085);
+   carSub(mb, -0.03, 0.80, -1.63, 0.03, 0.60, 0.026, { field: inner, uv: plainUV, flip: false });
+   mb.mat(CM.INTERIOR, 1).color(0.2, 0.2, 0.195);
+diff --git a/orig/js/30_car_c_parts.js b/polish/js/30_car_c_parts.js
+index a02f089..5b79fb0 100644
+--- a/orig/js/30_car_c_parts.js
++++ b/polish/js/30_car_c_parts.js
+@@ -90,31 +90,42 @@ function carBuildParts(mb, gl) {
+   {
+     const z0 = CL.hlZ0 + 0.003, z1 = CL.hlZ1 - 0.003, y0 = CL.lY - CL.lH + 0.003, y1 = CL.lY + CL.lH - 0.003, D = 0.062;
+     const zc = (z0 + z1) / 2, yc = (y0 + y1) / 2, hz = (z1 - z0) / 2, hy = (y1 - y0) / 2;
+-    const dep = (a, b) => 0.006 + D * Math.pow(Math.max(0, (1 - a * a * a * a) * (1 - b * b * b * b)), 0.6);
++    const dep = (a, b) => 0.006 + D * (1 - a * a) * (1 - b * b);
+     mb.mat(CM.REFLECTOR).color(0.9, 0.9, 0.92);
+     mb.patch((u, v, o) => { const z = zc + u * hz, y = yc + v * hy, d = dep(u, v), x = carTopX(z, y, false); o[0] = x - d * 0.97; o[1] = y - d * 0.2; o[2] = z; }, -1, 1, -1, 1, { nu: 22, nv: 12, flip: true, uv: (u, v, P) => { _cuv[0] = u; _cuv[1] = v; return _cuv; } });
+     // lâmpada (pequena, no fundo da cuba)
+     const xb = carTopX(zc, yc, false) - (dep(0, 0) - 0.012) * 0.97, ybb = yc - (dep(0, 0) - 0.012) * 0.2;
+-    // bulbo de vidro no centro da cuba, com colar cromado na base e capa escura na ponta
+-    mb.push(m4translate(m4(), xb, ybb, zc)); mb.push(m4rotZ(m4(), -PI / 2 + 0.2));
+-    mb.mat(CM.REFLECTOR, 1).color(1, 0.95, 0.8); mb.cyl(0, -0.012, 0, 0.0105, 0.024, 0.0095, 12, false, true);
+-    mb.mat(CM.REFLECTOR, 2).color(0.85, 0.85, 0.86); mb.cyl(0, -0.012, 0, 0.016, -0.007, 0.014, 14, false, true);   // colar prateado (o cromado refletia escuro: virava ponto preto)
+-    mb.mat(CM.REFLECTOR, 2).color(0.6, 0.6, 0.6); mb.cyl(0, 0.022, 0, 0.0105, 0.029, 0.007, 12, false, true);   // capa prateada (não um pino preto)
++    // Bulbo arredondado junto ao soquete metálico.
++    mb.push(m4translate(m4(), xb, ybb, zc)); mb.push(m4rotZ(m4(), 0.2));
++    mb.mat(CM.REFLECTOR, 2).color(0.85, 0.85, 0.86);
++    mb.lathe([[-0.016,0.012],[-0.009,0.012],[-0.006,0.008]], 14);
++    mb.mat(CM.REFLECTOR, 1).color(1, 0.95, 0.8);
++    mb.lathe([[-0.007,0.006],[0.005,0.008],[0.013,0.0075],[0.018,0.005],[0.020,0.0002]], 12);
+     mb.pop(); mb.pop();
+   }
+   // ================= retrovisores externos: carcaça retangular, braço sanfonado, base na porta =================
+   mb.mat(CM.PLASTIC).color(0.013, 0.013, 0.014);
+-  mb.push(m4translate(m4(), 0.566, 1.004, 0.905)); mb.push(m4rotY(m4(), 0.14));
+-  mb.rbox(0, 0, 0, 0.078, 0.108, 0.185, 0.024, 5);
++  mb.push(m4translate(m4(), 0.566, 0.997, 0.849)); mb.push(m4rotY(m4(), 0.12));
++  const mirrorSection = (a, radius, x, o) => {
++    const c = Math.cos(a), s = Math.sin(a);
++    const z = Math.sign(c) * Math.pow(Math.abs(c), 0.48);
++    o[0] = x; o[2] = radius * 0.075 * z;
++    o[1] = radius * (0.0415 * Math.sign(s) * Math.pow(Math.abs(s), 0.55) * (1 - 0.13 * z) + 0.004 * z);
++  };
++  const shellX = [-0.031, -0.031, -0.026, -0.014, 0.012, 0.027, 0.035, 0.037];
++  const shellR = [0.001, 0.91, 0.98, 1, 0.95, 0.77, 0.42, 0.001];
++  mb.patch((a, v, o) => { const i = Math.min(Math.floor(v), shellR.length - 2), t = v - i;
++    mirrorSection(a, lerp(shellR[i], shellR[i + 1], t), lerp(shellX[i], shellX[i + 1], t), o);
++  }, -PI, PI, 0, shellR.length - 1, { nu: 28, nv: shellR.length - 1, flip: true });
+   mb.mat(CM.MIRROR).color(0.62, 0.64, 0.67);
+-  mb.quad(-0.0395, -0.041, -0.078, -0.0395, -0.041, 0.078, -0.0395, 0.041, 0.078, -0.0395, 0.041, -0.078);
++  mb.patch((a, r, o) => mirrorSection(a, r, -0.032, o), -PI, PI, 0.0001, 0.865, { nu: 28, nv: 1, flip: true });
+   mb.pop(); mb.pop();
+   mb.mat(CM.RUBBER).color(0.012, 0.012, 0.013);
+   mb.push(m4translate(m4(), 0.576, 0.994, 0.742)); mb.push(m4rotY(m4(), -PI / 2));
+-  { const pr = []; for (let i = 0; i <= 12; i++) pr.push([i * 0.006, 0.031 + (i & 1 ? 0.006 : 0) - i * 0.0004]); mb.lathe(pr, 18); }
++  { const pr = []; for (let i = 0; i <= 8; i++) pr.push([i * 0.006, 0.021 + (i & 1 ? 0.003 : 0)]); mb.lathe(pr, 14); }
+   mb.pop(); mb.pop();
+   mb.mat(CM.PLASTIC).color(0.013, 0.013, 0.014);
+-  mb.rbox(0.596, 0.994, 0.742, 0.13, 0.085, 0.02, 0.008, 2);
++  mb.rbox(0.585, 0.991, 0.742, 0.089, 0.062, 0.018, 0.007, 2);
+   // ================= interior (metade direita; espelhado) =================
+   mb.mat(CM.INTERIOR).color(0.05, 0.05, 0.055);
+   mb.quad(-0.86, 0.235, 0.72, 0.85, 0.235, 0.72, 0.85, 0.235, 0, -0.86, 0.235, 0);
+@@ -174,30 +185,9 @@ function carBuildParts(mb, gl) {
+   mb.rbox(0.23, 1.29, 0, 0.025, 0.055, 0.2, 0.012, 2); mb.tube([[0.24, 1.29, 0], [0.2, 1.35, 0]], 0.008, 6);
+   mb.tube([[0.2, 0.42, 0.0], [0.17, 0.6, 0.0]], 0.01, 6); mb.rbox(0.168, 0.62, 0, 0.045, 0.045, 0.045, 0.02, 3);
+   mb.rbox(-0.12, 0.40, 0, 0.3, 0.05, 0.04, 0.015, 2);
+-  // piloto: tronco, ombros, braços no volante e capacete (simples, visto pelos vidros)
+-  {
+-    const zd = -0.345;
+-    mb.mat(CM.INTERIOR, 2).color(0.2, 0.028, 0.03);   // macacão vermelho-escuro
+-    mb.push(m4translate(m4(), -0.245, 0.50, zd)); mb.push(m4rotZ(m4(), 0.30));
+-    mb.rbox(0.085, 0.27, 0, 0.2, 0.54, 0.36, 0.08, 4);                 // tronco
+-    mb.rbox(0.085, 0.50, 0, 0.17, 0.1, 0.44, 0.045, 3);                // ombros
+-    mb.pop(); mb.pop();
+-    mb.rbox(0.02, 0.535, zd, 0.44, 0.13, 0.34, 0.06, 3);               // coxas
+-    for (const sg of [-1, 1]) mb.tube([[-0.26, 0.97, zd + sg * 0.2], [-0.02, 0.86, zd + sg * 0.215], [0.275, 0.93, -0.36 + sg * 0.165]], 0.043, 8);   // braços
+-    mb.mat(CM.INTERIOR, 3).color(0.02, 0.02, 0.022);
+-    for (const sg of [-1, 1]) mb.rbox(0.285, 0.935, -0.36 + sg * 0.17, 0.085, 0.07, 0.075, 0.03, 2);   // luvas
+-    mb.rbox(-0.275, 1.035, zd, 0.1, 0.07, 0.11, 0.03, 2);              // pescoço
+-    // cinto de segurança diagonal (ombro esquerdo → quadril direito), à frente do tronco
+-    mb.mat(CM.INTERIOR, 3).color(0.012, 0.012, 0.013);
+-    mb.sweep([[-0.262, 1.0, zd - 0.15], [-0.15, 0.82, zd - 0.02], [-0.085, 0.63, zd + 0.15]], [[-0.022, 0.004], [0.022, 0.004], [0.022, -0.004], [-0.022, -0.004]], { closedProfile: true, hard: true, up: [1, 0.3, 0] });
+-    mb.mat(CM.GLOSS).color(0.05, 0.052, 0.058);   // capacete integral grafite (discreto pelo vidro); o macacão é vermelho-escuro
+-    mb.rbox(-0.262, 1.168, zd, 0.25, 0.25, 0.228, 0.112, 7);          // casco
+-    mb.rbox(-0.236, 1.092, zd, 0.186, 0.105, 0.206, 0.05, 5);         // queixeira (rente ao casco)
+-    mb.mat(CM.GLOSS, 1).color(0.01, 0.011, 0.014);
+-    mb.rbox(-0.2, 1.178, zd, 0.13, 0.08, 0.233, 0.034, 5);        // viseira: faixa escura que envolve a frente e os lados do casco
+-  }
++  carDriver(mb, gl);
+   // emblema dianteiro: cinco barras cromadas inclinadas sobrepostas ao centro da grade (ocupam a altura das duas fendas)
+-  {
++  if (false) {   // 公開版: 実在のメーカーの印（前のグリルの斜めの棒 5 本）を外す
+     const y = 0.694, x = carTopX(0, y, false), xu = carTopX(0, y + 0.02, false), sl = (xu - x) / 0.02, l = Math.hypot(1, sl);
+     const B = m4basis(m4(), 0, 0, -1, sl / l, 1 / l, 0, 1 / l, -sl / l, 0, x + 0.002, y, 0);
+     mb.mat(CM.CHROME, 2).color(0.93, 0.93, 0.95); mb.push(B);
+@@ -207,6 +197,93 @@ function carBuildParts(mb, gl) {
+   // placas e emblemas traseiros (decalques do atlas)
+   carDecals(mb);
+ }
++// Perfis em anéis: a mesma superfície define o casco, a borda da abertura e a viseira.
++function carDriver(mb, gl) {
++  const zd = -0.345;
++  const profile = (rows, v, out) => {
++    const i = clamp(Math.floor(v), 0, rows.length - 2);
++    for (let k = 0; k < rows[i].length; k++) out[k] = lerp(rows[i][k], rows[i + 1][k], v - i);
++  };
++  const row = new Float64Array(5);
++  const rings = (rows, chin = false, offset = 0) => (a, v, o) => {
++    profile(rows, v, row);
++    const c = Math.cos(a), s = Math.sin(a);
++    o[0] = row[1] + (row[2] + offset) * c;
++    o[1] = row[0] + (chin ? 0.035 * (1 - smooth(0, 4, v)) * (1 - c) * 0.5 : 0);
++    o[2] = zd + (row[3] + offset) * s;
++  };
++
++  // Do quadril ao colar: cintura estreita, peito inclinado e ombros em queda.
++  const torso = [[0.48,-0.12,0.095,0.142], [0.57,-0.14,0.115,0.157], [0.69,-0.17,0.11,0.15],
++    [0.84,-0.21,0.122,0.174], [0.943,-0.238,0.116,0.20], [0.987,-0.246,0.087,0.173], [1.018,-0.25,0.060,0.078]];
++  mb.mat(CM.INTERIOR, 2).color(0.119, 0.027, 0.020);
++  mb.patch(rings(torso), -PI, PI, 0, torso.length - 1, { nu: 20, nv: torso.length - 1, flip: true });
++  mb.rbox(0.02, 0.535, zd, 0.44, 0.13, 0.34, 0.06, 2);
++  mb.mat(CM.INTERIOR, 3).color(0.024, 0.026, 0.028);
++  const collar = [[0.997,-0.251,0.067,0.077],[1.013,-0.249,0.072,0.079],[1.026,-0.246,0.067,0.073],
++    [1.034,-0.243,0.063,0.066],[1.040,-0.241,0.066,0.069],[1.061,-0.23,0.058,0.060],[1.096,-0.216,0.062,0.059]];
++  mb.push(m4translate(m4(),0.018,0,0.015));
++  mb.patch(rings(collar), -PI, PI, 0, collar.length - 1, { nu: 18, nv: collar.length - 1, flip: true }); mb.pop();
++  mb.mat(CM.INTERIOR, 3).color(0.018, 0.019, 0.020);
++  mb.sweep([[-0.28,0.975,zd-0.161],[-0.202,1.001,zd-0.133],[-0.137,0.934,zd-0.095],[-0.095,0.81,zd-0.025],[-0.08,0.67,zd+0.106],[-0.094,0.60,zd+0.15]],
++    [[-0.023,0.003],[0.023,0.003],[0.023,-0.003],[-0.023,-0.003]], { closedProfile: true, hard: true, up: [1,0.25,0] });
++
++  // A manga afina no punho. Os dois vincos sobre o cotovelo ficam na silhueta.
++  const sleeve = [[-0.285,0.96,0.144,0.04,0.048],[-0.236,0.95,0.177,0.062,0.065],[-0.165,0.918,0.195,0.053,0.053],
++    [-0.095,0.853,0.212,0.045,0.045],[-0.065,0.835,0.215,0.052,0.049],[-0.044,0.834,0.215,0.044,0.044],
++    [-0.024,0.835,0.214,0.049,0.048],[0.035,0.852,0.214,0.047,0.046],[0.155,0.892,0.201,0.042,0.041],
++    [0.243,0.923,0.187,0.034,0.035],[0.287,0.935,0.179,0.032,0.031]];
++  for (const side of [-1, 1]) {
++    mb.mat(CM.INTERIOR, 6).color(0.174, 0.033, 0.022);
++    mb.patch((a, v, o) => {
++      profile(sleeve, v, row);
++      o[0] = row[0]; o[1] = row[1] + row[3] * Math.cos(a);
++      o[2] = zd + row[2] * side + row[4] * Math.sin(a);
++    }, -PI, PI, 0, sleeve.length - 1, { nu: 14, nv: sleeve.length - 1 });
++    const z = -0.36 + side * 0.17;
++    mb.mat(CM.INTERIOR, 3).color(0.028, 0.030, 0.032);
++    mb.tube([[0.263,0.924,zd+side*0.184],[0.296,0.939,zd+side*0.178],[0.325,0.945,z]], 0.034, 10);
++    // Palma atrás do aro, dedos dobrados sobre a frente e polegar por dentro.
++    mb.rbox(0.348, 0.954, z, 0.080, 0.062, 0.061, 0.027, 3);
++    for (let j = 0; j < 4; j++) {
++      const h = 0.932 + j * 0.013, fz = z + side * (0.015 - j * 0.003);
++      mb.tube([[0.35,h,fz],[0.376,h+0.004,fz+side*0.009],[0.391,h+0.008,fz],[0.387,h+0.009,fz-side*0.015]], 0.009, 7);
++    }
++    mb.tube([[0.345,0.974,z],[0.36,0.976,z-side*0.024],[0.377,0.964,z-side*0.027]], 0.012, 8);
++  }
++
++  const headPose = m4translate(m4(), 0.075, -0.014, 0.035);
++  mb.push(headPose); gl.push(headPose);
++  const shell = [[1.054,-0.238,0.075,0.073],[1.066,-0.224,0.106,0.090],[1.087,-0.224,0.124,0.101],
++    [1.126,-0.239,0.134,0.111],[1.163,-0.249,0.132,0.117],[1.199,-0.250,0.130,0.119],
++    [1.228,-0.258,0.123,0.115],[1.254,-0.264,0.110,0.102],[1.278,-0.267,0.086,0.080],
++    [1.296,-0.267,0.054,0.051],[1.303,-0.265,0.001,0.001]];
++  const port = (a, v, p) => {
++    const side = 1 - Math.cos(a);
++    return Math.hypot(Math.max(0, Math.abs(a) - 1.04) / 0.69,
++      (p[1] - (1.173 + 0.010 * side)) / (0.036 - 0.006 * side)) - 1;
++  };
++  mb.mat(CM.GLOSS).color(0.40, 0.42, 0.425);
++  mb.patch(rings(shell, true), -PI, PI, 0, shell.length - 1, { nu: 44, nv: 30, flip: true,
++    field: (a, v, p) => -port(a, v, p), rim: 0.008, rimMat: m => m.mat(CM.RUBBER).color(0.018,0.021,0.023) });
++  // Rosto recuado em relação à borda: ponte do nariz em relevo e têmporas sob a balaclava.
++  mb.mat(CM.INTERIOR, 5).color(0.37,0.197,0.12);
++  mb.patch((a, v, o) => {
++    const nose = 0.014 * Math.max(0, 1 - Math.abs(a) * 3) * (1 - v);
++    o[0] = -0.248 + (0.103 + nose) * Math.cos(a);
++    o[1] = 1.125 + 0.102 * v; o[2] = zd + 0.098 * Math.sin(a);
++  }, -1.95, 1.95, 0, 1, { nu: 32, nv: 6, flip: true });
++  gl.mat(2).color(0.52,0.595,0.62);
++  gl.patch(rings(shell, true, 0.0025), -1.9, 1.9, 3, 6, {
++    nu: 30, nv: 10, flip: true, field: (a,v,p) => port(a,v,p) - 0.14 });
++  for (const side of [-1, 1]) {
++    mb.push(m4translate(m4(),-0.278,1.182,zd+side*0.114)); mb.push(m4rotX(m4(),side*PI/2));
++    mb.mat(CM.RUBBER).color(0.022,0.025,0.027); mb.cyl(0,0,0,0.012,0.004,0.011,16,false,true);
++    mb.mat(CM.STEEL,1).color(0.20,0.21,0.22); mb.cyl(0,0.004,0,0.0055,0.005,0.005,12,false,true);
++    mb.pop(); mb.pop();
++  }
++  mb.pop(); gl.pop();
++}
+ const CRK = { x0: 0.0, x1: -0.98, barY: 1.47, railZ: 0.205, lx0: -1.98, lx1: 1.22 };
+ function carLadder(mb) {
+   const yb = CRK.barY + 0.014, h = 0.062, yc = yb + h / 2, L = CRK.lx1 - CRK.lx0, xc = (CRK.lx0 + CRK.lx1) / 2;
+@@ -269,8 +346,9 @@ function carDecals(mb) {
+   dq(CAT.plate, 0, 0.652, 0.40, 0.13, true, 0.006);
+   dq(CAT.plate, 0, 0.411, 0.40, 0.13, false, 1.8885);
+   mb.mat(CM.DECAL, 1).color(1, 1, 1);
+-  dq(CAT.fiat, -0.40, 0.925, 0.145, 0.046, true, 0.003);
+-  dq(CAT.mille, 0.37, 0.932, 0.175, 0.043, true, 0.003);
++  // 公開版: 実在のメーカーのエンブレムを外す
++  // dq(CAT.fiat, -0.40, 0.925, 0.145, 0.046, true, 0.003);
++  // dq(CAT.mille, 0.37, 0.932, 0.175, 0.043, true, 0.003);
+   // moldura preta das placas e fechadura da tampa
+   mb.mat(CM.PLASTIC).color(0.02, 0.02, 0.02);
+   const lk = [carTopX(0.33, 0.7, true) - 0.006, 0.7, 0.33];
+@@ -330,6 +408,10 @@ function carAtlas() {
+   }
+   const xe = xs + 4;
+   g.strokeStyle = '#d0281a'; carText(g, 'EP', xe + 20, 190, 86, 16, 0.24);
++  // Faixa livre do atlas: inscrições moldadas no flanco, um giro por toda a largura.
++  g.fillStyle = '#fff'; g.font = 'bold 18px Arial, sans-serif';
++  g.textAlign = 'center'; g.textBaseline = 'middle';
++  g.fillText('145/80 R13', 256, 320); g.fillText('RADIAL', 768, 320);
+   const im = g.getImageData(0, 0, W, H);
+   const tex = mkTex(W, H, 'rgba8unorm-srgb', TU.RT | TU.TB | TU.CD, { mipLevelCount: 6 });
+   G.dev.queue.writeTexture({ texture: tex }, im.data, { bytesPerRow: W * 4 }, [W, H]);
+diff --git a/orig/js/32_props.js b/polish/js/32_props.js
+index bc47c76..85d3598 100644
+--- a/orig/js/32_props.js
++++ b/polish/js/32_props.js
+@@ -17,8 +17,9 @@ const GLY = {
+ };
+ // fonte proporcional: largura própria de cada letra (caixa 0..w) + entreletra; o espaço é mais curto que uma letra
+ const GWID = { I: 2.2, 1: 3.0, ' ': 1.9, '-': 2.8, '.': 1.2, J: 3.7, L: 3.8, M: 4.7, W: 5.0, E: 3.9, F: 3.8, T: 4.0, C: 4.0, S: 3.95 };
+-const gAdv = ch => (GWID[ch] === undefined ? 4.1 : GWID[ch]) + 1.05;
+-function textW(txt, h) { let w = 0; for (const ch of txt) w += gAdv(ch); return (w - 1.05) * h / 6; }
++const letterGap = 1.55;
++const gAdv = ch => (GWID[ch] === undefined ? 4.1 : GWID[ch]) + letterGap;
++function textW(txt, h) { let w = 0; for (const ch of txt) w += gAdv(ch); return (w - letterGap) * h / 6; }
+ function strokeText(g, txt, x, y, h, color, weight, skew) {
+   const u = h / 6; g.save(); g.translate(x, y + h); if (skew) g.transform(1, 0, -skew, 1, 0, 0);
+   g.strokeStyle = color; g.lineWidth = u * (weight || 1.0); g.lineCap = 'round'; g.lineJoin = 'round';
+@@ -43,7 +44,7 @@ function strokeText(g, txt, x, y, h, color, weight, skew) {
+ // kind 0 = sentada (160x224), kind 1 = em pé (104x288). Coordenadas lógicas; o canvas está em escala 2x.
+ // ---------- gente pintada: figura humana desenhada por caminhos (curvas de Bézier, gradientes, sombras) ----------
+ // Canais do desenho: R = sombreamento pintado (claro/escuro) | G = máscara da roupa de cima (recebe a tinta da instância)
+-// | B = máscara de cabelo/calça/sapato. Pele: G = B = 0. kind 0 = sentada (vista de frente, cortada no colo), 1 = em pé.
++// | B = máscara de cabelo/calça/sapato. Pele: G = B = 0. kind 0 = sentada, 1 = em pé.
+ function personSprite(g, ox, oy, W, H, kind, rnd) {
+   const C = (r, m) => `rgb(${r | 0},${m === 1 ? 255 : 0},${m === 2 ? 255 : 0})`, CA = (r, m, a) => `rgba(${r | 0},${m === 1 ? 255 : 0},${m === 2 ? 255 : 0},${a})`;
+   const grad = (x0, y0, x1, y1, r0, r1, m) => { const q = g.createLinearGradient(x0, y0, x1, y1); q.addColorStop(0, C(r0, m)); q.addColorStop(1, C(r1, m)); return q; };
+@@ -68,6 +69,11 @@ function personSprite(g, ox, oy, W, H, kind, rnd) {
+     const kY = Math.min(oy + H - 6, hipY + u * 0.95);
+     for (const sd of [-1, 1]) {
+       const kx = sx + sd * hipW * 0.62;
++      const footY = oy + H - 9, ankleX = kx - sd * u * 0.09;
++      g.fillStyle = grad(0, kY - 8, 0, footY, 156, 100, 2);
++      g.beginPath(); g.moveTo(kx - u * 0.32, kY - 9); g.lineTo(ankleX - u * 0.19, footY - 4);
++      g.lineTo(ankleX + u * 0.16, footY - 4); g.lineTo(kx + u * 0.32, kY - 9); g.closePath(); g.fill();
++      g.fillStyle = C(67, 2); g.beginPath(); g.ellipse(ankleX + sd * 2, footY - 3, u * 0.25, 5, 0, 0, TAU); g.fill();
+       g.fillStyle = grad(0, hipY - 6, 0, kY, 165, 88, 2); g.beginPath(); g.moveTo(sx - sd * 2, hipY - 8); g.lineTo(sx + sd * hipW * 1.02, hipY - 8);
+       g.bezierCurveTo(sx + sd * hipW * 1.1, hipY + u * 0.5, kx + sd * u * 0.32, kY, kx, kY); g.bezierCurveTo(kx - sd * u * 0.34, kY, sx - sd * 3, hipY + u * 0.5, sx - sd * 2, hipY - 8); g.closePath(); g.fill();
+       const kg = g.createRadialGradient(kx, kY - u * 0.3, 1, kx, kY - u * 0.3, u * 0.36); kg.addColorStop(0, CA(205, 2, 0.75)); kg.addColorStop(1, CA(205, 2, 0)); g.fillStyle = kg; g.beginPath(); g.arc(kx, kY - u * 0.3, u * 0.36, 0, TAU); g.fill();   // joelho pegando luz
+@@ -171,7 +177,10 @@ function atlasBuild() {
+   const cv = document.createElement('canvas'); cv.width = 4096; cv.height = 2048; const g = cv.getContext('2d'); g.scale(2, 2);
+   g.fillStyle = '#888'; g.fillRect(0, 0, 2048, 1024);
+   const REG = PROPS.regions, reg = (name, x, y, w, h) => { REG[name] = [x / 2048, y / 1024, (x + w) / 2048, (y + h) / 1024]; };
+-  const centered = (txt, x, y, w, h, th, color, weight, skew) => strokeText(g, txt, x + (w - textW(txt, th)) / 2, y + (h - th) / 2, th, color, weight, skew);
++  const centered = (txt, x, y, w, h, maxHeight, color, weight, skew) => {
++    const th = Math.min(maxHeight, w / (textW(txt, 1) + Math.abs(skew) + weight / 6));
++    strokeText(g, txt, x + (w - textW(txt, th) - skew * th) / 2, y + (h - th) / 2, th, color, weight, skew);
++  };
+   // nome do circuito
+   g.fillStyle = '#0b2a4a'; g.fillRect(0, 0, 1024, 128); g.fillStyle = '#e8b21c'; g.fillRect(0, 0, 1024, 10); g.fillRect(0, 118, 1024, 10);
+   centered('CIRCUITO SERRA DA MATA', 0, 0, 1024, 128, 50, '#f4f1e6', 1.75, 0.1); reg('name', 0, 0, 1024, 128);
+@@ -198,8 +207,18 @@ function atlasBuild() {
+     else if (ic === 4) { g.beginPath(); g.moveTo(ix - 36, iy + 34); g.lineTo(ix, iy - 38); g.lineTo(ix + 36, iy + 34); g.closePath(); g.fill(); }
+     else if (ic === 5) { g.lineWidth = 8; g.beginPath(); g.moveTo(ix - 22, iy - 40); g.lineTo(ix - 22, iy + 40); g.moveTo(ix + 22, iy - 40); g.lineTo(ix + 22, iy + 40); for (let k = -2; k <= 2; k++) { g.moveTo(ix - 22, iy + k * 16); g.lineTo(ix + 22, iy + k * 16); } g.stroke(); }
+     else { for (let k = 0; k < 5; k++) { g.beginPath(); g.moveTo(ix - 40 + k * 18, iy + 38); g.lineTo(ix - 22 + k * 18, iy - 38); g.lineTo(ix - 12 + k * 18, iy - 38); g.lineTo(ix - 30 + k * 18, iy + 38); g.closePath(); g.fill(); } }
+-    const th = Math.min(62, 376 / textW(b[0], 1)); centered(b[0], x + 116, y, 388, 128, th, b[2], 1.8, 0.1);
+-    reg('b' + i, x, y, 512, 128);
++    centered(b[0], x + 114, y, 374, 128, 62, b[2], 1.12, 0.075);
++    // Tinta desbotada ao sol, poeira junto à dobra e riscos curtos no perímetro da chapa.
++    const wear = mkRng(409 + i), wash = g.createLinearGradient(x, y, x + 42, y + 128);
++    wash.addColorStop(0, 'rgba(240,224,199,0.15)'); wash.addColorStop(0.55, 'rgba(240,224,199,0.025)');
++    wash.addColorStop(1, 'rgba(78,58,39,0.16)'); g.fillStyle = wash; g.fillRect(x, y, 512, 128);
++    g.fillStyle = 'rgba(194,185,164,0.52)';
++    for (let k = 0; k < 20; k++) g.fillRect(x + 5 + wear() * 487, y + (k & 1 ? 124 : 2) + wear(), 2 + wear() * 14, 1 + wear());
++    for (const dx of [9, 501]) for (const dy of [9, 117]) {
++      g.fillStyle = 'rgba(51,39,28,0.52)'; g.fillRect(x + dx, y + dy, 3, 3);
++      g.fillStyle = 'rgba(234,228,209,0.68)'; g.fillRect(x + dx, y + dy, 2, 1);
++    }
++    reg('b' + i, x + 2, y + 2, 508, 124);
+   });
+   PROPS.nBrands = brands.length;
+   // placas de distância: chapa de 256x208 com margem; número em traço grosso contínuo
+@@ -393,27 +412,27 @@ function propsBuild() {
+   const Bx = (m, u0, u1, y0, y1, v0, v1) => m.box((u0 + u1) / 2, (y0 + y1) / 2, (v0 + v1) / 2, Math.abs(u1 - u0), Math.abs(y1 - y0), Math.abs(v1 - v0));
+   const rng = mkRng(77);
+ 
+-  // ---- figuras humanas simples (caixas): sentadas na arquibancada, em pé nos boxes ----
++  // ---- figuras em cartões: público na arquibancada, equipes e fiscais na pista ----
+   const SHIRTS = [[0.6, 0.08, 0.07], [0.08, 0.2, 0.5], [0.75, 0.72, 0.68], [0.75, 0.55, 0.06], [0.1, 0.35, 0.16], [0.07, 0.07, 0.08], [0.5, 0.5, 0.52], [0.7, 0.3, 0.06], [0.35, 0.1, 0.4], [0.82, 0.82, 0.8]];
+   const SKIN = [[0.55, 0.38, 0.28], [0.36, 0.23, 0.16], [0.66, 0.48, 0.37], [0.24, 0.15, 0.1]];
+   const HAIR = [[0.03, 0.025, 0.02], [0.12, 0.07, 0.03], [0.3, 0.28, 0.26], [0.75, 0.1, 0.08], [0.85, 0.85, 0.82]];
+   const pick = a => a[Math.floor(rng() * a.length) % a.length];
+   // Figura em cartão: pé em (x, y, z) no sistema atual do construtor mp; a família 'crowd' gira o cartão para a câmera.
+   // O vértice leva o centro em pos e o canto em nrm (x = lateral em m, y = altura/2 em m), escritos crus (sem normalizar).
+-  const figure = (x, y, z, reg, hgt, shirt, ao) => {
++  const figure = (x, y, z, reg, hgt, shirt, ao, spectator) => {
+     const r = REG[reg], hwid = hgt * (r[2] - r[0]) * 2048 / ((r[3] - r[1]) * 1024) * 0.5, flip = rng() < 0.5, ua = flip ? r[2] : r[0], ub = flip ? r[0] : r[2], k = 0.82 + rng() * 0.3;
+-    mp.mat(16, Math.floor(rng() * 255), Math.floor(rng() * 255)); col(mp, shirt[0] * k, shirt[1] * k, shirt[2] * k, ao);
++    mp.mat(16, Math.floor(rng() * 255), Math.floor(rng() * 255), spectator ? 1 : 0); col(mp, shirt[0] * k, shirt[1] * k, shirt[2] * k, ao);
+     const raw = (ox, oy, u, v) => { const i = mp.v(x, y, z, 0, 1, 0, u, v), q = i * 18 + 6; mp.i16[q] = Math.round(ox * 32767); mp.i16[q + 1] = Math.round(oy * 0.5 * 32767); mp.i16[q + 2] = 0; return i; };
+     const a = raw(-hwid, 0, ua, r[3]), b = raw(hwid, 0, ub, r[3]), c = raw(hwid, hgt, ub, r[1]), d = raw(-hwid, hgt, ua, r[1]);
+     mp.quadI(a, b, c, d);
+   };
+   // roupas de arquibancada: maioria em tons sóbrios (jeans, cinzas, cáqui, branco encardido, vinho), poucas cores vivas
+-  const CROWD = [[0.42, 0.42, 0.4], [0.5, 0.49, 0.45], [0.07, 0.09, 0.14], [0.045, 0.045, 0.05], [0.26, 0.06, 0.06], [0.1, 0.16, 0.28], [0.3, 0.26, 0.15], [0.2, 0.21, 0.22], [0.11, 0.17, 0.11],
+-    [0.33, 0.2, 0.1], [0.13, 0.13, 0.15], [0.28, 0.3, 0.34], [0.36, 0.33, 0.27], [0.09, 0.12, 0.2], [0.45, 0.09, 0.07], [0.4, 0.33, 0.08], [0.16, 0.1, 0.07], [0.5, 0.5, 0.48]];
+-  // sentada: (u, y do assento, v do encosto); a pista fica em +v
+-  const sitter = (u, y, v, ao) => figure(u + (rng() - 0.5) * 0.26, y - 0.1 - rng() * 0.05, v + 0.2 + (rng() - 0.5) * 0.16, 'p' + Math.floor(rng() * 16) % 16, 0.98 * (0.84 + rng() * 0.28), pick(CROWD), ao);
++  const CROWD = [[0.63, 0.61, 0.54], [0.5, 0.49, 0.45], [0.055, 0.1, 0.17], [0.048, 0.05, 0.06], [0.35, 0.06, 0.07], [0.08, 0.23, 0.42], [0.52, 0.36, 0.12], [0.2, 0.21, 0.22], [0.04, 0.24, 0.2],
++    [0.43, 0.19, 0.09], [0.13, 0.13, 0.15], [0.33, 0.42, 0.5], [0.5, 0.42, 0.31], [0.09, 0.12, 0.2], [0.59, 0.12, 0.07], [0.6, 0.43, 0.08], [0.16, 0.1, 0.07], [0.72, 0.72, 0.65]];
++  // Os pés ficam no piso, à frente do assento; a cabeça de quem está em pé passa acima da fileira.
++  const sitter = (u, y, v, ao) => figure(u + (rng() - 0.5) * 0.15, y - 0.025 - rng() * 0.035, v + 0.16 + (rng() - 0.5) * 0.1, 'p' + Math.floor(rng() * 16) % 16, 1.36 * (0.93 + rng() * 0.14), pick(CROWD), ao, true);
+   // em pé em (u, y do chão, v)
+-  const stander = (u, y, v, shirt, ao) => figure(u, y - 0.02, v, 's' + Math.floor(rng() * 3) % 3, 1.72 * (0.88 + rng() * 0.2), shirt, ao);
++  const stander = (u, y, v, shirt, ao, spectator) => figure(u, y - 0.02, v, 's' + Math.floor(rng() * 3) % 3, 1.72 * (0.88 + rng() * 0.2), shirt, ao, spectator);
+ 
+   // ---- pórtico ----
+   const gantry = (s, dL, dR, nameReg, lights, local) => {
+@@ -474,7 +493,9 @@ function propsBuild() {
+         const a = u0 + b * bw, c = a + bw, closed = rng() < 0.4;
+         // pilar e testeira
+         mb.mat(3); col(mb, wallC[0], wallC[1], wallC[2]); Bx(mb, a - 0.25, a + 0.25, -0.5, hG, vF - 0.1, vF + 0.4); if (b === nBay - 1) Bx(mb, c - 0.25, c + 0.25, -0.5, hG, vF - 0.1, vF + 0.4);
+-        mb.mat(17); col(mb, 0.1, 0.18, 0.4); Bx(mb, a, c, hG, hS, vF - 0.1, vF + 0.4);
++        const faded = ((b * 7) % 11) / 10;
++        mb.mat(17); col(mb, 0.10 + faded * 0.055, 0.18 + faded * 0.045, 0.40 - faded * 0.035);
++        Bx(mb, a, c, hG, hS, vF - 0.1, vF + 0.4);
+         // batente metálico da porta, luminária sobre ela, pilastra do andar de cima e tubo de queda no pilar
+         mb.mat(2, 110, 150); col(mb, 0.16, 0.17, 0.19); Bx(mb, a + 0.25, a + 0.37, 0, hG, vF - 0.13, vF + 0.05); Bx(mb, c - 0.37, c - 0.25, 0, hG, vF - 0.13, vF + 0.05); Bx(mb, a + 0.25, c - 0.25, hG - 0.1, hG, vF - 0.13, vF + 0.05);
+         mb.mat(2, 128, 128); col(mb, 0.1, 0.1, 0.11); Bx(mb, a + bw / 2 - 0.4, a + bw / 2 + 0.4, hG - 0.62, hG - 0.52, vF - 0.42, vF - 0.14);
+@@ -571,60 +592,85 @@ function propsBuild() {
+   {
+     const st = TRK.stand, u0 = st.s0, u1 = st.s1, vF = st.d0, nRow = 22, run = 0.85, rise = 0.42, yF = 1.25, vB = vF - 1.0 - nRow * run, yB = yF + nRow * rise;
+     const nSec = 5, aisle = 2.2, secW = (u1 - u0 - (nSec + 1) * aisle) / nSec;
+-    const seatCols = [[0.06, 0.12, 0.26], [0.33, 0.29, 0.12], [0.26, 0.27, 0.29]];   // assentos em tons sóbrios (o público é que dá a cor)
++    const seatCols = [[0.045, 0.20, 0.23], [0.075, 0.28, 0.29], [0.52, 0.29, 0.11]];
++    const seats = Math.floor(secW / 0.52);
+     for (let sec = 0; sec < nSec; sec++) {
+       const a = u0 + aisle + sec * (secW + aisle), c = a + secW, v0 = mb.nv, i0 = mb.ni, w0 = md.nv, k0 = md.ni;
+       for (let r = 0; r < nRow; r++) {
+         const v = vF - 1.0 - r * run, y = yF + r * rise, ao = 1.0 - 0.4 * (r / nRow);
+-        mb.mat(3); col(mb, 0.5, 0.5, 0.48, ao);
++        mb.mat(19, 207); col(mb, 0.34, 0.32, 0.29, ao * 0.88);
+         mb.quad(a, y, v, c, y, v, c, y + rise, v, a, y + rise, v);                    // espelho (voltado para a pista: +v)
++        col(mb, 0.50, 0.47, 0.41, ao);
+         mb.quad(a, y + rise, v, c, y + rise, v, c, y + rise, v - run, a, y + rise, v - run);   // piso
+-        // assentos: encosto + assento, padrão de cores por fileira/setor
+-        const pc = seatCols[(Math.floor(r / 4) + sec) % 3];
++        // Uma unidade de UV por cadeira. A família de material recorta os vãos e os ombros de cada encosto.
++        const pc = seatCols[r % 11 === 0 ? 2 : sec % 2], x0 = a + 0.04, x1 = x0 + seats * 0.52;
++        md.mat(19, 169, 38); col(md, 0.095, 0.11, 0.11, ao * 0.8);
++        md.quad(x0, y + rise, v - 0.68, x1, y + rise, v - 0.68, x1, y + rise + 0.41, v - 0.68, x0, y + rise + 0.41, v - 0.68);
+         md.mat(8); col(md, pc[0], pc[1], pc[2], ao);
+-        md.quad(a, y + rise + 0.4, v - 0.5, c, y + rise + 0.4, v - 0.5, c, y + rise + 0.4, v - 0.84, a, y + rise + 0.4, v - 0.84, 0, 0, c - a, 0.34);
+-        md.quad(a, y + rise + 0.4, v - 0.8, c, y + rise + 0.4, v - 0.8, c, y + rise + 0.82, v - 0.86, a, y + rise + 0.82, v - 0.86, 0, 0, c - a, 0.42);
++        md.quad(x0, y + rise + 0.42, v - 0.38, x1, y + rise + 0.42, v - 0.38, x1, y + rise + 0.4, v - 0.77, x0, y + rise + 0.4, v - 0.77, 0, 1, seats, 0);
++        md.quad(x0, y + rise + 0.4, v - 0.77, x1, y + rise + 0.4, v - 0.77, x1, y + rise + 0.78, v - 0.84, x0, y + rise + 0.78, v - 0.84, 0, 0, seats, 1);
+       }
+       // público: ocupação maior no centro e nas fileiras do meio; conjunto próprio (sem sombra; some só bem longe)
+       {
+         const pv0 = mp.nv, pi0 = mp.ni, occ0 = [0.6, 0.76, 0.88, 0.76, 0.6][sec];
+         for (let r = 0; r < nRow; r++) {
+           const v = vF - 1.0 - r * run, y = yF + r * rise, ao = 1.0 - 0.42 * (r / nRow), occ = occ0 * (0.6 + 0.4 * Math.sin((r + 1) / (nRow + 1) * PI));
+-          for (let x = a + 0.3; x < c - 0.3; x += 0.52) { if (r >= 6 && r <= 9 && Math.abs(x - (a + c) / 2) < 1.75) continue; if (rng() < occ) { if (rng() < 0.09) stander(x + (rng() - 0.5) * 0.2, y + rise + 0.02, v - 0.62, pick(CROWD), ao); else sitter(x, y + rise + 0.4, v - 0.84, ao); } }   // (sem gente na boca do túnel)
++          for (let x = a + 0.3; x < c - 0.3; x += 0.52) {
++            if (r >= 6 && r <= 9 && Math.abs(x - (a + c) / 2) < 1.75) continue;
++            if (rng() < occ) {
++              if (rng() < 0.09) stander(x + (rng() - 0.5) * 0.16, y + rise + 0.02, v - 0.20, pick(CROWD), ao, true);
++              else sitter(x, y + rise, v - 0.57, ao);
++            }
++          }
+         }
+         toStraight(mp, pv0); SP.add(mp, pi0, 1, 700);
+       }
+       // escadas dos corredores (rampa clara) de cada lado do setor
+       for (const [x0, x1] of sec === 0 ? [[a - aisle, a], [c, c + aisle]] : [[c, c + aisle]]) {
+-        mb.mat(3); col(mb, 0.62, 0.61, 0.58, 0.9);
++        mb.mat(19, 215); col(mb, 0.62, 0.61, 0.58, 0.9);
+         for (let r = 0; r < nRow; r++) { const v = vF - 1.0 - r * run, y = yF + r * rise; mb.quad(x0, y, v, x1, y, v, x1, y + rise, v, x0, y + rise, v); mb.quad(x0, y + rise, v, x1, y + rise, v, x1, y + rise, v - run, x0, y + rise, v - run); }
+-        mb.mat(2, 102, 153); col(mb, 0.75, 0.6, 0.1); mb.tube([[(x0 + x1) / 2, yF + 0.95, vF - 1.0], [(x0 + x1) / 2, yB + 0.95, vB]], 0.03, 5);
++        mb.mat(2, 138, 50); col(mb, 0.82, 0.57, 0.11);
++        const x = (x0 + x1) / 2;
++        mb.tube([[x, yF + 1.2, vF - 1], [x, yB + 1.2, vB]], 0.045, 5);
++        for (let r = 0; r <= nRow; r += 2) {
++          const y = yF + r * rise, v = vF - 1 - r * run;
++          Bx(mb, x - 0.034, x + 0.034, y, y + 1.2, v - 0.034, v + 0.034);
++        }
+       }
+       // mureta frontal com placas, fundo e cobertura do setor
+       const ea = sec === 0 ? u0 : a - aisle / 2, ec = sec === nSec - 1 ? u1 : c + aisle / 2;
+       mb.mat(3); col(mb, 0.55, 0.55, 0.53); Bx(mb, ea, ec, -0.5, yF + 0.9, vF - 1.0, vF - 0.75);
+       const nm = ['b0', 'b5', 'name', 'b2', 'b7'][sec];
+       sign(md, ea + 2, 0.25, vF - 0.73, ec - ea - 4, 0, 0, nm === 'name' ? (ec - ea - 4) / 8 > 1.7 ? 1.7 : (ec - ea - 4) / 8 : 1.7, nm);
+-      mb.mat(3); col(mb, 0.5, 0.5, 0.49); mb.quad(ec, -0.5, vB - 0.3, ea, -0.5, vB - 0.3, ea, yB + 5.6, vB - 0.3, ec, yB + 5.6, vB - 0.3);     // parede dos fundos (face externa)
+-      mb.quad(ea, yB, vB, ec, yB, vB, ec, yB + 5.6, vB, ea, yB + 5.6, vB);                                                                    // face interna, atrás da última fileira
+-      // cobertura em balanço (telha) + vigas + pilares
+-      const yr0 = yB + 5.8, yr1 = yB + 3.6, vr1 = vF - 0.2;
+-      md.mat(9); col(md, 0.62, 0.64, 0.66); md.quad(ec, yr0, vB - 0.8, ea, yr0, vB - 0.8, ea, yr1, vr1, ec, yr1, vr1, 0, 0, ec - ea, vr1 - vB + 0.8);
+-      mb.mat(2, 128, 128); col(mb, 0.2, 0.22, 0.25);
+-      for (const x of [ea + 0.4, (ea + ec) / 2, ec - 0.4]) {
+-        Bx(mb, x - 0.2, x + 0.2, -0.5, yr0 - 0.1, vB - 0.3, vB + 0.15);
+-        const bm = mb.nv; Bx(mb, x - 0.12, x + 0.12, -0.5, 0.0, 0, 1);    // viga: caixa unitária deformada ao longo do balanço
+-        for (let q = bm; q < mb.nv; q++) { const t = mb.f32[q * 9 + 2], top = mb.f32[q * 9 + 1] > -0.25; mb.f32[q * 9 + 2] = lerp(vB - 0.3, vr1 - 0.3, t); mb.f32[q * 9 + 1] = lerp(yr0, yr1, t) - (top ? 0.06 : lerp(0.95, 0.3, t)); }
++      // Laje contínua sob os degraus e parapeito baixo: os vãos entre as colunas ficam abertos.
++      mb.mat(19, 214); col(mb, 0.29, 0.27, 0.24, 0.72);
++      mb.quad(ea, yF - 0.38, vF - 1, ea, yB - 0.38, vB, ec, yB - 0.38, vB, ec, yF - 0.38, vF - 1);
++      for (const r of [8, 15]) {
++        const v = vF - 1 - run * r, y = yF + rise * r - 0.35;
++        Bx(mb, ea, ec, y - 0.48, y + 0.12, v - 0.26, v + 0.26);
++        for (const x of [ea + secW * 0.25, ea + secW * 0.75]) Bx(mb, x - 0.23, x + 0.23, -0.5, y, v - 0.23, v + 0.23);
++      }
++      mb.mat(17); col(mb, 0.065, 0.19, 0.20);
++      Bx(mb, ea, ec, yB - 0.38, yB + 1.12, vB - 0.23, vB - 0.02);
++      // Cobertura em balanço: banzo superior, banzo inferior afilado e diagonais de aço pintado.
++      const yr0 = yB + 4.6, yr1 = yB + 3.7, rear = vB - 0.55, vr1 = vF + 0.28;
++      md.mat(9); col(md, 0.60, 0.56, 0.46);
++      md.quad(ec, yr0, rear, ea, yr0, rear, ea, yr1, vr1, ec, yr1, vr1, 0, 0, ec - ea, vr1 - rear);
++      mb.mat(19, 146, 38); col(mb, 0.37, 0.105, 0.047);
++      const frames = [ea + 0.22, (ea + ec) / 2];
++      if (sec === nSec - 1) frames.push(ec - 0.22);
++      for (const x of frames) {
++        Bx(mb, x - 0.23, x + 0.23, -0.5, yr0 - 0.10, rear - 0.22, rear + 0.22);
++        const chord = (t, lower) => [x, lerp(yr0, yr1, t) - (lower ? lerp(1.66, 0.28, t) : 0.13), lerp(rear, vr1, t)];
++        mb.tube([chord(0, false), chord(1, false)], 0.15, 4);
++        mb.tube([chord(0, true), chord(1, true)], 0.13, 4);
++        for (let q = 0; q < 8; q++) mb.tube([chord(q / 8, !!(q & 1)), chord((q + 1) / 8, !(q & 1))], 0.085, 4);
++        mb.tube([[x, yB + 1.0, rear], chord(0.29, true)], 0.18, 4);
+       }
+-      // terças sob a telha, mastros com tirantes sobre cada pilar e montantes entre viga e telha: a cobertura lê como estrutura metálica
+-      mb.mat(2, 115, 153, 70); col(mb, 0.55, 0.57, 0.6);
+-      for (let q = 1; q <= 5; q++) { const t = q / 6; mb.tube([[ea, lerp(yr0, yr1, t) - 0.13, lerp(vB - 0.8, vr1, t)], [ec, lerp(yr0, yr1, t) - 0.13, lerp(vB - 0.8, vr1, t)]], 0.06, 6); }
+-      for (const x of [ea + 0.4, (ea + ec) / 2, ec - 0.4]) {
+-        mb.mat(2, 128, 128); col(mb, 0.2, 0.22, 0.25); Bx(mb, x - 0.11, x + 0.11, yr0 - 0.1, yr0 + 2.6, vB - 0.3, vB - 0.08);
+-        mb.mat(2, 115, 153, 70); col(mb, 0.6, 0.62, 0.65);
+-        for (const t of [0.42, 0.86]) mb.tube([[x, yr0 + 2.55, vB - 0.19], [x, lerp(yr0, yr1, t) + 0.05, lerp(vB - 0.8, vr1, t)]], 0.04, 5);
+-        mb.tube([[x, yr0 + 2.55, vB - 0.19], [x, yr0 - 0.6, vB - 2.3]], 0.04, 5);
+-        for (let q = 1; q <= 4; q++) { const t = q / 5, yb = lerp(yr0, yr1, t), vv = lerp(vB - 0.3, vr1 - 0.3, t); mb.tube([[x, yb - lerp(0.95, 0.3, t), vv], [x, yb - 0.1, vv + 1.6]], 0.035, 4); }
++      mb.mat(2, 126, 92); col(mb, 0.34, 0.33, 0.29);
++      for (let q = 1; q < 5; q++) {
++        const t = q / 5, y = lerp(yr0, yr1, t) - 0.07, z = lerp(rear, vr1, t);
++        Bx(mb, ea, ec, y - 0.065, y + 0.055, z - 0.055, z + 0.055);
+       }
+       // boca de túnel (acesso) no meio do setor: caixa de concreto com vão escuro, guarda-corpo em cima e nas laterais
+       {
+@@ -635,25 +681,48 @@ function propsBuild() {
+         mb.tube([[xc - 1.5, y6 + 3.4, v6], [xc + 1.5, y6 + 3.4, v6]], 0.03, 5); mb.tube([[xc - 1.5, y6 + 2.95, v6], [xc + 1.5, y6 + 2.95, v6]], 0.022, 4);
+         for (const x of [xc - 1.5, xc, xc + 1.5]) Bx(mb, x - 0.025, x + 0.025, y6 + 2.45, y6 + 3.4, v6 - 0.03, v6 + 0.03);
+       }
+-      mb.mat(2, 153, 0); col(mb, 0.8, 0.8, 0.78); Bx(mb, ea, ec, yr1 - 0.35, yr1 + 0.05, vr1 - 0.05, vr1 + 0.1);
++      mb.mat(2, 153, 0); col(mb, 0.72, 0.66, 0.51); Bx(mb, ea, ec, yr1 - 0.23, yr1 + 0.07, vr1 - 0.06, vr1 + 0.09);
+       // corrimão na mureta da frente e testeira da cobertura com faixa
+       mb.mat(2, 102, 153); col(mb, 0.75, 0.6, 0.1); mb.tube([[ea, yF + 1.35, vF - 0.88], [ec, yF + 1.35, vF - 0.88]], 0.03, 5);
+       for (let x = ea + 0.5; x < ec; x += 2.4) Bx(mb, x - 0.025, x + 0.025, yF + 0.9, yF + 1.35, vF - 0.9, vF - 0.86);
+-      mb.mat(2, 140, 0); col(mb, 0.06, 0.17, 0.38); Bx(mb, ea, ec, yr1 - 1.25, yr1 - 0.35, vr1 + 0.02, vr1 + 0.1);
+-      sign(md, ea + (ec - ea) * 0.5 - 6.4, yr1 - 1.2, vr1 + 0.12, 12.8, 0, 0, 0.8, sec % 2 ? 'b' + (sec * 5 % PROPS.nBrands) : 'name');
++      const fascia = sec % 2 ? 'b' + (sec * 5 % PROPS.nBrands) : 'name', fw = sec % 2 ? 3.2 : 6.4;
++      sign(md, (ea + ec - fw) / 2, yr1 - 0.98, vr1 + 0.10, fw, 0, 0, 0.8, fascia);
+       toStraight(mb, v0); toStraight(md, w0);
+       S1.add(mb, i0, 7, 2000); S2.add(md, k0, 7, 2000);
+     }
+-    // empenas laterais
++    // Nas extremidades o bordo recortado fecha a espessura da laje. O espaço entre os pilares é aberto.
+     const v0 = mb.nv, i0 = mb.ni;
+-    mb.mat(3); col(mb, 0.52, 0.52, 0.5);
+     for (const [x, sgn] of [[u0, -1], [u1, 1]]) {
+-      const a = mb.v(x, -0.5, vF - 0.75, sgn, 0, 0, 0, 0), b = mb.v(x, yF + 0.9, vF - 0.75, sgn, 0, 0, 0, 1), c = mb.v(x, yB + 1.0, vB, sgn, 0, 0, 1, 1), d = mb.v(x, -0.5, vB - 0.3, sgn, 0, 0, 1, 0), e = mb.v(x, yB + 5.6, vB, sgn, 0, 0, 1, 2), f2 = mb.v(x, yB + 5.6, vB - 0.3, sgn, 0, 0, 1, 2);
+-      if (sgn < 0) { mb.tri(a, b, c); mb.tri(a, c, d); mb.tri(d, c, e); mb.tri(d, e, f2); } else { mb.tri(a, c, b); mb.tri(a, d, c); mb.tri(d, e, c); mb.tri(d, f2, e); }
++      mb.mat(19, 207); col(mb, 0.48, 0.43, 0.34);
++      for (let r = 0; r < nRow; r++) {
++        const v = vF - 1 - r * run, y = yF + r * rise, top = y + rise;
++        const a = mb.v(x, top, v, sgn, 0, 0), b = mb.v(x, top, v - run, sgn, 0, 0);
++        const c = mb.v(x, top - 0.38, v - run, sgn, 0, 0), d = mb.v(x, y - 0.38, v, sgn, 0, 0);
++        if (sgn > 0) mb.quadI(d, c, b, a); else mb.quadI(a, b, c, d);
++      }
++      const xi = x - sgn * 0.32;
++      for (const r of [1, 8, 15, 22]) {
++        const v = vF - 1 - r * run, y = yF + r * rise;
++        mb.mat(3); col(mb, 0.37, 0.34, 0.29); Bx(mb, xi - 0.25, xi + 0.25, -0.5, y - 0.22, v - 0.26, v + 0.26);
++        if (r > 1) {
++          mb.mat(2, 150, 70); col(mb, 0.23, 0.14, 0.085);
++          mb.tube([[xi, 0.25, v + 7 * run], [xi, y - 0.52, v]], 0.14, 4);
++        }
++      }
++      mb.mat(2, 135, 60); col(mb, 0.76, 0.57, 0.17);
++      for (const h of [0.66, 1.14]) mb.tube([[x, yF + h, vF - 1], [x, yB + h, vB]], 0.05, 5);
++      for (let r = 0; r <= nRow; r += 2) {
++        const v = vF - 1 - r * run, y = yF + r * rise;
++        Bx(mb, x - 0.04, x + 0.04, y, y + 1.14, v - 0.04, v + 0.04);
++      }
+     }
+     // placas grandes nas empenas
+     const w0 = md.nv, k0 = md.ni;
+-    sign(md, u0 - 0.05, 4.0, vB + 0.5, 0, 0, 9, 2.25, 'b3'); sign(md, u1 + 0.05, 4.0, vB + 9.5, 0, 0, -9, 2.25, 'b8');
++    for (const x of [u0, u1]) {
++      mb.mat(2, 145, 80); col(mb, 0.23, 0.22, 0.19);
++      for (const y of [3.82, 5.72]) Bx(mb, x - 0.09, x + 0.09, y, y + 0.10, vB - 0.12, vB + 9.28);
++    }
++    sign(md, u0 - 0.11, 3.72, vB + 0.15, 0, 0, 9, 2.25, 'b3'); sign(md, u1 + 0.11, 3.72, vB + 9.15, 0, 0, -9, 2.25, 'b8');
+     toStraight(mb, v0); toStraight(md, w0); S1.add(mb, i0, 7, 2000); S2.add(md, k0, 3, 900);
+   }
+ 
+diff --git a/orig/js/33_veg_a_atlas.js b/polish/js/33_veg_a_atlas.js
+index 9c780f5..e74d08e 100644
+--- a/orig/js/33_veg_a_atlas.js
++++ b/polish/js/33_veg_a_atlas.js
+@@ -21,7 +21,9 @@ function vegAtlasBuild() {
+     g.strokeStyle = hsl(hue + 12, sat - 6, lig + 16, 0.75); g.lineWidth = Math.max(1, wid * 0.09);
+     g.beginPath(); g.moveTo(0, 0); g.lineTo(len * 0.96, 0); g.stroke();
+     g.lineWidth = Math.max(0.6, wid * 0.04); g.strokeStyle = hsl(hue + 10, sat - 6, lig + 11, 0.4);
+-    for (let i = 1; i < 6; i++) { const t = i / 6.5; g.beginPath(); g.moveTo(len * t, 0); g.lineTo(len * (t + 0.14), -wid * 0.8 * (1 - t * 0.6)); g.moveTo(len * t, 0); g.lineTo(len * (t + 0.14), wid * 0.8 * (1 - t * 0.6)); g.stroke(); }
++    g.beginPath();
++    for (let i = 1; i < 6; i++) { const t = i / 6.5; g.moveTo(len * t, 0); g.lineTo(len * (t + 0.14), -wid * 0.8 * (1 - t * 0.6)); g.moveTo(len * t, 0); g.lineTo(len * (t + 0.14), wid * 0.8 * (1 - t * 0.6)); }
++    g.stroke();
+     g.restore();
+   };
+   const stem = (x0, y0, x1, y1, w, h, l) => { g.strokeStyle = hsl(h || 30, 28, l || 20); g.lineWidth = w; g.lineCap = 'round'; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); };
+@@ -139,53 +141,93 @@ function vegAtlasBuild() {
+   });
+   // --- lê os pixels, dilata a cor para as áreas transparentes e gera mips preservando a cobertura ---
+   const img = g.getImageData(0, 0, W, H).data;
+-  let cur = new Float32Array(W * H * 4);           // cor linear pré-multiplicada + alfa
+-  const s2l = new Float32Array(256); for (let i = 0; i < 256; i++) { const c = i / 255; s2l[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+-  const l2s = v => Math.round(255 * (v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055));
+-  for (let i = 0; i < W * H; i++) { const a = img[i * 4 + 3] / 255; cur[i * 4] = s2l[img[i * 4]] * a; cur[i * 4 + 1] = s2l[img[i * 4 + 1]] * a; cur[i * 4 + 2] = s2l[img[i * 4 + 2]] * a; cur[i * 4 + 3] = a; }
+-  const levels = Math.log2(TS) + 1 - 2;            // até ladrilhos de 4 px
++  const levels = Math.log2(TS) - 1;   // até ladrilhos de 4 px
+   const tex = G.dev.createTexture({ size: [W, H], format: 'rgba8unorm-srgb', usage: TU.TB | TU.CD, mipLevelCount: levels });
+-  const coverage = (buf, w, h, scale) => { let c = 0; for (let i = 0; i < w * h; i++) if (buf[i * 4 + 3] * scale >= 0.5) c++; return c / (w * h); };
+-  const cov0 = coverage(cur, W, H, 1);
+-  // pirâmide completa (pré-multiplicada) até 1 px de altura
+-  const pyr = [{ d: cur, w: W, h: H }];
++  const toLinear = new Float32Array(256), toSRGB = new Uint8Array(65536);
++  for (let i = 0; i < 256; i++) {
++    const c = i / 255; toLinear[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
++  }
++  for (let i = 0; i < toSRGB.length; i++) {
++    const c = i / 65535; toSRGB[i] = Math.round(255 * (c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055));
++  }
++  // O nível original já está em bytes sRGB. Só os níveis menores precisam de RGBA linear pré-multiplicado.
++  const w1 = W / 2, h1 = H / 2, first = new Float32Array(w1 * h1 * 4);
++  let covered = 0;
++  for (let y = 0; y < h1; y++) for (let x = 0; x < w1; x++) {
++    let r = 0, g = 0, b = 0, alpha = 0;
++    for (let dy = 0; dy < 2; dy++) {
++      const start = ((2 * y + dy) * W + 2 * x) * 4;
++      for (let j = start; j < start + 8; j += 4) {
++        const a = img[j + 3]; if (a >= 128) covered++;
++        r += toLinear[img[j]] * a; g += toLinear[img[j + 1]] * a; b += toLinear[img[j + 2]] * a; alpha += a;
++      }
++    }
++    const o = (y * w1 + x) * 4;
++    first[o] = r / 1020; first[o + 1] = g / 1020; first[o + 2] = b / 1020; first[o + 3] = alpha / 1020;
++  }
++  const pyr = [null, { d: first, w: w1, h: h1 }], cov0 = covered / (W * H);
+   while (pyr[pyr.length - 1].h > 1) {
+-    const s0 = pyr[pyr.length - 1], nw = s0.w >> 1, nh = s0.h >> 1, nx = new Float32Array(nw * nh * 4), c0 = s0.d, w0 = s0.w;
+-    for (let y = 0; y < nh; y++) for (let x = 0; x < nw; x++) {
+-      const o = (y * nw + x) * 4, a = (y * 2 * w0 + x * 2) * 4, b = a + 4, c = a + w0 * 4, d = c + 4;
+-      for (let k = 0; k < 4; k++) nx[o + k] = (c0[a + k] + c0[b + k] + c0[c + k] + c0[d + k]) * 0.25;
++    const prev = pyr[pyr.length - 1], w = prev.w / 2, h = prev.h / 2, src = prev.d, dst = new Float32Array(w * h * 4);
++    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
++      const o = (y * w + x) * 4, a = (y * 2 * prev.w + x * 2) * 4, c = a + prev.w * 4;
++      for (let k = 0; k < 4; k++) dst[o + k] = (src[a + k] + src[a + 4 + k] + src[c + k] + src[c + 4 + k]) * 0.25;
+     }
+-    pyr.push({ d: nx, w: nw, h: nh });
++    pyr.push({ d: dst, w, h });
+   }
+-  // cor preenchida: onde o alfa é baixo, usa a cor do nível mais grosso (já preenchido)
+-  const fillc = new Array(pyr.length);
+-  for (let m = pyr.length - 1; m >= 0; m--) {
+-    const s0 = pyr[m], n = s0.w * s0.h, f = new Float32Array(n * 3), up = m < pyr.length - 1 ? fillc[m + 1] : null, uw = up ? pyr[m + 1].w : 0, uh = up ? pyr[m + 1].h : 0;
+-    for (let y = 0; y < s0.h; y++) for (let x = 0; x < s0.w; x++) {
+-      const i = y * s0.w + x, a = s0.d[i * 4 + 3];
+-      let r = 0.06, g2 = 0.115, b = 0.03;
+-      if (up) { const q = (Math.min(uh - 1, y >> 1) * uw + Math.min(uw - 1, x >> 1)) * 3; r = up[q]; g2 = up[q + 1]; b = up[q + 2]; }
+-      if (a > 1e-3) { const k = Math.min(1, a * 4); r = r + (Math.min(1, s0.d[i * 4] / a) - r) * k; g2 = g2 + (Math.min(1, s0.d[i * 4 + 1] / a) - g2) * k; b = b + (Math.min(1, s0.d[i * 4 + 2] / a) - b) * k; }
+-      f[i * 3] = r; f[i * 3 + 1] = g2; f[i * 3 + 2] = b;
++  let firstBytes;
++  for (let m = pyr.length - 1; m >= 1; m--) {
++    const { d, w, h } = pyr[m], parent = pyr[m + 1], n = w * h;
++    const out = m < levels ? new Uint8Array(n * 4) : null;
++    let scale = 1;
++    if (out) {
++      let lo = 0.5, hi = 6;
++      for (let it = 0; it < 12; it++) {
++        scale = (lo + hi) * 0.5;
++        const cutoff = 0.5 / scale;
++        let count = 0; for (let j = 3; j < d.length; j += 4) if (d[j] >= cutoff) count++;
++        if (count < cov0 * n) lo = scale; else hi = scale;
++      }
++    }
++    // Passagem descendente: o próprio mip guarda a cor dilatada para seus filhos.
++    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
++      const o = (y * w + x) * 4, a = d[o + 3], k = a > 1e-3 ? Math.min(1, a * 4) : 0;
++      const q = parent ? ((y >> 1) * parent.w + (x >> 1)) * 4 : 0;
++      for (let ch = 0; ch < 3; ch++) {
++        const up = parent ? parent.d[q + ch] : (ch === 0 ? 0.06 : ch === 1 ? 0.115 : 0.03);
++        d[o + ch] = k ? up + (Math.min(1, d[o + ch] / a) - up) * k : up;
++        if (out) out[o + ch] = toSRGB[Math.round(d[o + ch] * 65535)];
++      }
++      if (out) out[o + 3] = Math.round(255 * Math.min(1, a * scale));
+     }
+-    fillc[m] = f;
++    if (out) G.dev.queue.writeTexture({ texture: tex, mipLevel: m }, out, { bytesPerRow: w * 4 }, [w, h]);
++    if (m === 1) firstBytes = out;
+   }
+-  // alfa do nível 0 suavizado (gaussiana separável, ~2 texels): o contorno em 0,5 fica liso quando a textura é ampliada
+-  // (lente longa das câmeras de TV); com alfa binário o recorte saía em degraus do tamanho do texel
+-  const a0 = new Float32Array(W * H), a1 = new Float32Array(W * H), KB = [0.0625, 0.25, 0.375, 0.25, 0.0625];
+-  for (let i = 0; i < W * H; i++) a0[i] = cur[i * 4 + 3];
+-  for (let pass = 0; pass < 2; pass++) {
+-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let v = 0; for (let k = -2; k <= 2; k++) { const xx = x + k < 0 ? 0 : x + k >= W ? W - 1 : x + k; v += a0[y * W + xx] * KB[k + 2]; } a1[y * W + x] = v; }
+-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let v = 0; for (let k = -2; k <= 2; k++) { const yy = y + k < 0 ? 0 : y + k >= H ? H - 1 : y + k; v += a1[yy * W + x] * KB[k + 2]; } a0[y * W + x] = v; }
++  // Duas gaussianas [1,4,6,4,1]/16 equivalem a uma [1,8,28,56,70,56,28,8,1]/256 por eixo.
++  // Os quatro pixels extras em cada ponta são transparentes, como a margem do atlas.
++  const row = new Uint8Array(W + 8), blur = new Uint16Array(W * (H + 8));
++  for (let y = 0; y < H; y++) {
++    const base = y * W;
++    for (let x = 0; x < W; x++) row[x + 4] = img[(base + x) * 4 + 3];
++    for (let x = 0; x < W; x++) {
++      blur[base + 4 * W + x] = row[x] + row[x + 8] + 8 * (row[x + 1] + row[x + 7]) +
++        28 * (row[x + 2] + row[x + 6]) + 56 * (row[x + 3] + row[x + 5]) + 70 * row[x + 4];
++    }
+   }
+-  for (let m = 0; m < levels; m++) {
+-    const s0 = pyr[m], w = s0.w, h = s0.h, c0 = s0.d, f = fillc[m]; let scale = 1;
+-    if (m > 0) { // busca binária do ganho de alfa que mantém a cobertura do nível 0
+-      let lo = 0.5, hi = 6; for (let it = 0; it < 12; it++) { scale = (lo + hi) / 2; if (coverage(c0, w, h, scale) < cov0) lo = scale; else hi = scale; }
++  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
++    const i = y * W + x, o = i * 4, a = img[o + 3], q = ((y >> 1) * w1 + (x >> 1)) * 4;
++    // Com alfa >= 1/4 a dilatação não altera o RGB original do canvas.
++    if (a === 0) {
++      img[o] = firstBytes[q]; img[o + 1] = firstBytes[q + 1]; img[o + 2] = firstBytes[q + 2];
++    } else if (a < 64) {
++      for (let ch = 0; ch < 3; ch++) {
++        const up = first[q + ch], c = up + (toLinear[img[o + ch]] - up) * (a * 4 / 255);
++        img[o + ch] = toSRGB[Math.round(c * 65535)];
++      }
+     }
+-    const out = new Uint8Array(w * h * 4);
+-    for (let i = 0; i < w * h; i++) { out[i * 4] = l2s(f[i * 3]); out[i * 4 + 1] = l2s(f[i * 3 + 1]); out[i * 4 + 2] = l2s(f[i * 3 + 2]); out[i * 4 + 3] = Math.round(255 * Math.min(1, (m === 0 ? a0[i] : c0[i * 4 + 3]) * scale)); }
+-    G.dev.queue.writeTexture({ texture: tex, mipLevel: m }, out, { bytesPerRow: w * 4 }, [w, h]);
++    const sum = blur[i] + blur[i + 8 * W] + 8 * (blur[i + W] + blur[i + 7 * W]) +
++      28 * (blur[i + 2 * W] + blur[i + 6 * W]) + 56 * (blur[i + 3 * W] + blur[i + 5 * W]) + 70 * blur[i + 4 * W];
++    img[o + 3] = Math.round(sum / 65536);
+   }
++  G.dev.queue.writeTexture({ texture: tex }, img, { bytesPerRow: W * 4 }, [W, H]);
+   return tex;
+ }
+diff --git a/orig/js/33_veg_b_trees.js b/polish/js/33_veg_b_trees.js
+index e081dd8..d544d4c 100644
+--- a/orig/js/33_veg_b_trees.js
++++ b/polish/js/33_veg_b_trees.js
+@@ -13,17 +13,18 @@ class VegLeafBuf {
+   // folha: base b, eixo ax (unitário), lado sd (unitário), normal nl, comprimento L, meia largura hw
+   add(b, ax, sd, nl, L, hw, sway, ph, ao, tint, type) {
+     if (this.n >= this.cap) { this.cap *= 2; this._mk(); }
+-    const q = Math.sign;
++    const sway16 = Math.round(sat(sway) * 32767), ao8 = Math.round(sat(ao) * 255);
++    const red = Math.round(sat(tint[0] * 0.5) * 255), green = Math.round(sat(tint[1] * 0.5) * 255), blue = Math.round(sat(tint[2] * 0.5) * 255);
+     for (let k = 0; k < 4; k++) {
+       const u = k >> 1, v = (k & 1) * 2 - 1, i = this.n * 4 + k, ox = ax[0] * L * u + sd[0] * hw * v, oy = ax[1] * L * u + sd[1] * hw * v, oz = ax[2] * L * u + sd[2] * hw * v;
+       this.f32[i * 8] = b[0] + ox; this.f32[i * 8 + 1] = b[1] + oy; this.f32[i * 8 + 2] = b[2] + oz;
+-      const c = x => Math.round(clamp(x / 0.6, -1, 1) * 32767);
+-      this.i16[i * 16 + 6] = c(ox); this.i16[i * 16 + 7] = c(oy); this.i16[i * 16 + 8] = c(oz); this.i16[i * 16 + 9] = Math.round(clamp(sway, 0, 1) * 32767);
++      this.i16[i * 16 + 6] = Math.round(clamp(ox / 0.6, -1, 1) * 32767); this.i16[i * 16 + 7] = Math.round(clamp(oy / 0.6, -1, 1) * 32767);
++      this.i16[i * 16 + 8] = Math.round(clamp(oz / 0.6, -1, 1) * 32767); this.i16[i * 16 + 9] = sway16;
+       // normal com dobra na nervura: as duas metades inclinam para lados opostos (folha em calha)
+       const nx = nl[0] + sd[0] * v * 0.32, ny = nl[1] + sd[1] * v * 0.32, nz = nl[2] + sd[2] * v * 0.32, l = Math.hypot(nx, ny, nz) || 1;
+       this.i8[i * 32 + 20] = Math.round(nx / l * 127); this.i8[i * 32 + 21] = Math.round(ny / l * 127); this.i8[i * 32 + 22] = Math.round(nz / l * 127); this.i8[i * 32 + 23] = Math.round((0.35 + 0.65 * u) * 127);
+-      this.u8[i * 32 + 24] = u * 255; this.u8[i * 32 + 25] = (v + 1) * 127.5; this.u8[i * 32 + 26] = ph; this.u8[i * 32 + 27] = Math.round(sat(ao) * 255);
+-      this.u8[i * 32 + 28] = Math.round(sat(tint[0] * 0.5) * 255); this.u8[i * 32 + 29] = Math.round(sat(tint[1] * 0.5) * 255); this.u8[i * 32 + 30] = Math.round(sat(tint[2] * 0.5) * 255); this.u8[i * 32 + 31] = type;
++      this.u8[i * 32 + 24] = u * 255; this.u8[i * 32 + 25] = (v + 1) * 127.5; this.u8[i * 32 + 26] = ph; this.u8[i * 32 + 27] = ao8;
++      this.u8[i * 32 + 28] = red; this.u8[i * 32 + 29] = green; this.u8[i * 32 + 30] = blue; this.u8[i * 32 + 31] = type;
+     }
+     this.n++;
+   }
+@@ -31,12 +32,18 @@ class VegLeafBuf {
+     const n = this.n, idx = new Uint32Array(n * 6);
+     // reordena por fase crescente: o shader faz as folhas de fase alta sumirem mais perto, então para um bloco distante
+     // basta desenhar o começo do buffer (densidade de folhas cai com a distância sem custo e sem estalo)
+-    const ord = new Uint32Array(n); for (let i = 0; i < n; i++) ord[i] = i;
+-    const ph = this.u8, key = i => ph[i * 4 * 32 + 26]; ord.sort((a, b) => key(a) - key(b));
+-    const src = new Uint8Array(this.buf.slice(0, n * 4 * 32)), dst = new Uint8Array(this.buf);
+-    for (let i = 0; i < n; i++) dst.set(src.subarray(ord[i] * 128, ord[i] * 128 + 128), i * 128);
+-    for (let i = 0; i < n; i++) { const a = i * 4; idx.set([a, a + 1, a + 3, a, a + 3, a + 2], i * 6); }
+-    return { vb: mkBuf(n * 4 * 32, BU.V, new Uint8Array(this.buf, 0, n * 4 * 32)), ib: mkBuf(idx.byteLength, BU.I, idx), count: n * 6, n };
++    const next = new Uint32Array(256);
++    for (let i = 0; i < n; i++) next[this.u8[i * 128 + 26]]++;
++    let total = 0;
++    for (let p = 0; p < next.length; p++) { const count = next[p]; next[p] = total; total += count; }
++    const src = new Uint32Array(this.buf), dst = new Uint32Array(n * 32);
++    for (let i = 0; i < n; i++) {
++      const target = next[this.u8[i * 128 + 26]]++ * 32;
++      for (let k = 0; k < 32; k++) dst[target + k] = src[i * 32 + k];
++      const a = i * 4, j = i * 6;
++      idx[j] = a; idx[j + 1] = a + 1; idx[j + 2] = a + 3; idx[j + 3] = a; idx[j + 4] = a + 3; idx[j + 5] = a + 2;
++    }
++    return { vb: mkBuf(dst.byteLength, BU.V, dst), ib: mkBuf(idx.byteLength, BU.I, idx), count: n * 6, n };
+   }
+ }
+ function vegTileUV(t) { return [(t % VEG_TW) / VEG_TW, Math.floor(t / VEG_TW) / VEG_TH, 1 / VEG_TW, 1 / VEG_TH]; }
+diff --git a/orig/js/33_veg_c_sys.js b/polish/js/33_veg_c_sys.js
+index 3223930..7f8d9f1 100644
+--- a/orig/js/33_veg_c_sys.js
++++ b/polish/js/33_veg_c_sys.js
+@@ -15,21 +15,27 @@ function vegPlace() {
+     if (n >= cap) { cap *= 2; const d2 = new Float32Array(cap * 8); d2.set(data); data = d2; const k2 = new Uint32Array(cap); k2.set(keys); keys = k2; }
+     const o = n * 8; data[o] = x; data[o + 1] = y; data[o + 2] = z; data[o + 3] = s; data[o + 4] = Math.cos(rot); data[o + 5] = Math.sin(rot); data[o + 6] = seed; data[o + 7] = arch;
+     const s16 = (Math.floor((z - V.z0) / 16) & 3) * 4 + (Math.floor((x - V.x0) / 16) & 3);   // subcélula de 16 m dentro da célula (folhas individuais)
+-    keys[n++] = ((((cz >> 2) * V.NS + (cx >> 2)) * 16 + (cz & 3) * 4 + (cx & 3)) * VEG_NA + arch) * 16 + s16;
++    // Árvores primeiro em cada supercélula: o passe de impostores não envia o sub-bosque para a GPU.
++    const group = ((cz >> 2) * V.NS + (cx >> 2)) * 2 + (arch >= VEG_NT ? 1 : 0);
++    keys[n++] = ((group * 16 + (cz & 3) * 4 + (cx & 3)) * VEG_NA + arch) * 16 + s16;
+   };
+   // câmeras de TV (lente longa): nada de copa perto da torre nem nas linhas de visada entre a câmera e o trecho de pista
+   // que ela cobre (de 160 m antes a 60 m depois da torre) — senão uma arvoreta a 25 m tapa o carro inteiro.
+   const tv = [];
+   if (typeof WORLD !== 'undefined' && WORLD.tvCams) for (const c of WORLD.tvCams) {
+     const t = { x: c.x, z: c.z, pts: [] }, q = new Float64Array(5);
+-    for (let ds = -160; ds <= 60; ds += 8) { trackPos(c.s + ds, 0, q); t.pts.push(q[0], q[2]); }
++    for (let ds = -160; ds <= 60; ds += 8) {
++      trackPos(c.s + ds, 0, q); const ex = q[0] - c.x, ez = q[2] - c.z;
++      t.pts.push(ex, ez, ex * ex + ez * ez);
++    }
+     tv.push(t);
+   }
+   const nearTV = (x, z, r, rl) => {
+     for (const c of tv) {
+       const dx = x - c.x, dz = z - c.z, d2 = dx * dx + dz * dz; if (d2 > 215 * 215) continue; if (d2 < r * r) return true;
+-      for (let k = 0; k < c.pts.length; k += 2) {
+-        const ex = c.pts[k] - c.x, ez = c.pts[k + 1] - c.z, l2 = ex * ex + ez * ez, t = clamp((dx * ex + dz * ez) / l2, 0, 1), px = dx - ex * t, pz = dz - ez * t;
++      if (rl === 0) continue;
++      for (let k = 0; k < c.pts.length; k += 3) {
++        const ex = c.pts[k], ez = c.pts[k + 1], t = clamp((dx * ex + dz * ez) / c.pts[k + 2], 0, 1), px = dx - ex * t, pz = dz - ez * t;
+         if (px * px + pz * pz < rl * rl) return true;
+       }
+     }
+@@ -41,7 +47,9 @@ function vegPlace() {
+   const g = 5.6, ng = Math.floor(2 * half / g);
+   for (let gz = 0; gz < ng; gz++) for (let gx = 0; gx < ng; gx++) {
+     const x = V.x0 + (gx + rnd()) * g, z = V.z0 + (gz + rnd()) * g, r1 = rnd(), r2 = rnd(), r3 = rnd(), r4 = rnd(), r5 = rnd();
+-    const dc = Math.hypot(x - TRK.cx, z - TRK.cz); if (dc > half - 30) continue;
++    const dx = x - TRK.cx, dz = z - TRK.cz, dc2 = dx * dx + dz * dz;
++    if (dc2 > (half - 30) * (half - 30)) continue;
++    const dc = Math.sqrt(dc2);
+     const far = smooth(600, 1450, dc); if (r1 > lerp(0.92, 0.36, far)) continue;
+     const f = forestAt(x, z); if (f < 0.03 || r2 > f * 1.15) continue;
+     const pn = vnoise(x * 0.017 + 5.1, z * 0.017 - 2.3), edge = 1 - smooth(0.35, 0.9, f);
+@@ -58,7 +66,9 @@ function vegPlace() {
+   const gb = 3.3, nb = Math.floor(2 * half / gb);
+   for (let gz = 0; gz < nb; gz++) for (let gx = 0; gx < nb; gx++) {
+     const x = V.x0 + (gx + rnd()) * gb, z = V.z0 + (gz + rnd()) * gb, r1 = rnd(), r2 = rnd(), r3 = rnd();
+-    const dc = Math.hypot(x - TRK.cx, z - TRK.cz); if (dc > 780) continue;
++    const dx = x - TRK.cx, dz = z - TRK.cz, dc2 = dx * dx + dz * dz;
++    if (dc2 > 780 * 780) continue;
++    const dc = Math.sqrt(dc2);
+     const td = trackFarDist(x, z);
+     let p;
+     if (td < 60) {
+@@ -93,38 +103,49 @@ function vegPlace() {
+     else if (r1 < pB + pF + pC) push(x, y, z, lerp(0.6, 1.15, r2), r3 * TAU, rnd(), 8);
+   }
+   // ordena por supercélula → célula → arquétipo
+-  const srt = new Float64Array(n), idx = new Uint32Array(n);   // ordenação nativa: chave * 2^20 + índice
++  const srt = new Float64Array(n);   // ordenação nativa: chave * 2^20 + índice
+   for (let i = 0; i < n; i++) srt[i] = keys[i] * 1048576 + i;
+-  srt.sort(); for (let i = 0; i < n; i++) idx[i] = srt[i] % 1048576;
++  srt.sort();
+   const inst = V.inst = new Float32Array(n * 8); V.n = n;
+   const nCell = V.NC * V.NC, nSup = V.NS * V.NS;
+   V.subStart = new Uint32Array(nCell * VEG_NA * 16); V.subCount = new Uint16Array(nCell * VEG_NA * 16);
+   V.cellStart = new Uint32Array(nCell * VEG_NA); V.cellCount = new Uint32Array(nCell * VEG_NA); V.cellY = new Float32Array(nCell); const cn = new Uint32Array(nCell);
+   V.supStart = new Uint32Array(nSup); V.supCount = new Uint32Array(nSup); V.supY = new Float32Array(nSup);
++  V.visibleCells = new Uint16Array(nCell); V.cellDist2 = new Float64Array(nCell);
+   for (let i = 0; i < n; i++) {
+-    const s = idx[i]; inst.set(data.subarray(s * 8, s * 8 + 8), i * 8);
+-    const k = keys[s] >>> 4, s16 = keys[s] & 15, arch = k % VEG_NA, cs = Math.floor(k / VEG_NA), sup = cs >> 4, sub = cs & 15;
++    const s = srt[i] % 1048576;
++    for (let j = 0; j < 8; j++) inst[i * 8 + j] = data[s * 8 + j];
++    const k = keys[s] >>> 4, s16 = keys[s] & 15, arch = k % VEG_NA, cs = Math.floor(k / VEG_NA), sup = cs >> 5, sub = cs & 15;
+     const cx = (sup % V.NS) * 4 + (sub & 3), cz = Math.floor(sup / V.NS) * 4 + (sub >> 2), c = cz * V.NC + cx;
+     if (!V.cellCount[c * VEG_NA + arch]) V.cellStart[c * VEG_NA + arch] = i; V.cellCount[c * VEG_NA + arch]++;
+     const sq = (c * VEG_NA + arch) * 16 + s16; if (!V.subCount[sq]) V.subStart[sq] = i; V.subCount[sq]++;
+-    if (!V.supCount[sup]) V.supStart[sup] = i; V.supCount[sup]++;
+-    V.cellY[c] += data[s * 8 + 1]; cn[c]++; V.supY[sup] += data[s * 8 + 1];
++    if (arch < VEG_NT) {
++      if (!V.supCount[sup]) V.supStart[sup] = i;
++      V.supCount[sup]++; V.supY[sup] += inst[i * 8 + 1];
++    }
++    V.cellY[c] += inst[i * 8 + 1]; cn[c]++;
+   }
+   for (let c = 0; c < nCell; c++) if (cn[c]) V.cellY[c] /= cn[c];
+   for (let s = 0; s < nSup; s++) if (V.supCount[s]) V.supY[s] /= V.supCount[s];
+   V.instBuf = mkBuf(inst.byteLength, BU.V, inst);
+   // cópia das árvores ordenada do sol para longe (por supercélula), só para os cartões nos passes de sombra:
+   // com o sol baixo as copas se empilham em espaço de luz; desenhar da frente para trás deixa o teste de profundidade descartar o resto
+-  const sx = R.sun[0], sz = R.sun[2], sup = new Uint32Array(n), s2 = new Float64Array(n);
++  const sx = R.sun[0], sz = R.sun[2], inst2 = new Float32Array(V.nTrees * 8);
++  V.sunStart = new Uint32Array(nSup); V.sunCount = V.supCount;
+   let m = 0;
+-  for (let i = 0; i < n; i++) {
+-    if (inst[i * 8 + 7] >= VEG_NT) continue; const cx = Math.floor((inst[i * 8] - V.x0) / V.SUP), cz = Math.floor((inst[i * 8 + 2] - V.z0) / V.SUP); sup[i] = cz * V.NS + cx;
+-    const dq = clamp(Math.round(32768 - (inst[i * 8] * sx + inst[i * 8 + 2] * sz) * 8), 0, 65535);   // maior profundidade para o sol primeiro
+-    s2[m++] = (sup[i] * 65536 + dq) * 1048576 + i;
++  for (let sp = 0; sp < nSup; sp++) {
++    const cnt = V.supCount[sp], ord = srt.subarray(0, cnt);
++    for (let j = 0; j < cnt; j++) {
++      const i = V.supStart[sp] + j;
++      const dq = clamp(Math.round(32768 - (inst[i * 8] * sx + inst[i * 8 + 2] * sz) * 8), 0, 65535);
++      ord[j] = dq * 1048576 + i;
++    }
++    ord.sort(); V.sunStart[sp] = m;
++    for (let j = 0; j < cnt; j++, m++) {
++      const src = (ord[j] % 1048576) * 8;
++      for (let k = 0; k < 8; k++) inst2[m * 8 + k] = inst[src + k];
++    }
+   }
+-  const ss = s2.subarray(0, m); ss.sort(); const ids = new Uint32Array(m); for (let i = 0; i < m; i++) ids[i] = ss[i] % 1048576;
+-  const inst2 = new Float32Array(m * 8); V.sunStart = new Uint32Array(nSup); V.sunCount = new Uint32Array(nSup);
+-  for (let i = 0; i < m; i++) { const q = ids[i]; inst2.set(inst.subarray(q * 8, q * 8 + 8), i * 8); const sp = sup[q]; if (!V.sunCount[sp]) V.sunStart[sp] = i; V.sunCount[sp]++; }
+   V.instSunBuf = mkBuf(inst2.byteLength, BU.V, inst2);
+   // supercélulas na ordem do sol
+   V.sunOrder = new Uint16Array(nSup); for (let i = 0; i < nSup; i++) V.sunOrder[i] = i;
+@@ -157,46 +178,69 @@ function vegBakeImpostors(cpu) {
+   }
+   const ubuf = mkBuf(ub.byteLength, BU.U, ub);
+   const bg = dev.createBindGroup({ layout: bgls[0], entries: [{ binding: 0, resource: { buffer: ubuf, size: 64 } }, { binding: 1, resource: V.leafView }, { binding: 2, resource: V.sLeaf }, { binding: 3, resource: R.view.noise }] });
+-  const enc = dev.createCommandEncoder();
++  const enc = dev.createCommandEncoder(), viewA = msA.createView(), viewN = msN.createView(), viewD = msD.createView();
+   for (let a = 0; a < VEG_NT; a++) for (let k = 0; k < 8; k++) {
+     const L = a * 8 + k, lv = t => t.createView({ dimension: '2d', baseArrayLayer: L, arrayLayerCount: 1, baseMipLevel: 0, mipLevelCount: 1 });
+     const p = enc.beginRenderPass({
+-      colorAttachments: [{ view: msA.createView(), resolveTarget: lv(V.texA), loadOp: 'clear', storeOp: 'discard', clearValue: { r: 0.05, g: 0.1, b: 0.03, a: 0 } },
+-      { view: msN.createView(), resolveTarget: lv(V.texN), loadOp: 'clear', storeOp: 'discard', clearValue: { r: 0.5, g: 0.85, b: 0.5, a: 1 } }],
+-      depthStencilAttachment: { view: msD.createView(), depthLoadOp: 'clear', depthStoreOp: 'discard', depthClearValue: 1 },
++      colorAttachments: [{ view: viewA, resolveTarget: lv(V.texA), loadOp: 'clear', storeOp: 'discard', clearValue: { r: 0.05, g: 0.1, b: 0.03, a: 0 } },
++      { view: viewN, resolveTarget: lv(V.texN), loadOp: 'clear', storeOp: 'discard', clearValue: { r: 0.5, g: 0.85, b: 0.5, a: 1 } }],
++      depthStencilAttachment: { view: viewD, depthLoadOp: 'clear', depthStoreOp: 'discard', depthClearValue: 1 },
+     });
+     p.setPipeline(pipe); p.setBindGroup(0, bg, [L * 256]); p.setVertexBuffer(0, V.meshes[a].vb); p.setIndexBuffer(V.meshes[a].ib, 'uint32'); p.drawIndexed(V.meshes[a].count); p.end();
+   }
+   dev.queue.submit([enc.finish()]);
+   genMips(V.texA, 'rgba8unorm-srgb', layers); genMips(V.texN, 'rgba8unorm', layers);
+-  msA.destroy(); msN.destroy(); msD.destroy();
++  msA.destroy(); msN.destroy(); msD.destroy(); ubuf.destroy();
+ }
+ 
++// Pré-passe de profundidade da mata — só com ?pre (experimento): o G-buffer da mata cai de ~2,2 para ~1,0 ms em 2560x1440,
++// mas a própria pré-passe custa ~1,2-1,35 ms (os vértices da mata são processados duas vezes e o teste de cobertura das
++// folhas não fica mais barato), então no total não compensou. Fica desligada.
++const VEG_PRE = Q.has('pre');
+ const vegDrawable = {
++  prepass: VEG_PRE,
++  order: 40,
+   draw(pass, ctx) {
+     const V = VEG; if (!V.on || !V.n) return;
+     const kind = ctx.kind, shadow = kind === KIND.SHADOW; if (shadow && !V.onShadow) return; if (kind === KIND.CUBE && !V.onCube) return;
++    const main = kind === KIND.GBUF || kind === KIND.PRE;   // PRE: pré-passe de profundidade (mesmas instâncias e LOD do G-buffer)
+     const camx = R.cam.pos[0], camz = R.cam.pos[2], NA = VEG_NA, NC = V.NC, CELL = V.CELL, st = V.stats;
+     if (kind === KIND.GBUF) { st.meshDraws = 0; st.impDraws = 0; st.meshInst = 0; st.meshTris = 0; st.leafDraws = 0; st.leafInst = 0; st.leafTris = 0; }
+     // LOD por tamanho na tela: com lente longa (câmera de TV) as distâncias de troca crescem na mesma proporção do zoom
+-    let zoom = Math.tan(R.cam.fovy * 0.5) * 2; zoom = zoom < 0.3 ? 0.3 : zoom > 1.25 ? 1.25 : zoom; V.zoom = zoom;
++    V.zoom = clamp(Math.tan(R.cam.fovy * 0.5) * 2, 0.3, 1.25);
++    const zoom = Math.max(V.zoom, QUAL.vegZoomMin), leafZoom = Math.max(V.zoom, QUAL.vegLeafZoomMin);
+     // --- malhas (perto) ---
+     const pm = V.famTree.pipe[kind];
+-    if (pm && V.onMesh && (kind === KIND.GBUF || (shadow && ctx.cascade < 2))) {
++    if (pm && V.onMesh && (main || (shadow && ctx.cascade < 2))) {
+       pass.setPipeline(pm); pass.setBindGroup(3, V.bgTree); pass.setVertexBuffer(1, V.instBuf);
+       const ccx = Math.floor((camx - V.x0) / CELL), ccz = Math.floor((camz - V.z0) / CELL);
+       // nas sombras só importam os lançadores perto da cascata: alcance menor (menos vértices processados)
+-      let rng = (shadow ? 96 : 114) / zoom; if (rng > 620) rng = 620; const rc = ((rng / CELL) | 0) + 1, rng2 = rng * rng;
+-      for (let a = 0; a < NA; a++) {
+-        let set = false; const ur = 82 / zoom, m = V.meshes[a], ru = a >= VEG_NT ? (ur < 620 ? ur : 620) : rng, ru2 = ru * ru;
+-        for (let dz = -rc; dz <= rc; dz++) for (let dx = -rc; dx <= rc; dx++) {
+-          const cx = ccx + dx, cz = ccz + dz; if (cx < 0 || cz < 0 || cx >= NC || cz >= NC) continue;
+-          const c = cz * NC + cx, cnt = V.cellCount[c * NA + a]; if (!cnt) continue;
+-          const mx = V.x0 + cx * CELL, mz = V.z0 + cz * CELL;
+-          const ex = camx < mx ? mx - camx : camx > mx + CELL ? camx - mx - CELL : 0, ez = camz < mz ? mz - camz : camz > mz + CELL ? camz - mz - CELL : 0;
+-          if (ex * ex + ez * ez > ru2) continue;
+-          if (!(SQ[0] = mx + CELL / 2, SQ[1] = V.cellY[c] + 10, SQ[2] = mz + CELL / 2, SQ[3] = 62, sphereQ(ctx.planes, ctx.nPlanes))) continue;
+-          if (!set) { pass.setVertexBuffer(0, m.vb); pass.setIndexBuffer(m.ib, 'uint32'); set = true; }
++      // Limites de vegTreeFade/vegFade + margem para o arredondamento; um único teste de frustum por célula.
++      const treeR = ((shadow ? (ctx.cascade === 0 ? QUAL.vegSh0[1] : QUAL.vegSh1[1]) : QUAL.vegD1) + QUAL.vegMargin) / zoom, underR = (QUAL.vegU1 + QUAL.vegMargin) / zoom;
++      const tree2 = treeR * treeR, under2 = underR * underR, far2 = Math.max(tree2, under2);
++      const rc = Math.ceil(Math.max(treeR, underR) / CELL), cells = V.visibleCells, dist = V.cellDist2;
++      let visible = 0;
++      for (let cz = Math.max(0, ccz - rc); cz <= Math.min(NC - 1, ccz + rc); cz++) {
++        for (let cx = Math.max(0, ccx - rc); cx <= Math.min(NC - 1, ccx + rc); cx++) {
++          const c = cz * NC + cx, mx = V.x0 + (cx + 0.5) * CELL, mz = V.z0 + (cz + 0.5) * CELL;
++          const ex = Math.max(0, Math.abs(mx - camx) - CELL / 2), ez = Math.max(0, Math.abs(mz - camz) - CELL / 2);
++          const d2 = ex * ex + ez * ez;
++          if (d2 > far2) continue;
++          SQ[0] = mx; SQ[1] = V.cellY[c] + 10; SQ[2] = mz; SQ[3] = 62;
++          if (!sphereQ(ctx.planes, ctx.nPlanes)) continue;
++          dist[c] = d2;
++          let j = visible++;
++          while (j > 0 && dist[cells[j - 1]] > d2) { cells[j] = cells[j - 1]; j--; }
++          cells[j] = c;
++        }
++      }
++      let last = -1;
++      for (let j = 0; j < visible; j++) {
++        const c = cells[j], d2 = dist[c];
++        for (let a = 0; a < NA; a++) {
++          const cnt = V.cellCount[c * NA + a], m = V.meshes[a];
++          if (!cnt || d2 > (a < VEG_NT ? tree2 : under2)) continue;
++          if (last !== a) { pass.setVertexBuffer(0, m.vb); pass.setIndexBuffer(m.ib, 'uint32'); last = a; }
+           pass.drawIndexed(m.count, cnt, 0, 0, V.cellStart[c * NA + a]);
+           if (kind === KIND.GBUF) { st.meshDraws++; st.meshInst += cnt; st.meshTris += cnt * m.count / 3; }
+         }
+@@ -204,9 +248,9 @@ const vegDrawable = {
+     }
+     // --- folhas individuais (bem perto): por subcélula de 16 m ---
+     const pl = V.famLeaf.pipe[kind];
+-    if (pl && V.onMesh && V.onLeaf && kind === KIND.GBUF) {
++    if (pl && V.onMesh && V.onLeaf && main) {
+       pass.setPipeline(pl); pass.setVertexBuffer(1, V.instBuf);
+-      let rl = 62 / zoom; if (rl > 230) rl = 230; const S16 = 16, rs = ((rl / S16) | 0) + 1, scx = Math.floor((camx - V.x0) / S16), scz = Math.floor((camz - V.z0) / S16), n16 = NC * 4;
++      const rl = Math.ceil(QUAL.vegL1 * QUAL.vegLeafRk + 1) / leafZoom, S16 = 16, rs = Math.ceil(rl / S16), scx = Math.floor((camx - V.x0) / S16), scz = Math.floor((camz - V.z0) / S16), n16 = NC * 4;
+       for (let a = 0; a < VEG_NT; a++) {
+         const m = V.leafMeshes[a]; if (!m) continue; let set = false;
+         for (let dz = -rs; dz <= rs; dz++) for (let dx = -rs; dx <= rs; dx++) {
+@@ -216,7 +260,7 @@ const vegDrawable = {
+           const ex = camx < mx ? mx - camx : camx > mx + S16 ? camx - mx - S16 : 0, ez = camz < mz ? mz - camz : camz > mz + S16 ? camz - mz - S16 : 0;
+           const d2 = ex * ex + ez * ez; if (d2 > rl * rl) continue;
+           // fração das folhas ainda visível a essa distância (ver veg_leaf.wgsl: as de fase alta somem antes)
+-          let fr = 1.6 - Math.sqrt(d2) * zoom / 38; if (fr <= 0.02) continue; if (fr > 1) fr = 1;
++          let fr = 1.6 - Math.sqrt(d2) * leafZoom / 38; if (fr <= 0.02) continue; if (fr > 1) fr = 1;
+           if (!(SQ[0] = mx + 8, SQ[1] = V.cellY[c] + 10, SQ[2] = mz + 8, SQ[3] = 28, sphereQ(ctx.planes, ctx.nPlanes))) continue;
+           if (!set) { pass.setVertexBuffer(0, m.vb); pass.setIndexBuffer(m.ib, 'uint32'); set = true; }
+           pass.drawIndexed(((m.n * fr) | 0) * 6, cnt, 0, 0, V.subStart[q]);
+@@ -239,7 +283,7 @@ const vegDrawable = {
+     }
+     pass.setVertexBuffer(0, V.instBuf);
+     const NS = V.NS, SUP = V.SUP, scx = clamp(Math.floor((camx - V.x0) / SUP), 0, NS - 1), scz = clamp(Math.floor((camz - V.z0) / SUP), 0, NS - 1);
+-    const all = shadow && ctx.cascade === 3, maxR = all || kind === KIND.GBUF ? NS : 3;
++    const all = shadow && ctx.cascade === 3, maxR = all || main ? NS : 3;
+     for (let r = 0; r < maxR; r++) for (let dz = -r; dz <= r; dz++) {
+       const stp = (dz === -r || dz === r) ? 1 : 2 * r;
+       for (let dx = -r; dx <= r; dx += stp || 1) {
+@@ -256,15 +300,18 @@ const vegDrawable = {
+ queueMicrotask(() => BUILD.push(async () => {
+   if (GAME.mode === 'test' || GAME.mode === 'car' || Q.has('noveg')) return;
+   const V = VEG, dev = G.dev;
++  // A compilação assíncrona pode começar enquanto a CPU desenha o atlas e gera as malhas.
++  V.famLeaf = mkFamily('vegLeaf', { src: 'veg_leaf', buffers: [VEG_LEAF_LAYOUT, VEG_INST], alpha: true, prepass: VEG_PRE, cull: 'none', noCube: true, noShadow: true });
++  // viés de sombra inclinado maior: cartões grandes e planos quase paralelos ao sol baixo se auto-sombreavam em hachura diagonal
++  V.famTree = mkFamily('vegTree', { src: 'veg_tree', buffers: [VLAYOUT, VEG_INST], alpha: true, prepass: VEG_PRE, cull: 'none', noCube: true, shadowBias: 24, shadowSlope: 7 });
++  V.famImp = mkFamily('vegImp', { src: 'veg_imp', buffers: [VEG_INST], alpha: true, prepass: VEG_PRE, cull: 'none', topology: 'triangle-strip', shadowBias: 4 });
+   V.leafTex = vegAtlasBuild(); V.leafView = V.leafTex.createView(); R.view.vegLeaf = V.leafView;
++  if (globalThis.scheduler?.yield) await globalThis.scheduler.yield();
++  else await new Promise(resolve => setTimeout(resolve, 0));
+   V.sLeaf = dev.createSampler({ minFilter: 'linear', magFilter: 'linear', mipmapFilter: 'linear', maxAnisotropy: 8 });
+-  V.sImp = dev.createSampler({ minFilter: 'linear', magFilter: 'linear', mipmapFilter: 'linear', maxAnisotropy: 4 });
++  V.sImp = dev.createSampler({ minFilter: 'linear', magFilter: 'linear', mipmapFilter: 'linear', maxAnisotropy: 2 });
+   const cpu = vegArchetypes(); V.meshes = cpu.map(m => m.upload());
+   V.leafMeshes = cpu.map(m => (m.leaves && m.leaves.n) ? m.leaves.upload() : null);
+-  V.famLeaf = mkFamily('vegLeaf', { src: 'veg_leaf', buffers: [VEG_LEAF_LAYOUT, VEG_INST], alpha: true, cull: 'none', noCube: true, noShadow: true });
+-  // viés de sombra inclinado maior: cartões grandes e planos quase paralelos ao sol baixo se auto-sombreavam em hachura diagonal
+-  V.famTree = mkFamily('vegTree', { src: 'veg_tree', buffers: [VLAYOUT, VEG_INST], alpha: true, cull: 'none', noCube: true, shadowBias: 24, shadowSlope: 7 });
+-  V.famImp = mkFamily('vegImp', { src: 'veg_imp', buffers: [VEG_INST], alpha: true, cull: 'none', topology: 'triangle-strip', shadowBias: 4 });
+   vegBakeImpostors(cpu);
+   V.viewA = V.texA.createView({ dimension: '2d-array' }); V.viewN = V.texN.createView({ dimension: '2d-array' });
+   V.dimBuf = mkBuf(192, BU.U, V.dims);
+diff --git a/orig/js/33_veg_d_grass.js b/polish/js/33_veg_d_grass.js
+index 9668a21..fb4dadf 100644
+--- a/orig/js/33_veg_d_grass.js
++++ b/polish/js/33_veg_d_grass.js
+@@ -30,6 +30,7 @@ function grassBuild() {
+   GRASS.buf = mkBuf(GRASS.u.byteLength, BU.U);
+   GRASS.bg = dev.createBindGroup({ layout: GRASS.fam.bgl3, entries: [{ binding: 0, resource: ft.createView() }, { binding: 1, resource: { buffer: GRASS.buf, size: 96 } }, { binding: 2, resource: V.leafView }] });
+   R.drawables.push({
++    order: 50,
+     draw(pass, ctx) {
+       if (ctx.kind !== KIND.GBUF || !V.onGrass) return; const pipe = GRASS.fam.pipe[0]; if (!pipe) return;
+       const camx = R.cam.pos[0], camy = R.cam.pos[1], camz = R.cam.pos[2], u = GRASS.u; GRASS.blades = 0;
+diff --git a/orig/js/45_game.js b/polish/js/45_game.js
+index a734043..fae655a 100644
+--- a/orig/js/45_game.js
++++ b/polish/js/45_game.js
+@@ -108,17 +108,18 @@ function gameWarmup() {
+ // De quebra mede o custo de GPU de cada vista (tempo de parede para a GPU concluir 4 quadros seguidos) e devolve o pior caso
+ // em ms por quadro: main() usa esse número para escolher a cadência (120 ou 60 quadros por segundo).
+ async function gamePrewarm() {
+-  RT[2] = 1 / 60; GS.frozen = true; let worst = 0;
+-  for (let i = 0; i < 36; i++) {
+-    vehicleReset(i * TRK.L / 36, (i % 3) - 1, 0); VEH.slip.fill(1); VEH.vx = 25; for (let k = 0; k < 6; k++) fxStep(); VEH.slip.fill(0); VEH.vx = 0;   // com velocidade: emite fumaça (estreia o pipeline de partículas)
++  RT[2] = 1 / 60; GS.frozen = true; let worst = 0, worst2 = 0;   // devolve o 2º maior: um pico isolado (outro programa na GPU) não decide a cadência
++  // 18 vistas (eram 36: metade da carga desta etapa); as três câmeras continuam passando por toda a volta
++  for (let i = 0; i < 18; i++) {
++    vehicleReset(i * TRK.L / 18, (i % 3) - 1, 0); VEH.slip.fill(1); VEH.vx = 25; for (let k = 0; k < 6; k++) fxStep(); VEH.slip.fill(0); VEH.vx = 0;   // com velocidade: emite fumaça (estreia o pipeline de partículas)
+     GS.cam = i % 3; GS.chaseInit = false; GS.tvCur = -1; GS.cut = true; gameTick(true); renderFrame(); gameTick(true); renderFrame();
+-    if (i >= 6) {   // as primeiras vistas ainda pagam compilação de pipelines: não entram na medida
++    if (i >= 4) {   // as primeiras vistas ainda pagam compilação de pipelines: não entram na medida
+       await G.dev.queue.onSubmittedWorkDone(); const t0 = performance.now();
+       for (let k = 0; k < 4; k++) { gameTick(true); renderFrame(); }
+-      await G.dev.queue.onSubmittedWorkDone(); const ms = (performance.now() - t0) / 4; if (ms > worst) worst = ms;
++      await G.dev.queue.onSubmittedWorkDone(); const ms = (performance.now() - t0) / 4; if (ms > worst) { worst2 = worst; worst = ms; } else if (ms > worst2) worst2 = ms;
+     }
+   }
+-  GS.frozen = false; gameRestart(); return worst;
++  GS.frozen = false; gameRestart(); return worst2 || worst;
+ }
+ function gameRestart() {
+   const V = VEH; V.lapS = 0; V.offCount = 0; V.hits = 0; V.laps = 0; V.time = 0; V.steps = 0; V.spin.fill(0); V.susp.fill(0);
+diff --git a/orig/js/47_perf.js b/polish/js/47_perf.js
+index 748ca39..6003000 100644
+--- a/orig/js/47_perf.js
++++ b/polish/js/47_perf.js
+@@ -6,17 +6,23 @@ const PERF = {
+   on: false, qs: null, resolve: null, pool: [], names: [], n: 0, cap: 16384, count: 0,
+   gpu: null, span: null, cpu: null, raf: null, perPass: null, lastRaf: 0, t0: 0, pendingIdx: -1,
+   rec: false, every: 1, live: new Float32Array(1), tw: null,
++  spikeMs: +(Q.get('spike') || 14),   // ?spike=N: limiar (ms de GPU) para guardar o detalhe por passe de um quadro lento
++  vs: null, vc: null,                  // por quadro medido: posição na pista (m) e câmera — para achar onde os quadros lentos acontecem
+ };
+ function perfInit() {
+   if (!Q.has('perf') && !GAME.ui) return;
+-  PERF.raf = new Float32Array(PERF.cap); PERF.cpu = new Float32Array(PERF.cap); PERF.gpu = new Float32Array(PERF.cap); PERF.span = new Float32Array(PERF.cap);   // o tempo de quadro é gravado mesmo sem tempo de GPU
++  PERF.raf = new Float32Array(PERF.cap); PERF.cpu = new Float32Array(PERF.cap); PERF.vs = new Float32Array(PERF.cap); PERF.vc = new Uint8Array(PERF.cap); PERF.gpu = new Float32Array(PERF.cap); PERF.span = new Float32Array(PERF.cap);   // o tempo de quadro é gravado mesmo sem tempo de GPU
+   if (!G.hasTS) return;
+   const dev = G.dev, D = R.pd, list = [];
+   const add = (name, descs) => { const i = list.length; list.push(name); for (const d of descs) d.timestampWrites = { querySet: null, beginningOfPassWriteIndex: i * 2, endOfPassWriteIndex: i * 2 + 1 }; PERF._d.push(...descs); };
+   PERF._d = [];
+   add('shadow0', [D.shadow[0]]); add('shadow1', [D.shadow[1]]); add('shadow2', [D.shadow[2]]); add('cube', D.cube);
+   for (let m = 1; m <= ENV_MIPS; m++) add('envMip' + m, D.envMip.map(f => f[m]));
+-  add('gbuf', [D.gbuf]); add('decal', [D.decal]); add('half', [D.half]); add('blurH', [D.blurH]); add('blurV', [D.blurV]); add('light', [D.light]); add('trans', [D.trans]);
++  add('pre', [D.pre]);   // pré-passe de profundidade (só roda quando alguma família a usa)
++  if (Q.get('perf') === 'split') {   // G-buffer em um passe por drawable (o primeiro limpa, os outros carregam)
++    D.gbufSplit = R.drawables.map((d, i) => { const g = D.gbuf, x = { label: 'gbuf' + i, colorAttachments: g.colorAttachments.map(a => Object.assign({}, a, { loadOp: i ? 'load' : 'clear' })), depthStencilAttachment: Object.assign({}, g.depthStencilAttachment, { depthLoadOp: i ? 'load' : 'clear' }) }; return x; });
++    D.gbufSplit.forEach((x, i) => add('g:' + drawName(R.drawables[i]), [x]));
++  } else add('gbuf', [D.gbuf]); add('decal', [D.decal]); add('half', [D.half]); add('blurH', [D.blurH]); add('blurV', [D.blurV]); add('light', [D.light]); add('trans', [D.trans]);
+   add('taa', D.taa); add('mbTile', [D.mbTile]); add('mbNeigh', [D.mbNeigh]); add('mblur', [D.mb]);
+   D.blDown.forEach((d, i) => add('blDown' + i, [d])); D.blUp.forEach((d, i) => add('blUp' + i, [d])); add('expo', D.expo); add('final', [D.final]);
+   PERF.names = list; PERF.n = list.length;
+@@ -40,7 +46,7 @@ function perfInit() {
+       if (k < PERF.cap) { PERF.gpu[k] = (hi - lo) * 1e-6; }
+       PERF.live[0] = (hi - lo) * 1e-6;
+       // diagnóstico: guarda o início/fim de cada passe (relativos ao início do quadro) dos primeiros quadros lentos
+-      if ((hi - lo) * 1e-6 > 14 && PERF.nSpike < 24) { const o = PERF.nSpike++ * (PERF.n * 2 + 1); PERF.spike[o] = k; for (let i = 0; i < PERF.n * 2; i++) { const t = Number(a[i]); PERF.spike[o + 1 + i] = t >= tRef ? (t - lo) * 1e-6 : -1; } }
++      if ((hi - lo) * 1e-6 > PERF.spikeMs && PERF.nSpike < 24) { const o = PERF.nSpike++ * (PERF.n * 2 + 1); PERF.spike[o] = k; for (let i = 0; i < PERF.n * 2; i++) { const t = Number(a[i]); PERF.spike[o + 1 + i] = t >= tRef ? (t - lo) * 1e-6 : -1; } }
+       PERF.done++; b.buf.unmap(); b.free = true;
+     };
+     PERF.pool.push(b);
+@@ -74,6 +80,7 @@ function perfMap(k) { const b = PERF.pool[PERF.pendingIdx]; b.free = false; b.fr
+ function perfFrameTimes(tRaf) {
+   if (!PERF.rec) return; const k = PERF.count; if (k >= PERF.cap) return;
+   PERF.raf[k] = PERF.lastRaf ? tRaf - PERF.lastRaf : 0; PERF.lastRaf = tRaf; PERF.t0 = performance.now();
++  PERF.vs[k] = VEH.s; PERF.vc[k] = GS.cam;
+ }
+ function perfJsTime() { if (PERF.rec && PERF.count > 0 && PERF.count <= PERF.cap) PERF.cpu[PERF.count - 1] = performance.now() - PERF.t0; }
+ function perfStart() { if (PERF.own) { PERF.own.fill(0); PERF.beg.fill(0); PERF.perPass.fill(0); } PERF.nSpike = 0; PERF.count = 0; PERF.done = 0; PERF.lastRaf = 0; PERF.gpu.fill(0); PERF.rec = true; }
+@@ -82,5 +89,5 @@ function perfReport() {
+   for (let i = 0; i < PERF.n; i++) per[PERF.names[i]] = PERF.perPass[i] / Math.max(1, PERF.done);
+   const spikes = []; for (let q = 0; q < PERF.nSpike; q++) { const o = q * (PERF.n * 2 + 1), e = { frame: PERF.spike[o], passes: [] }; for (let i = 0; i < PERF.n; i++) { const t0 = PERF.spike[o + 1 + i * 2], t1 = PERF.spike[o + 2 + i * 2]; if (t0 >= 0) e.passes.push([PERF.names[i], +t0.toFixed(2), +t1.toFixed(2)]); } spikes.push(e); }
+   const own = {}; for (let i = 0; i < PERF.n; i++) own[PERF.names[i]] = [+(PERF.beg[i] / Math.max(1, PERF.done)).toFixed(3), +(PERF.own[i] / Math.max(1, PERF.done)).toFixed(3)];
+-  return { own, spikes, n, done: PERF.done, gpu: Array.from(PERF.gpu.subarray(0, n)), span: Array.from(PERF.span.subarray(0, n)), raf: Array.from(PERF.raf.subarray(0, n)), cpu: Array.from(PERF.cpu.subarray(0, n)), per };
++  return { own, spikes, n, done: PERF.done, s: Array.from(PERF.vs.subarray(0, n)), cam: Array.from(PERF.vc.subarray(0, n)), gpu: Array.from(PERF.gpu.subarray(0, n)), span: Array.from(PERF.span.subarray(0, n)), raf: Array.from(PERF.raf.subarray(0, n)), cpu: Array.from(PERF.cpu.subarray(0, n)), per };
+ }
+diff --git a/orig/js/90_main.js b/polish/js/90_main.js
+index d7f3ca1..ede1b6e 100644
+--- a/orig/js/90_main.js
++++ b/polish/js/90_main.js
+@@ -37,43 +37,73 @@ function buildTestScene() {
+   mb.mat(3).color(1, 0.2, 0.1); mb.box(0, 1.2, 0, 0.3, 0.3, 0.3);
+   set.add(mb.upload(), 0, 7);
+ }
++// tempos de carga por fase (ms desde o início da página): window.__cap.load() — para medir o que pesa na carga
++const LOADT = [];
++const lt = n => { LOADT.push(n, Math.round(performance.now())); };
+ async function main() {
+   try {
+-    await gpuInit();
++    lt('inicio'); await gpuInit(); lt('gpu');
+     setMsg('gerando circuito…'); await new Promise(r => setTimeout(r));
+     trackBuild(); heightFieldBuild(); worldMapBuild(); aiBuild();   // aiBuild define TRK.line (trajetória) antes dos construtores de cena
+-    rendererInit();
+-    setMsg('gerando céu…'); await skyInit();
++    lt('pista'); rendererInit(); lt('renderer');
++    setMsg('gerando céu…'); await skyInit(); lt('ceu');
+     setMsg('gerando cenário…'); await new Promise(r => setTimeout(r));
+     if (GAME.mode === 'test') buildTestScene();
+     if (GAME.mode === 'placeholder') { buildPlaceholderWorld(); GAME.init = () => { const p = trackPos(40, 0, new Float64Array(5)); setCamera(p[0] - 12, p[1] + 3, p[2] + 4, p[0] + 30, p[1] + 1, p[2], 0.9); R.cube.pos.set([p[0], p[1] + 1.2, p[2]]); }; }
+-    for (const b of BUILD) await b();
+-    await Promise.all(R.pending);
++    for (let i = 0; i < BUILD.length; i++) { await BUILD[i](); lt('build' + i); }
++    await Promise.all(R.pending); lt('pipelines');
++    if (!Q.has('ordemOriginal')) sortDrawables();   // ?ordemOriginal: a ordem de registro antiga (para comparar)
+     if (G.lastErr) throw new Error(G.lastErr);
+     perfInit();
+-    renderStaticShadow();
++    renderStaticShadow(); lt('sombraEstatica');
+     if (GAME.init) GAME.init();
+     else { setCamera(6, 2.2, 7, 0, 0.6, 0, 0.9); R.cube.pos.set([0, 1.2, 0]); }
+     // aquece o cubemap de ambiente e calcula a luz ambiente (SH) a partir dele; duas rodadas para incluir o rebote
+     for (let k = 0; k < 2; k++) { for (let i = 0; i < 6; i++) renderFrame(); await computeSH(); }
++    lt('sh');
+     if (GAME.prewarm) {
+-      const worst = await GAME.prewarm(); await computeSH();
++      const worst = await GAME.prewarm(); await computeSH(); lt('prewarm');
+       // Cadência: a 120 Hz só sobram 8,3 ms por quadro. Se a vista mais pesada não cabe com folga, os quadros se enfileiram
+       // na GPU e o tempo de quadro oscila; nesse caso o jogo roda estável a 60 quadros por segundo (um quadro a cada dois
+       // do monitor de 120 Hz). ?hz=120 ou ?hz=60 força a escolha.
+-      GAME.gpuWorstMs = worst; GAME.minFrameMs = Q.get('hz') === '120' ? 0 : (Q.get('hz') === '60' || worst > 6.2) ? 14.6 : 0;
++      // A cadência vira "1 quadro a cada N atualizações do monitor" (N inteiro), decidida em rafLoop depois de medir o
++      // intervalo real do requestAnimationFrame: com um limiar fixo de 14,6 ms, um monitor de 144 Hz renderizava a cada
++      // 3 atualizações (20,8 ms, 48 quadros por segundo) em vez de a cada 2.
++      GAME.gpuWorstMs = worst; GAME.minFrameMs = Q.get('hz') === '120' ? 0 : (Q.get('hz') === '60' || worst > 6.2) ? 16.6 : 0;
+     }
+     for (let i = 0; i < 8; i++) renderFrame();
+     R.cam.first = true;
+     setMsg(''); const hint = document.getElementById('hint'); if (hint) setTimeout(() => { hint.style.opacity = 0; }, 9000);
+     if (GAME.ui) uiInit();
+-    GAME.ready = true;
++    lt('pronto'); GAME.ready = true;
+     if (!GAME.capture) requestAnimationFrame(rafLoop);
+   } catch (e) { setMsg('erro: ' + e.message); console.error(e); GAME.error = e.message; }
+ }
+ let _lastT = 0;
++// medição do período do monitor: os primeiros 24 intervalos de rAF (mediana); depois, N = arredonda(alvo / período)
++const RAFP = { buf: new Float32Array(24), n: 0, prev: 0, every: 1, k: 0, period: 0 };
++function rafPace(t) {
++  if (RAFP.n < 24) {
++    if (RAFP.prev) RAFP.buf[RAFP.n++] = t - RAFP.prev; RAFP.prev = t;
++    // N vem do pior custo medido no aquecimento (com 25% de folga): 90 Hz com pior vista de ~12 ms renderiza a cada 2
++    // atualizações (arredondar 16,6/11,1 dava 1); ?hz=60 força ~60 quadros por segundo
++    if (RAFP.n === 24) {
++      // período pelo quartil inferior (um quadro atrasado dobra o intervalo e puxaria a mediana para cima); N limitado ao
++      // menor N com intervalo de ~16,6 ms ou mais: um pico isolado no aquecimento não prende o jogo em 30-48 quadros/s
++      RAFP.buf.sort(); RAFP.period = RAFP.buf[6];
++      const cap = Math.max(1, Math.ceil(16.7 / RAFP.period - 0.1));
++      RAFP.every = GAME.minFrameMs <= 0 ? 1 : Q.get('hz') === '60' ? Math.max(1, Math.round(16.6 / RAFP.period)) : Math.min(cap, Math.max(1, Math.ceil(GAME.gpuWorstMs * 1.25 / RAFP.period)));
++    }
++    return false;
++  }
++  if (RAFP.every <= 1) return false;
++  RAFP.k = (RAFP.k + 1) % RAFP.every; return RAFP.k !== 0;   // true: pula esta atualização
++}
++// janela levada para outro monitor (outra frequência) ou aba que volta: mede o período de novo
++document.addEventListener('visibilitychange', () => { RAFP.n = 0; RAFP.prev = 0; RAFP.every = 1; });
++addEventListener('resize', () => { RAFP.n = 0; RAFP.prev = 0; RAFP.every = 1; });
+ function rafLoop(t) {
+-  if (GAME.minFrameMs > 0 && _lastT && t - _lastT < GAME.minFrameMs) { requestAnimationFrame(rafLoop); return; }   // cadência de 60 Hz em monitor mais rápido
++  if (rafPace(t)) { requestAnimationFrame(rafLoop); return; }   // cadência: 1 quadro a cada N atualizações do monitor
+   if (GAME.ui && uiFrame()) { _lastT = 0; requestAnimationFrame(rafLoop); return; }   // menu aberto: o jogo e o som ficam parados e nada é renderizado
+   let dt = _lastT ? (t - _lastT) / 1000 : 1 / 60; RT[3] = dt * 1000; if (dt > 0.05) dt = 0.05; _lastT = t;
+   if (PERF.rec) perfFrameTimes(t);
+@@ -88,6 +118,7 @@ function rafLoop(t) {
+ let _cap2d = null;
+ window.__cap = {
+   ready: () => GAME.ready, error: () => GAME.error || G.lastErr || null,
++  load() { const o = {}; for (let i = 0; i < LOADT.length; i += 2) o[LOADT[i]] = LOADT[i + 1]; return o; },
+   cam(ex, ey, ez, tx, ty, tz, fov) { if (typeof GS !== 'undefined') { GS.freeCam = true; GS.cut = true; } setCamera(ex, ey, ez, tx, ty, tz, fov); },
+   // avança n quadros com passo fixo e renderiza cada um
+   frames(n, dt) {
+@@ -111,7 +142,7 @@ window.__cap = {
+   perfStart() { perfStart(); }, perfReport() { return perfReport(); }, restart() { gameRestart(); },
+   // vista de cada câmera de TV para o ponto da pista 35 m antes dela (verificação de linha de visada)
+   tvView(i) { const o = i * 4, p = trackPos(GS.tvData[o] - 30, 0, new Float64Array(5)); GS.freeCam = true; GS.frozen = true; GS.cut = true; setCamera(GS.tvData[o + 1], GS.tvData[o + 2], GS.tvData[o + 3], p[0], p[1] + 0.8, p[2], 0.5); return GS.tvN; },
+-  cadencia() { return { piorVistaMs: GAME.gpuWorstMs, minFrameMs: GAME.minFrameMs, hz: GAME.minFrameMs > 0 ? 60 : 'monitor' }; },
++  cadencia() { return { piorVistaMs: GAME.gpuWorstMs, minFrameMs: GAME.minFrameMs, periodoMonitorMs: RAFP.period, aCadaN: RAFP.every }; },
+   // estado do jogo para os testes
+   // --- som: grava os 16 controles a cada quadro de 1/60 s e sintetiza a trilha fora do tempo real, da mesma simulação
+   somGravar(n) { SND.rec = new Int32Array(n * 16); SND.recN = 0; },
+diff --git a/orig/shell.html b/polish/shell.html
+index 9012c2d..87432b7 100644
+--- a/orig/shell.html
++++ b/polish/shell.html
+@@ -1,4 +1,6 @@
+ <!doctype html>
++<!-- Uno com escada (versão do Fable 5.2), modificada num experimento não comercial. Licença: PolyForm Noncommercial 1.0.0 (https://polyformproject.org/licenses/noncommercial/1.0.0/)
++Required Notice: Copyright (c) 2026 ViktorKav (https://github.com/viktorkav/uno-com-escada) -->
+ <html lang="pt-BR">
+ <head>
+ <meta charset="utf-8">
+diff --git a/orig/wgsl/entry.wgsl b/polish/wgsl/entry.wgsl
+index 141a456..bf36dfb 100644
+--- a/orig/wgsl/entry.wgsl
++++ b/polish/wgsl/entry.wgsl
+@@ -10,7 +10,15 @@
+ #endif
+   return r;
+ }
++#ifdef PASS_PRE
++// pré-passe de profundidade (famílias com def.prepass): só o teste de alfa decide a cobertura; o passe principal desenha
++// depois com profundidade 'equal' e sem descarte, sombreando cada pixel da mata uma vez só
++// (chama o próprio surf(): a decisão de descarte da mata é estocástica — LOD, borda da folha, perto da lente — e tem de ser
++// idêntica à do passe principal; o resto do sombreamento não é usado e o compilador o elimina)
++@fragment fn fs(in: V2F, @builtin(front_facing) ff: bool) { _ = surf(in, ff); }
++#endif
+ #ifdef PASS_GBUF
++#ifndef PASS_PRE
+ struct GOut { @location(0) a: vec4f, @location(1) b: vec4f, @location(2) c: vec4f, @location(3) v: vec4f }
+ @fragment fn fs(in: V2F, @builtin(front_facing) ff: bool) -> GOut {
+   let s = surf(in, ff);
+@@ -23,6 +31,7 @@ struct GOut { @location(0) a: vec4f, @location(1) b: vec4f, @location(2) c: vec4
+   return o;
+ }
+ #endif
++#endif
+ #ifdef PASS_SHADOW
+ #ifdef ALPHA
+ @fragment fn fs(in: V2F, @builtin(front_facing) ff: bool) { if (surfAlpha(in) < 0.5) { discard; } }
+diff --git a/orig/wgsl/final.wgsl b/polish/wgsl/final.wgsl
+index 68666d3..3396964 100644
+--- a/orig/wgsl/final.wgsl
++++ b/polish/wgsl/final.wgsl
+@@ -51,7 +51,7 @@ fn tone(c: vec3f) -> vec3f { return agx(c); }
+     vis /= 6.0;
+     if (vis > 0.0) {
+       let dv = (in.uv - F.sunScr.xy) * vec2f(F.post.z, 1.0); let r = length(dv); let an = atan2(dv.y, dv.x);
+-      let halo = 0.05 / (1.0 + pow(r / 0.045, 2.0)) + 0.012 / (1.0 + pow(r / 0.25, 2.0));
++      let halo = 0.05 / (1.0 + pow(r / 0.045, 2.0)) + 0.007 / (1.0 + pow(r / 0.25, 2.0));   // halo largo era 0,012 (véu branco contra o sol)
+       let rays = (pow(abs(cos(an * 3.0 + 0.4)), 40.0) * 0.5 + pow(abs(cos(an * 7.0 + 1.1)), 90.0) * 0.25) * 0.05 / (1.0 + pow(r / 0.16, 2.0));
+       let streak = 0.03 * exp(-abs(dv.y) * 90.0) / (1.0 + pow(abs(dv.x) / 0.3, 2.0));
+       c += F.sunCol.rgb * (halo + rays + streak) * vis * 0.32;
+diff --git a/orig/wgsl/fog.wgsl b/polish/wgsl/fog.wgsl
+index cf54ce7..635c940 100644
+--- a/orig/wgsl/fog.wgsl
++++ b/polish/wgsl/fog.wgsl
+@@ -6,8 +6,10 @@ fn fogOD(cam: vec3f, dir: vec3f, dist: f32) -> f32 {
+   let f = select((1.0 - exp(-k)) / k, 1.0 - k * 0.5, abs(k) < 1e-3);
+   return base * dist * f;
+ }
+-fn fogPhase(c: f32) -> f32 { let g = 0.6; let g2 = g * g; return (1.0 - g2) / (4.0 * PI * pow(1.0 + g2 - 2.0 * g * c, 1.5)); }
+-fn fogSunCol(dir: vec3f) -> vec3f { return F.sunCol.rgb * (fogPhase(dot(dir, F.sunDir.xyz)) * 0.9 + 0.035) * F.fog.w; }
++// g era 0,6: contra o sol, a névoa ficava ~14x mais clara que de lado e lavava a tela inteira de branco (pose 6)
++fn fogPhase(c: f32) -> f32 { let g = 0.5; let g2 = g * g; return (1.0 - g2) / (4.0 * PI * pow(1.0 + g2 - 2.0 * g * c, 1.5)); }
++// 0,9 → 0,6: o véu leitoso contra o sol (pose 6) ainda tomava o fundo inteiro (revisão 2)
++fn fogSunCol(dir: vec3f) -> vec3f { return F.sunCol.rgb * (fogPhase(dot(dir, F.sunDir.xyz)) * 0.6 + 0.035) * F.fog.w; }
+ fn fogAmbCol(dir: vec3f) -> vec3f {
+   let d = normalize(vec3f(dir.x, max(dir.y, 0.0) * 0.5 + 0.06, dir.z));
+   return textureSampleLevel(tEnv, sClamp, d, ENV_MIPS - 2.0).rgb * F.fogCol.a + F.fogCol.rgb;
+diff --git a/orig/wgsl/gbuf.wgsl b/polish/wgsl/gbuf.wgsl
+index c46e046..82a87d6 100644
+--- a/orig/wgsl/gbuf.wgsl
++++ b/polish/wgsl/gbuf.wgsl
+@@ -4,7 +4,7 @@ struct Pass { viewProj: mat4x4f, camPos: vec4f, p: vec4f }
+ 
+ struct VSOut { wpos: vec3f, pwpos: vec3f, nrm: vec3f, uv: vec2f, mat: u32, col: vec4f, ext: vec4f }
+ struct V2F {
+-  @builtin(position) pos: vec4f,
++  @invariant @builtin(position) pos: vec4f,   // invariante: pré-passe e passe principal com a mesma profundidade
+   @location(0) wpos: vec3f,
+   @location(1) nrm: vec3f,
+   @location(2) uv: vec2f,
+diff --git a/orig/wgsl/glass.wgsl b/polish/wgsl/glass.wgsl
+index e538946..0541b0b 100644
+--- a/orig/wgsl/glass.wgsl
++++ b/polish/wgsl/glass.wgsl
+@@ -1,48 +1,41 @@
+-// Vidros e lentes (passe de transparentes). Dois desenhos por malha:
+-//   GLASS_MUL: multiplica o fundo pela transmitância colorida;  GLASS_ADD: soma reflexo do ambiente + brilho do sol.
+-// material: id 0 = vidro de janela (cor do vértice = tinta), 1 = lente transparente canelada (farol)
++// Vidros, lente canelada e viseira. GLASS_MUL transmite o fundo; GLASS_ADD soma o reflexo.
+ #include mesh_vert
+ #include fwd_common
+ fn shade(in: V2F, ff: bool) -> vec4f {
+-  var N = normalize(in.nrm); if (!ff) { N = -N; }
++  let outward = normalize(in.nrm);
++  var N = select(-outward, outward, ff);
+   let V = normalize(F.camPos.xyz - in.wpos);
+   let id = matId(in.mat);
+-  var milk = 0.0;
+   var flute = 1.0;
+   if (id == 1u) {
+-    // lente do farol: vidro claro com estrias verticais sutis (só desviam de leve o reflexo); sem véu leitoso nem faixas
+-    let zd = normalize((O.model * vec4f(0.0, 0.0, 1.0, 0.0)).xyz);
+-    let k = sin(in.ext.z * 6.2831853 / 0.0085); let kf = sat(1.0 - fwidth(in.ext.z) / 0.0085 * 2.5);
+-    N = normalize(N + zd * k * 0.16 * kf);
+-    flute = mix(0.96, 0.9 + 0.1 * k * k, kf);
++    // O vidro prensado desvia os reflexos em duas direções. As nervuras somem abaixo de um pixel.
++    let uv = vec2f(abs(in.ext.z),in.ext.y) / vec2f(0.0105,0.0065);
++    let fade = 1.0 - smoothstep(vec2f(0.18),vec2f(0.65),fwidth(uv));
++    let ridge = sin(uv * (2.0 * PI)) * fade;
++    N = normalize(N + O.model[2].xyz * sign(in.ext.z) * ridge.x * 0.29 + O.model[1].xyz * ridge.y * 0.12);
++    flute = 0.925 + 0.055 * ridge.x + 0.015 * ridge.y;
+   }
+-  let nv = max(dot(N, V), 1e-3);
+-  // para-brisa e vigia (normal ao longo do carro) refletem um pouco mais o céu que os vidros laterais
+-  let nO = normalize((vec4f(N, 0.0) * O.model).xyz);
+-  let ws = smoothstep(0.3, 0.6, abs(nO.x));   // 1 = para-brisa/vigia
+-  let f0w = mix(0.08, 0.17, ws);
+-  let fr = min(fSchlick1(select(f0w, 0.06, id == 1u), nv), 0.6);   // janelas um pouco acima do vidro real (reflexo do céu legível); lente do farol como vidro comum
++  let nv = clamp(dot(N, V), 0.001, 1.0);
++  let nx = dot(outward, O.model[0].xyz);
++  let ws = smoothstep(0.32, 0.66, abs(nx));
++  let f0 = mix(0.036, 0.094, ws);
++  let frWindow = f0 + (0.69 - f0) * pow(1.0 - nv, 1.85);
++  let fr = select(frWindow, min(fSchlick1(select(0.05,0.034,id == 2u), nv), 0.46), id != 0u);
+ #ifdef GLASS_MUL
+-  // transmitância: tinta quase neutra, levemente esverdeada e CONSTANTE com o ângulo (a potência por ângulo saturava em verde
+-  // quando se olhava em ângulo rasante através de dois vidros)
+-  // para-brisa e vigia um pouco mais escuros (fumê esverdeado, ~0,78) que os laterais; faixa degradê no topo do para-brisa
+-  var base = select(mix(vec3f(0.84, 0.875, 0.86), vec3f(0.75, 0.805, 0.78), ws), in.col.rgb, id == 1u);
+-  if (id != 1u && nO.x > 0.3) { base *= mix(vec3f(1.0), vec3f(0.5, 0.66, 0.62), smoothstep(1.3, 1.4, in.ext.y)); }
+-  let tint = base * (1.0 - fr) * (1.0 - milk) * flute;
+-  return vec4f(tint, 1.0);
++  var base = in.col.rgb;
++  if (id == 0u) {
++    base = mix(vec3f(0.92,0.945,0.932), vec3f(0.85,0.89,0.876), ws);
++    if (nx > 0.3) { base *= mix(vec3f(1.0), vec3f(0.53,0.68,0.64), smoothstep(1.3,1.4,in.ext.y)); }
++  }
++  return vec4f(base * (1.0 - fr) * flute, 1.0);
+ #else
+   let R = reflect(-V, N);
+-  var env = textureSampleLevel(tEnv, sClamp, R, select(1.2, 0.3, id == 1u)).rgb;
+-  env = mix(vec3f(lum(env)), env, 0.65);
+-  // piso de reflexo: o gradiente do céu (da luz ambiente) aparece no vidro mesmo quando o cubemap local está escuro
+-  if (id != 1u) { let up = sat(R.y * 0.5 + 0.5); env = max(env, shIrr(normalize(R + vec3f(0.0, 0.5, 0.0))) * mix(0.25, 0.75, up)); }   // reflexo sem cores espúrias (zebra/placas viravam manchas vermelhas e verdes no vidro)
+-  let L = F.sunDir.xyz; let H = normalize(L + V); let nl = sat(dot(N, L));
++  let env = textureSampleLevel(tEnv, sClamp, R, select(0.72,0.4,id == 1u)).rgb;
++  // Mantém as árvores escuras; um piso de luz difusa cobriria o piloto de cinza.
++  let reflection = mix(vec3f(lum(env)),env,0.81) / (1.0 + 0.06 * lum(env));
++  let L = F.sunDir.xyz; let H = normalize(L + V); let nl = sat(dot(N,L));
+   let sh = sunShadow(in.wpos, N, in.pos.xy, nl);
+-  let spec = F.sunCol.rgb * nl * sh * fr * min(dGGX(sat(dot(N, H)), 0.003) * vSmith(nv, nl, 0.003), 14.0);
+-  var c = env * fr + spec;
+-  // espalhamento leitoso da lente
+-  c += (shIrr(N) + F.sunCol.rgb * nl * sh / PI) * milk;
+-  if (!ff) { c *= 0.35; }
+-  return vec4f(c, 0.0);
++  let sun = F.sunCol.rgb * nl * sh * min(dGGX(sat(dot(N,H)), 0.003) * vSmith(nv,nl,0.003), 14.0);
++  return vec4f((reflection + sun) * fr * select(0.28, 1.0, ff), 0.0);
+ #endif
+ }
+diff --git a/orig/wgsl/half.wgsl b/polish/wgsl/half.wgsl
+index 62e8a05..c4e29b7 100644
+--- a/orig/wgsl/half.wgsl
++++ b/polish/wgsl/half.wgsl
+@@ -47,7 +47,8 @@ fn sunVis1(wp: vec3f) -> f32 {
+   // névoa: fração iluminada ao longo do raio
+   let wpp = F.invViewProjJ * vec4f(fp.x * F.screen.z * 2.0 - 1.0, 1.0 - fp.y * F.screen.w * 2.0, max(d, 1e-5), 1.0);
+   let wp = wpp.xyz / wpp.w; let cam = F.camPos.xyz; let dv = wp - cam; let dist = length(dv); let dir = dv / dist;
+-  let tMax = min(dist, VOL_DIST); const NV = 20; var wsum = 1e-6; var vsum = 0.0; var T = 1.0; var tp = 0.0;
++  // NV era 20: o tremor por pixel + o borrão bilateral + o TAA escondem a diferença
++  let tMax = min(dist, VOL_DIST); const NV = FOG_NV; var wsum = 1e-6; var vsum = 0.0; var T = 1.0; var tp = 0.0;
+   let j2 = fract(noise + 0.618 * f32(pxi.x & 1) + 0.31 * f32(pxi.y & 1));
+   for (var i = 0; i < NV; i++) {
+     let f1 = (f32(i) + 1.0) / f32(NV); let tn = tMax * f1 * f1; let dt = tn - tp; let t = tp + dt * j2; tp = tn;
+diff --git a/orig/wgsl/light.wgsl b/polish/wgsl/light.wgsl
+index 4c063c7..a4ea265 100644
+--- a/orig/wgsl/light.wgsl
++++ b/polish/wgsl/light.wgsl
+@@ -49,13 +49,22 @@ fn halfSample(uv: vec2f, z: f32) -> vec2f {
+   }
+   return acc / wsum;
+ }
++// Joelho suave nos reflexos muito claros (céu junto ao sol: até ~19 no cubemap, contra ~0,2 na mediana e ~0,3 da tinta
++// iluminada): acima de 2,5 a luminância cresce cada vez menos (19 → ~5). Usado no verniz e nas superfícies molhadas — o
++// capô em ângulo rasante contra o sol estourava em branco e as poças viravam manchas de tinta branca.
++fn hlKnee(c: vec3f) -> vec3f {
++  let l = lum(c); if (l <= 2.5) { return c; }
++  let e = l - 2.5; return c * ((2.5 + e / (1.0 + e / 3.0)) / l);
++}
+ #ifdef SSR
+ // reflexo em espaço de tela para superfícies molhadas: marcha no mundo, testa contra a profundidade, lê o quadro anterior
+ fn ssr(wp: vec3f, R: vec3f, px: vec2f, dist: f32) -> vec4f {
+   let noise = ign(px, F.misc.y + 3.0);
+   var stepLen = 0.03 + dist * 0.008; var t = stepLen * (0.4 + noise); var tPrev = 0.0;
+   var hit = false; var hp = wp;
+-  for (var i = 0; i < 48; i++) {
++  // 24 passos com crescimento de 1,25 alcançam o mesmo que os 48 passos de 1,1 de antes (~900 vezes o primeiro passo),
++  // pela metade das leituras de profundidade; a bisseção de 5 passos corrige a precisão perdida
++  for (var i = 0; i < SSR_STEPS; i++) {
+     let p = wp + R * t; let c = F.viewProjJ * vec4f(p, 1.0);
+     if (c.w <= 0.01) { break; }
+     let uv = c.xy / c.w * vec2f(0.5, -0.5) + 0.5;
+@@ -74,7 +83,7 @@ fn ssr(wp: vec3f, R: vec3f, px: vec2f, dist: f32) -> vec4f {
+       }
+       break;
+     }
+-    tPrev = t; stepLen *= 1.1; t += stepLen;
++    tPrev = t; stepLen *= SSR_GROW; t += stepLen;
+   }
+   if (!hit) { return vec4f(0.0); }
+   let pc = F.prevViewProj * vec4f(hp, 1.0); let huv = pc.xy / pc.w * vec2f(0.5, -0.5) + 0.5;
+@@ -136,24 +145,26 @@ struct LOut { @location(0) col: vec4f }
+   let aoS = hv.r;
+   let ao = min(a.a, aoS) * cao;
+   // luz do céu nas sombras: um pouco dessaturada e reforçada (rebote difuso do cenário que o SH não capta)
+-  var irr = shIrr(N); irr = mix(vec3f(lum(irr)), irr, 0.15) * 1.75 * pow(F.sunCol.rgb / lum(F.sunCol.rgb), vec3f(0.42));   // quase neutra e levemente quente: a sombra não fica azul-marinho depois do balanço de branco
++  // (era 15% da cor e 1,75x: as sombras ficavam chapadas e sem cor — o carro, o asfalto e a mata com a mesma luz difusa)
++  var irr = shIrr(N); irr = mix(vec3f(lum(irr)), irr, 0.4) * 1.45 * pow(F.sunCol.rgb / lum(F.sunCol.rgb), vec3f(0.42));   // quase neutra e levemente quente: a sombra não fica azul-marinho depois do balanço de branco
+   col += diffC * irr * ao * coatAtt;
+   let R = reflect(-V, N);
+   let specOcc = sat(pow(nv + ao, exp2(-16.0 * rough - 1.0)) - 1.0 + ao);
+   // horizonte: reflexo abaixo do chão perde energia
+   var env = textureSampleLevel(tEnv, sClamp, R, envMip(rough)).rgb;
+   env = mix(env, vec3f(lum(env)), sat(rough * 1.2 - 0.25) * 0.7);   // superfícies ásperas não devolvem o azul saturado do céu
+-  var envC = textureSampleLevel(tEnv, sClamp, R, 0.9).rgb;
++  var envC = textureSampleLevel(tEnv, sClamp, R, 1.5).rgb;   // era mip 0,9: a mata refletida virava manchas verde-escuras na porta (revisão 2)
+ #ifdef SSR
+-  if (wet > 0.03 && dist < 160.0) {
++  if (wet > 0.12 && dist < 160.0) {   // umidade leve (< 0,12) não justifica o traçado: o reflexo do cubemap basta
+     let r = ssr(wp, R, in.pos.xy, dist);
+-    env = mix(env, r.rgb, r.a * sat(wet * 1.15)); envC = env;
++    env = mix(env, r.rgb, r.a * sat(wet * 1.15) * smoothstep(0.12, 0.25, wet)); envC = env;   // entra aos poucos: sem degrau na borda do molhado
+   }
+ #endif
++  if (wet > 0.03) { env = mix(env, hlKnee(env), sat(wet * 2.0)); }
+   col += env * envBRDF(f0, rough, nv) * specOcc * coatAtt * mix(1.0, cao, 0.7);
+   // verniz: reflexo do ambiente levemente borrado (verniz real tem casca de laranja)
+   // (reflexo um pouco dessaturado e Fresnel limitado em ângulo rasante: zebras não viram faixas rosa na lataria nem o capô vira espelho)
+-  if (coat > 0.0) { envC = mix(vec3f(lum(envC)), envC, 0.6); col += envC * min(fSchlick1(0.08, nv), 0.26) * coat * mix(specOcc, 1.0, 0.5) * 1.4; }
++  if (coat > 0.0) { envC = hlKnee(mix(vec3f(lum(envC)), envC, 0.7)); col += envC * min(fSchlick1(0.08, nv), 0.26) * coat * mix(specOcc, 1.0, 0.5) * 1.4; }
+   // emissivo
+   col += albedo * (m.z * m.z) * 16.0;
+   // névoa
+diff --git a/orig/wgsl/mat_car.wgsl b/polish/wgsl/mat_car.wgsl
+index 13aff0e..da38334 100644
+--- a/orig/wgsl/mat_car.wgsl
++++ b/polish/wgsl/mat_car.wgsl
+@@ -1,11 +1,11 @@
+ // Materiais do carro (Fiat Uno Mille EP): pintura metálica com verniz, plásticos, borracha, pneus, calotas, lentes, alumínio...
+ // id (mat.x): 1 pintura | 2 plástico preto | 3 borracha | 4 pneu | 5 calota | 6 aço | 7 cromado | 8 interior | 9 lente opaca
+ //             10 alumínio | 11 cinta | 12 decalque do atlas | 13 fundo | 14 refletor do farol | 15 espelho | 16 palhetas da grade
+-//             17 pintura lisa brilhante (capacete; a=1 preto vítreo)
++//             17 casco do capacete
+ // O.p0 da carroceria: x = luz de freio, y = luz de ré, z = faróis. O.p0.x das rodas = |velocidade angular|.
+ #include mesh_vert
+ @group(3) @binding(0) var tAtlas: texture_2d<f32>;
+-const PAINT_COL = vec3f(0.168, 0.275, 0.425);   // azul-claro metálico de estúdio: mais escuro e acinzentado (o sol do jogo é forte)
++const PAINT_COL = vec3f(0.158, 0.269, 0.431);
+ fn carBulgeW(x: f32) -> f32 { return 0.055 * smoothstep(-0.15, 0.25, x) - 0.036 * smoothstep(-1.15, -1.42, x); }
+ fn surf(in: V2F, ff: bool) -> Surface {
+   var s = surfDefault(normalize(in.nrm));
+@@ -18,8 +18,23 @@ fn surf(in: V2F, ff: bool) -> Surface {
+       // (ruído 2D com mips, projetado pelos três eixos do carro: com a distância ou em ângulo rasante os mips levam à média
+       //  e o floco some sozinho — o ruído 3D sem mips virava uma trama diagonal no capô)
+       let nO = normalize((vec4f(s.normal, 0.0) * O.model).xyz); let wt = abs(nO) / (abs(nO.x) + abs(nO.y) + abs(nO.z));
+-      let fl = textureSample(tNoise, sLin, lp.zy * 23.0).a * wt.x + textureSample(tNoise, sLin, lp.xz * 23.0).a * wt.y + textureSample(tNoise, sLin, lp.xy * 23.0).a * wt.z - 0.5;
+-      s.albedo = PAINT_COL * (1.0 + 0.08 * fl); s.metal = 0.58; s.rough = 0.3 + 0.04 * fl; s.coat = 1.0;
++      let grain = textureSample(tNoise, sLin, lp.zy * 2.15).ra * wt.x + textureSample(tNoise, sLin, lp.xz * 2.15).ra * wt.y + textureSample(tNoise, sLin, lp.xy * 2.15).ra * wt.z;
++      let V = normalize(F.camPos.xyz - in.wpos);
++      let face = sat(dot(s.normal, V));
++      let lightFace = sat(dot(s.normal, normalize(V + F.sunDir.xyz)));
++      let fl = grain.y - 0.5;
++      let glint = smoothstep(0.065, 0.26, fl) * (0.10 + 0.48 * pow(lightFace, 4.0));
++      let top = smoothstep(0.6, 0.96, nO.y);
++      // A base metálica espalha o reflexo solar no topo; fora dele o verniz ainda mostra o céu.
++      let sunLobe = top * smoothstep(0.70, 0.97, lightFace);
++      let dust = (1.0 - smoothstep(0.25, 0.57, lp.y)) * smoothstep(0.34, 0.66, grain.x);
++      s.albedo = mix(PAINT_COL * mix(vec3f(1.10,1.08,1.02), vec3f(0.85,0.92,1.0), face) * (1.0 + fl * 0.14), vec3f(0.48,0.56,0.62), glint * 0.32);
++      s.albedo = mix(s.albedo, vec3f(0.19,0.16,0.12), dust * 0.085);
++      // metal era 0,85 (Astra-3): com os reflexos escuros da mata a lataria lia azul-médio; 0,72 devolve parte do difuso e o
++      // azul-claro das fotos, mantendo o reflexo colorido do metálico
++      s.metal = 0.68 - 0.26 * sunLobe - 0.035 * dust;
++      s.rough = mix(0.165, 0.225, top) + 0.20 * sunLobe - 0.025 * glint + 0.035 * dust;
++      s.coat = mix(0.99, 0.9, top) - 0.54 * sunLobe - 0.05 * dust;
+       // abas dos recortes junto ao chão (base das caixas de roda): escuras, para não sobrar lasca clara pendurada
+       { let under = (1.0 - smoothstep(0.31, 0.345, lp.y)) * smoothstep(1.4, 1.5, abs(lp.x)); s.albedo = mix(s.albedo, vec3f(0.01), under); s.coat *= 1.0 - under; s.metal *= 1.0 - under; s.rough = mix(s.rough, 0.95, under); }
+       if (pa > 0.5) { let low = max(1.0 - smoothstep(0.2, 0.26, lp.y), (1.0 - smoothstep(0.54, 0.6, lp.y)) * smoothstep(1.2, 1.3, abs(lp.x))); s.albedo = mix(s.albedo, vec3f(0.012), low); s.coat *= 1.0 - low; s.metal *= 1.0 - low; s.rough = mix(s.rough, 0.9, low); }
+@@ -73,7 +88,7 @@ fn surf(in: V2F, ff: bool) -> Surface {
+           s.ao = min(s.ao, 1.0 - 0.35 * bev); s.ao = min(s.ao, 1.0 - 0.7 * lv);   // o fundo da fenda não devolve céu nem sol
+           lvShade = mix(1.0, mix(0.3, 1.1, sat(cz * 2.6 + 0.5)) * mix(0.5, 1.0, sat((xe - 0.846) / 0.03)), lin);   // só dentro das aletas (a base do para-brisa fica lisa)
+           // pé dos dois vincos longitudinais: linha de sombra fina que acompanha o ressalto
+-          let zc = 0.515 - 0.145 * sat((xe - 0.72) / 1.03);
++          let zc = 0.515 - 0.145 * sat((lp.x - 0.72) / 1.03);
+           let hx = smoothstep(0.78, 0.9, xe) * (1.0 - smoothstep(1.68, 1.76, xe));
+           // aresta viva do ressalto: a normal dobra para fora numa faixa estreita (a face do degrau pega o céu de um lado e
+           // sombra do outro), com uma linha de sombra fina no pé — o vinco lê de qualquer ângulo, inclusive da câmera de capô
+@@ -81,8 +96,8 @@ fn surf(in: V2F, ff: bool) -> Surface {
+           let face = (1.0 - smoothstep(0.004, 0.0085, abs(dz))) * hx;
+           let foot = (1.0 - smoothstep(0.003, 0.02 + 2.0 * wz, abs(dz - 0.013))) * hx;   // faixa de sombra larga e suave (lê a 1 m em ângulo rasante, sem tracejar)
+           let crest = (1.0 - smoothstep(0.003, 0.016 + 2.0 * wz, abs(dz + 0.012))) * hx;
+-          s.normal = normalize(s.normal + rightW * sign(lp.z) * (face * 1.0 + foot * 0.3));
+-          s.albedo *= (1.0 - 0.5 * foot) * (1.0 + 0.2 * crest); s.ao = min(s.ao, 1.0 - 0.6 * foot);
++          s.normal = normalize(s.normal + rightW * sign(lp.z) * (face * 0.26 + foot * 0.08));
++          s.albedo *= (1.0 - 0.34 * foot) * (1.0 + 0.14 * crest); s.ao = min(s.ao, 1.0 - 0.45 * foot);
+           s.coat *= 1.0 - 0.8 * foot; s.rough = mix(s.rough, 0.7, foot);   // no pé do degrau o verniz não devolve o céu: a linha de sombra aparece também em ângulo rasante
+           black = max(black, lv);
+         }
+@@ -92,7 +107,8 @@ fn surf(in: V2F, ff: bool) -> Surface {
+     case 2u: {   // plástico preto: granulado finíssimo (quase liso a 3 m), arestas vivas, um pouco de difuso para ler na sombra
+       let g = textureSample(tNoise, sLin, lp.xz * 57.0 + lp.yy * 43.0).b;
+       let g2 = textureSample(tNoise, sLin, lp.zy * 131.0 + lp.xx * 97.0).a;
+-      s.albedo = in.col.rgb * vec3f(0.96, 1.0, 1.05) * (0.2 + 0.13 * g + 0.09 * g2); s.rough = select(0.94 + 0.05 * g2, 0.4, pa > 0.5); s.ao = 0.38 + 0.2 * g2; s.metal = select(0.0, 0.55, pa > 0.5);
++      let chalk = smoothstep(0.46, 0.60, lp.y) * smoothstep(1.40, 1.68, abs(lp.x));
++      s.albedo = in.col.rgb * vec3f(0.96, 1.0, 1.05) * (0.2 + 0.13 * g + 0.09 * g2 + 0.075 * chalk); s.rough = select(0.94 + 0.05 * g2, 0.4, pa > 0.5); s.ao = 0.38 + 0.2 * g2; s.metal = select(0.0, 0.55, pa > 0.5);
+     }
+     case 3u: { s.albedo = in.col.rgb * vec3f(0.96, 1.0, 1.05) * 1.0; s.rough = 0.84; s.ao = 0.6; s.metal = 0.5; }
+     case 4u: {   // pneu de passeio
+@@ -107,10 +123,8 @@ fn surf(in: V2F, ff: bool) -> Surface {
+       } else {
+         // flanco liso: dois frisos concêntricos e poucas inscrições pequenas em relevo suave
+         let ring = (1.0 - smoothstep(0.0006, 0.0014, abs(r - 0.243))) + (1.0 - smoothstep(0.0006, 0.0014, abs(r - 0.196)));
+-        let tb = smoothstep(0.2075, 0.209, r) * (1.0 - smoothstep(0.2185, 0.22, r));
+-        let win = step(0.55, textureSampleLevel(tNoise, sLin, vec2f(ang * 0.33, 0.61), 0.0).r);
+-        let st = smoothstep(0.3, 0.45, abs(fract(ang * 58.0) - 0.5)) * step(0.35, textureSampleLevel(tNoise, sLin, vec2f(ang * 9.3, 0.37), 0.0).a);
+-        let letters = tb * win * st * (1.0 - blur);
++        let markUV = vec2f(0.5 - ang / (2.0 * PI), (320.0 + clamp((0.224 - r) * 740.0, -24.0, 24.0)) / 512.0);
++        let letters = textureSample(tAtlas, sLin, markUV).a * (1.0 - blur);
+         // friso largo junto ao ombro e nervuras radiais finas no flanco (pneu de verdade, não massa lisa)
+         let ribs = (0.5 + 0.5 * sin(ang * 150.0)) * smoothstep(0.222, 0.226, r) * (1.0 - smoothstep(0.238, 0.242, r)) * (1.0 - blur) * sat(1.0 - fwidth(ang) * 150.0 * 0.4);
+         let band2 = smoothstep(0.247, 0.249, r) * (1.0 - smoothstep(0.256, 0.258, r));
+@@ -150,13 +164,30 @@ fn surf(in: V2F, ff: bool) -> Surface {
+       s.rough = 0.92;
+       // forro interno atrás dos para-choques (a pele externa é cortada ali): escuro, para não aparecer por baixo do carro
+       { let under = (1.0 - smoothstep(0.56, 0.62, lp.y)) * smoothstep(1.2, 1.3, abs(lp.x)); s.albedo = mix(s.albedo, vec3f(0.006), under); }
+-      if ((pa > 1.5 && pa < 2.5) || pa > 3.5) { let w = sin(lp.z * 900.0) * sin(lp.x * 900.0 + lp.y * 900.0); s.albedo = in.col.rgb * (1.0 + 0.1 * w); }
+-      if (pa > 3.5) {
++      if ((pa > 1.5 && pa < 2.5) || (pa > 3.5 && pa < 4.5)) { let w = sin(lp.z * 900.0) * sin(lp.x * 900.0 + lp.y * 900.0); s.albedo = in.col.rgb * (1.0 + 0.1 * w); }
++      if (pa > 3.5 && pa < 4.5) {
+         // bancos: gomos horizontais com costura (sulco escuro) a cada ~8 cm
+         let k = (fract(lp.y / 0.082 + 0.3 * lp.x) - 0.5) * 0.082; let seam = 1.0 - smoothstep(0.0025, 0.008, abs(k));
+         s.albedo *= (1.0 - 0.5 * seam) * (0.86 + 0.14 * cos(k / 0.082 * 6.2831853)); s.ao = 1.0 - 0.4 * seam;
+       }
+       if (pa > 2.5 && pa < 3.5) { s.rough = 0.55; }
++      if (pa > 4.5 && pa < 5.5) {
++        // Região exposta da balaclava; sobrancelha, pálpebra e pupila acompanham o rosto.
++        let a = abs(in.uv.x); let h = in.uv.y;
++        let socket = length(vec2f((a - 0.40) * 2.65, (h - 0.53) * 5.5));
++        let brow = length(vec2f((a - 0.41) * 3.0, (h - 0.635 + 0.065 * a) * 24.0));
++        let mask = smoothstep(0.86, 1.13, a) + 1.0 - smoothstep(0.06, 0.20, h);
++        s.albedo *= 1.0 - 0.37 * (1.0 - smoothstep(0.35, 1.1, socket));
++        s.albedo = mix(s.albedo, vec3f(0.048,0.030,0.023), 1.0 - smoothstep(0.52,1.0,brow));
++        let eye = length(vec2f((a - 0.39) * 5.5, (h - 0.50) * 30.0));
++        s.albedo = mix(s.albedo, mix(vec3f(0.047,0.035,0.029), vec3f(0.47,0.36,0.29), smoothstep(0.038,0.074,abs(a - 0.37))), 1.0 - smoothstep(0.70,1.0,eye));
++        s.albedo = mix(s.albedo, vec3f(0.035,0.033,0.032), sat(mask)); s.rough = 0.79;
++      } else if (pa > 5.5) {
++        let top = cos(in.uv.x);
++        let seam = (1.0 - smoothstep(0.027, 0.10, abs(top - 0.50))) * smoothstep(0.35,1.0,in.uv.y);
++        s.albedo = mix(in.col.rgb, vec3f(0.050,0.052,0.054), smoothstep(0.40,0.60,top));
++        s.albedo = mix(s.albedo, vec3f(0.26,0.224,0.18), 0.65 * seam);
++      }
+     }
+     case 9u: {   // lentes (lanterna traseira, piscas): prismas finos sobre refletor, cores profundas mesmo ao sol
+       s.rough = 0.38; s.coat = 0.0;
+@@ -175,14 +206,21 @@ fn surf(in: V2F, ff: bool) -> Surface {
+         let vh = (0.5 - abs(v - 0.5)) ; let edge = max(sat(1.0 - (vh - 0.0) / max(0.028, fy)), sat(1.0 - u / max(0.03, fu)));
+         let k = sat(max(max(sat(1.0 - dh / max(0.02, fy)), sat(1.0 - dvv / max(0.014, fu))), edge));
+         // prismas: pirâmides de ~4,5 mm que dobram a normal (brilhos pontuais do sol) e dão claro/escuro por célula
+-        let cell = vec2f(lp.z, lp.y) / 0.0045; var pc = fract(cell) - 0.5; pc.x = 0.0;   // lente frisada: nervuras horizontais finas
+-        let fade = sat(1.0 - fwidth(cell.y) * 1.4);   // some antes de virar serrilhado
+-        let rightW = normalize((O.model * vec4f(0.0, 0.0, 1.0, 0.0)).xyz); let upW = normalize((O.model * vec4f(0.0, 1.0, 0.0, 0.0)).xyz);
+-        s.normal = normalize(s.normal + (rightW * pc.x + upW * pc.y) * 0.45 * fade * (1.0 - k));
+-        let prism = mix(1.0, 0.62 + 0.76 * (1.0 - 2.0 * max(abs(pc.x), abs(pc.y))), fade);
+-        let depth = 0.8 + 0.2 * sin(u * 7.0 + v * 2.5);   // degradê do refletor atrás da lente
+-        s.albedo = mix(c * prism * depth, vec3f(0.006), k); s.emissive = e * (1.0 - k) * mix(1.0, 0.8 + 0.4 * (1.0 - 2.0 * max(abs(pc.x), abs(pc.y))), fade);
+-        s.rough = mix(0.62, 0.8, k);   // lente pouco especular: ao sol continua vermelha/âmbar, sem lavar para rosa
++        let cell = vec2f(abs(lp.z) + lp.x + 1.68, lp.y) / vec2f(0.009,0.006);
++        let fade = 1.0 - smoothstep(vec2f(0.18), vec2f(0.7), fwidth(cell));
++        let pc = (fract(cell) - 0.5) * fade;
++        let tangent = normalize((O.model * vec4f(0.6, 0.0, sign(lp.z), 0.0)).xyz);
++        let upW = O.model[1].xyz;
++        s.normal = normalize(s.normal + (tangent * pc.x * 0.34 + upW * pc.y * 0.52) * (1.0 - k));
++        let prism = 1.0 + 0.26 * pc.x + 0.52 * pc.y;
++        // Uma cavidade para cada lâmpada, atrás da lente frisada.
++        let lampY = select(select(0.43,0.84,v > 0.66),0.10,v < 0.2 && u < 0.36);
++        let lampX = select(0.54,0.18,v < 0.2 && u < 0.36);
++        let bowl = length(vec2f((u - lampX) * 1.85, (v - lampY) * select(3.05,5.5,v > 0.66)));
++        let depth = 0.56 + 0.56 * (1.0 - smoothstep(0.16,1.02,bowl)) + 0.22 * (1.0 - smoothstep(0.0,0.17,abs(bowl - 0.83)));
++        s.albedo = mix(c * prism * depth, vec3f(0.008,0.006,0.005), k);
++        s.emissive = e * (1.0 - k) * depth; s.coat = 0.25 * (1.0 - k);
++        s.rough = mix(0.355, 0.74, k);
+       } else {
+         // piscas: lente âmbar translúcida (mais escura e saturada) com o brilho do refletor por trás e verniz
+ // (uv.x = x + z: coordenada ao longo da frente/lateral) — frisos verticais finos e um degradê de refletor por trás
+@@ -216,13 +254,17 @@ fn surf(in: V2F, ff: bool) -> Surface {
+       let u = in.uv.x; let v = in.uv.y;
+       // gradação: mais claro no centro (em volta do bulbo), escurecendo para as bordas e para baixo; facetas verticais em colunas
+       let rightW = normalize((O.model * vec4f(0.0, 0.0, 1.0, 0.0)).xyz);
+-      let fz = sin(lp.z * 6.2831853 / 0.013); let ffade = sat(1.0 - fwidth(lp.z) / 0.013 * 2.5);
+-      s.normal = normalize(s.normal + rightW * fz * 0.12 * ffade);
+-      let rr = length(vec2f(u * 0.85, v));
+-      let grad = mix(1.0, 0.36, smoothstep(0.1, 1.05, rr)) * mix(0.72, 1.0, smoothstep(-1.0, 0.3, v));
+-      let facet = mix(1.0, 0.86 + 0.14 * fz, ffade);
+-      s.albedo = vec3f(0.74, 0.75, 0.77) * grad * facet; s.metal = 0.25; s.rough = 0.32; s.ao = 1.0;
+-      s.emissive = 0.105 * grad;   // a cuba fica na sombra da moldura: luz própria proporcional ao desenho (prateado, não azul do céu)
++      // facetas mais finas e mais fracas (eram 14,5 x 21 mm com inclinação 0,29/0,21 e ±30% de brilho: liam como mosaico de
++      // quadrados claros no farol de frente)
++      let cell = vec2f(abs(lp.z), lp.y) / vec2f(0.008,0.012);
++      let facet = (fract(cell) - 0.5) * (1.0 - smoothstep(vec2f(0.15),vec2f(0.5),fwidth(cell)));
++      s.normal = normalize(s.normal + rightW * sign(lp.z) * facet.x * 0.12 + O.model[1].xyz * facet.y * 0.09);
++      let rr = length(vec2f(u * 0.88, v));
++      let edge = smoothstep(0.78,1.05,max(abs(u),abs(v)));
++      let cup = 0.56 + 0.34 * smoothstep(-0.85,0.65,-v) + 0.28 * (1.0 - smoothstep(0.08,0.40,abs(rr - 0.68)));
++      s.albedo = vec3f(0.74,0.76,0.77) * cup * (1.0 - 0.61 * edge) * (1.0 + 0.10 * facet.x + 0.06 * facet.y);
++      s.metal = 0.78; s.rough = 0.25; s.ao = 1.0 - 0.38 * edge;
++      s.emissive = 0.023 + O.p0.z * 0.18 * (1.0 - smoothstep(0.15,0.97,rr));
+       if (pa > 0.5) {
+         // bulbo claro (a > 0,5) e sua capa prateada na ponta (a > 1,5): discretos, sem ponto preto
+         s.normal = normalize(in.nrm);
+@@ -231,7 +273,7 @@ fn surf(in: V2F, ff: bool) -> Surface {
+       }
+     }
+     case 15u: {   // espelho retrovisor: reflexo FIXO (céu / horizonte de mata / chão), escurecido — não depende do cubemap
+-      let g = sat((lp.y - 0.965) / 0.082);
++      let g = sat((lp.y - 0.961) / 0.072);
+       let ground = vec3f(0.03, 0.03, 0.032); let trees = vec3f(0.018, 0.03, 0.014); let sky = mix(vec3f(0.2, 0.25, 0.3), vec3f(0.1, 0.16, 0.26), sat((g - 0.52) / 0.48));
+       var c = mix(ground, trees, smoothstep(0.36, 0.42, g)); c = mix(c, sky, smoothstep(0.5, 0.56, g));
+       s.albedo = c; s.metal = 0.0; s.rough = 0.5; s.coat = 0.25; s.emissive = 0.045;
+@@ -240,7 +282,16 @@ fn surf(in: V2F, ff: bool) -> Surface {
+       let k = fract(lp.y / select(0.0105, 0.0175, pa > 0.5));
+       s.albedo = in.col.rgb * mix(0.1, 1.0, smoothstep(0.25, 0.5, k)); s.rough = 0.92; s.metal = 0.3; s.ao = mix(0.2, 0.7, smoothstep(0.25, 0.5, k));
+     }
+-    case 17u: { s.rough = select(0.42, 0.3, pa > 0.5); s.coat = select(0.3, 0.35, pa > 0.5); }   // capacete (pintura) / viseira escura lisa, sem espelhar zebras
++    case 17u: {   // casco acetinado; friso de borracha e duas entradas na queixeira
++      let a = abs(in.uv.x);
++      let lip = 1.0 - smoothstep(0.85, 1.18, in.uv.y);
++      let vent = length(vec2f((a - 0.36) * 4.3, (in.uv.y - 2.20 - 0.33 * a) * 5.6));
++      let stripe = abs(in.uv.y - 2.15 - 2.43 * smoothstep(0.85,2.78,a));
++      let band = (1.0 - smoothstep(0.105,0.18,stripe)) * smoothstep(0.60,0.95,a);
++      s.albedo = mix(in.col.rgb, vec3f(0.065,0.116,0.143), band);
++      s.albedo = mix(s.albedo, vec3f(0.027,0.034,0.038), max(lip, 1.0 - smoothstep(0.72,1.0,vent)));
++      s.rough = mix(0.32, 0.7, lip); s.coat = 0.28 * (1.0 - lip);
++    }
+     default: {}
+   }
+   return s;
+diff --git a/orig/wgsl/mat_props.wgsl b/polish/wgsl/mat_props.wgsl
+index ec4e3a3..100efbe 100644
+--- a/orig/wgsl/mat_props.wgsl
++++ b/polish/wgsl/mat_props.wgsl
+@@ -5,6 +5,7 @@
+ //     12 muro de pneus distante (substituto) | 13 porta de enrolar | 14 cone | 15 pneus próximos (somem ao longe)
+ //     18 lâmpada do semáforo de largada (acesa com F.car2.x)
+ //     17 chapa nervurada pintada   (gente — público, equipes, fiscais — fica na família world_crowd)
++//     19 degraus pré-moldados e estrutura pintada da arquibancada (a = rugosidade, b = metal)
+ #include mesh_vert
+ #include palette
+ @group(3) @binding(0) var tAtlas: texture_2d<f32>;
+@@ -145,6 +146,9 @@ fn surf(in: V2F, ff: bool) -> Surface {
+     s.ao *= 1.0 - 0.25 * frame;
+   } else if (id == 6u) {
+     s.albedo = in.col.rgb; s.emissive = matA(in.mat); s.rough = 0.3;
++  } else if (id == 19u) {
++    // As juntas são as bordas dos degraus; um quadriculado em coordenadas do mundo atravessaria a seção inteira.
++    s.albedo = in.col.rgb * (0.91 + 0.16 * n1.g); s.rough = matA(in.mat); s.metal = matB(in.mat);
+   } else if (id == 7u) {
+     if (ff) {
+       let t = textureSampleBias(tAtlas, sLin, in.uv, -0.8);
+@@ -163,10 +167,14 @@ fn surf(in: V2F, ff: bool) -> Surface {
+       s.albedo = c * (1.0 - 0.45 * sh); s.rough = mix(0.55, 0.38, fr); s.metal = mix(0.6, 0.85, fr) * (1.0 - rust * 0.5); s.ao *= 1.0 - 0.35 * sh;
+     }
+   } else if (id == 8u) {
+-    let u = fract(in.uv.x / 0.52); let aa = max(fwidth(in.uv.x / 0.52), 0.004);
+-    let gap = 1.0 - smoothstep(0.045, 0.045 + aa, min(u, 1.0 - u));
+-    s.albedo = mix(in.col.rgb * (0.85 + 0.2 * n1.r), vec3f(0.035), gap * (1.0 - smoothstep(60.0, 140.0, dist)) + 0.12 * smoothstep(60.0, 140.0, dist));
+-    s.rough = 0.42; s.ao *= 1.0 - gap * 0.4;
++    let side = abs(fract(in.uv.x) - 0.5);
++    let aa = max(fwidth(in.uv.x), 0.004);
++    let margin = 0.465 - 0.095 * smoothstep(0.74, 1.0, in.uv.y) - side;
++    if (aa < 0.30 && margin < -0.5 * aa) { discard; }
++    let shell = smoothstep(-0.5 * aa, 0.5 * aa, margin);
++    let lip = smoothstep(0.86, 1.0, in.uv.y) * (1.0 - smoothstep(0.15, 0.6, aa));
++    s.albedo = in.col.rgb * (0.66 + 0.30 * shell + 0.15 * lip) * (0.88 + 0.16 * n1.r);
++    s.rough = 0.52; s.ao *= 0.8 + 0.2 * in.uv.y;
+   } else if (id == 9u) {
+     let ph = in.uv.y / 0.19 * 6.2832; let aa = fwidth(in.uv.y / 0.19);
+     let k = 1.0 - smoothstep(0.25, 0.9, aa);
+@@ -177,8 +185,10 @@ fn surf(in: V2F, ff: bool) -> Surface {
+     s.albedo = in.col.rgb * (0.85 + 0.2 * n1.r); s.rough = 0.8; s.sss = 0.5;
+   } else if (id == 13u) {
+     let ph = wp.y / 0.11 * 6.2832; let k = 1.0 - smoothstep(0.2, 0.8, fwidth(wp.y / 0.11));
+-    s.albedo = in.col.rgb * (0.85 + 0.2 * n1.r) * (1.0 + 0.08 * sin(ph) * k);
+-    s.normal = normalize(N + vec3f(0.0, cos(ph) * 0.35 * k, 0.0)); s.rough = 0.5; s.metal = 0.35;
++    let grime = (1.0 - smoothstep(0.0, 0.27, in.uv.y)) * (0.12 + 0.26 * n1.g);
++    let paint = mix(in.col.rgb, vec3f(0.22, 0.17, 0.12), grime);
++    s.albedo = paint * (0.85 + 0.2 * n1.r) * (1.0 + 0.08 * sin(ph) * k);
++    s.normal = normalize(N + vec3f(0.0, cos(ph) * 0.35 * k, 0.0)); s.rough = 0.5 + 0.3 * grime; s.metal = 0.35 * (1.0 - grime);
+   } else if (id == 14u) {
+     let band = step(0.45, in.uv.y) * step(in.uv.y, 0.68);
+     s.albedo = mix(vec3f(0.75, 0.16, 0.02), vec3f(0.7), band) * (0.85 + 0.2 * n2.r); s.rough = 0.55;
+diff --git a/orig/wgsl/mat_track.wgsl b/polish/wgsl/mat_track.wgsl
+index 5991871..933b0ef 100644
+--- a/orig/wgsl/mat_track.wgsl
++++ b/polish/wgsl/mat_track.wgsl
+@@ -9,17 +9,27 @@ fn asphaltSurf(in: V2F) -> Surface {
+   let s = in.uv.x; let d = in.uv.y; let xz = in.wpos.xz;
+ #ifdef PASS_CUBE
+   let dist = distance(in.wpos, P.camPos.xyz);
++  const near2: f32 = 0.0;
+ #else
+   let dist = distance(in.wpos, F.camPos.xyz);
++  let near2 = 1.0 - smoothstep(3.0, 22.0, dist);
+ #endif
+-  let near = 1.0 - smoothstep(15.0, 80.0, dist); let near2 = 1.0 - smoothstep(3.0, 22.0, dist);
++  let near = 1.0 - smoothstep(15.0, 80.0, dist);
+   let aaD = max(fwidth(d), 0.0015); let aaS = max(fwidth(s), 0.0015);
+   let n1 = textureSample(tNoise, sLin, xz * 0.0293);
+   let n2 = textureSample(tNoise, sLin, vec2f(xz.x * 0.8 - xz.y * 0.6, xz.x * 0.6 + xz.y * 0.8) * 0.33);
+-  // agregado: duas escalas, cada uma com duas amostras giradas (sem grade periódica). Não há corte por distância:
+-  // os mips levam o grão à média sozinhos, então o tom de perto e de longe é o mesmo.
++  // O agregado maior continua visível no asfalto distante.
+   let n3 = (textureSample(tNoise, sLin, xz * 0.93) + textureSample(tNoise, sLin, vec2f(xz.x * 0.342 - xz.y * 0.94, xz.x * 0.94 + xz.y * 0.342) * 0.71 + 0.41)) * 0.5;
+-  let n4 = (textureSample(tNoise, sLin, vec2f(xz.x * 0.6 + xz.y * 0.8, -xz.x * 0.8 + xz.y * 0.6) * 3.1) + textureSample(tNoise, sLin, vec2f(xz.x * 0.966 + xz.y * 0.259, -xz.x * 0.259 + xz.y * 0.966) * 2.37 + 0.23)) * 0.5;
++  let roadUV = detailFrame(xz);
++  var n4 = DETAIL_MEAN; var n5 = DETAIL_MEAN; var n6 = DETAIL_MEAN;
++  if (near2 > 0.0) {
++    let fade = smoothstep(0.0, 0.24, near2);
++    let a = detailSample(roadUV, vec2f(0.6, 0.8), vec2f(3.1), 0.0);
++    let b = detailSample(roadUV, vec2f(0.966, -0.259), vec2f(2.37), 0.23);
++    n4 = mix(DETAIL_MEAN, (a + b) * 0.5, fade);
++    n5 = mix(DETAIL_MEAN, detailSample(roadUV, vec2f(1.0, 0.0), vec2f(9.7), 0.13), fade);
++    n6 = mix(DETAIL_MEAN, detailSample(roadUV, vec2f(0.6, 0.8), vec2f(5.9), 0.19), fade);
++  }
+   // ---- recapeamentos: trechos com tons diferentes, emenda transversal entre eles ----
+   let secLen = 52.0; let sqv = (s + (n1.r - 0.5) * 1.6 + (n2.r - 0.5) * 0.35) / secLen; let sec = floor(sqv);   // emenda sinuosa, não uma reta
+   let h1 = hash11(sec * 1.37 + 3.1); let h0 = hash11((sec - 1.0) * 1.37 + 3.1);
+@@ -34,9 +44,9 @@ fn asphaltSurf(in: V2F) -> Surface {
+   // emendas: linhas de piche finas, irregulares e interrompidas (nunca um risco preto contínuo)
+   let brk = smoothstep(0.3, 0.55, n2.b) * (0.5 + 0.5 * n1.a);                 // falhas ao longo da linha
+   let seamT = min(fs, secLen - fs) + (n2.r - 0.5) * 0.05;
+-  var tar = aaLine(seamT, 0.011, aaS) * 0.7 * brk;
++  var tar = aaLine(seamT, 0.017, aaS) * 0.82 * brk;
+   let pEdge = patchOn * max(aaLine(d - pe, 0.006, aaD) * step(6.0, fs) * step(fs, p1), max(aaLine(fs - 6.0 + (n2.g - 0.5) * 0.04, 0.006, aaS), aaLine(fs - p1 + (n2.g - 0.5) * 0.04, 0.006, aaS)) * step(pe, d));
+-  tar = max(tar, pEdge * 0.45 * brk);
++  tar = max(tar, pEdge * 0.58 * brk);
+   // junta longitudinal no eixo: quase apagada, só em trechos
+   tar = max(tar, aaLine(d - 0.12 - (n1.g - 0.5) * 0.25, 0.005, aaD) * 0.3 * smoothstep(0.5, 0.7, n1.r) * brk);
+   // trincas seladas: pedaços curtos de linhas sinuosas, só onde o asfalto é mais velho
+@@ -46,9 +56,9 @@ fn asphaltSurf(in: V2F) -> Surface {
+   tar = max(tar, crack * 0.75);
+   tar *= 1.0 - smoothstep(25.0, 90.0, dist) * 0.7;
+   // ---- base: agregado ----
+-  // base: asfalto cinza-escuro neutro (albedo ≈ 0,055) com manchas de 3–6 m e de 15–20 m; o mesmo tom ao sol e na sombra
++  // base: asfalto cinza-escuro (albedo ≈ 0,08) com manchas de 3–6 m e de 15–20 m; o mesmo tom ao sol e na sombra
+   let nM = textureSample(tNoise, sLin, vec2f(xz.x * 0.8 + xz.y * 0.6, -xz.x * 0.6 + xz.y * 0.8) * 0.0061 + 0.27);
+-  var alb = vec3f(0.083, 0.081, 0.078) * tone * (0.74 + 0.52 * n2.r) * (0.66 + 0.68 * n1.r) * (0.76 + 0.48 * nM.g);
++  var alb = vec3f(0.076, 0.079, 0.083) * tone * (0.74 + 0.52 * n2.r) * (0.66 + 0.68 * n1.r) * (0.76 + 0.48 * nM.g);
+   // manchas de média escala que sobrevivem à distância e à lente longa: óleo/piche (0,5–2 m) e áreas mais gastas e claras
+   let stain = smoothstep(0.6, 0.76, n2.b * 0.55 + n3.g * 0.5);
+   let dust = smoothstep(0.58, 0.8, n2.g * 0.6 + n1.b * 0.5);
+@@ -56,8 +66,6 @@ fn asphaltSurf(in: V2F) -> Surface {
+   // ---- micro-detalhe: agregado de 3–8 mm com contraste de albedo BAIXO (±8%). A cara de asfalto vem do relevo fino
+   // (normal) com brilho rasante suave e da variação de média escala, não de pintas claras e escuras.
+   let stones = smoothstep(0.58, 0.8, n4.b);
+-  let n5 = textureSample(tNoise, sLin, xz * 9.7 + 0.13);                                                  // células de ~4 mm
+-  let n6 = textureSample(tNoise, sLin, vec2f(xz.x * 0.6 + xz.y * 0.8, -xz.x * 0.8 + xz.y * 0.6) * 5.9 + 0.19);   // células de ~7 mm
+   let grain = (n5.b - 0.55) + (n6.b - 0.55) * 0.8;
+   alb *= 1.0 + grain * 0.085 + (n3.b - 0.5) * 0.05;
+   let cav = smoothstep(-0.3, 0.2, grain);                                   // cavidades entre os grãos
+@@ -72,12 +80,12 @@ fn asphaltSurf(in: V2F) -> Surface {
+   // in.col.b —, falhada nas retas), com manchas que somem e voltam
+   let along = textureSample(tNoise, sLin, vec2f(s * 0.0043, 0.31)); let along2 = textureSample(tNoise, sLin, vec2f(s * 0.021, 0.77));
+   let rsig = 1.35 * (0.6 + 0.7 * along.g);
+-  let rint = (0.16 + 0.84 * in.col.b) * (0.35 + 0.65 * smoothstep(0.3, 0.62, along.r)) * (0.6 + 0.4 * along2.b);
++  let rint = (0.23 + 0.77 * in.col.b) * (0.35 + 0.65 * smoothstep(0.3, 0.62, along.r)) * (0.6 + 0.4 * along2.b);
+   let rub = exp(-dl * dl / (2.0 * rsig * rsig)) * rint * streak;
+   // dois sulcos de roda mais marcados
+   let rutG = exp(-sq(abs(dl) - 0.68) / 0.09);
+   let ruts = rutG * rint * streak;
+-  let rb = sat(rub * 1.05 + ruts * 0.5);
++  let rb = sat(rub * 1.12 + ruts * 0.68);
+   alb = mix(alb, alb * vec3f(0.2, 0.2, 0.215), rb);
+   rough = mix(rough, 0.95, rb);
+   // marcas de frenagem antes das curvas (byte a do material = intensidade): pares de riscos escuros, descontínuos
+@@ -91,8 +99,8 @@ fn asphaltSurf(in: V2F) -> Surface {
+     alb = mix(alb, alb * 0.26, bm); rough = mix(rough, 0.95, bm);
+   }
+   // desgaste claro (polido) fora da trajetória
+-  let wear = smoothstep(0.5, 0.8, n2.b * 0.5 + n1.g * 0.6) * 0.22 * (1.0 - rb);
+-  alb = mix(alb, alb * 1.3 + 0.006, wear); rough = mix(rough, 0.77, wear);
++  let wear = smoothstep(0.51, 0.77, n2.b * 0.5 + n1.g * 0.6) * 0.32 * (1.0 - rb);
++  alb = mix(alb, alb * 1.3 + 0.006, wear); rough = mix(rough, 0.72, wear);
+   // piche das emendas e trincas: cinza-escuro, um pouco mais liso
+   alb = mix(alb, alb * 0.38 + vec3f(0.004), tar); rough = mix(rough, 0.74, tar);
+   {
+@@ -135,31 +143,29 @@ fn asphaltSurf(in: V2F) -> Surface {
+   var grad = (n3.rg - 0.5) * 0.14 * near + (n4.rg - 0.5) * 0.4 * near2 + (n2.rg - 0.5) * 0.04 * near + ((n5.rg - 0.5) * 0.75 + (n6.rg - 0.5) * 0.55) * near2;
+   grad *= 1.0 - 0.6 * max(paint, tar);
+   rough += 0.05 * (1.0 - near2);            // longe: o relevo que some vira rugosidade
+-  var N = bumpXZ(Ng, grad);
+   // ---- trechos molhados ----
+   var wet = 0.0;
+-  if (in.col.g > 0.001) {
+-    // "profundidade" da água: depressões de baixa frequência + sulcos das rodas + beira da pista; borda orgânica por ruído fino
+-    let lo = textureSample(tNoise, sLin, vec2f(s * 0.0125 + 0.37, d * 0.062)).r * 0.56 + textureSample(tNoise, sLin, vec2f(s * 0.031, d * 0.11 + 0.4)).g * 0.24 + textureSample(tNoise, sLin, xz * 0.047 + 0.13).r * 0.2;
+-    let fine = (n2.r - 0.5) * 0.02 + (n3.r - 0.5) * 0.035 + (n4.r - 0.5) * 0.012;    // a borda segue o agregado: nítida e irregular, não uma máscara mole
+-    let edge = smoothstep(2.4, 5.2, abs(d)) * 0.05 + rutG * 0.085;      // a água junta nos trilhos de roda e na beira
+-    let lvl = lo + fine + edge - mix(0.78, 0.665, in.col.g);
+-    // seco → úmido (halo largo, escurece e alisa um pouco) → filme d'água → lâmina. Tudo em rampas largas: sem borda dura.
+-    let lw = fwidth(lvl) * 0.75;                                        // largura de 1 pixel em unidades do nível
+-    let damp = smoothstep(-0.09, -0.035, lvl);
+-    let film = smoothstep(-0.05 - lw, 0.02 + lw, lvl);
+-    let pud = smoothstep(0.015 - lw, 0.07 + lw, lvl);
+-    alb = mix(alb, alb * 0.8, damp);
+-    alb = mix(alb, alb * 0.55, pud);                                       // água sobre asfalto escuro: fundo mais escuro, nada leitoso
+-    rough = mix(rough, 0.6, damp * 0.8); rough = mix(rough, 0.36, film); rough = mix(rough, 0.09, pud * pud);
+-    // normal: o filme ainda segue o agregado; a lâmina é plana, com ondulação leve do vento
+-    let rp = (textureSampleLevel(tNoise, sLin, xz * 0.31 + 0.17, 1.0).rg - 0.5) * 0.016 + (textureSampleLevel(tNoise, sLin, xz * 0.11 + 0.4, 0.0).rg - 0.5) * 0.014;
+-    N = normalize(mix(N, bumpXZ(Ng, grad * 0.35), film));
+-    N = normalize(mix(N, bumpXZ(Ng, rp), pud));
+-    // reflexo em espaço de tela entra aos poucos com o filme e fica total na lâmina
+-    wet = film * 0.2 + pud * 0.7;
++  let zone = in.col.g;
++  if (zone > 0.001) {
++    // Depressões alongadas na direção da pista; o escoamento favorece a beira e os sulcos.
++    let drain = textureSample(tNoise, sLin, vec2f(s * 0.0055 + 0.68, d * 0.052)).r;
++    let pool = textureSample(tNoise, sLin, vec2f(s * 0.013, d * 0.095 + 0.4)).g;
++    let basin = drain * 0.70 + pool * 0.30 + (n2.r - 0.5) * 0.019
++              + smoothstep(2.3, 5.1, abs(d)) * 0.083 + rutG * 0.033;
++    let lw = min(fwidth(basin), 0.02);
++    let damp = zone * (0.35 + 0.65 * smoothstep(0.40, 0.63, basin));
++    let film = zone * smoothstep(0.57 - lw, 0.745 + lw, basin);
++    let pud = zone * smoothstep(0.663 - lw, 0.764 + lw, basin);
++    // O betume poroso escurece antes de a superfície ficar lisa; a faixa pintada absorve menos.
++    alb *= 1.0 - mix(0.54, 0.23, max(paint, inSF)) * damp - 0.16 * film;
++    rough = mix(rough, 0.82, damp);
++    rough = mix(rough, 0.60, film * film);
++    rough = mix(rough, 0.23, pud * pud);
++    let ripple = (n2.rg - 0.5) * 0.021 + (n1.gr - 0.5) * 0.012;
++    grad = mix(grad * (1.0 - 0.55 * film), ripple, pud);
++    wet = 0.05 * film * film + 0.90 * pud * pud;
+   }
+-  sf.albedo = alb; sf.rough = rough; sf.normal = N; sf.wet = wet;
++  sf.albedo = alb; sf.rough = rough; sf.normal = bumpXZ(Ng, grad); sf.wet = wet;
+   sf.ao = (1.0 - tar * 0.3) * mix(1.0, 0.84 + 0.16 * cav, 1.0 - wet);
+   return sf;
+ }
+@@ -173,7 +179,14 @@ fn kerbSurf(in: V2F) -> Surface {
+ #endif
+   let near = 1.0 - smoothstep(6.0, 40.0, dist);
+   let n1 = textureSample(tNoise, sLin, in.wpos.xz * 0.11);
+-  let n2 = textureSample(tNoise, sLin, in.wpos.xz * 0.9); let n3 = textureSample(tNoise, sLin, in.wpos.xz * 6.1);
++  let n2 = textureSample(tNoise, sLin, in.wpos.xz * 0.9);
++  var n3 = DETAIL_MEAN;
++#ifndef PASS_CUBE
++  let kerbUV = detailFrame(in.wpos.xz);
++  if (near > 0.0) {
++    n3 = mix(DETAIL_MEAN, detailSample(kerbUV, vec2f(1.0, 0.0), vec2f(6.1), 0.0), smoothstep(0.0, 0.24, near));
++  }
++#endif
+   let aaS = max(fwidth(s), 0.002);
+   let ph = s / 5.0; let f = fract(ph);
+   let red = smoothstep(0.5 - aaS / 5.0, 0.5 + aaS / 5.0, abs(f - 0.5) * 2.0);   // 2,5 m vermelho / 2,5 m branco
+diff --git a/orig/wgsl/mblur.wgsl b/polish/wgsl/mblur.wgsl
+index efcd2e7..0e9bfd3 100644
+--- a/orig/wgsl/mblur.wgsl
++++ b/polish/wgsl/mblur.wgsl
+@@ -25,7 +25,9 @@ fn linZ(d: f32) -> f32 { return F.camFwd.w / max(d, 1e-6); }
+   let lmc = min(lm, maxLen);
+   var vc = textureLoad(tVel, p, 0).xy * sz * k; let lc = min(length(vc), maxLen);
+   let zc = linZ(textureLoad(gD, p, 0));
+-  const NS = 24;
++  // número de amostras proporcional ao rastro: o espaçamento entre amostras nunca passa o de 24 amostras no rastro máximo
++  // (~2,2 px em 1440p), e rastros curtos (a maioria) custam bem menos que 24 leituras triplas
++  let NS = clamp(i32(ceil(lmc * 0.92)), 6, MB_NSMAX);
+   var acc = c0 * 1.0; var ws = 1.0;
+   // peso do centro: menor quando ele mesmo se move
+   let wc = 1.0 / max(lc, 0.75); acc = c0 * wc; ws = wc;
+diff --git a/orig/wgsl/veg_bake.wgsl b/polish/wgsl/veg_bake.wgsl
+index c913c61..26d8fed 100644
+--- a/orig/wgsl/veg_bake.wgsl
++++ b/polish/wgsl/veg_bake.wgsl
+@@ -5,18 +5,20 @@ struct BU { vp: mat4x4f }
+ @group(0) @binding(2) var sLeaf: sampler;
+ @group(0) @binding(3) var tNoise: texture_2d<f32>;
+ struct VIn { @location(0) pos: vec3f, @location(1) nrm: vec4f, @location(2) uv: vec2f, @location(3) mat: vec4u, @location(4) col: vec4f }
+-struct V2F { @builtin(position) pos: vec4f, @location(0) nrm: vec3f, @location(1) uv: vec2f, @location(2) @interpolate(flat) mat: u32, @location(3) col: vec4f }
++struct V2F { @builtin(position) pos: vec4f, @location(0) nrm: vec3f, @location(1) uv: vec2f, @location(2) @interpolate(flat) mat: u32, @location(3) col: vec4f, @location(4) localPos: vec3f }
+ @vertex fn vs(in: VIn) -> V2F {
+-  var o: V2F; o.pos = U.vp * vec4f(in.pos, 1.0); o.nrm = in.nrm.xyz; o.uv = in.uv; o.mat = in.mat.x | (in.mat.z << 16u); o.col = in.col; return o;
++  var o: V2F; o.pos = U.vp * vec4f(in.pos, 1.0); o.nrm = in.nrm.xyz; o.uv = in.uv; o.mat = in.mat.x | (in.mat.z << 16u); o.col = in.col; o.localPos = in.pos; return o;
+ }
+ struct BOut { @location(0) a: vec4f, @location(1) n: vec4f }
+ @fragment fn fs(in: V2F) -> BOut {
+   var o: BOut; let n = normalize(in.nrm);
+   if ((in.mat & 255u) == 1u) {
+     let t = textureSample(tLeaf, sLeaf, in.uv);
++    let face = normalize(cross(dpdx(in.localPos), dpdy(in.localPos)));
+     if (t.a < 0.25) { discard; }
+-    o.a = vec4f(t.rgb * in.col.rgb * mix(1.0, in.col.a, 0.75), smoothstep(0.25, 0.6, t.a));
+-    o.n = vec4f(n * 0.5 + 0.5, 1.0);
++    let tuft = normalize(mix(n, select(-face, face, dot(face, n) >= 0.0), 0.16));
++    o.a = vec4f(t.rgb * in.col.rgb * mix(1.0, in.col.a, 0.78), smoothstep(0.25, 0.6, t.a));
++    o.n = vec4f(tuft * 0.5 + 0.5, 1.0);
+   } else {
+     let bt = (in.mat >> 16u) & 255u;
+     // casca: estrias verticais com contraste (o tronco do impostor não pode ler liso e claro)
+diff --git a/orig/wgsl/veg_common.wgsl b/polish/wgsl/veg_common.wgsl
+index a737e38..03d3c5f 100644
+--- a/orig/wgsl/veg_common.wgsl
++++ b/polish/wgsl/veg_common.wgsl
+@@ -1,20 +1,29 @@
+ // Vegetação — vento e utilidades comuns.
+ #include palette
+-const VEG_D0 = 90.0;   // início/fim da troca malha → impostor (m)
+-const VEG_D1 = 112.0;
+-const VEG_U0 = 60.0;   // sub-bosque some entre U0 e U1
+-const VEG_U1 = 80.0;
++const VEG_D0 = VEGQ_D0;   // início/fim da troca malha → impostor (m)
++const VEG_D1 = VEGQ_D1;
++const VEG_U0 = VEGQ_U0;   // sub-bosque some entre U0 e U1
++const VEG_U1 = VEGQ_U1;
+ const VEG_NT = 6.0;
+-const VEG_L0 = 26.0;   // folhas individuais encolhem até sumir entre L0 e L1
+-const VEG_L1 = 38.0;
++const VEG_L0 = VEGQ_L0;   // folhas individuais encolhem até sumir entre L0 e L1
++const VEG_L1 = VEGQ_L1;
+ // LOD por tamanho na tela: fator de zoom da câmera principal (1 = lente da câmera de perseguição; lente longa de TV << 1).
+ // As distâncias de troca são comparadas com distância * zoom.
++// Mesmos limites usados ao selecionar as células em vegDrawable.
+ fn vegZoom() -> f32 { return clamp(F.post.y * 2.0, 0.3, 1.25); }
+ // troca malha → impostor: cada árvore tem o seu limiar dentro da faixa [D0, D1] e uma janela pontilhada curta (5 m),
+ // então em qualquer instante poucas árvores estão em transição (sem "tela" de pontilhado em faixas inteiras da mata)
+ // (troca seca, sem faixa pontilhada: mesmo com ruído por pixel, uma copa meio malha/meio impostor aparece como tela de pontos
+ // contra o céu onde as duas silhuetas não coincidem; uma árvore por vez trocando a ~100 m não se percebe)
+ fn vegFade(dEff: f32, seed: f32, d0: f32, d1: f32) -> f32 { let a = mix(d0, d1, fract(seed * 7.31 + 0.13)); return step(a, dEff); }
++fn vegTreeFade(d: f32, seed: f32) -> f32 {
++#ifdef PASS_SHADOW
++  if (P.camPos.w < 1.5) { return vegFade(d, seed, VEGQ_SH0A, VEGQ_SH0B); }
++  return vegFade(d, seed, VEGQ_SH1A, VEGQ_SH1B);
++#else
++  return vegFade(d, seed, VEG_D0, VEG_D1);
++#endif
++}
+ // deslocamento do vento num ponto da árvore. base = pé da árvore; rel = ponto relativo ao pé (m);
+ // w = peso do galho (0 tronco .. 1 ponta); fl = peso de tremor da folha (0..1); ph = fase da folha (0..1)
+ fn vegWind(base: vec3f, rel: vec3f, w: f32, fl: f32, ph: f32, time: f32) -> vec3f {
+@@ -29,11 +38,14 @@ fn vegWind(base: vec3f, rel: vec3f, w: f32, fl: f32, ph: f32, time: f32) -> vec3
+   d += (X * sin(time * 6.3 + p2) + vec3f(0.0, 0.7, 0.0) * sin(time * 7.9 + p2 * 1.4) + W * 0.5 * sin(time * 5.1 + p2 * 0.6)) * (fl * 0.035 * (0.5 + 0.8 * gust));
+   return d * S;
+ }
+-// ruído branco por pixel que muda a cada quadro: usado em TODO recorte estocástico (borda de alfa, troca de LOD, sumiço perto
+-// da lente). Sem estrutura regular (nada de xadrez/hachura num quadro parado) e o TAA integra de um quadro para o outro.
+-fn vegNoise(px: vec2f) -> f32 { return hash21(px + vec2f(F.misc.y * 17.13, F.misc.y * 31.71)); }
++// Um limiar por oitavo de cobertura nos oito quadros de jitter do TAA; a fase varia de pixel para pixel.
++fn vegNoise(px: vec2f) -> f32 {
++  return 0.0001 + 0.9998 * fract(hash21(px) + F.misc.y * 0.625);
++}
+ // alfa de textura → cobertura com borda de ~1 pixel (em vez de limiar fixo, que deixa degraus do tamanho do texel ampliado)
+-fn vegCover(a: f32, thr: f32) -> f32 { return sat((a - thr) / clamp(fwidth(a), 0.02, 0.7) + 0.5); }
++fn vegCover(a: f32, thr: f32) -> f32 {
++  return sat((a - thr) / clamp(fwidth(a) * 1.15, 0.035, 1.0) + 0.5);
++}
+ // Tinta por árvore — paleta de mata: do verde-garrafa ao oliva-amarelado, com algumas copas bem escuras, algumas amareladas/secas
+ // e raras avermelhadas; mais a claridade própria de cada árvore. Multiplica a cor da folha (malha, folhas e impostor iguais).
+ fn vegTint(seed: f32) -> vec3f {
+diff --git a/orig/wgsl/veg_grass.wgsl b/polish/wgsl/veg_grass.wgsl
+index 96022ec..4b0dbe6 100644
+--- a/orig/wgsl/veg_grass.wgsl
++++ b/polish/wgsl/veg_grass.wgsl
+@@ -25,37 +25,46 @@ fn vert(in: VIn) -> VSOut {
+   // cobertura deste anel (some antes da borda da grade) e do anel anterior (este aparece onde o anterior não cobre)
+   let eS = max(abs(xz.x - GR.s.z), abs(xz.y - GR.s.w)) / GR.s.y; let extS = 1.0 - smoothstep(0.8, 0.97, eS);
+   var extP = 0.0; if (GR.t.y > 0.0) { let eP = max(abs(xz.x - GR.t.z), abs(xz.y - GR.t.w)) / GR.t.y; extP = 1.0 - smoothstep(0.8, 0.97, eP); }
++  var fade = max(smoothstep(GR.q.x, GR.q.y, d), 1.0 - extP) * (1.0 - smoothstep(GR.q.z, GR.q.w, d)) * extS;
++  // As lâminas descartadas formam triângulos degenerados, sem consultar altura nem calcular vento.
++  o.wpos = vec3f(xz.x, 0.0, xz.y); o.pwpos = o.wpos;
++  if (fade <= 0.0 || !wmIn(xz)) { return o; }
+   let z = wmZone(xz);
+-  // a divisa aparada/rústica não é uma régua: ruído (só dentro da faixa de transição) recorta a borda em línguas e tufos soltos
+-  let bn = (textureSampleLevel(tNoise, sLin, xz * 0.071, 0.0).r - 0.5) * 0.9 + (h2.x - 0.5) * 0.35;
+-  let dEdge = z.r * 32.0 - 8.0; let tall = smoothstep(0.12, 0.6, z.b + bn * 4.0 * z.b * (1.0 - z.b));
++  let dEdge = z.r * 32.0 - 8.0;
++  if (dEdge <= 1.5 || z.g >= 0.485 || z.a >= 0.48 || (K == 0u && z.b == 0.0) || (ring > 4.5 && z.b == 1.0)) { return o; }
+   let forest = textureSampleLevel(tForest, sClamp, (xz - F.wm.xy + 1.0) / (vec2f(textureDimensions(tForest)) * 2.0), 0.0).r;
++  if (h2.y <= forest * 0.75) { return o; }
++  // a divisa aparada/rústica não é uma régua: ruído (só dentro da faixa de transição) recorta a borda em línguas e tufos soltos
++  var tall = z.b;
++  if (z.b > 0.0 && z.b < 1.0) {
++    let bn = (textureSampleLevel(tNoise, sLin, xz * 0.071, 0.0).r - 0.5) * 0.9 + (h2.x - 0.5) * 0.35;
++    tall = smoothstep(0.12, 0.6, z.b + bn * 4.0 * z.b * (1.0 - z.b));
++  }
+   let patchN = textureSampleLevel(tNoise, sLin, xz * 0.013, 0.0).rg;
+-  var ok = wmIn(xz) && dEdge > 1.5 && z.g < 0.485 && z.a < 0.48 && h2.y > forest * 0.75;
+   // altura: aparada junto à pista; alta e em tufos no rústico (e mais rala/baixa sob a mata)
+   let clump = smoothstep(0.25, 0.7, patchN.x) * 0.8 + 0.35;
+   // (a aparada cresce um pouco com a distância: a 40–70 m a lâmina ainda tem 3–5 pixels de altura e dá relevo ao gramado)
+   var ht = mix((0.07 + 0.075 * h2.x) * (1.0 + 0.35 * sat(d / 22.0) + 0.9 * sat((d - 24.0) / 40.0)), (0.34 + 0.5 * h2.x * h2.x + 0.25 * h.y) * clump, tall);
+   ht *= mix(1.0, 0.5, forest) * smoothstep(1.5, 2.7, dEdge);
+-  var fade = max(smoothstep(GR.q.x, GR.q.y, d), 1.0 - extP) * (1.0 - smoothstep(GR.q.z, GR.q.w, d)) * extS;
+   if (K == 0u) {
+     // touceiras em moitas irregulares: manchas sem tufo (ruído de baixa frequência) + falhas ao acaso
+-    let cl = textureSampleLevel(tNoise, sLin, xz * 0.023 + ring * 0.21, 0.0).g;
++    // Distantes, as manchas da encosta variam em duas escalas fixas no mundo.
++    let warp = (patchN - 0.5) * select(0.0, 0.8, ring >= 3.0);
++    let cl = textureSampleLevel(tNoise, sLin, xz * 0.023 + ring * 0.21 + warp, 0.0).g;
+     // nos anéis distantes (encostas vistas de longe ou pela lente longa) a cobertura é quase contínua: encosta lisa lia como
+     // terreno sem vegetação; de perto ficam as moitas com falhas
+     let farR = step(2.5, ring);
+     fade *= tall * GR.s.x * smoothstep(mix(0.3, 0.12, farR), mix(0.5, 0.3, farR), cl + (h2.x - 0.5) * 0.3);
+-    if (hash21(cxz * 2.71 + ring * 3.3) < mix(0.3, 0.08, farR)) { ok = false; }
++    if (hash21(cxz * 2.71 + ring * 3.3) < mix(0.3, 0.08, farR)) { return o; }
+   }
+   if (ring > 4.5) { fade *= 1.0 - smoothstep(0.25, 0.6, tall); }   // anel distante de lâminas: só a grama aparada (a alta é das touceiras)
+   ht *= fade;
+-  if (ht < 0.012) { ok = false; }
++  if (ht < 0.012) { return o; }
+   // junto à pista o mapa de alturas fica até 0,3 m abaixo do acostamento (ver terrainH): a superfície visível é o máximo entre
+   // o acostamento (plano da pista, caindo depois de 1,62 m) e o terreno
+   let tDy = -0.3 * (1.0 - smoothstep(0.2, 2.2, dEdge)); let aDy = -0.07 * sat((dEdge - 1.62) / 0.48) - 0.48 * sat((dEdge - 2.1) / 0.5);
+   let y0 = wmHeight(xz) - tDy + max(aDy, tDy);
+   let base = vec3f(xz.x, y0 - 0.01, xz.y);
+-  if (!ok) { o.wpos = base; o.pwpos = base; o.nrm = vec3f(0.0, 1.0, 0.0); o.uv = vec2f(0.0); o.mat = 0u; o.col = vec4f(0.0); o.ext = vec4f(0.0); return o; }
+   let w1 = grassWind(xz, F.wind.w); let w0 = grassWind(xz, F.wind.w - F.misc.x);
+   let patchD = sat(patchN.y * 1.6 - 0.45 + h2.x * 0.3) * tall;
+   if (K == 0u) {
+diff --git a/orig/wgsl/veg_imp.wgsl b/polish/wgsl/veg_imp.wgsl
+index 3eb34f0..0a433e4 100644
+--- a/orig/wgsl/veg_imp.wgsl
++++ b/polish/wgsl/veg_imp.wgsl
+@@ -11,9 +11,8 @@ fn vert(in: VIn) -> VSOut {
+   var o: VSOut;
+   let base = in.i0.xyz; let s = in.i0.w; let c = in.i1.x; let sn = in.i1.y; let arch = in.i1.w;
+   let ai = u32(arch); let dim = IU.a[min(ai, 11u)];
+-  let slot = P.camPos.w;
+-  let d = distance(base.xz, F.camPos.xz) * vegZoom();   // distância efetiva (com o zoom da lente)
+-  var fade = vegFade(d, in.i1.z, VEG_D0, VEG_D1);
++  let distanceXZ = distance(base.xz, F.camPos.xz); let d = distanceXZ * vegZoom();   // distância efetiva (com o zoom da lente)
++  var fade = vegTreeFade(distanceXZ * max(vegZoom(), VEGQ_ZOOM), in.i1.z);
+   var kill = arch >= VEG_NT;
+ #ifdef PASS_GBUF
+   var h = P.camPos.xz - base.xz;
+@@ -30,6 +29,7 @@ fn vert(in: VIn) -> VSOut {
+   fade = 1.0;
+   if (distance(base.xz, P.camPos.xz) > 700.0) { kill = true; }
+ #endif
++  if (kill) { o.wpos = base; o.pwpos = base; return o; }
+   h = normalize(h);
+   let right = vec3f(h.y, 0.0, -h.x);
+   let cx = f32(in.vi & 1u) * 2.0 - 1.0; let cy = f32(in.vi >> 1u);
+@@ -37,7 +37,6 @@ fn vert(in: VIn) -> VSOut {
+ #ifdef PASS_SHADOW
+   wp -= vec3f(F.sunDir.x, 0.0, F.sunDir.z) * (dim.x * s * 0.55);   // afasta do sol: a própria copa não se sombreia inteira
+ #endif
+-  if (kill) { wp = base; }
+   // quadro do atlas: ângulo da direção câmera→árvore no espaço local da árvore
+   let hl = vec2f(h.x * c + h.y * sn, -h.x * sn + h.y * c);
+   let f = fract(atan2(hl.y, hl.x) / 6.2831853 + 1.0) * 8.0;
+@@ -46,7 +45,7 @@ fn vert(in: VIn) -> VSOut {
+   o.uv = vec2f(cx * 0.5 + 0.5, 1.0 - cy);
+   o.mat = ai | (u32(floor(f)) << 8u);
+   o.col = vec4f(vegTintA(in.i1.z, arch), 1.0);
+-  o.ext = vec4f(fade, d, 0.0, 0.0);
++  o.ext = vec4f(fade, d, in.i1.z, 0.0);
+   return o;
+ }
+ fn impLayers(in: V2F) -> vec2i {
+@@ -58,26 +57,38 @@ fn surfAlpha(in: V2F) -> f32 {
+   // sombra da copa com recorte de folhagem: o alfa do atlas é furado por ruído celular (buracos de luz pequenos e variados, borda
+   // desfiada) em vez da silhueta maciça do cartão. Uma amostra só, com o amostrador simples (este passe tem muita sobreposição).
+   let a = textureSampleBias(tImpA, sImp, in.uv, select(L.x, L.y, in.nrm.z > 0.5), 0.3).a + 0.06;
++  if (P.camPos.w > 2.5) { return a * 0.82; }
+   let n = textureSampleLevel(tNoise, sImp, in.uv * 6.0 + f32(L.x) * 0.37, 0.0).b;
+   return a * (0.52 + 0.6 * smoothstep(0.3, 0.62, n));
+ }
+ fn surf(in: V2F, ff: bool) -> Surface {
+   let nz = 1.0 - vegNoise(in.pos.xy);   // complementar ao da malha: na troca de LOD cada pixel é de um ou de outro
+   // mistura os dois azimutes vizinhos do atlas (a silhueta se transforma aos poucos)
+-  let L = impLayers(in); let t = smoothstep(0.15, 0.85, in.nrm.z);
+-  let a = mix(textureSample(tImpA, sImp, in.uv, L.x), textureSample(tImpA, sImp, in.uv, L.y), t);
++  let L = impLayers(in);
++  let gx = dpdx(in.uv); let gy = dpdy(in.uv);
+   // quanto o atlas está ampliado na tela (lente longa): 0 = 1 texel por pixel ou menos, 1 = muito ampliado
+-  let tpp = max(fwidth(in.uv.x), fwidth(in.uv.y)) * 512.0; let mag = sat(1.0 - tpp);
++  let footprint = (abs(gx) + abs(gy)) * 512.0;
++  let tpp = max(footprint.x, footprint.y); let mag = sat(1.0 - tpp);
++  let detail = 1.0 - smoothstep(0.85, 2.0, tpp);
++  let band = mix(0.20, 0.35, detail);
++  let w = smoothstep(0.5 - band, 0.5 + band, in.nrm.z);
++  let layer = select(L.x, L.y, w >= 0.5); let other = select(L.y, L.x, w >= 0.5);
++  let blend = min(w, 1.0 - w);
++  var a = textureSampleGrad(tImpA, sImp, in.uv, layer, gx, gy);
++  if (blend > 0.0) { a = mix(a, textureSampleGrad(tImpA, sImp, in.uv, other, gx, gy), blend); }
+   // ampliado, o atlas borrado vira mancha: quebra a silhueta e o tom com ruído na escala de folha
+-  let dn = textureSample(tNoise, sLin, in.uv * 7.0 + f32(L.x) * 0.37);
+-  let dn2 = textureSample(tNoise, sLin, in.uv * 19.0 + f32(L.x) * 0.11);
++  var dn = vec4f(0.5);
++  if (detail > 0.0) {
++    dn = mix(dn, textureSampleGrad(tNoise, sLin, in.uv * 7.0 + in.ext.z * 11.0, gx * 7.0, gy * 7.0), detail);
++  }
+   // ao longe os mips afinam a copa: compensa o limiar
+   let thr = 0.5 - 0.22 * smoothstep(120.0, 600.0, in.ext.y);
+-  let aa = a.a + (dn.r * 0.6 + dn2.g * 0.4 - 0.5) * 0.5 * mag * smoothstep(0.05, 0.4, a.a) * (1.0 - smoothstep(0.75, 1.0, a.a));
++  let aa = a.a + (dn.r * 0.6 + dn.g * 0.4 - 0.5) * 0.45 * mag * smoothstep(0.05, 0.4, a.a) * (1.0 - smoothstep(0.75, 1.0, a.a));
+   if (vegCover(aa, thr) * in.ext.x <= nz) { discard; }
+-  let nt = mix(textureSample(tImpN, sImp, in.uv, L.x), textureSample(tImpN, sImp, in.uv, L.y), t);
++  var nt = textureSampleGrad(tImpN, sImp, in.uv, layer, gx, gy);
++  if (blend > 0.0) { nt = mix(nt, textureSampleGrad(tImpN, sImp, in.uv, other, gx, gy), blend); }
+   var nl = nt.xyz * 2.0 - 1.0; let c = in.nrm.x; let sn = in.nrm.y;
+-  nl += vec3f(dn.g - 0.5, dn2.r - 0.5, dn.b - 0.5) * (0.2 + 0.3 * mag) * nt.a;
++  nl += (dn.gbr - 0.5) * (0.2 + 0.3 * mag) * nt.a;
+   // normais mais lisas ao longe (copa como volume, sem ruído de folha a folha)
+   let far = smoothstep(90.0, 450.0, in.ext.y);
+   nl = normalize(mix(nl, vec3f(nl.x * 0.5, abs(nl.y) * 0.5 + 0.6, nl.z * 0.5), far * 0.7));
+@@ -89,10 +100,12 @@ fn surf(in: V2F, ff: bool) -> Surface {
+   // 0,69 ≈ média das modulações de tufo da malha (ruído celular × miolo escuro), para as duas cores médias coincidirem
+   var lc = a.rgb * mix(vec3f(0.8), in.col.rgb * vec3f(0.57, 0.64, 0.33) * 0.74, nt.a);
+   // tufos claros e escuros (mesma ideia da malha), que somem ao longe
+-  let tuft = (0.66 + 0.68 * smoothstep(0.25, 0.8, dn.b)) * (0.8 + 0.4 * dn2.r);
++  let tuft = (0.66 + 0.68 * smoothstep(0.25, 0.8, dn.b)) * (0.8 + 0.4 * dn.r);
+   s.albedo = lc * mix(1.0, tuft, nt.a * (1.0 - 0.6 * far)) * mix(1.0, 0.85, far * nt.a);
+   // translucidez mais forte na borda da silhueta (cobertura borrada baixa), menor ao longe; folhagem fosca
+-  let ab = textureSampleBias(tImpA, sImp, in.uv, L.x, 3.0).a;
++  var ab = a.a;
++  // Quando muda o azimute dominante, a borda usa o alfa já misturado das duas vistas.
++  if (detail > 0.0) { ab = mix(ab, textureSampleGrad(tImpA, sImp, in.uv, layer, gx * 8.0, gy * 8.0).a, detail * (1.0 - 2.0 * blend)); }
+   let edge = 1.0 - smoothstep(0.5, 0.92, ab);
+   s.sss = 0.24 * nt.a * mix(0.3, 1.0, edge) * mix(1.0, 0.4, far);
+   let back = smoothstep(0.15, 0.8, dot(-Vd, F.sunDir.xyz)) * edge * nt.a * (1.0 - 0.6 * far);
+diff --git a/orig/wgsl/veg_leaf.wgsl b/polish/wgsl/veg_leaf.wgsl
+index f412320..0458558 100644
+--- a/orig/wgsl/veg_leaf.wgsl
++++ b/polish/wgsl/veg_leaf.wgsl
+@@ -6,21 +6,20 @@ struct VIn { @location(0) pos: vec3f, @location(1) off: vec4f, @location(2) nrm:
+ fn vert(in: VIn) -> VSOut {
+   var o: VSOut;
+   let base = in.i0.xyz; let s = in.i0.w; let c = in.i1.x; let sn = in.i1.y;
+-  let zoom = vegZoom();
++  let zoom = max(vegZoom(), VEGQ_LEAFZOOM);
+   let lb = (in.pos - in.off.xyz * 0.6) * s;                                   // base da folha (espaço da árvore)
+   let relb = vec3f(lb.x * c - lb.z * sn, lb.y, lb.x * sn + lb.z * c);
+   let dl = distance(base + relb, F.camPos.xyz) * zoom;
+   // cada folha some a uma distância própria (fase alta = some antes): a copa rareia aos poucos, de 23 m a 61 m
+-  let rk = mix(1.6, 0.6, f32(in.uvx.z) / 255.0);
++  let rk = mix(VEGQ_LEAFRK, 0.6, f32(in.uvx.z) / 255.0);
+   let k = 1.0 - smoothstep(VEG_L0 * rk, VEG_L1 * rk, dl);
++  if (k <= 0.0) { o.wpos = base; o.pwpos = base; return o; }
+   let lp = (in.pos - in.off.xyz * (0.6 * (1.0 - k))) * s;
+   let rel = vec3f(lp.x * c - lp.z * sn, lp.y, lp.x * sn + lp.z * c);
+   let ln = in.nrm.xyz; o.nrm = vec3f(ln.x * c - ln.z * sn, ln.y, ln.x * sn + ln.z * c);
+   let fl = in.nrm.w; let ph = f32(in.uvx.z) / 255.0; let t = F.wind.w;
+-  var wp = base + rel + vegWind(base, rel, in.off.w, fl, ph, t);
+-  var pp = base + rel + vegWind(base, rel, in.off.w, fl, ph, t - F.misc.x);
+-  if (k <= 0.0) { wp = base; pp = base; }
+-  o.wpos = wp; o.pwpos = pp;
++  o.wpos = base + rel + vegWind(base, rel, in.off.w, fl, ph, t);
++  o.pwpos = base + rel + vegWind(base, rel, in.off.w, fl, ph, t - F.misc.x);
+   o.uv = vec2f(f32(in.uvx.x) / 255.0, f32(in.uvx.y) / 127.5 - 1.0);
+   o.mat = 2u | (u32(in.col.a * 255.0 + 0.5) << 8u);
+   o.col = vec4f(in.col.rgb * 2.0 * vegTintA(in.i1.z, in.i1.w), f32(in.uvx.w) / 255.0);
+diff --git a/orig/wgsl/veg_tree.wgsl b/polish/wgsl/veg_tree.wgsl
+index 48c9927..d4a7883 100644
+--- a/orig/wgsl/veg_tree.wgsl
++++ b/polish/wgsl/veg_tree.wgsl
+@@ -8,20 +8,23 @@ fn vert(in: VIn) -> VSOut {
+   let base = in.i0.xyz; let s = in.i0.w; let c = in.i1.x; let sn = in.i1.y;
+   let lp = in.pos * s; let rel = vec3f(lp.x * c - lp.z * sn, lp.y, lp.x * sn + lp.z * c);
+   let ln = in.nrm.xyz; o.nrm = vec3f(ln.x * c - ln.z * sn, ln.y, ln.x * sn + ln.z * c);
+-  let d = distance(base.xz, F.camPos.xz) * vegZoom();   // distância efetiva (com o zoom da lente)
++  let distanceXZ = distance(base.xz, F.camPos.xz); let d = distanceXZ * vegZoom();   // distância efetiva (com o zoom da lente)
+   let under = in.i1.w >= VEG_NT;
+-  var fade = vegFade(d, in.i1.z, VEG_D0, VEG_D1);
+-  if (under) { fade = vegFade(d, in.i1.z, VEG_U0, VEG_U1); }
++  let lod = distanceXZ * max(vegZoom(), VEGQ_ZOOM);
++  var fade = vegTreeFade(lod, in.i1.z);
++  if (under) { fade = vegFade(lod, in.i1.z, VEG_U0, VEG_U1); }
++  var hidden = fade >= 0.5;
++#ifdef PASS_SHADOW
++  hidden = hidden || (!under && !vegShadowMesh(base, fade)) || vegShadowCull(base, VEG_H[u32(in.i1.w)] * s);
++#endif
++  if (hidden) { o.wpos = base; o.pwpos = base; return o; }
+   let fl = f32(in.mat.w) / 255.0; let ph = f32(in.mat.y) / 255.0;
+   let t = F.wind.w;
+-  var wp = base + rel + vegWind(base, rel, in.nrm.w, fl, ph, t);
+-  var pp = base + rel + vegWind(base, rel, in.nrm.w, fl, ph, t - F.misc.x);
+-#ifdef PASS_SHADOW
+-  if ((!under && !vegShadowMesh(base, fade)) || fade >= 0.5 || vegShadowCull(base, VEG_H[u32(in.i1.w)] * s)) { wp = base; pp = base; }
+-#else
+-  if (fade >= 1.0) { wp = base; pp = base; }
++  o.wpos = base + rel + vegWind(base, rel, in.nrm.w, fl, ph, t);
++#ifdef PASS_GBUF
++  o.pwpos = base + rel + vegWind(base, rel, in.nrm.w, fl, ph, t - F.misc.x);
+ #endif
+-  o.wpos = wp; o.pwpos = pp; o.uv = in.uv;
++  o.uv = in.uv;
+   o.mat = in.mat.x | (in.mat.y << 8u) | (in.mat.z << 16u) | (in.mat.w << 24u);
+   let tint = vegTintA(in.i1.z, in.i1.w);
+   // de perto, a camada de folhas individuais cobre os cartões: eles viram o miolo sombreado da copa
+@@ -54,9 +57,10 @@ fn surf(in: V2F, ff: bool) -> Surface {
+     // luz dentro da copa: a normal de volume da copa, inclinada pelo plano do próprio cartão e por um relevo fino de folhas,
+     // para cada tufo pegar o sol de um jeito (massas claras e escuras em vez de mancha chapada)
+     var geo = normalize(cross(dpdx(in.wpos), dpdy(in.wpos))); if (dot(geo, s.normal) < 0.0) { geo = -geo; }
+-    let dn = textureSample(tNoise, sLin, in.uv * 3.0 + in.ext.y * 13.0).rg - 0.5;
++    let tuft = textureSample(tNoise, sLin, in.uv * 1.6 + in.ext.y * 7.0);
++    let dn = tuft.rg - 0.5;
+     let lum0 = dot(t.rgb, vec3f(0.3, 0.6, 0.1));
+-    s.normal = normalize(mix(s.normal, geo, 0.2) + vec3f(dn.x, (lum0 - 0.25) * 0.5, dn.y) * 0.26);
++    s.normal = normalize(mix(s.normal, geo, 0.16) + vec3f(dn.x, (lum0 - 0.25) * 0.5, dn.y) * 0.26);
+     // folhas do lado de lá da copa (normal de volume apontando para longe de quem olha): o que se vê é o verso, que não recebe
+     // o sol de frente — só a luz que atravessa. Vira a normal para o observador (senão a contraluz enche a copa de cartões claros).
+     let Vd = normalize(F.camPos.xyz - in.wpos); let nvd = dot(s.normal, Vd);
+@@ -65,11 +69,11 @@ fn surf(in: V2F, ff: bool) -> Surface {
+     // verde de mata, escuro e pouco saturado (o tom vem da tinta da árvore/espécie); variação folha a folha na escala do tufo
+     // (ruído celular): tufos claros e escuros lado a lado dão leitura de folhagem a média distância, em vez de mancha lisa
+     var lc = t.rgb * in.col.rgb * vec3f(0.57, 0.64, 0.33);   // verde natural, saturação moderada
+-    let cell = textureSample(tNoise, sLin, in.uv * 1.6 + in.ext.y * 7.0).b; let cell2 = textureSample(tNoise, sLin, in.uv * 0.55 + in.ext.y * 3.0).r;
++    let cell = tuft.b; let cell2 = tuft.g;
+     lc *= (0.74 + 0.5 * cell) * (0.78 + 0.44 * cell2);   // variação contínua (sem degrau: degraus liam como copa posterizada)
+     lc = mix(lc, lc * vec3f(1.2, 1.1, 0.72), smoothstep(0.62, 0.9, cell2) * ao * 0.4);   // pontas ao sol puxam para o verde-amarelado
+     // miolo da copa: verde-escuro, nunca preto (no mínimo ~60% do albedo das pontas; o resto do escurecimento vem da oclusão)
+-    s.albedo = lc * mix(0.62, 1.0, ao * ao);
++    s.albedo = lc * mix(0.58, 1.02, ao * ao);
+     // de perto os cartões são o miolo sombreado sob as folhas individuais
+     let nearK = smoothstep(VEG_L0 * 0.8, VEG_L1 * 1.5, in.ext.w);
+     // translucidez: a folha de fora da copa atravessada pelo sol fica verde-viva (contraluz com cor, sem silhueta preta)
+@@ -82,7 +86,7 @@ fn surf(in: V2F, ff: bool) -> Surface {
+     // (o mapa de sombras deixaria a copa inteira na própria sombra; radiância = albedo × emissive × 16 ≈ 25% do sol direto)
+     s.emissive = 0.05 * smoothstep(0.35, 0.9, dot(-Vd, F.sunDir.xyz)) * ao * ao * ao * smoothstep(1.5, 5.0, in.ext.z);
+     // brilho pontual: parte das folhas é lustrosa (cera) e pega o sol; o resto é fosco
+-    s.rough = mix(0.95, 0.7, smoothstep(0.7, 0.85, cell) * ao); s.ao = max(ao, 0.58) * mix(0.88, 1.0, nearK);
++    s.rough = mix(0.95, 0.7, smoothstep(0.7, 0.85, cell) * ao); s.ao = max(ao, 0.54) * mix(0.88, 1.0, nearK);
+     // face de trás da folha: um pouco mais clara e fosca
+     if (!ff) { s.albedo *= vec3f(1.06, 1.08, 0.94); s.rough = 0.98; }
+   } else {
+@@ -92,32 +96,38 @@ fn surf(in: V2F, ff: bool) -> Surface {
+     var sc = vec2f(0.55, 0.11); var depth = 1.0;
+     if (bt == 1u) { sc = vec2f(0.34, 0.42); depth = 0.42; } if (bt == 2u) { sc = vec2f(0.5, 1.4); depth = 0.7; }
+     let wr = textureSample(tNoise, sLin, in.uv * vec2f(0.21, 0.07)).rg;
+-    let q = in.uv * sc + wr * 0.09; let e = 0.004;
+-    let q2 = in.uv * sc * vec2f(3.1, 2.3) + wr.yx * 0.05;
+-    let h0 = textureSample(tNoise, sLin, q).b * 0.72 + textureSample(tNoise, sLin, q2).b * 0.28;
+-    let hx = textureSample(tNoise, sLin, q + vec2f(e, 0.0)).b * 0.72 + textureSample(tNoise, sLin, q2 + vec2f(e * 3.1, 0.0)).b * 0.28;
+-    let hy = textureSample(tNoise, sLin, q + vec2f(0.0, e)).b * 0.72 + textureSample(tNoise, sLin, q2 + vec2f(0.0, e * 2.3)).b * 0.28;
+-    let g = vec2f(hx - h0, hy - h0) / e * 0.034 * depth;
+-    let dp1 = dpdx(in.wpos); let dp2 = dpdy(in.wpos); let du1 = dpdx(q); let du2 = dpdy(q);
+-    let p2 = cross(dp2, N); let p1 = cross(N, dp1);
+-    let T = p2 * du1.x + p1 * du2.x; let B = p2 * du1.y + p1 * du2.y; let im = inverseSqrt(max(max(dot(T, T), dot(B, B)), 1e-12));
+-    let fd = sat(1.25 - in.ext.w / 70.0);
+-    s.normal = normalize(N - (T * g.x + B * g.y) * im * fd);
+-    // sulco escuro (h0 baixo) × crista clara: contraste forte para o relevo aparecer também na sombra
++    let q = in.uv * sc + wr * 0.09;
++    let coarse = textureSample(tNoise, sLin, q).b;
++    var h0 = coarse; var veinK = 0.92; var hue = 0.5; var lichen = 1.0;
++    // As estrias largas ficam; o gradiente fino, a cor dos veios e o líquen somem antes de desligar as amostras.
++    let detail = 1.0 - smoothstep(30.0, 48.0, in.ext.w);
++    if (detail > 0.0) {
++      let e = 0.004; let q2 = in.uv * sc * vec2f(3.1, 2.3) + wr.yx * 0.05;
++      let h = coarse * 0.72 + textureSample(tNoise, sLin, q2).b * 0.28;
++      h0 = mix(coarse, h, detail);
++      let hx = textureSample(tNoise, sLin, q + vec2f(e, 0.0)).b * 0.72 + textureSample(tNoise, sLin, q2 + vec2f(e * 3.1, 0.0)).b * 0.28;
++      let hy = textureSample(tNoise, sLin, q + vec2f(0.0, e)).b * 0.72 + textureSample(tNoise, sLin, q2 + vec2f(0.0, e * 2.3)).b * 0.28;
++      let g = vec2f(hx - h, hy - h) / e * 0.034 * depth;
++      let dp1 = dpdx(in.wpos); let dp2 = dpdy(in.wpos); let du1 = dpdx(q); let du2 = dpdy(q);
++      let p2 = cross(dp2, N); let p1 = cross(N, dp1);
++      let T = p2 * du1.x + p1 * du2.x; let B = p2 * du1.y + p1 * du2.y;
++      let im = inverseSqrt(max(max(dot(T, T), dot(B, B)), 1e-12));
++      s.normal = normalize(N - (T * g.x + B * g.y) * im * sat(1.25 - in.ext.w / 70.0) * detail);
++      let vein = textureSample(tNoise, sLin, in.uv * vec2f(1.9, 0.05)).g;
++      veinK = mix(veinK, mix(0.68, 1.14, smoothstep(0.35, 0.62, vein)), detail);
++      hue = mix(hue, textureSample(tNoise, sLin, in.uv * vec2f(0.13, 0.031) + 0.7).g, detail);
++      if (bt == 1u) {
++        let pt = textureSample(tNoise, sLin, in.uv * vec2f(0.33, 0.12) + 0.4).r;
++        lichen = mix(1.0, mix(0.82, 1.3, smoothstep(0.5, 0.66, pt)) * (0.9 + 0.1 * smoothstep(0.1, 0.25, abs(fract(in.uv.y * 1.3 + wr.x) - 0.5))), detail);
++      }
++    }
+     let ridge = smoothstep(0.28, 0.72, h0);
+     var k = mix(1.0, mix(0.16, 1.45, ridge), 0.5 + 0.5 * depth) * (0.6 + 0.8 * wr.x);
+-    // veios verticais finos e escurecimento junto ao chão (umidade/sujeira)
+-    let vein = textureSample(tNoise, sLin, in.uv * vec2f(1.9, 0.05)).g;
+-    k *= mix(0.68, 1.14, smoothstep(0.35, 0.62, vein)) * mix(0.5, 1.0, smoothstep(0.0, 1.8, in.ext.z));
++    k *= veinK * lichen * mix(0.5, 1.0, smoothstep(0.0, 1.8, in.ext.z));
+     if (bt == 2u) { k *= 0.72 + 0.28 * smoothstep(0.08, 0.2, abs(fract(in.uv.y * 2.6) - 0.5)); }
+-    if (bt == 1u) { // casca lisa: manchas claras de líquen e anéis horizontais discretos
+-      let pt = textureSample(tNoise, sLin, in.uv * vec2f(0.33, 0.12) + 0.4).r;
+-      k *= mix(0.82, 1.3, smoothstep(0.5, 0.66, pt)) * (0.9 + 0.1 * smoothstep(0.1, 0.25, abs(fract(in.uv.y * 1.3 + wr.x) - 0.5)));
+-    }
+     // musgo/liquens perto da base e nas faces voltadas para cima
+     let moss = smoothstep(0.46, 0.7, wr.y + (1.0 - sat(in.ext.z * 0.2)) * 0.26 + sat(N.y) * 0.25) * 0.6;
+     // variação de cor ao longo do tronco (faixas mais avermelhadas e mais cinzentas) + musgo
+-    let hue = textureSample(tNoise, sLin, in.uv * vec2f(0.13, 0.031) + 0.7).g;
+     s.albedo = mix(in.col.rgb * mix(vec3f(1.12, 0.92, 0.78), vec3f(0.86, 0.98, 1.1), smoothstep(0.3, 0.7, hue)) * k * 0.56, vec3f(0.07, 0.1, 0.03) * (0.6 + 0.8 * h0), moss);
+     s.rough = 0.88; s.ao = in.col.a * mix(1.0, 0.4 + 0.6 * ridge, depth) * mix(0.55, 1.0, smoothstep(0.0, 0.9, in.ext.z));
+   }
+diff --git a/orig/wgsl/world_crowd.wgsl b/polish/wgsl/world_crowd.wgsl
+index ed89755..247c03e 100644
+--- a/orig/wgsl/world_crowd.wgsl
++++ b/polish/wgsl/world_crowd.wgsl
+@@ -9,10 +9,19 @@ fn vert(in: VIn) -> VSOut {
+   let right = vec3f(th.z, 0.0, -th.x);
+   o.wpos = in.pos + right * in.nrm.x + vec3f(0.0, in.nrm.y * 2.0, 0.0);
+   o.pwpos = o.wpos;
++  // Só parte do público se mexe. Os pés ficam fixos e a fase é própria de cada cartão.
++  if (in.mat.w != 0u && (in.mat.y ^ in.mat.z) < 80u && in.nrm.y > 0.0) {
++    let speed = 1.35 + f32(in.mat.z & 7u) * 0.13;
++    let phase = F.wind.w * speed + f32(in.mat.z) * 0.38;
++    let amplitude = right * (0.085 * in.nrm.y);
++    o.wpos += amplitude * sin(phase);
++    o.pwpos += amplitude * sin(phase - speed * F.misc.x);
++  }
+   // corpo arredondado: a normal gira de um lado ao outro do cartão (cilindro) e aponta um pouco para cima —
+   // o sol baixo ilumina um lado da figura e deixa o outro na sombra
+   o.nrm = normalize(th * 0.72 + right * sign(in.nrm.x) * 0.85 + vec3f(0.0, 0.42, 0.0));
+-  o.uv = in.uv; o.mat = in.mat.x | (in.mat.y << 8u) | (in.mat.z << 16u) | (in.mat.w << 24u); o.col = in.col; o.ext = vec4f(0.0);
++  o.uv = in.uv; o.mat = in.mat.x | (in.mat.y << 8u) | (in.mat.z << 16u) | (in.mat.w << 24u); o.col = in.col;
++  o.ext = vec4f(select(0.0, 1.0, in.nrm.y > 0.0), 0.0, 0.0, 0.0);
+   return o;
+ }
+ fn surf(in: V2F, ff: bool) -> Surface {
+@@ -27,10 +36,10 @@ fn surf(in: V2F, ff: bool) -> Surface {
+ #endif
+   let skin = mix(vec3f(0.5, 0.33, 0.24), vec3f(0.17, 0.1, 0.07), matA(in.mat));
+   let hair = mix(vec3f(0.02, 0.016, 0.013), vec3f(0.32, 0.27, 0.22), smoothstep(0.55, 1.0, matB(in.mat)));
+-  var c = mix(skin, hair, smoothstep(0.3, 0.6, t.b)); c = mix(c, in.col.rgb, smoothstep(0.3, 0.6, t.g));
+-  // dobras e manchas de tecido (ruído por figura), sombreamento desenhado e base mais escura: nada de cor chapada
+-  let fold = textureSample(tNoise, sLin, in.uv * vec2f(46.0, 21.0) + vec2f(matA(in.mat), matB(in.mat)) * 3.7);
+-  let cloth = smoothstep(0.3, 0.6, t.g) + smoothstep(0.3, 0.6, t.b) * 0.5;
+-  s.albedo = c * (0.1 + 1.05 * t.r * t.r) * (1.0 - cloth * (0.3 * fold.r + 0.14 * fold.b - 0.1)); s.rough = 0.9; s.ao = in.col.a * (0.55 + 0.45 * t.r); s.sss = 0.06;
++  let jeans = mix(vec3f(0.035, 0.049, 0.067), vec3f(0.16, 0.145, 0.12), matB(in.mat));
++  let dark = select(jeans, hair, in.ext.x > 0.63);
++  var c = mix(skin, dark, smoothstep(0.16, 0.52, t.b)); c = mix(c, in.col.rgb, smoothstep(0.16, 0.52, t.g));
++  // O atlas sRGB já fornece as dobras em luz linear. Preservar os meios-tons sob a cobertura.
++  s.albedo = c * (0.26 + 0.78 * t.r); s.rough = 0.9; s.ao = in.col.a * (0.74 + 0.26 * t.r); s.sss = 0.06;
+   return s;
+ }
+diff --git a/orig/wgsl/world_ground.wgsl b/polish/wgsl/world_ground.wgsl
+index 722484d..46f8852 100644
+--- a/orig/wgsl/world_ground.wgsl
++++ b/polish/wgsl/world_ground.wgsl
+@@ -1,6 +1,15 @@
+ // Material do chão (terreno e acostamento da pista usam a mesma função → emenda invisível).
+ // grama aparada / rústica, terra, brita, concreto e pit lane, chão de mata e, de longe, copa de floresta.
+ #include palette
++// Média RGBA do ruído 512² gerado por noisebake (linear, após quantização).
++const DETAIL_MEAN = vec4f(0.4974, 0.4912, 0.4906, 0.4994);
++fn detailFrame(uv: vec2f) -> mat3x2f { return mat3x2f(uv, dpdx(uv), dpdy(uv)); }
++// Os gradientes vêm de fora do corte por distância e acompanham a rotação anisotrópica.
++fn detailSample(frameUV: mat3x2f, axis: vec2f, freq: vec2f, offset: f32) -> vec4f {
++  let basis = mat2x2f(vec2f(axis.x, -axis.y) * freq, vec2f(axis.y, axis.x) * freq);
++  let uv = basis * frameUV;
++  return textureSampleGrad(tNoise, sLin, uv[0] + offset, uv[1], uv[2]);
++}
+ fn grHash(p: vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453); }
+ // marcas pintadas do pit lane (reta principal corre em +X com z = d, s = x + 60)
+ fn pitPaint(sr: f32, d: f32, aa: f32) -> f32 {
+@@ -24,17 +33,41 @@ fn groundSurf(wpos: vec3f, Ng: vec3f, forest: f32) -> Surface {
+   let xz = wpos.xz;
+ #ifdef PASS_CUBE
+   let dist = distance(wpos, P.camPos.xyz);
++  const near2: f32 = 0.0;
+ #else
+   let dist = distance(wpos, F.camPos.xyz);
++  let near2 = 1.0 - smoothstep(4.0, 30.0, dist);
+ #endif
+   let z = wmZone(xz);
+   let adist = z.r * 32.0 - 8.0;
+   let nA = textureSample(tNoise, sLin, xz * 0.0137);
+   let nB = textureSample(tNoise, sLin, vec2f(xz.x * 0.8 - xz.y * 0.6, xz.x * 0.6 + xz.y * 0.8) * 0.083);
+   let nC = textureSample(tNoise, sLin, xz * 0.61 + nA.rg * 0.2);
+-  let nD = (textureSample(tNoise, sLin, vec2f(xz.x * 0.6 + xz.y * 0.8, -xz.x * 0.8 + xz.y * 0.6) * 4.7) + textureSample(tNoise, sLin, vec2f(xz.x * 0.966 - xz.y * 0.259, xz.x * 0.259 + xz.y * 0.966) * 3.31 + 0.37)) * 0.5;
+   let near = 1.0 - smoothstep(20.0, 110.0, dist);
+-  let near2 = 1.0 - smoothstep(4.0, 30.0, dist);
++  let detailFade = smoothstep(0.0, 0.24, near2);
++  let groundUV = detailFrame(xz);
++  let leafUV = detailFrame(xz + (nC.rg - 0.5) * 0.25);
++  let footprint = max(length(groundUV[1]), length(groundUV[2]));
++  // Média da máscara de folhas após max/smoothstep, por tamanho de pixel no chão (m).
++  var blade = 0.43 * exp2(-37.0 * footprint);
++  var nD = DETAIL_MEAN;
++  var leafGrad = vec2f(0.0);
++  if (near2 > 0.0) {
++    let d1 = detailSample(groundUV, vec2f(0.6, 0.8), vec2f(4.7), 0.0);
++    let d2 = detailSample(groundUV, vec2f(0.966, -0.259), vec2f(3.31), 0.37);
++    nD = mix(DETAIL_MEAN, (d1 + d2) * 0.5, detailFade);
++    let b1 = detailSample(leafUV, vec2f(1.0, 0.0), vec2f(9.3, 1.3), 0.0).r;
++    let b2 = detailSample(leafUV, vec2f(0.5, 0.866), vec2f(8.1, 1.15), 0.31).g;
++    let b3 = detailSample(leafUV, vec2f(0.5, -0.866), vec2f(10.4, 1.45), 0.67).r;
++    let tuftUV = mat3x2f(leafUV[0] * 2.3 + 0.37, leafUV[1] * 2.3, leafUV[2] * 2.3);
++    let b4 = detailSample(tuftUV, vec2f(0.966, 0.259), vec2f(9.0, 1.2), 0.0).g;
++    let b5 = detailSample(tuftUV, vec2f(0.259, -0.966), vec2f(9.6, 1.3), 0.53).r;
++    blade = mix(blade, max(smoothstep(0.5, 0.7, max(b1, max(b2, b3))),
++                           smoothstep(0.55, 0.72, max(b4, b5)) * 0.8), detailFade);
++    leafGrad = vec2f(b1 - 0.5, 0.0) * 2.8 + vec2f(0.5, 0.866) * (b2 - 0.5) * 2.4
++             + vec2f(0.5, -0.866) * (b3 - 0.5) * 2.4 + vec2f(0.966, -0.259) * (b4 - 0.5) * 1.2
++             + vec2f(0.259, 0.966) * (b5 - 0.5) * 1.2;
++  }
+   // ---- grama ----
+   var g = mix(COL_GRASS_ROOT * 1.7, COL_GRASS, 0.3 + 0.7 * nC.r);
+   g *= 0.78 + 0.44 * nB.r;
+@@ -51,21 +84,10 @@ fn groundSurf(wpos: vec3f, Ng: vec3f, forest: f32) -> Surface {
+   g *= 0.8 + 0.4 * nA.b;
+   g = mix(g, g * vec3f(1.22, 1.12, 0.8), smoothstep(0.55, 0.75, nE.g) * 0.4 * (1.0 - z.b * 0.5));
+   g *= 1.0 + (nD.b - 0.5) * 0.5 + (nD.a - 0.5) * 0.22;
+-  // lâminas: fibras alongadas em três direções (ruído esticado ~7:1). De perto o gramado lê como folhas, com sombra entre elas;
+-  // os mips levam à média ao longe, sem trocar o tom.
+-  let bq = xz + (nC.rg - 0.5) * 0.25;
+-  let b1 = textureSample(tNoise, sLin, vec2f(bq.x * 9.3, bq.y * 1.3));
+-  let b2 = textureSample(tNoise, sLin, vec2f((bq.x * 0.5 + bq.y * 0.866) * 8.1, (-bq.x * 0.866 + bq.y * 0.5) * 1.15) + 0.31);
+-  let b3 = textureSample(tNoise, sLin, vec2f((bq.x * 0.5 - bq.y * 0.866) * 10.4, (bq.x * 0.866 + bq.y * 0.5) * 1.45) + 0.67);
+-  let bq2 = bq * 2.3 + 0.37;
+-  let b4 = textureSample(tNoise, sLin, vec2f((bq2.x * 0.966 + bq2.y * 0.259) * 9.0, (-bq2.x * 0.259 + bq2.y * 0.966) * 1.2));
+-  let b5 = textureSample(tNoise, sLin, vec2f((bq2.x * 0.259 - bq2.y * 0.966) * 9.6, (bq2.x * 0.966 + bq2.y * 0.259) * 1.3) + 0.53);
+-  let blade = max(smoothstep(0.5, 0.7, max(b1.r, max(b2.g, b3.r))), smoothstep(0.55, 0.72, max(b4.g, b5.r)) * 0.8);
+   let tuft = smoothstep(0.35, 0.7, nD.b);                              // tufos: moitas mais claras/escuras de ~10 cm
+   g *= (0.56 + 0.66 * blade) * (0.84 + 0.32 * tuft);
+   var alb = g; var rough = 0.9;
+-  var grad = (nC.rg - 0.5) * 1.1 * near + (nD.rg - 0.5) * 2.0 * near2
+-    + (vec2f(b1.r - 0.5, 0.0) * 2.8 + vec2f(0.5, 0.866) * (b2.g - 0.5) * 2.4 + vec2f(0.5, -0.866) * (b3.r - 0.5) * 2.4 + vec2f(0.966, -0.259) * (b4.g - 0.5) * 1.2 + vec2f(0.259, 0.966) * (b5.r - 0.5) * 1.2) * near2;
++  var grad = (nC.rg - 0.5) * 1.1 * near + ((nD.rg - 0.5) * 2.0 + leafGrad) * near2;
+   var ao = (0.72 + 0.28 * nC.r * (0.6 + 0.4 * nD.b)) * (0.58 + 0.42 * blade);
+   var sss = 0.25;
+   // terra batida: junto ao asfalto e manchas ralas
+@@ -101,7 +123,15 @@ fn groundSurf(wpos: vec3f, Ng: vec3f, forest: f32) -> Surface {
+   let gm = smoothstep(0.5 - gw, 0.5 + gw, z.g + (nC.b - 0.5) * 0.012);
+   if (gm > 0.0) {
+     let wq = xz + (nA.rg - 0.5) * 2.4 + (nC.rg - 0.5) * 0.22;      // domínio torcido: a textura fina não repete em ladrilho
+-    let st = (textureSample(tNoise, sLin, wq * 2.9) + textureSample(tNoise, sLin, vec2f(xz.x * 0.342 - xz.y * 0.94, xz.x * 0.94 + xz.y * 0.342) * 2.13 + 0.61)) * 0.5;
++    let gravelUV = detailFrame(wq);
++    var st = DETAIL_MEAN; var gr1 = DETAIL_MEAN; var gr2 = DETAIL_MEAN;
++    if (near2 > 0.0) {
++      let stA = detailSample(gravelUV, vec2f(1.0, 0.0), vec2f(2.9), 0.0);
++      let stB = detailSample(groundUV, vec2f(0.342, -0.94), vec2f(2.13), 0.61);
++      st = mix(DETAIL_MEAN, (stA + stB) * 0.5, detailFade);
++      gr1 = mix(DETAIL_MEAN, detailSample(gravelUV, vec2f(1.0, 0.0), vec2f(5.3), 0.11), detailFade);
++      gr2 = mix(DETAIL_MEAN, detailSample(groundUV, vec2f(0.8, 0.6), vec2f(1.9), 0.43), detailFade);
++    }
+     let st2 = textureSample(tNoise, sLin, vec2f(xz.x * 0.8 - xz.y * 0.6, xz.x * 0.6 + xz.y * 0.8) * 0.21 + 0.5);
+     // sulcos do rastelo: finos (45 cm) de perto e leiras largas (1,6 m) que se leem de longe; somem antes de serrilhar
+     let rk = xz.y * 13.96 + (nB.r + nA.g) * 9.0; let rkf = 0.0; let rake = 0.0;   // (sem sulcos paralelos de rastelo: liam como estrias)
+@@ -120,8 +150,6 @@ fn groundSurf(wpos: vec3f, Ng: vec3f, forest: f32) -> Surface {
+     gc = mix(gc, gc * vec3f(0.78, 0.8, 0.84), smoothstep(0.5, 0.7, st2.g) * 0.5);            // manchas acinzentadas
+     gc = mix(gc, gc * mix(0.82, 1.3, smoothstep(0.35, 0.65, peb.a)), big * 0.6);
+     // pedrisco: seixos de ~8 mm e ~22 mm (canal celular), cada um com tom próprio e sombra na junta
+-    let gr1 = textureSample(tNoise, sLin, wq * 5.3 + 0.11);
+-    let gr2 = textureSample(tNoise, sLin, vec2f(xz.x * 0.8 + xz.y * 0.6, -xz.x * 0.6 + xz.y * 0.8) * 1.9 + 0.43);
+     gc *= (0.74 + 0.42 * smoothstep(0.25, 0.85, gr1.b)) * (0.84 + 0.26 * smoothstep(0.3, 0.85, gr2.b)) * (0.92 + 0.16 * gr1.a);
+     // manchas largas (brita mais fina/úmida, areia) que se leem de longe
+     gc *= (0.74 + 0.5 * nA.r) * (0.86 + 0.28 * nB.b) * (1.0 - 0.3 * ruts);

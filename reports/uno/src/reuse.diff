@@ -1,0 +1,441 @@
+diff --git a/orig/js/01_gpu.js b/reuse/js/01_gpu.js
+index 818daf1..ae92980 100644
+--- a/orig/js/01_gpu.js
++++ b/reuse/js/01_gpu.js
+@@ -11,14 +11,14 @@ const RT = new Float64Array([0, 1 / 60, 1 / 60, 0]);   // RT[3] = intervalo real
+ const G = { dev: null, ctx: null, fmt: 'bgra8unorm', W: 0, H: 0, hasTS: false, canvas: null };
+ 
+ async function gpuInit() {
+-  if (!navigator.gpu) throw new Error('WebGPU indisponível neste navegador.');
++  if (!navigator.gpu) throw new Error('このブラウザーでは WebGPU が使えません。パソコンの Chrome か Edge で開いてください。');
+   const ad = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+-  if (!ad) throw new Error('Nenhum adaptador WebGPU.');
++  if (!ad) throw new Error('WebGPU で使える GPU が見つかりません。');
+   const feats = [];
+   // 'timestamp-query' é pedido na medição de desempenho (?perf) e no jogo aberto por uma pessoa (benchmark e estatísticas
+   // mostram o tempo de GPU quando o navegador permite); ?nots desliga. Captura, poses e testes continuam sem o recurso.
+   for (const f of ['float32-filterable', 'rg11b10ufloat-renderable'].concat((Q.has('perf') || GAME.ui) && !Q.has('nots') ? ['timestamp-query'] : [])) if (ad.features.has(f)) feats.push(f);
+-  if (!ad.features.has('float32-filterable')) throw new Error('GPU sem float32-filterable.');
++  if (!ad.features.has('float32-filterable')) throw new Error('この GPU は float32-filterable に対応していません。');
+   G.hasTS = feats.includes('timestamp-query');
+   G.dev = await ad.requestDevice({
+     requiredFeatures: feats,
+diff --git a/orig/js/10_track.js b/reuse/js/10_track.js
+index e459cf5..6c2084c 100644
+--- a/orig/js/10_track.js
++++ b/reuse/js/10_track.js
+@@ -20,13 +20,12 @@ const ZONE = { ASPHALT: 0, KERB: 1, GRASS: 2, GRAVEL: 3, ROUGH: 4, PIT: 5, CONCR
+ 
+ function trackBuild() {
+   // Segmentos: ['S', comprimento] ou ['A', raio, ângulo° (+ direita)]. Lw e Ln resolvidos para fechar o laço.
+-  const def = [
+-    ['S', 210, -0.6], ['A', 55, 90, -2.6, 'T1'], ['S', 40, -2.2],
+-    ['A', 80, -33, 1.0, 'S1'], ['A', 62, 66, 5.2, 'S2'], ['A', 80, -33, 9.0, 'S3'], ['S', 20, 10.6],
+-    ['A', 27, 180, 12.6, 'Grampo'], ['S', 30, 12.0], ['A', 42, -90, 10.2, 'T5'],
+-    ['S', 'Lw', 3.8], ['A', 75, -90, -1.4, 'T6'], ['S', 25, -2.4],
+-    ['A', 58, 180, -4.4, 'Curvão'], ['S', 'Ln', -3.0],
+-    ['A', 40, -30, -2.0, 'Ch1'], ['A', 40, 60, -1.0, 'Ch2'], ['A', 40, -30, -0.4, 'Ch3'], ['S', 15, -0.2],
++  const def = [   // 流用の実験: 山の峠道に描き替え（スタートの直線・最終コーナー・最後の直線は元のまま）
++    ['S', 210, -0.6], ['A', 69, 90, 2, 'T1'], ['S', 59, 8],
++    ['A', 37, -43, 13, 'E1'], ['A', 42, 43, 18, 'E2'], ['S', 61, 24],
++    ['A', 27, 164, 28, 'Grampo1'], ['S', 'Lw', 31], ['A', 26, -161, 33, 'Grampo2'],
++    ['S', 57, 30], ['A', 82, 143, 22, 'Mirante'], ['S', 'Ln', 8],
++    ['A', 47, -54, 4, 'S1'], ['A', 44, 88, 1, 'S2'], ['S', 15, 0.2],
+     ['A', 45, 90, 0, 'Final'], ['S', 110, 0],
+   ];
+   // resolve Lw, Ln: posição final é linear neles
+diff --git a/orig/js/22_sky.js b/reuse/js/22_sky.js
+index ba48843..cbe5e35 100644
+--- a/orig/js/22_sky.js
++++ b/reuse/js/22_sky.js
+@@ -1,5 +1,5 @@
+ // Geração única das texturas de ruído e do céu; cor do sol; harmônicos esféricos do ambiente.
+-const SUN_EL = 17 * PI / 180, SUN_AZ = 180.5 * PI / 180;
++const SUN_EL = 6 * PI / 180, SUN_AZ = 180.5 * PI / 180;   // 流用の実験: 夕暮れ（元は 17°）
+ function atmSunColor(dirY) {
+   // mesma atmosfera do shader (atmos.wgsl): transmitância do sol até o chão
+   const RP = 6360e3, RA = 6440e3, o = RP + 40, n = 32;
+diff --git a/orig/js/30_car_a_shape.js b/reuse/js/30_car_a_shape.js
+index 146142f..ead58f9 100644
+--- a/orig/js/30_car_a_shape.js
++++ b/reuse/js/30_car_a_shape.js
+@@ -15,12 +15,14 @@ function csmin(a, b, k) { const h = Math.max(k - Math.abs(a - b), 0) / k; return
+ function csmax(a, b, k) { return -csmin(-a, -b, k); }
+ // perfil superior no plano de borda: capô, para-brisa, teto, vigia, tampa, frente
+ function carYT(x) {
+-  const fascia = 0.765 - 4.3 * (x - 1.752);
+-  const hood = 0.96 - 0.1806 * (x - 0.672) + 0.012 * (1 - csq((x - 1.21) / 0.54));
+-  const wind = 0.96 - 0.81 * (x - 0.672);
+-  const a = x + 0.35, roof = 1.445 - (a > 0 ? 0.26 * a * a : 0.041 * a * a) + (x > 0.2 ? 6 * csq(x - 0.2) : 0);
+-  const hatch = 0.93 + 1.78 * (x + 1.585);
+-  const tail = 0.93 + 6.2 * (x + 1.585);
++  // 流用の実験: 元の Uno の線から、低く丸い屋根・寝かせた前窓・斜めの後ろの窓のオリジナルの形へ変えた
++  // 元: fascia 0.765-4.3(x-1.752) / hood 0.96-0.1806(x-0.672)+… / wind 0.96-0.81(x-0.672) / roof 1.445-… / hatch 0.93+1.78(x+1.585) / tail 0.93+6.2(x+1.585)
++  const fascia = 0.74 - 3.4 * (x - 1.752);
++  const hood = 0.94 - 0.215 * (x - 0.672) + 0.016 * (1 - csq((x - 1.21) / 0.54));
++  const wind = 0.94 - 0.64 * (x - 0.672);
++  const a = x + 0.45, roof = 1.405 - (a > 0 ? 0.22 * a * a : 0.085 * a * a) + (x > 0.2 ? 6 * csq(x - 0.2) : 0);
++  const hatch = 0.95 + 1.15 * (x + 1.585);
++  const tail = 0.95 + 5.0 * (x + 1.585);
+   let y = csmax(hood, wind, 0.02);
+   y = csmin(y, roof, 0.035); y = csmin(y, hatch, 0.06); y = csmin(y, tail, 0.05); y = csmin(y, fascia, 0.05);
+   return y;
+diff --git a/orig/js/30_car_c_parts.js b/reuse/js/30_car_c_parts.js
+index a02f089..c0d5e88 100644
+--- a/orig/js/30_car_c_parts.js
++++ b/reuse/js/30_car_c_parts.js
+@@ -147,8 +147,9 @@ function carBuildParts(mb, gl) {
+   mb.push(m4translate(m4(), -1.16, 0.5, 0.31)); mb.push(m4rotZ(m4(), 0.36)); mb.rbox(0, 0.25, 0, 0.12, 0.52, 0.62, 0.05, 4); mb.pop(); mb.pop();
+   mb.mat(CM.INTERIOR).color(0.04, 0.04, 0.045); mb.box(-1.40, 0.925, 0.3, 0.28, 0.02, 0.6);
+   // ================= rack de teto (pés) =================
++  // 流用の実験: 屋根の荷台とはしごを外す（オリジナルの車にするため）
+   mb.mat(CM.STEEL).color(0.03, 0.03, 0.032);
+-  for (const xb of [CRK.x0, CRK.x1]) {
++  if (false) for (const xb of [CRK.x0, CRK.x1]) {
+     const st = carStation(xb);
+     mb.rbox(xb, st.yE + 0.045, st.zE - 0.035, 0.075, 0.07, 0.06, 0.012, 2);
+     mb.push(m4translate(m4(), xb, st.yE - 0.012, st.zE + 0.012)); mb.push(m4rotX(m4(), 0.34)); mb.box(0, 0, 0, 0.06, 0.07, 0.006); mb.pop(); mb.pop();
+@@ -157,8 +158,9 @@ function carBuildParts(mb, gl) {
+   // ======================= peças não simétricas =======================
+   // barras do rack + escada + cintas
+   mb.mat(CM.STEEL).color(0.035, 0.035, 0.038);
+-  for (const xb of [CRK.x0, CRK.x1]) mb.rbox(xb, CRK.barY, 0, 0.036, 0.028, 1.2, 0.006, 2);
+-  carLadder(mb);
++  // 流用の実験: 荷台の棒とはしごを外す
++  // for (const xb of [CRK.x0, CRK.x1]) mb.rbox(xb, CRK.barY, 0, 0.036, 0.028, 1.2, 0.006, 2);
++  // carLadder(mb);
+   // limpadores
+   carWipers(mb);
+   // escapamento: silencioso transversal (aço fosco) + ponteira curta saindo para trás, como na foto
+@@ -197,7 +199,7 @@ function carBuildParts(mb, gl) {
+     mb.rbox(-0.2, 1.178, zd, 0.13, 0.08, 0.233, 0.034, 5);        // viseira: faixa escura que envolve a frente e os lados do casco
+   }
+   // emblema dianteiro: cinco barras cromadas inclinadas sobrepostas ao centro da grade (ocupam a altura das duas fendas)
+-  {
++  if (false) {   // 流用の実験: 実在のメーカーの印（前のグリルの斜めの棒 5 本）を外す
+     const y = 0.694, x = carTopX(0, y, false), xu = carTopX(0, y + 0.02, false), sl = (xu - x) / 0.02, l = Math.hypot(1, sl);
+     const B = m4basis(m4(), 0, 0, -1, sl / l, 1 / l, 0, 1 / l, -sl / l, 0, x + 0.002, y, 0);
+     mb.mat(CM.CHROME, 2).color(0.93, 0.93, 0.95); mb.push(B);
+@@ -269,8 +271,9 @@ function carDecals(mb) {
+   dq(CAT.plate, 0, 0.652, 0.40, 0.13, true, 0.006);
+   dq(CAT.plate, 0, 0.411, 0.40, 0.13, false, 1.8885);
+   mb.mat(CM.DECAL, 1).color(1, 1, 1);
+-  dq(CAT.fiat, -0.40, 0.925, 0.145, 0.046, true, 0.003);
+-  dq(CAT.mille, 0.37, 0.932, 0.175, 0.043, true, 0.003);
++  // 流用の実験: メーカーと車名のエンブレムを外す
++  // dq(CAT.fiat, -0.40, 0.925, 0.145, 0.046, true, 0.003);
++  // dq(CAT.mille, 0.37, 0.932, 0.175, 0.043, true, 0.003);
+   // moldura preta das placas e fechadura da tampa
+   mb.mat(CM.PLASTIC).color(0.02, 0.02, 0.02);
+   const lk = [carTopX(0.33, 0.7, true) - 0.006, 0.7, 0.33];
+@@ -302,8 +305,8 @@ function carAtlas() {
+   const W = 1024, H = 512, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+   // placa cinza (padrão brasileiro dos anos 90): fundo cinza-claro, letras pretas, tarja do município
+   g.fillStyle = '#b9bcbc'; g.fillRect(0, 0, 512, 170); g.strokeStyle = '#1a1a1a'; g.lineWidth = 6; g.strokeRect(5, 5, 502, 160);
+-  g.fillStyle = '#9fa3a3'; g.fillRect(150, 12, 212, 26); g.strokeStyle = '#222'; carText(g, 'UNO Mille', 178, 34, 17, 2.4, 0);
+-  g.strokeStyle = '#141414'; carText(g, 'UNO-1996', 30, 146, 76, 11, 0);
++  g.fillStyle = '#9fa3a3'; g.fillRect(150, 12, 212, 26); g.strokeStyle = '#222'; carText(g, 'MONTE', 178, 34, 17, 2.4, 0);   // 流用の実験: 字形の表にある文字だけで作った名前
++  g.strokeStyle = '#141414'; carText(g, 'MT-1961', 30, 146, 76, 11, 0);
+   g.fillStyle = '#777'; g.beginPath(); g.arc(28, 24, 6, 0, TAU); g.arc(484, 24, 6, 0, TAU); g.fill();
+   // emblema FIAT: quatro losangos azuis com letras prateadas
+   for (let i = 0; i < 4; i++) {
+diff --git a/orig/js/32_props.js b/reuse/js/32_props.js
+index bc47c76..a47fedb 100644
+--- a/orig/js/32_props.js
++++ b/reuse/js/32_props.js
+@@ -172,20 +172,24 @@ function atlasBuild() {
+   g.fillStyle = '#888'; g.fillRect(0, 0, 2048, 1024);
+   const REG = PROPS.regions, reg = (name, x, y, w, h) => { REG[name] = [x / 2048, y / 1024, (x + w) / 2048, (y + h) / 1024]; };
+   const centered = (txt, x, y, w, h, th, color, weight, skew) => strokeText(g, txt, x + (w - textW(txt, th)) / 2, y + (h - th) / 2, th, color, weight, skew);
++  // 流用の実験: 看板の日本語。元の線の字形はラテン文字だけなので、日本語は Canvas の文字で描く（幅に収まるまで小さくする）
++  const JA_FONT = (s) => `800 ${s}px "Yu Gothic","Meiryo","Hiragino Sans","Noto Sans JP",sans-serif`;
++  const jaCentered = (txt, x, y, w, h, size, color) => { g.save(); g.fillStyle = color; g.textAlign = 'center'; g.textBaseline = 'middle'; let sz = size; g.font = JA_FONT(sz);
++    while (g.measureText(txt).width > w * 0.9 && sz > 12) { sz -= 2; g.font = JA_FONT(sz); } g.fillText(txt, x + w / 2, y + h / 2 + sz * 0.04); g.restore(); };
+   // nome do circuito
+   g.fillStyle = '#0b2a4a'; g.fillRect(0, 0, 1024, 128); g.fillStyle = '#e8b21c'; g.fillRect(0, 0, 1024, 10); g.fillRect(0, 118, 1024, 10);
+-  centered('CIRCUITO SERRA DA MATA', 0, 0, 1024, 128, 50, '#f4f1e6', 1.75, 0.1); reg('name', 0, 0, 1024, 128);
++  jaCentered('夕暮れ峠サーキット', 0, 0, 1024, 128, 66, '#f4f1e6'); reg('name', 0, 0, 1024, 128);
+   // setas de curva (chevrons)
+   g.fillStyle = '#e9e6dc'; g.fillRect(1024, 0, 512, 128); g.fillStyle = '#b3160f';
+   for (let i = 0; i < 5; i++) { const x = 1034 + i * 102; g.beginPath(); g.moveTo(x, 8); g.lineTo(x + 48, 8); g.lineTo(x + 92, 64); g.lineTo(x + 48, 120); g.lineTo(x, 120); g.lineTo(x + 44, 64); g.closePath(); g.fill(); }
+   reg('chev', 1024, 0, 512, 128);
+   // faixa "BOXES"
+-  g.fillStyle = '#d8d6ce'; g.fillRect(1536, 0, 512, 128); centered('BOXES', 1536, 0, 512, 128, 74, '#16181c', 1.8, 0.1); reg('boxes', 1536, 0, 512, 128);
++  g.fillStyle = '#d8d6ce'; g.fillRect(1536, 0, 512, 128); jaCentered('ピット', 1536, 0, 512, 128, 76, '#16181c'); reg('boxes', 1536, 0, 512, 128);
+   // marcas inventadas
+   const brands = [
+-    ['ARARA PNEUS', '#c9281c', '#fff6e0', 0], ['TORQUE FREIOS', '#16181c', '#f2c318', 1], ['CAFE SERRANO', '#3b2416', '#f0dfc0', 2], ['JATOBA SEGUROS', '#0f5d3a', '#f4f4ee', 3],
+-    ['VELA NORTE', '#f0efe8', '#1b3f8f', 4], ['ESCADAS ALUMINAR', '#b8bec4', '#12202e', 5], ['ZEBRA TINTAS', '#f4f4f0', '#111111', 6], ['GUARANA DO VALE', '#1f7a2e', '#ffe14a', 2],
+-    ['RADIO PISTA 98', '#5a1b78', '#ffffff', 1], ['MOTOR CLUBE DA MATA', '#e0791a', '#1a1a1a', 0], ['OFICINA DO TONHO', '#18406b', '#ffd23a', 3], ['POSTO IPE 24H', '#f2d21f', '#16501e', 4],
++    ['あかねタイヤ', '#c9281c', '#fff6e0', 0], ['トルクブレーキ', '#16181c', '#f2c318', 1], ['峠の珈琲', '#3b2416', '#f0dfc0', 2], ['ひのき損保', '#0f5d3a', '#f4f4ee', 3],   // 流用の実験: 架空の名前を日本語に
++    ['北星プラグ', '#f0efe8', '#1b3f8f', 4], ['光アルミ脚立', '#b8bec4', '#12202e', 5], ['しまうま塗料', '#f4f4f0', '#111111', 6], ['谷のラムネ', '#1f7a2e', '#ffe14a', 2],
++    ['ラジオ峠 98.0', '#5a1b78', '#ffffff', 1], ['森のモータークラブ', '#e0791a', '#1a1a1a', 0], ['とんぼ整備工場', '#18406b', '#ffd23a', 3], ['いちょう石油 24時', '#f2d21f', '#16501e', 4],
+   ];
+   brands.forEach((b, i) => {
+     const x = (i % 4) * 512, y = 128 + Math.floor(i / 4) * 128; g.fillStyle = b[1]; g.fillRect(x, y, 512, 128);
+@@ -198,7 +202,7 @@ function atlasBuild() {
+     else if (ic === 4) { g.beginPath(); g.moveTo(ix - 36, iy + 34); g.lineTo(ix, iy - 38); g.lineTo(ix + 36, iy + 34); g.closePath(); g.fill(); }
+     else if (ic === 5) { g.lineWidth = 8; g.beginPath(); g.moveTo(ix - 22, iy - 40); g.lineTo(ix - 22, iy + 40); g.moveTo(ix + 22, iy - 40); g.lineTo(ix + 22, iy + 40); for (let k = -2; k <= 2; k++) { g.moveTo(ix - 22, iy + k * 16); g.lineTo(ix + 22, iy + k * 16); } g.stroke(); }
+     else { for (let k = 0; k < 5; k++) { g.beginPath(); g.moveTo(ix - 40 + k * 18, iy + 38); g.lineTo(ix - 22 + k * 18, iy - 38); g.lineTo(ix - 12 + k * 18, iy - 38); g.lineTo(ix - 30 + k * 18, iy + 38); g.closePath(); g.fill(); } }
+-    const th = Math.min(62, 376 / textW(b[0], 1)); centered(b[0], x + 116, y, 388, 128, th, b[2], 1.8, 0.1);
++    jaCentered(b[0], x + 116, y, 388, 128, 66, b[2]);
+     reg('b' + i, x, y, 512, 128);
+   });
+   PROPS.nBrands = brands.length;
+diff --git a/orig/js/46_replay_data.js b/reuse/js/46_replay_data.js
+index 9639516..813e6f9 100644
+--- a/orig/js/46_replay_data.js
++++ b/reuse/js/46_replay_data.js
+@@ -1,2 +1,2 @@
+-// Comandos gravados da volta roteirizada (gerado por trabalho/scripts/sim_test.mjs --save): pares (teclas, quadros de 1/60 s) em base64.
+-const REPLAY_B64 = 'AB4FDAkBBQEJAQUBAQEFAQEBBQEBAQUBAQEFAQEBBQEBAQUBCQEFAQkBBQEJAQEBCQkBAQUBCQIFAQkCBQEJAgEBCQEBAQkBAQEJAQUBCQEFAQkCBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQEBCQEFAQkBBQEJAQUBCQEFAQEBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBAQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEBAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQEBCQEFAQkBBQEJAQUBCQEFAQEZCQEFAQkBBQEJAQUBAf8BOwkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQEHCQEFAQkBBQEJAQUBCQEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEAAQIBCgEAAQIBCgEAAQIBCAECAggBBgEKAQQBCgEGAQoBBgEIAQYBCAEGAQgBBgECAwABAgQAAQIBAAECBgABAgEIAQYBCgEGAQgBBgEKAQYBCAECAQoBBgEKAQYBCAECAQoBBgEIAQYBCAECAQoBAgEIAQIBCgECAQgBAgEIAQIBCAECAQgBAgEKAQIBCAECAQgBAgEIAgIBCAECAQgBAgEIAQIBCAECAQgBAgEIAgoBCAMKAQgBCgEIAgoBCAEKAQgDCgEICwABCAEAAQgCAAEIAQABCAEAAQgBAAEIAQACCAEEAQgBAAIIAQQBCAEEAQgBAAIIAQQBCAEEAQgBAAIIAQQBCAEEAQgBAAIoASUBKAEBAgkBBQEJAQUBCQEBAgkBBQEJAQUBCQEFAQkBBQEBAQkBAQEJAQUBCQEFAQkBBQEBAQkBAQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEBAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQEBCQEBAQkBBQEJAQUBCQEFAQkBBQEJAQUBAQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBAQIJAQEBCQEFAQkBBQEJAQUBAQEJAQUBCQEFAQkBBQEJAQUBCQEFAQEiBQEJAQUBCQEFAQkBBQEJAQUBAQIFAQEBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQECBQEBAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQEBBQEBAQUBCQEBAQUBAQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEBAQQBAAIEAQgBBAEIAQQBCAEAAQQBCAEAAgIBAAEKAQQBCAEEAQoBAgEIAQIBAAEKAQABCgECAQgBBgEIAQYBCAEGAQoBAAECAQgBAgEAAQoBAAECAQoBBgEIAQQBCAEEAQgBBAEAAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQACCAEEAQgBBAEIAQABCAEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEBAQkBBQEJAQUBCQEFAQkBBQEJAQUBAQIJAQUBAQMFAQkBBQEJAQUBCQEFAQECBQEBAQUBCQEFAQkBBQEBAQUBCQEFAQkBBQEJAQUBCQEBAQUBCQEFAQkBBQEJAQEBBQEJAQEJBQEJAQUBCQEFAQEBBQEJAQUBCQEFAQkBBQEBAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQEBAAEEAQABBAEIAQQBCAEEAQgBBAEIAQABBAEIAQQBCAEAAQQBCAEGAQgBAgEGAQoBBAEKAQQBCgEAAQIBAAECAgoBBAEKAQQBCgEmASoBIAEKAQQBCgECAQoBBAEIAQYBCAEGAQoBBgEIAQYBCAEEAQoBBgEKAQQBCgEEAQgBBgEIAQYBCgEEAQoBBAEKAQYBCgEEAQgBBgECAQgBBgEIAQYBCgEEAQoBBAEKAQIBCAEGAQoBBAEKAQYBCAECAQoBBAEKAQYBCgECAQgBBgEKAQQBCgEAAQgBBgEKAQQBCgEAAQgBBgEKAQQBCgEEAQgBAgEYARQBGgEUARgBFAEQARgBFAEYARQBEAEYARQBEAEYARQBEAMYARQBEAEUARABFAEQARQCEAEFAQEBBQEEAQgBBQEAAQUBCAEFAQABAQEEAQkBBAEJAQABBQEIAQEBAAEBAQQBCQEIAQEBBAEJAQgBAQEIAQEBCAEAAQkBCAEAAQkBAAEIAQEBCAEAAQgBAQEIAQABCAEFAQgBBAEIAQUBCAEEAQABCQEEAQgBBAEBAQgBBAEIAQUBCAEEAQABCQEEAQgBBAEJAQQBCAEEAQkBBAEIAQQBCQEEAQgBBQEIAQQBCAEBAQgBBAEIAQUBCAEEAQkBBAEIAQQBCQEEAQgBBQEIAQQBCAEFAQgBBAEIAQUBCAEEAQkBBAEIAQQBCQEEAQgBBQEIAQQBCAEFAQgBBAEJAQQBCAEFAQgBBAEJAQQBAAEIAQEBCAEEAQEBCAEEAQgBBQEIAQQBCQEEAQgBBQEIAQUBCAEEAQkBBQEIAQUBCQEEAQgBBQEBAQgBBQEJAQUBAQEJAQUBCQEFAQkBBQEBAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQEBCQEFAQkBBQEJAQUBCQEFAQkBBQEBAQkBAQIJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEBAQkBBQEJAQUBCQEFAQkBBQEJAQUBAQEJAQECCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEBAQkBBQEBEAUBCQEFAQkBBQEJAQUBCQEFAQkBBQEBAQUBCQEFAQkBBQEIAQQBAAEEAQgBBAEIAQQBCAEEAQABBgEIAQQBCgEGAQoBBgEKAQYBCAEGAQoBBgEKAQYBAgEEAQoBBAEKAQQBCAEGAQgBBgEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQACBAEAAQQBCAEEAQACBAEAAQQBAAEEAQABBAEAAQQBAAEEAQABBAEAAQQBAAEEAQABBAEAAQQBAAEEAQABBAEIAQQBAAIEAQACBAEIAQQBAAEBAQUBAQIFAQkBBQEJAQEBBQEBAgUBCQEFAQECBQEJAQUBCQEBAQUBAQIFAQkBBQEBAgUBCQEFAQECBQEJAQUBAQIFAQkBBQEBAQUBCQEBAQUBAQIFAQkBBQEBAgUBCQEFAQECBQEBAQUBCQEFAQkBAQEFAQECBQEBASUBKQEhAQUBAQEFAQkBAQEFAQEBBQEJAQEBBQEBAQUBCQEFAQkBAQEFAQEBBQEJAQEBBQEBAQUBCQEFAQkBAQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBAQIFAQEBBQEJAQUBCQEFAQkBBQEJAQUBCQEBAQUBAQEFAQkBBQEJAQEBBQEBAgUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEBNwUBCQEFAQkBBQEJAQUBCQEBCQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEBAgUBAQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEEAQgBBAEIAQQBAAIEAQACBAEAAQYBCAEGAQoBBAEKAQIBBgECAQQBCgECAQQBAgEGAQoBBgEIAQYBCgEGAQoBBAEKAQYBCgECAQYBAgEEAQoBBAEKAQYBCgEGAQgBBgECAQYBCgEEAQoBBAECAQQBCgEEAQoBBgEKAQYBAAEGAQABBgEAAQYBBAECAQQBBgEEAQYBBAEGAQQBBgEEAQYBBAEGAQQBBgEEAwYBBAIGAQQYAAEEAQABBAEAAQQBAAEEAQABBAEAAQQBAAEEAQABBAEAAQQBAAEEAQABBAIAAQQBAAEEAQABBAEAAQQBAAEEAQABBAEAAQQBAAEEAQABBAEAAQQBAAEEAgABBAEAAQQBAAEEAQABBAEAAQUBCAEEAQkBBAEIAQUBCAEFAQgBAAEFAQgBBAEJAQQBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQEBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEBAQUBCQEFAQkBBQEJAQEBBQEJAQUBCQEBEAkBBQEJAQUBCQEFAQkBBQEJAQUBCQEBAgkBAQEJAQQBCAEEAQgBBAEIAQQBCAEAAQgBBAEAAQgBAgEIAQYBCAEGAQoBBgEIAQYBCAEGAQoBBgEKAQYBCgEEAQoBBgECAQoBAgEIAQYBCgEGAQgBBgEKAQYBCgEGAQoBBgEIAQIBCgEGAQgBBgEKAQYBCAEAAQoBAgIIAQIBCAECAQgDCgEIFAABCAEAAQgBAAEIAgABCAEAAQgBAAEIAgABCAEAAQgBAAEIAQABCAEAAQgBAAIIAQABCAEAAQgBAAIIAQABCAEAAggBAAEIAQEBAAEJAQQBCQEAAgkBBAEJAQQBCAEBAQABCQEEAQgBAQEAAQkBBAEIAQUBCAEBAQABCAEBAQgBBAEJAQACCQEEAQgBAQEAAQkBBAEIAQUBCAEAAgkBBAEIAQUBCAEAAQEBCAEEAQgBBQEIAQABAQEIAQQBCAEBAQgBBAEJAQQBCAEEAQkBBAEIAQUBCAEEAQgBBQEIAQQBCQEEAQABCAEBAQgBBAEIAQUBAAEIAQEBCAEEAQgBBQEIAQQBCQEEAQgBBAEJAQACCQEEAQgBBAEJAQACCAEBAQgBBAEIAQEBAAEIAQUBCAEEAQgBAQEAAQgBAQEIAQQBCAEBAQABCAEBAQgBBAEIAQEBAAEIAQEBCAEEAQkBAAIIAQEBCAEAAQkBAAIJAQABCAEBAQgBAAEBAQgBAAEJAQACCQEAAQgBBQEIAQABAQEIAQQBCQEEAQgBAQEAAQkBAAEIAQEBAAEIAQEBCAEEAQkBAAEBAQgBAAEJAQQBCQEAAQEBCAEFAQgBBQEJAQABAQEJAQUBCQEFAQkBAQIJAQUBCQEFAQkBAQIJAQUBCQEFAQkBAQIJAQUBCQEFAQkBAQIJAQUBCQEFAQkBBQEJAQECCQEFAQkBBQEJAQUBCQEBAgkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQEBCQEFAQkBBQEJAQUBCQEBAgkBAQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEBAQkBAQEJAQUBCQEFAQEBCQEBAQkBBQEJAQUBCQEFAQEBCQEBAgkBBQEJAQUBCQEFAQkBAQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEBAQkBAQEJAQUBAQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBAQEJAQUBCQEFAQkBBQEJAQUBCQEFAQECIQMBBAkBBQEBBwkBBQEJAQUBCQEFAQEbCQEFAQFHBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBAQoFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBAEIAQQBCAEEAQgBAAoKAQQBCgEEAQgBBgEKAQABCAEGAQgBBAEIAQIBAAEIAQIBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQABCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBAAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBgEKAQYBCAEGAQIBCAEGAQgBBgEKAQIBCgEEAQoBBgEIAQYBCgEGAQoBBgEKAQYBAgEIAQICCgEGAQgBAgIIAQIBCgEGAQIBCAECAQoBBgEIAQYBCAEGAQIBCgEGAQoBBgEIAQYBCgEGAQgBBgEKAQABCgEEAQoBBAEKAQYBAgEKAQIBCAEGAQoBBAEKAQQBCgEGAQoBBAEKAQQBCAEGASoBJgEoAQIBCAEEAQoBAAECAQgBAgEIAQYBCAEEAQoBBAEKAQQBCgEEAQgBBgEIAQYBCAEEAQgBBAECAQgBBgEIAQQBCAEAAggBAAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBAAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQACCAEEAQgBBAEIAQACCAEEAQgBBAEIAQACCAEEAQgBAAEBAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBAQEJAQEBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQEBCQEFAQkBAQIJAQEBCQEFAQkBBQEBAQkBAQEJAQUBAQEJAQEBCQEFAQkBBQEBAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEBAQkBAQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBAQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQEBCQEFAQEKCQEFAQkBBQEBVQUBCQEFAQkBARsFAQkBAQEFAQkBAWc=';
++// 決まった運転の記録（流用の実験で、山のコースを自動運転で 60 秒走らせて作り直した）: 組（キー, 1/60 秒の回数）を base64 で。
++const REPLAY_B64 = 'AB4FDAkBBQEJAQUBAQEFAQEBBQEBAQUBAQEFAQEBBQEBAQUBCQEFAQkBBQEJAQEBCQkBAQUBCQIFAQkCBQEJAgEBCQEBAQkBAQEJAQUBCQEFAQkCBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQEBCQEFAQkBBQEJAQUBCQEFAQEBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBAQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEBAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQEBCQEFAQkBBQEJAQUBCQEFAQEZCQEFAQkBBQEJAQUBAf8BNQkBBQEJAQUBCQEFAQkBBQEJAQUBAQkJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQQBCAEEAQgBAAIIAQACCAEAAQgBBAEKAQYBCAEGAQgBBgECAQgBBgEKAQQBCgEEAQoBBgEIAQYBCAEGAQIDAAECAgABAgQAAQIBAAECBAABAgMIAQYBCAEGAQoBAgIKAQIBCAEGAQgBAgEKAQYBCAEGAQgBBgEIAQABCAEEAQgBBAEAAQgBBAEIAQQBCAEEAQgBBgEIAQYBCAEGAQoBAgEIAQYBCgEGAQgBBgEKAQYBCAEGAQoBBgEKAQIBCAEGAQgBAAEIAQABCAEAAggBBAEIAQQBCAEEAQgBBAEAAQgBBAEIAQQBCAEEAQgBBAEIAQQBAAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBAAEIAQQBCAEEAQgBBAEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEBAQkBAQIJAQEBCQEBAgkBAQEIAQUBCQEFAQgBAQEIAQEBAAEJAQABCQEAAQkBAAEJAQABCAEBAQgBBQEIAQEBAAEIAQUBCAEFAQkBBQEIAQUBCQEFAQkBBQEJAQUBAQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEBAQkBBQEJAQUBAQEJAQEBCQEFAQkBBQEJAQUBAQEJAQUBCQEFAQkBBQEJAQUBAQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBAQIJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEBAgkBBQEBGgUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBAQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQQBAAEBAQQBAQEEAQkBBQEIAQUBCAEFAQkBBAEJAQQBCQEFAQgBBQEJAQUBCAEFAQkBBQEJAQQBCQEFAQkBBQEJAQUBCQEBAQUBAQIFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEBAQUBCQEBCAkBBQEJAQUBCQEFAQkBAQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBAQIJAQEBCQEFAQkBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEAAQgBBAEKAQQBCgEEAQoBBgEIAQYBCAEEAQgBBgEIAQYBCAEGAQgBBgEIAQYBCAEGAQgBBgECAQgBBgEIAQYBCAEGAQABAgEAAQIBCAEGAQABBgEIAQQBCAEGAQABBAECAQQBAgEEAQIBBAECAQQBBgEEAQYBBAEGAQQBBgIEAQYBBAEGAQQBBgEEAgYBBAEGAQQBBgIEAQYBBAEGAwQCBgIEAQYBBAEGAgQBBgIAAQYBCAEGAQoBAAECAQYBCAECAgQBCgECAQgBBgEKAQABCgEAAQgBBgEKAQABCgEEAQgBBgEIAQQBCgEEAQgBBgEIAQQBAAEKAQQBCAEGAQgBBAEIAQABCAEGAQgBBAEKAQQBCAEAAQgBBAEKAQQBCAECAQgBBAEIAQQBCAECAQABCAEAAQgBBAEKAQQBCAEAAQgBBAEKAQQBCAEEAQgBBAEIAQQBCAEAAggBAAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBAAIIAQACCAEAAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEJAQQBCQEEAQgBBQEAAQkBBAEIAQUBCAEFAQgBBAEJAQQBCQEEAQgBBQEIAQQBCQEEAQkBBAEAAQkBBAEIAQEBAAEIAQEBCAEFAQgBBAEJAQQBCAEFAQgBBQEIAQUBAAEIAQUBCAEFAQkBBAEIAQUBCQEEAQkBBQEJAQQBCQEFAQkBBQEBAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQEBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQEBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEBAQkBAQIJAQECCQEBAgkBAQIJAQECCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQEBCQEBAgkBAQIJAQECCQEBAQkBBQEBAQkBAQEJAQUBCQEFAQkBBQEJAQUBAQEJAQUBCQEBAgkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQEBCQEFAQkBBQEJAQUBCQEFAQEiBQEJAQUBCQEFAQkBBQEIAQQBCAEEAQABBAEIAQQBCAEEAQgBBAEIAQQBCAEGAQgBBgEIAQYBCgEGAQgBAgEEAQoBBgEKAQQBCAEGAQoBBgEIAQYBCgEGAQgBBAEKAQYBCgEEAQoBBgEIAQYBCgEGAQoBBAEKAQQBCgEGAQABAgEGAQIBBgEIAQYBAgEEAQoBBgEKAQYBCAEGAQoBBAECAQYBCAEGAQoBBAEKAQYBCgEGAQABAgEGAQABBgEKAQQBCgEGAQABBgEIAQQBCAEGAQgBBAEKAQQBCAEGAQgBBAEKAQYBAAECAQQBAAEGAQgBBAEKAQQBCAEEAQgBBAEKAQQBCAEEAQABBAEIAQYBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEAAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEAAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQkBBAEIAQUBCAEEAQkBBAEIAQUBCAEEAQgBBQEIAQQBCQEEAQgBBQEIAQQBCAEFAQgBBAEJAQQBCAEEAQkBBAEIAQUBCAEEAQgBBQEIAQQBCQEEAQgBBQEIAQQBCAEFAQgBBAEJAQQBCAEFAQgBBAEIAQUBCAEEAQkBBAEIAQUBCAEEAQkBAAEEAQkBBAEIAQEBBAEJAQQBCQEEAQgBAQEFAQgBAQEFAQkBBAEJAQUBCQEBAQUBCQEBAQUBCQEFAQkBBQEJAQEBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEBAQUBAQIFAQEBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQEBBQEBAgUBAQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEBAQUBAQIFAQEBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBAQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBAQIFAQkBBQEJAQUBCQEFAQkBBQEJAQEVCQEFAQkBBQEJAQUBCQEFAQkBAQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBAQEJAQUBCQEFAQkBBQEJAQQBCAEAAggBAAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCQEFAQgBBQEJAQQBCQEFAQgBBQEJAQQBCQEFAQkBBAEJAQUBCAEFAQkBBQEIAQUBCQEFAQgBBQEJAQQBCQEFAQgBBQEJAQQBCQEFAQgBBQEJAQQBCQEFAQgBBQEIAQUBCQEEAQkBAAEJAQQBCQEFAQgBBQEIAQUBCAEBAQgBAQEIAQEBCAEBAQgBAQEIAQEBCAEBAQgBAQEIAQEBCAEBAQgBAQEIAQEBAAEJAQABCQEEAQkBBAEJAQUBCAEFAQgBBQEIAQUBCAEFAQkBBAEJAQUBCAEEAQkBBAEIAQQBCQEEAQgBBAEJAQQBAAEIAQEBAAEIAQQBCAEFAQgBBAEIAQQBCQEEAQgBBAEIAQQBCQEEAQgBBAEIAQUBCAEEAQgBAAEJAQQBCAEEAQkBBAEIAQUBCAEEAQgBBQEIAQQBCAEFAQgBBAEIAQUBCAEEAQgBBQEIAQQBCAEFAQgBBAEIAQUBAAEIAQABAQEIAQQBCAEFAQgBBAEJAQABCAEFAQgBBQEIAQQBCQEEAQkBBAEIAQUBCAEFAQgBBQEIAQEBCAEFAQkBBQEIAQUBCAEFAQkBBQEIAQUBCQEFAQgBBQEJAQUBCAEBAgkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBAQEJAQEBCQEBAQkBAQEJAQECCQEBAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBAQEJAQECCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQEBCQEBAQkBBQEJAQUBCQEFAQEBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQEBCQEBAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBAQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQECCQEBAgkBAQEJAQUBCQEFAQkBBQEBAQkBAQIJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEBDgkBBQEJAQUBCQEFAQkBBQEJAQUBATgFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEIAQQBCAEEAQgBBAEIAQQBCAEEAQICBgEAAQYBCgEGAQoBBgEIAQYBCgEAAQYBCgEGAQoBBgEIAQYBCgEGAQoBAgEAAQIGCgEGAQgBBgEKAQYBCgEGAQoBBgEIAQYBAgEKAQYBCgEGAQABAgYAAQICBgEKAQYBCgEEAQIBBgEKAQYBAgEGAQoBBgEAAQYBCAEGAQgBBgEAAQIBBAECAQQBCAEGAQgBBAEIAQQBCAEAAQQBAAEEAQgBBAEIAQABBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBAAEEAQACBAEIAQQBCAEEAQgBBAEIAQQBCAEFAQkBBQEJAQQBCAEEAQACBAEIAQQBCAEEAQgBBgEIAQIBBgEKAQYBCgEGAQoBBgEKAQQBCgEGAQgBAgMAAQoBBgEKAQYBCgEAAQoBAgEKAQIBCAEGAQoBAgEAAQoBAgEKAQIBCgEGAQgBBgEKAQYBCgEGAQoBBgECAQgBBgEKAQYBCgEEAQoBBgECAQgBAgEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBAAEIAQQBCAEAAQgBBAEIAQABCAEEAQgBAAEIAQABCCkJBgEBCQEBAQkCAQEJAQUBCQEBAgkBAQIJAQUBAQEJAQUBCQEFAQkBBQEBAQkBBQEJAQUBAQEJAQUBCQEBAgkBBQEJAQECCQEFAQkBBQEJAQUBCQEFAQkBAQEJAQUBCQEBAgkBAQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBAQIJAQEBCQEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQgBBAECAQgBAAEIAQYBCAEEAQgBBAEKAQQBCAEEAQgBBAEIAQYBCAEEAQgBBAEKAQQBCAEEAQgBBgEIAQQBCAEAAQgBBAEKAQABCAEAAQgBAAEIAQABCAEAAggBAAEIAQACCAEAAggBBAEIAQACCAEEAQgBAAIIAQQBCAEAAQgBBAEIAQQBCAEEAQgBBAEIAQQBCAEEAQABCAEAAQgBBAEAAQgBAAIIAQABCQEEAQEBCQEBAgkBBQEJAQECCQEBAgkBBQEJAQECCQEFAQkBAQIJAQUBCQEBAgkBBQEJAQECCQEFAQkBBQEJAQUBAQEJAQEBCQEFAQkBBQEBAQkBAQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEBAQkBBQEJAQECCQEFAQkBBQEJAQECCQEFAQkBAQIJAQEBCQEFAQkBBQEJAQUBAQEJAQEBCQEFAQEBCQEFAQkBBQEJAQUBCQEFAQkBAQIJAQEBCQEFAQkBBQEJAQUBCQEFAQEBCQEBAQkBBQEBAQkBAQIJAQUBCQEFAQkBAQIJAQEBCQEFAQkBBQEJAQUBCQEFAQEBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBCQEFAQkBBQEJAQUBAQEJAQUBCQEFAQELCQEFAQkBBQEJAQUBCQEFAQFiBQEJAQUBCQEBHAUBCQEFAQkBAbIAAQEBAAYIAQQBCAEEAQgBBAEKAQYBCAEEAQoBBgEAAQICAAICAgABAgIAAQIDAAICAQABAgIAAQIB';
+diff --git a/orig/js/48_poses.js b/reuse/js/48_poses.js
+index ba2f6f6..78ecae3 100644
+--- a/orig/js/48_poses.js
++++ b/reuse/js/48_poses.js
+@@ -2,12 +2,12 @@
+ // tipo 'carro': carro parado em (s, d, direção), câmera livre em coordenadas do carro [x frente, y cima, z direita].
+ // tipo 'volta': reproduz os comandos gravados até o instante t (s) e captura o quadro em movimento, com a câmera cam.
+ const POSES = [
+-  { nome: 'carro-frente-34', tipo: 'carro', s: 160, d: -1.0, yaw: 3.75, olho: [4.9, 1.35, -3.3], alvo: [0.1, 0.72, 0], fov: 0.5 },
+-  { nome: 'carro-traseira-34', tipo: 'carro', s: 160, d: -1.0, yaw: 0.61, olho: [-5.0, 1.75, 3.4], alvo: [-0.1, 0.8, 0], fov: 0.5 },
+-  { nome: 'carro-lateral-baixa', tipo: 'carro', s: 160, d: -1.0, yaw: 2.1, olho: [0.9, 0.62, -5.2], alvo: [0.05, 0.8, 0], fov: 0.6 },
+-  { nome: 'perseguicao-curva', tipo: 'volta', t: 11.8, cam: 0 },
+-  { nome: 'tv-grampo-derrapagem', tipo: 'volta', t: 21.55, cam: 2 },
+-  { nome: 'capo-reta-oposta', tipo: 'volta', t: 30.4, cam: 1 },
++  { nome: '車・斜め前', tipo: 'carro', s: 160, d: -1.0, yaw: 3.75, olho: [4.9, 1.35, -3.3], alvo: [0.1, 0.72, 0], fov: 0.5 },
++  { nome: '車・斜め後ろ', tipo: 'carro', s: 160, d: -1.0, yaw: 0.61, olho: [-5.0, 1.75, 3.4], alvo: [-0.1, 0.8, 0], fov: 0.5 },
++  { nome: '車・低い横', tipo: 'carro', s: 160, d: -1.0, yaw: 2.1, olho: [0.9, 0.62, -5.2], alvo: [0.05, 0.8, 0], fov: 0.6 },
++  { nome: '追いかけ・カーブ', tipo: 'volta', t: 11.8, cam: 0 },
++  { nome: 'テレビ・ヘアピン', tipo: 'volta', t: 21.55, cam: 2 },
++  { nome: 'ボンネット・直線', tipo: 'volta', t: 30.4, cam: 1 },
+ ];
+ function poseApply(i) {
+   const P = POSES[i];
+diff --git a/orig/js/51_painel.js b/reuse/js/51_painel.js
+index e2d9e38..96bd95c 100644
+--- a/orig/js/51_painel.js
++++ b/reuse/js/51_painel.js
+@@ -60,8 +60,8 @@ function hudLayout() {
+   const g = H.g; g.setTransform(1 / 16, 0, 0, 1 / 16, 0, 0); g.lineCap = 'round'; g.lineWidth = Math.round(r * 0.034 * 16); g.strokeStyle = '#ff5a36';
+   // cronômetro (m:ss.cc) e estatísticas
+   const tw = B.w[0] * 5 + B.w[10] + B.w[11];
+-  H.bgT = hudStrip(H.ct, ['VOLTA', 'ÚLTIMA', 'MELHOR'], [tw, tw, tw], ['', '', ''], B, B.h / 1.16, 10);
+-  H.bgS = hudStrip(H.cs, ['QPS', 'QUADRO', 'GPU'], [C.w[0] * 3, C.w[0] * 4 + C.w[12], C.w[0] * 4 + C.w[12]], ['', 'ms', 'ms'], C, C.h / 1.16, 20);
++  H.bgT = hudStrip(H.ct, ['周回', '前回', '最速'], [tw, tw, tw], ['', '', ''], B, B.h / 1.16, 10);
++  H.bgS = hudStrip(H.cs, ['FPS', 'コマ', 'GPU'], [C.w[0] * 3, C.w[0] * 4 + C.w[12], C.w[0] * 4 + C.w[12]], ['', 'ms', 'ms'], C, C.h / 1.16, 20);
+   H.K.fill(-9);
+ }
+ // copia o caractere i do atlas para (x, y) em pixels (q = 16 no canvas dos mostradores, 1 nos outros); devolve a largura
+diff --git a/orig/js/52_ui.js b/reuse/js/52_ui.js
+index 1513fad..fe91e7f 100644
+--- a/orig/js/52_ui.js
++++ b/reuse/js/52_ui.js
+@@ -20,10 +20,10 @@ function uiInit() {
+ function uiSet(st) {
+   const menu = st === ST.INICIO || st === ST.PAUSA || st === ST.RESULT;
+   UI.st = st; UI.el.style.display = menu ? 'flex' : 'none'; UI.el.className = st === ST.INICIO ? 'ini' : '';
+-  UI.b0.textContent = st === ST.INICIO ? 'Começar' : st === ST.RESULT ? 'Voltar a dirigir' : 'Continuar';
+-  UI.b1.style.display = st === ST.INICIO ? 'none' : ''; UI.b1.textContent = st === ST.RESULT ? 'Repetir benchmark' : 'Benchmark';
++  UI.b0.textContent = st === ST.INICIO ? '始める' : st === ST.RESULT ? '運転に戻る' : '続ける';
++  UI.b1.style.display = st === ST.INICIO ? 'none' : ''; UI.b1.textContent = st === ST.RESULT ? 'もう一度測る' : '性能を測る';
+   UI.res.style.display = st === ST.RESULT ? 'block' : 'none';
+-  UI.tag.textContent = st === ST.BENCH ? 'Benchmark: volta roteirizada de 60 s · Esc cancela' : st === ST.FITA ? 'Volta roteirizada · R assume o volante · Esc menu' : st === ST.POSE ? 'Pose ' + (UI.pose + 1) + ' · ' + POSES[UI.pose].nome + ' · 1 a 6 trocam · Esc volta a dirigir' : '';
++  UI.tag.textContent = st === ST.BENCH ? '性能の測定: 決まった運転 60 秒 · Esc でやめる' : st === ST.FITA ? '決まった運転 · R で運転を代わる · Esc でメニュー' : st === ST.POSE ? '固定カメラ ' + (UI.pose + 1) + ' · ' + POSES[UI.pose].nome + ' · 1〜6 で切り替え · Esc で運転に戻る' : '';
+   UI.tag.style.display = UI.tag.textContent ? 'block' : 'none';
+   hudShow(st === ST.JOGO || st === ST.FITA || (st === ST.PAUSA && UI.back !== ST.BENCH));
+   sndRun(st === ST.JOGO || st === ST.FITA || st === ST.BENCH);
+@@ -53,7 +53,7 @@ function uiKey(e) {
+ // ---- benchmark: a volta roteirizada de 60 s em tempo real, sem painel, medindo tempo de quadro e (se houver) tempo de GPU
+ function benchStart() {
+   if (!GS.replay || UI.st === ST.INICIO) return;
+-  GS.frozen = false; GS.freeCam = false; GS.replayOn = true; gameRestart(); UI.bench = null; UI.benchN++; UI.res.innerHTML = '<h2>Benchmark · calculando…</h2>';
++  GS.frozen = false; GS.freeCam = false; GS.replayOn = true; gameRestart(); UI.bench = null; UI.benchN++; UI.res.innerHTML = '<h2>性能の測定 · 計算中…</h2>';
+   perfAttach(true, 1); perfStart(); uiSet(ST.BENCH);
+ }
+ function benchStop() { PERF.rec = false; perfAttach(UI.stats, 12); GS.replayOn = false; }
+@@ -62,12 +62,12 @@ function benchEnd() {
+   setTimeout(() => {   // espera as últimas leituras de tempo de GPU chegarem
+     if (id !== UI.benchN || UI.st !== ST.RESULT) return;
+     const r = perfReport(), stat = a => { a = a.slice(5).filter(x => x > 0).sort((p, q) => p - q); const n = a.length; return n ? { n, media: a.reduce((p, q) => p + q, 0) / n, p99: a[Math.min(n - 1, Math.round(0.99 * (n - 1)))], max: a[n - 1], acima: a.filter(x => Math.round(x * 10) > 167).length } : null; };   // acima: quadros que passaram de 16,7 ms (na resolução de 0,1 ms do relógio)
+-    const q = stat(r.raf), g = PERF.qs ? stat(r.gpu) : null, f = x => x.toFixed(2).replace('.', ',');
++    const q = stat(r.raf), g = PERF.qs ? stat(r.gpu) : null, f = x => x.toFixed(2);
+     benchStop(); gameRestart();
+     UI.bench = { quadros: r.n, quadro_ms: q, gpu_ms: g, fps: q ? 1000 / q.media : 0, acima_16_7: q ? q.acima : 0, gpu_acima_16_7: g ? g.acima : null, tick: 3600, resolucao: G.W + '×' + G.H };
+-    const row = (n, s) => '<tr><th>' + n + '</th>' + (s ? '<td>' + f(s.media) + '</td><td>' + f(s.p99) + '</td><td>' + f(s.max) + '</td>' : '<td colspan=3>indisponível neste navegador</td>') + '</tr>';
+-    UI.res.innerHTML = '<h2>Benchmark · volta roteirizada de 60 s · ' + G.W + '×' + G.H + '</h2><table><tr><th></th><th>média (ms)</th><th>percentil 99 (ms)</th><th>máximo (ms)</th></tr>' + row('Tempo de quadro', q) + row('Tempo de GPU', g) + '</table>' +
+-      '<p>' + (q ? q.acima + ' de ' + q.n + ' quadros passaram de 16,7 ms de intervalo' + (g ? ' · ' + g.acima + ' passaram de 16,7 ms de GPU' : '') + ' · ' + f(1000 / q.media) + ' quadros por segundo' : '') + '</p>';
++    const row = (n, s) => '<tr><th>' + n + '</th>' + (s ? '<td>' + f(s.media) + '</td><td>' + f(s.p99) + '</td><td>' + f(s.max) + '</td>' : '<td colspan=3>このブラウザーでは測れません</td>') + '</tr>';
++    UI.res.innerHTML = '<h2>性能の測定 · 決まった運転 60 秒 · ' + G.W + '×' + G.H + '</h2><table><tr><th></th><th>平均 (ms)</th><th>99 パーセンタイル (ms)</th><th>最大 (ms)</th></tr>' + row('コマの間隔', q) + row('GPU の時間', g) + '</table>' +
++      '<p>' + (q ? q.n + ' コマ中 ' + q.acima + ' コマの間隔が 16.7 ms を超えた' + (g ? ' · GPU の時間が 16.7 ms を超えたのは ' + g.acima + ' コマ' : '') + ' · 1 秒あたり ' + f(1000 / q.media) + ' コマ' : '') + '</p>';
+   }, 400);
+ }
+ // ---- controle (Gamepad API, layout padrão). Só é consultado enquanto houver um controle ligado.
+diff --git a/reuse/js/60_fly.js b/reuse/js/60_fly.js
+new file mode 100644
+index 0000000..5eb3042
+--- /dev/null
++++ b/reuse/js/60_fly.js
+@@ -0,0 +1,22 @@
++// 流用の実験: ゲームではなく「映像」に流用する。?fly を付けて開くと、操作なしで、ドローンのカメラが夕暮れの山のコースの上を飛ぶ。
++// 描画・空・森・地形・影・後処理は元のコードのまま使い、足したのはカメラの動きだけ。車はピットに止めておく。
++const FLY = { on: Q.has('fly'), t: 0, speed: 24, p: new Float64Array(5), q: new Float64Array(5), started: false };
++if (FLY.on) {
++  GAME.ui = false;   // 開始の画面と操作の説明を出さない
++  BUILD.push(async () => {
++    const tick = GAME.tick;
++    if (!tick) return;
++    GAME.tick = (fixed) => {
++      if (!FLY.started) {   // 最初の 1 回: 車をピットの中に置いて止め、カメラを自由にする
++        FLY.started = true; vehicleReset(TRK.pit.s0 + 120, (TRK.pit.laneD0 + TRK.pit.laneD1) / 2, 0); GS.frozen = true; GS.freeCam = true;
++        const h = document.getElementById('hint'); if (h) h.style.display = 'none';
++      }
++      tick(fixed);
++      FLY.t += RT[2] || 1 / 60;
++      // コースの中心線に沿って進み、横へゆっくり振れながら、高さも波打たせる
++      const s = 30 + FLY.t * FLY.speed, side = 22 * Math.sin(FLY.t * 0.11), lift = 26 + 9 * Math.sin(FLY.t * 0.07 + 1.3);
++      const p = trackPos(s, side, FLY.p), q = trackPos(s + 85, side * 0.3, FLY.q);
++      setCamera(p[0], p[1] + lift, p[2], q[0], q[1] + 4, q[2], 0.85);
++    };
++  });
++}
+diff --git a/orig/js/90_main.js b/reuse/js/90_main.js
+index d7f3ca1..8a5676e 100644
+--- a/orig/js/90_main.js
++++ b/reuse/js/90_main.js
+@@ -40,11 +40,11 @@ function buildTestScene() {
+ async function main() {
+   try {
+     await gpuInit();
+-    setMsg('gerando circuito…'); await new Promise(r => setTimeout(r));
++    setMsg('コースを作っています…'); await new Promise(r => setTimeout(r));
+     trackBuild(); heightFieldBuild(); worldMapBuild(); aiBuild();   // aiBuild define TRK.line (trajetória) antes dos construtores de cena
+     rendererInit();
+-    setMsg('gerando céu…'); await skyInit();
+-    setMsg('gerando cenário…'); await new Promise(r => setTimeout(r));
++    setMsg('空を作っています…'); await skyInit();
++    setMsg('景色を作っています…'); await new Promise(r => setTimeout(r));
+     if (GAME.mode === 'test') buildTestScene();
+     if (GAME.mode === 'placeholder') { buildPlaceholderWorld(); GAME.init = () => { const p = trackPos(40, 0, new Float64Array(5)); setCamera(p[0] - 12, p[1] + 3, p[2] + 4, p[0] + 30, p[1] + 1, p[2], 0.9); R.cube.pos.set([p[0], p[1] + 1.2, p[2]]); }; }
+     for (const b of BUILD) await b();
+@@ -69,7 +69,7 @@ async function main() {
+     if (GAME.ui) uiInit();
+     GAME.ready = true;
+     if (!GAME.capture) requestAnimationFrame(rafLoop);
+-  } catch (e) { setMsg('erro: ' + e.message); console.error(e); GAME.error = e.message; }
++  } catch (e) { setMsg('エラー: ' + e.message); console.error(e); GAME.error = e.message; }
+ }
+ let _lastT = 0;
+ function rafLoop(t) {
+diff --git a/orig/shell.html b/reuse/shell.html
+index 9012c2d..c2cf0e9 100644
+--- a/orig/shell.html
++++ b/reuse/shell.html
+@@ -1,9 +1,14 @@
+ <!doctype html>
+-<html lang="pt-BR">
++<!--
++  Required Notice: Copyright (c) 2026 ViktorKav (https://github.com/viktorkav/uno-com-escada)
++  License: PolyForm Noncommercial 1.0.0 (https://polyformproject.org/licenses/noncommercial/1.0.0)
++  これは上の作品の Fable 5.2 の版を、非営利の実験として改変したもの（車・コース・時刻を差し替え）。
++-->
++<html lang="ja">
+ <head>
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width,initial-scale=1">
+-<title>Uno com escada — circuito</title>
++<title>夕暮れ峠サーキット</title>
+ <style>
+ html,body{margin:0;height:100%;background:#000;overflow:hidden;font:14px/1.4 -apple-system,Helvetica,Arial,sans-serif;color:#ddd}
+ #c{position:absolute;inset:0;margin:auto;width:100vw;height:100vh;display:block;object-fit:contain}
+@@ -34,44 +39,44 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden;font:14px/1.4 -ap
+ </head>
+ <body>
+ <canvas id="c"></canvas>
+-<div id="msg">carregando…</div>
+-<div id="hint">W acelera · S freia/ré · A/D faz curvas · Espaço freio de mão · C câmera · R volta à pista</div>
++<div id="msg">読み込み中…</div>
++<div id="hint">W 加速 · S ブレーキと後退 · A/D 曲がる · Space サイドブレーキ · C カメラ · R コースに戻る</div>
+ <canvas id="hg"></canvas><canvas id="ht"></canvas><canvas id="hs"></canvas><div id="tag"></div>
+ <div id="ui"><div>
+-<h1>Uno com escada</h1>
+-<p class="sub">Fiat Uno Mille EP 1996 · circuito</p>
++<h1>夕暮れ峠サーキット</h1>
++<p class="sub">小型ハッチバック「モンテ」 · 山の周回コース</p>
+ <div id="res"></div>
+ <div class="cols">
+-<div><h2>Teclado</h2><table>
+-<tr><td>W ou ↑</td><td>acelera</td></tr>
+-<tr><td>S ou ↓</td><td>freia e dá ré</td></tr>
+-<tr><td>A D ou ← →</td><td>faz curvas</td></tr>
+-<tr><td>Espaço</td><td>freio de mão</td></tr>
+-<tr><td>C</td><td>troca a câmera</td></tr>
+-<tr><td>V (segurar)</td><td>olha para trás</td></tr>
+-<tr><td>R</td><td>devolve o carro à pista</td></tr>
+-<tr><td>Esc</td><td>pausa e abre este menu</td></tr>
++<div><h2>キーボード</h2><table>
++<tr><td>W または ↑</td><td>加速</td></tr>
++<tr><td>S または ↓</td><td>ブレーキ・後退</td></tr>
++<tr><td>A D または ← →</td><td>曲がる</td></tr>
++<tr><td>Space</td><td>サイドブレーキ</td></tr>
++<tr><td>C</td><td>カメラを切り替える</td></tr>
++<tr><td>V（押したまま）</td><td>後ろを見る</td></tr>
++<tr><td>R</td><td>車をコースに戻す</td></tr>
++<tr><td>Esc</td><td>一時停止して、このメニューを開く</td></tr>
+ </table></div>
+-<div><h2>Controle</h2><table>
+-<tr><td>Gatilho direito</td><td>acelera</td></tr>
+-<tr><td>Gatilho esquerdo</td><td>freia e dá ré</td></tr>
+-<tr><td>Analógico esquerdo</td><td>faz curvas</td></tr>
+-<tr><td>A</td><td>freio de mão</td></tr>
+-<tr><td>Y</td><td>troca a câmera</td></tr>
+-<tr><td>RB (segurar)</td><td>olha para trás</td></tr>
+-<tr><td>X</td><td>devolve o carro à pista</td></tr>
+-<tr><td>Start</td><td>abre este menu</td></tr>
++<div><h2>ゲームパッド</h2><table>
++<tr><td>右トリガー</td><td>加速</td></tr>
++<tr><td>左トリガー</td><td>ブレーキ・後退</td></tr>
++<tr><td>左スティック</td><td>曲がる</td></tr>
++<tr><td>A</td><td>サイドブレーキ</td></tr>
++<tr><td>Y</td><td>カメラを切り替える</td></tr>
++<tr><td>RB（押したまま）</td><td>後ろを見る</td></tr>
++<tr><td>X</td><td>車をコースに戻す</td></tr>
++<tr><td>Start</td><td>このメニューを開く</td></tr>
+ </table></div>
+-<div><h2>Ferramentas</h2><table>
+-<tr><td>M</td><td>liga e desliga o som</td></tr>
+-<tr><td>H</td><td>estatísticas de desempenho</td></tr>
+-<tr><td>B</td><td>benchmark (volta roteirizada de 60 s)</td></tr>
+-<tr><td>F</td><td>assistir à volta roteirizada</td></tr>
+-<tr><td>1 a 6</td><td>poses fixas</td></tr>
+-<tr><td colspan="2" style="font-weight:400;color:#ddd;opacity:.75;padding-top:.5em">Câmbio automático · a volta conta<br>ao cruzar a linha de largada</td></tr>
++<div><h2>道具</h2><table>
++<tr><td>M</td><td>音の入り切り</td></tr>
++<tr><td>H</td><td>性能の表示</td></tr>
++<tr><td>B</td><td>性能を測る（決まった運転 60 秒）</td></tr>
++<tr><td>F</td><td>決まった運転を見る</td></tr>
++<tr><td>1〜6</td><td>固定カメラ</td></tr>
++<tr><td colspan="2" style="font-weight:400;color:#ddd;opacity:.75;padding-top:.5em">変速は自動 · スタートラインを越えると<br>1 周として数える</td></tr>
+ </table></div>
+ </div>
+-<div class="bt"><button id="b0">Começar</button><button id="b1">Benchmark</button></div>
++<div class="bt"><button id="b0">始める</button><button id="b1">性能を測る</button></div>
+ </div></div>
+ <script>
+ /*__CODE__*/
+diff --git a/orig/wgsl/mat_car.wgsl b/reuse/wgsl/mat_car.wgsl
+index 13aff0e..f059183 100644
+--- a/orig/wgsl/mat_car.wgsl
++++ b/reuse/wgsl/mat_car.wgsl
+@@ -5,7 +5,8 @@
+ // O.p0 da carroceria: x = luz de freio, y = luz de ré, z = faróis. O.p0.x das rodas = |velocidade angular|.
+ #include mesh_vert
+ @group(3) @binding(0) var tAtlas: texture_2d<f32>;
+-const PAINT_COL = vec3f(0.168, 0.275, 0.425);   // azul-claro metálico de estúdio: mais escuro e acinzentado (o sol do jogo é forte)
++const PAINT_COL = vec3f(0.40, 0.055, 0.045);   // 流用の実験: 深い赤のメタリック（元は青）
++// 元: vec3f(0.168, 0.275, 0.425);   // azul-claro metálico de estúdio: mais escuro e acinzentado (o sol do jogo é forte)
+ fn carBulgeW(x: f32) -> f32 { return 0.055 * smoothstep(-0.15, 0.25, x) - 0.036 * smoothstep(-1.15, -1.42, x); }
+ fn surf(in: V2F, ff: bool) -> Surface {
+   var s = surfDefault(normalize(in.nrm));
