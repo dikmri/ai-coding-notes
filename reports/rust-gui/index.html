@@ -868,12 +868,19 @@ body { font-size: 0.9375rem; }
       <li>GPUI だけでは、入力欄の部品もありません。GPUI Kit なしで作るなら、日本語入力への対応も含めて入力欄を自分で書くことになります。</li>
       <li>Rust の型と寿命のルールで止まりやすいです。今回は、行を描く関数の戻り値に <code>impl IntoElement + use&lt;&gt;</code> と書く必要がありました。部品（Entity）・<code>Context</code>・<code>listener</code>・<code>processor</code> の使い分けも覚える必要があります。</li>
       <li>説明の文書が少なく、使い方は crate のソースを読んで探しました。GPUI Kit は、AI のコーディング道具向けの説明（skills）を配っています。</li>
+      <li>窓を × で閉じると、GPUI の中で「ウィンドウ ハンドルが無効です」というエラーが 5 件記録されました。Windows が先に窓を壊したあとで、GPUI の後始末がもう無い窓に対して <code>ShowWindowAsync</code>・<code>RevokeDragDrop</code>・<code>DestroyWindow</code> を呼ぶためです。終了そのものは正常で、動きに影響はありません。</li>
       <li>つまずいた点が 2 つありました。1 つ目は窓の位置です。表示先のモニター（<code>display_id</code>）を指定しないと、主モニターの外の位置が無視されました。2 つ目は一覧の行の幅です。<code>w_full()</code> を書かないと、行の幅が文字の長さまで縮みました。</li>
       <li>配る形が分かれています。公式の <code>gpui</code>（1 年前の版）、Zed の写しの <code>gpui-pre</code>・<code>gpui-unofficial</code>、有志の <code>gpui-ce</code>、Longbridge 社の速度を上げた <code>gpui-fast</code> があります。これらは互いに混ぜて使えません。</li>
     </ul>
 
     <!-- gen:imeNote -->
-    <p class="note">日本語入力の細かい使い心地（変換中の Enter で誤って追加されないか、変換の候補の窓が入力の位置に出るか）は、窓に入力の焦点を移して手で確かめる必要があります。今回は確かめていないので、確かめたあとで書き足します。</p>
+    <h3>日本語入力を試した結果</h3>
+    <p>作者が 3 つのアプリで、日本語入力を手で試しました。入力欄に「ぎゅうにゅうをかう」と打って変換し、Enter で変換を確定してから、もう一度 Enter で追加します。絞り込みの欄には「しりょう」と打って「資料」に変換しました。アプリの記録で、何が起きたかを確かめています。</p>
+    <ul>
+      <li><strong>変換を確定する Enter で、誤って追加されることはありませんでした（3 つとも）。</strong>どの記録にも追加は 1 回だけで、本文は変換後の「牛乳を買う」でした。</li>
+      <li><strong>変換中の文字の扱いが違いました。</strong><span class="fw tauri">Tauri</span> と <span class="fw egui">egui</span> は、変換を確定する前の「ｓ」「し」「しｒ」「しりょう」でも、1 文字ごとに入力欄の値が変わったと知らせました。そのため、確定するまでの間は一覧が 0 件になります。<span class="fw gpui">GPUI</span>（GPUI Kit の入力欄）は、確定した「資料」で 1 回だけ知らせました。Tauri では <code>isComposing</code> を見て、変換が終わるまで絞り込みを待たせる書き方ができます。</li>
+      <li>変換の候補の窓が入力の位置に出たかどうかは、アプリの記録には残らないので、ここでは評価していません。</li>
+    </ul>
     <!-- /gen:imeNote -->
   </section>
 
@@ -950,6 +957,7 @@ body { font-size: 0.9375rem; }
               <li>実行ファイルが大きく（21.4 MB）、最初のビルドに他の 2 倍の時間がかかる</li>
               <li>iOS・Android には対応していない。Web はまだ試しの段階</li>
               <li>待機中の CPU が、回によってばらついた（原因は特定できていない）</li>
+              <li>窓を閉じるとき、GPUI の中でエラーが記録される（動きには影響しない）</li>
             </ul>
           </div>
         </div>
@@ -992,13 +1000,14 @@ body { font-size: 0.9375rem; }
           <tr><th scope="row">ビルドの速さ</th><td><span class="grade a">A</span> 最初 6.0 分</td><td><span class="grade b">B</span> 最初 6.3 分</td><td><span class="grade c">C</span> 最初 12.9 分</td></tr>
           <tr><th scope="row">見た目の自由度</th><td><span class="grade s">S</span></td><td><span class="grade c">C</span></td><td><span class="grade a">A</span></td></tr>
           <tr><th scope="row">作りやすさ</th><td><span class="grade a">A</span> Web の知識が使える</td><td><span class="grade s">S</span></td><td><span class="grade c">C</span></td></tr>
-          <tr><th scope="row">日本語入力とアクセシビリティ</th><td><span class="grade s">S</span> ブラウザーが受け持つ</td><td><span class="grade b">B</span></td><td><span class="grade b">B</span></td></tr>
+          <tr><th scope="row">日本語入力</th><td><span class="grade s">S</span> ブラウザーが受け持つ</td><td><span class="grade a">A</span> 焦点の移し方に注意</td><td><span class="grade a">A</span> 確定した文字だけを渡す</td></tr>
+          <tr><th scope="row">スクリーンリーダー</th><td><span class="grade s">S</span> ブラウザーが受け持つ</td><td><span class="grade a">A</span> AccessKit（2022 年から）</td><td><span class="grade b">B</span> 2026 年の写しで入ったばかり</td></tr>
           <tr><th scope="row">出せる先（OS など）</th><td><span class="grade s">S</span> Windows・macOS・Linux・iOS・Android</td><td><span class="grade a">A</span> Windows・macOS・Linux・Web</td><td><span class="grade b">B</span> Windows・macOS・Linux</td></tr>
           <tr><th scope="row">安定性と資料の多さ</th><td><span class="grade s">S</span> 安定版 2.x</td><td><span class="grade a">A</span> 0.x だが長く使われている</td><td><span class="grade c">C</span> 配る形が分かれている</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="small">日本語入力の評価は、変換の操作を手で確かめる前のものです。egui は日本語入力にもスクリーンリーダー（AccessKit）にも対応していますが、0.37 では入力欄に焦点を移すたびに変換中の文字が確定されます（<code>Memory::request_focus</code> が <code>interrupt_ime</code> を呼ぶ）。毎フレーム焦点を移すようなコードを書くと、日本語が打てなくなります。GPUI のスクリーンリーダーへの対応（AccessKit）は、公式の 0.2.2（2025 年 10 月）にはなく、今回使った写し（gpui-pre 0.3.12）で入っていました。この 2 つは B にしています。</p>
+    <p class="small">日本語入力は、作者が 3 つのアプリで変換の操作を試し、アプリの記録で確かめた結果です（<a href="#review">作って使って分かったこと</a>を参照）。egui は、0.37 では入力欄に焦点を移すたびに変換中の文字が確定されます（<code>Memory::request_focus</code> が <code>interrupt_ime</code> を呼ぶ）。毎フレーム焦点を移すようなコードを書くと日本語が打てなくなるので、A にしています。スクリーンリーダーは試していません。GPUI の対応（AccessKit）は、公式の 0.2.2（2025 年 10 月）にはなく、今回使った写し（gpui-pre 0.3.12）で入っていました。</p>
 
     <h3>低い性能の PC への優しさ</h3>
     <dl class="tier" aria-label="低い性能の PC への優しさのティア表">
