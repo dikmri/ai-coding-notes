@@ -106,7 +106,7 @@ label { display: inline-flex; align-items: center; gap: .4em; }
 .mainnav { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .mainnav a { padding: .35em .8em; border-radius: 999px; color: var(--ink); text-decoration: none; font-weight: 600; }
 .mainnav a:hover { background: var(--paper-2); }
-.mainnav a[aria-current="page"] { background: var(--ink); color: var(--paper); }
+.mainnav a:is([aria-current="page"], [aria-current="true"]) { background: var(--ink); color: var(--paper); }
 
 @media (width < 1100px) {
   .masthead { flex-wrap: wrap; }

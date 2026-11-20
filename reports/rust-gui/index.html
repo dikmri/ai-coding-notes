@@ -1,0 +1,1105 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Rust の GUI はどれを選ぶ？ Tauri・egui・GPUI を比べた ― 出来る！HTML/CSS/JavaScript</title>
+<meta name="description" content="同じタスク帳アプリを Tauri・egui・GPUI で作り、起動の速さ・メモリ・CPU・低い性能の PC での動きを測った比較レポート。用途ごとの選び方とティア表つき。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='46' font-size='40' text-anchor='middle' fill='%23fff' font-family='serif' font-weight='700'%3E%E5%87%BA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<style>
+body { font-size: 0.9375rem; }
+.report {
+  /* 3 つのフレームワークの色（グラフ・表・札で同じ色を使う） */
+  --c-tauri: light-dark(#2a78d6, #3987e5);
+  --c-egui: light-dark(#eb6834, #d95926);
+  --c-gpui: light-dark(#1baf7a, #199e70);
+  max-inline-size: 60rem; margin-inline: auto; padding: 2rem 1rem 5rem;
+}
+.report :is(p, ul, ol, .note, details) { max-inline-size: 44rem; }
+.report p, .report li { text-wrap: pretty; }
+.report a { overflow-wrap: anywhere; }
+.kicker { margin: 0; color: var(--ink-2); font-weight: 600; font-size: 0.875rem; }
+.report h1 { margin: 0.2em 0 0.4em; font: 800 clamp(1.6rem, 1.2rem + 1.6vw, 2.4rem)/1.3 var(--serif); text-wrap: balance; }
+.lede { font-size: 1.0625rem; }
+.report h2 { margin: 3.5rem 0 1rem; padding-top: 0.6em; border-top: 2px solid var(--ink); font: 700 clamp(1.25rem, 1.1rem + 0.6vw, 1.6rem)/1.4 var(--serif); text-wrap: balance; }
+.report h3 { margin: 2.2rem 0 0.6rem; font-size: 1.0625rem; }
+.report figure { margin: 1.5rem 0; }
+.report figure img { display: block; inline-size: 100%; block-size: auto; border-radius: var(--r); border: 1px solid var(--rule); background: var(--paper-2); }
+.report figcaption { margin-top: 0.4rem; color: var(--ink-2); font-size: 0.875rem; }
+.small { color: var(--ink-2); font-size: 0.875rem; }
+.note { margin: 1.5rem 0; padding: 1rem 1.2rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
+.note > :first-child { margin-top: 0; }
+.note > :last-child { margin-bottom: 0; }
+.toc { columns: 2 14rem; font-size: 0.9375rem; }
+
+/* フレームワークの名札 */
+.fw { display: inline-flex; align-items: center; gap: 0.35em; font-weight: 700; white-space: nowrap; }
+.fw::before { content: ""; inline-size: 0.7em; block-size: 0.7em; border-radius: 3px; background: var(--c); }
+.fw.tauri, [data-app="tauri"] { --c: var(--c-tauri); }
+.fw.egui, [data-app="egui"], [data-app="egui-dx12"], [data-app="egui-glow"] { --c: var(--c-egui); }
+.fw.gpui, [data-app="gpui"], [data-app="gpui-full"], [data-app="gpui-warp"] { --c: var(--c-gpui); }
+
+/* 3 つを並べるカード */
+.trio { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); gap: 1rem; margin: 1.5rem 0; }
+.trio > * { margin: 0; padding: 1rem 1.1rem; border: 1px solid var(--rule); border-top: 4px solid var(--c); border-radius: var(--r); background: var(--card); }
+.trio h3, .trio h4 { margin: 0 0 0.4rem; font-size: 1rem; }
+.trio p, .trio ul { margin: 0.4rem 0 0; font-size: 0.9375rem; }
+.trio ul { padding-inline-start: 1.2em; }
+.trio figure { padding: 0; border-top-width: 4px; overflow: hidden; }
+.trio figure img { border: 0; border-radius: 0; }
+.trio figcaption { margin: 0; padding: 0.5rem 0.8rem; }
+
+/* 仕組みの図（箱を縦に積む） */
+.stack-diagram { display: grid; gap: 4px; margin-top: 0.6rem; font-size: 0.8125rem; }
+.stack-diagram span { padding: 0.35em 0.6em; border-radius: 6px; background: var(--paper-2); }
+.stack-diagram span.app { background: color-mix(in oklab, var(--c) 18%, var(--card)); font-weight: 600; }
+.stack-diagram span.os { background: transparent; border: 1px dashed var(--rule); color: var(--ink-2); }
+
+/* 棒グラフ */
+.bars { margin: 1.5rem 0; max-inline-size: 44rem; }
+.bars figcaption { display: flex; flex-wrap: wrap; gap: 0.2em 0.8em; align-items: baseline; margin: 0 0 0.6rem; color: var(--ink); font-size: 0.9375rem; }
+.bars-title { font-weight: 700; }
+.bars-hint { color: var(--ink-2); font-size: 0.8125rem; }
+.bar-rows { display: grid; gap: 6px; }
+.bar-row { display: grid; grid-template-columns: 7.5em 1fr; align-items: center; gap: 0.6em; }
+.bar-name { font-size: 0.875rem; font-weight: 600; text-align: end; }
+.bar-track { display: flex; align-items: center; gap: 0.5em; border-inline-start: 1px solid var(--ink-3); min-block-size: 24px; }
+.bar { display: block; inline-size: calc(var(--w) * 0.78); block-size: 18px; border-radius: 0 4px 4px 0; background: var(--c); }
+:is([data-app="egui-glow"], [data-app="egui-dx12"], [data-app="gpui-full"]) .bar { background: repeating-linear-gradient(135deg, var(--c) 0 5px, color-mix(in oklab, var(--c) 45%, var(--paper)) 5px 8px); }
+.bar-val { font-size: 0.8125rem; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink); }
+.bars-note { margin: 0.5rem 0 0; color: var(--ink-2); font-size: 0.8125rem; }
+.chart-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr)); gap: 0 2rem; }
+.chart-pair .bars { margin-block: 1rem; }
+
+/* 表 */
+.table-wrap { overflow: auto; max-inline-size: 100%; margin: 1rem 0 1.5rem; }
+.report table { border-collapse: collapse; font-size: 0.9375rem; }
+.report caption { text-align: start; font-weight: 700; padding-bottom: 0.4rem; }
+.report th, .report td { padding: 0.45em 0.8em; border-bottom: 1px solid var(--rule); text-align: start; vertical-align: top; }
+.report thead th { border-bottom: 2px solid var(--ink-3); }
+.report tbody th { font-weight: 600; }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: end !important; }
+
+/* ティア表 */
+.tier { display: grid; grid-template-columns: 3.2rem 1fr; border: 1px solid var(--rule); border-radius: var(--r); overflow: hidden; margin: 1rem 0; max-inline-size: 44rem; background: var(--card); }
+.tier > dt { display: grid; place-items: center; font: 800 1.4rem/1 var(--serif); color: #1f1b16; border-bottom: 1px solid var(--rule); }
+.tier > dd { margin: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; padding: 0.7rem 0.9rem; border-bottom: 1px solid var(--rule); min-block-size: 3.2rem; }
+.tier > :nth-last-child(-n + 2) { border-bottom: 0; }
+.tier .t-s { background: #f4b6b0; }
+.tier .t-a { background: #f7d29b; }
+.tier .t-b { background: #f3eaa0; }
+.tier .t-c { background: #c9e3b0; }
+.tier .chip { display: inline-flex; align-items: center; gap: 0.4em; padding: 0.25em 0.7em; border: 1px solid var(--rule); border-inline-start: 4px solid var(--c); border-radius: 6px; background: var(--paper); font-weight: 700; }
+.tier .chip small { font-weight: 400; color: var(--ink-2); }
+.grade { display: inline-block; min-inline-size: 1.8em; padding: 0.1em 0.4em; border-radius: 5px; font-weight: 800; text-align: center; color: #1f1b16; }
+.grade.s { background: #f4b6b0; }
+.grade.a { background: #f7d29b; }
+.grade.b { background: #f3eaa0; }
+.grade.c { background: #c9e3b0; }
+
+/* 長所と弱点 */
+.pros-cons { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 0.5rem 1.5rem; }
+.pros-cons h4 { margin: 0.8rem 0 0.2rem; font-size: 0.9375rem; }
+.pros-cons ul { margin: 0; padding-inline-start: 1.2em; }
+.answer { font-size: 1.0625rem; font-weight: 700; }
+.report code { font-family: var(--mono); font-size: 0.875em; overflow-wrap: anywhere; }
+/* コマンドの枠は、幅が足りなければ枠の中で横にスクロールする */
+.report pre { overflow-x: auto; }
+.report pre code { overflow-wrap: normal; white-space: pre; }
+.foot { margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--rule); color: var(--ink-2); font-size: 0.875rem; }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="出来る！HTML/CSS/JavaScript 表紙へ">
+    <span class="brand-mark">出来る<em>！</em></span>
+    <span class="brand-sub">HTML<i>/</i>CSS<i>/</i>JavaScript</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="report">
+<article>
+  <p class="kicker">実験レポート 番外編 ・ 2026 年 11 月 20 日</p>
+  <h1>Rust の GUI はどれを選ぶ？ Tauri・egui・GPUI で同じアプリを作って比べた</h1>
+  <p class="lede">Rust でデスクトップアプリの画面を作るときによく名前が挙がる、Tauri・egui・GPUI の 3 つで、同じ機能・同じ画面の「タスク帳」を作りました。3 つを同じ PC で動かし、起動の速さ・メモリ・CPU を測りました。メモリの値上がりで PC が高くなった 2026 年 11 月の事情を考え、性能の低い PC をまねた条件でも確かめています。</p>
+
+  <!-- gen:hero -->
+  <div class="trio" role="group" aria-label="3 つの版の画面（1 万件を入れた状態）">
+    <figure data-app="tauri">
+      <img src="img/tauri.webp" width="902" height="672" fetchpriority="high" alt="Tauri 版のタスク帳。上に入力欄・絞り込み・件数、中央に 1 万件の一覧、下にボタン。Edge と同じ文字と部品で描かれている">
+      <figcaption><span class="fw tauri">Tauri</span> 版</figcaption>
+    </figure>
+    <figure data-app="egui">
+      <img src="img/egui.webp" width="902" height="672" alt="egui 版のタスク帳。同じ並びで、部品は角の丸い灰色のボタンと四角いチェック。文字は少し細い">
+      <figcaption><span class="fw egui">egui</span> 版</figcaption>
+    </figure>
+    <figure data-app="gpui">
+      <img src="img/gpui.webp" width="902" height="672" alt="GPUI 版のタスク帳。同じ並びで、黒い「追加」ボタンと枠線のついた切り替えボタン。GPUI Kit の部品の見た目">
+      <figcaption><span class="fw gpui">GPUI</span> 版</figcaption>
+    </figure>
+  </div>
+    <!-- /gen:hero -->
+
+  <nav class="note" aria-labelledby="toc-h">
+    <p id="toc-h"><strong>目次</strong></p>
+    <ol class="toc">
+      <li><a href="#conclusion">結論</a></li>
+      <li><a href="#three">比べた 3 つ</a></li>
+      <li><a href="#app">作ったアプリ</a></li>
+      <li><a href="#method">測り方</a></li>
+      <li><a href="#result">測った結果</a></li>
+      <li><a href="#lowspec">低い性能の PC で</a></li>
+      <li><a href="#review">作って使って分かったこと</a></li>
+      <li><a href="#proscons">良さと弱点</a></li>
+      <li><a href="#tier">ティア表</a></li>
+      <li><a href="#choose">用途ごとの選び方</a></li>
+      <li><a href="#others">ほかの選択肢</a></li>
+      <li><a href="#reproduce">ソースと測り直し方</a></li>
+      <li><a href="#sources">出典</a></li>
+    </ol>
+  </nav>
+
+  <section id="conclusion" aria-labelledby="h-conclusion">
+    <h2 id="h-conclusion">結論</h2>
+    <!-- gen:conclusion -->
+    <p class="answer">迷ったら Tauri を選べば、大きく外すことはありません。性能の低い PC で軽く動かすことを最優先にするなら、egui を OpenGL（glow）で描く設定で使います。GPUI は測った中でいちばん軽いものの、2026 年 11 月の時点では Rust に慣れた人向けです。</p>
+    <ul>
+      <li><span class="fw tauri">Tauri</span>: できることがいちばん多く、安定版で、資料も多いです。ただし 3 つの中でいちばん重く、メモリは待機中に 76 MB、スクロールのあとは 154 MB でした。CPU を 1 コアに絞ると、起動に 4.57 秒かかりました。一方で、GPU のない PC でも滑らかに動いたのは Tauri だけでした。</li>
+      <li><span class="fw egui">egui</span>: いちばん書きやすく、1 フレームを描く CPU の時間もいちばん短い（1.69 ms）です。重さは描き方の設定で大きく変わります。glow なら起動 0.48 秒・メモリ 35 MB と軽いのですが、既定の wgpu ではメモリ 97 MB に加えて GPU のメモリを 239 MB 使います。</li>
+      <li><span class="fw gpui">GPUI</span>: メモリ 14.4 MB・起動 0.56 秒で、測った中でいちばん軽いです。前面にない窓のフレームを抑えて、CPU も節約します。ただし公式の crate が止まっていて、配る形が分かれ、文書も少ないです。Discord と GitButler が採用を進めているので、1〜2 年で評価がいちばん変わりそうなのは GPUI です。</li>
+    </ul>
+    <p>「これを使えば間違いない」と言い切れるものは、今回の 3 つにはありませんでした。3 つとも、はっきりした弱点があるからです。<a href="#choose">用途ごとの選び方</a>と<a href="#tier">ティア表</a>で、何を重視するかに合わせて選べるようにしました。</p>
+    <!-- /gen:conclusion -->
+  </section>
+
+  <section id="three" aria-labelledby="h-three">
+    <h2 id="h-three">比べた 3 つ</h2>
+    <p>3 つは、画面を描く仕組みがまったく違います。この違いが、メモリや起動の速さの差の元になります。</p>
+    <div class="trio">
+      <div data-app="tauri">
+        <h3><span class="fw tauri">Tauri</span> 2.12.7</h3>
+        <p>画面を HTML・CSS・JavaScript で作り、OS に入っているブラウザーの部品に表示させます。Windows では WebView2（Microsoft Edge の中身）を使います。Rust は、ファイルの読み書きなどの裏側の処理を受け持ちます。</p>
+        <div class="stack-diagram" aria-label="Tauri の仕組み">
+          <span class="app">アプリ（Rust）</span>
+          <span>↕ メッセージのやり取り（IPC）</span>
+          <span>WebView2（別のプロセスが 6 個）</span>
+          <span>HTML・CSS・JavaScript の画面</span>
+          <span class="os">Windows に入っている Edge の部品</span>
+        </div>
+      </div>
+      <div data-app="egui">
+        <h3><span class="fw egui">egui</span> 0.37.0</h3>
+        <p>画面を描くコードを、描くたびに上から実行し直す「即時モード」の GUI です。ボタンを置くコードと、押されたかを調べるコードが同じ 1 行になります。アプリの形にするには eframe を組み合わせます。</p>
+        <div class="stack-diagram" aria-label="egui の仕組み">
+          <span class="app">アプリ（Rust）: 画面を描くコード</span>
+          <span>↓ 図形の一覧（三角形の集まり）</span>
+          <span>wgpu（既定）か OpenGL（glow）</span>
+          <span class="os">GPU</span>
+        </div>
+      </div>
+      <div data-app="gpui">
+        <h3><span class="fw gpui">GPUI</span>（GPUI Kit 0.10.0）</h3>
+        <p>エディタの Zed のために作られた、GPU で描く GUI です。部品を残しておき、変わった所だけを描き直します。見た目の書き方は Tailwind CSS に似ています。入力欄やボタンは、Longbridge 社の部品集 GPUI Kit を使いました。</p>
+        <div class="stack-diagram" aria-label="GPUI の仕組み">
+          <span class="app">アプリ（Rust）: 部品（View）</span>
+          <span>↓ 部品の木と配置の計算</span>
+          <span>DirectX 11（文字は DirectWrite）</span>
+          <span class="os">GPU</span>
+        </div>
+      </div>
+    </div>
+    <div class="note">
+      <p><strong>GPUI の版について。</strong>crates.io の公式の <code>gpui</code> は、2025 年 10 月の 0.2.2 から更新されていません。2026 年 2 月、Zed の開発者は「Zed に直接関係しない GPUI の作業は後回しにする」と伝えました。それ以降、Zed の中の GPUI を外から使うには、写しを配る別の crate を使います。GPUI Kit 0.10.0 は、そうした写しの 1 つ（<code>gpui-pre</code> 0.3.12）に版を固定しています。今回は、この組み合わせを「いま GPUI でアプリを作る人がふつうに選ぶ形」として使いました。</p>
+    </div>
+  </section>
+
+  <section id="app" aria-labelledby="h-app">
+    <h2 id="h-app">作ったアプリ「タスク帳」</h2>
+    <p>3 つの版で、機能と画面の並びをそろえました。</p>
+    <ul>
+      <li>新しいタスクの入力欄と「追加」ボタン（Enter でも追加できる）</li>
+      <li>絞り込みの入力欄と、「すべて・未完了・完了」の切り替え。表示している件数</li>
+      <li>タスクの一覧（1 行 32 ピクセル）。行ごとに、完了のチェックと「削除」</li>
+      <li>「1万件を作る」「完了を消す」「すべて消す」のボタン、ダークモードの切り替え</li>
+    </ul>
+    <p>一覧は、3 つとも「見えている行だけを描く」作りです。egui と GPUI は、フレームワークにこの機能があります（<code>ScrollArea::show_rows</code> と <code>uniform_list</code>）。Tauri（HTML）にはないので、60 行ほどの JavaScript を書きました。データと絞り込みの規則は、Rust の共通の部品にまとめて 3 つの版で同じものを使いました。Tauri 版だけは画面の側に状態を持たせるのがふつうなので、同じ規則を JavaScript で書き、同じ値のテストを通しました。</p>
+
+    <!-- gen:shots -->
+    <p>3 つの版の画面は、このページの最初に載せました。並びと機能は同じで、部品の見た目だけが違います。</p>
+    <!-- /gen:shots -->
+
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cap-loc">
+      <table>
+        <caption id="cap-loc">画面の部分のコードの行数（空行とコメントを除く）</caption>
+        <thead><tr><th scope="col">版</th><th scope="col">ファイル</th><th scope="col" class="num">行数</th></tr></thead>
+        <tbody>
+          <tr><th scope="row"><span class="fw tauri">Tauri</span></th><td>Rust 68・JavaScript 164・HTML 45・CSS 70（ほかにデータの規則の JavaScript 99）</td><td class="num">347</td></tr>
+          <tr><th scope="row"><span class="fw egui">egui</span></th><td>Rust 1 ファイル</td><td class="num">316</td></tr>
+          <tr><th scope="row"><span class="fw gpui">GPUI</span></th><td>Rust 1 ファイル</td><td class="num">356</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>行数はほとんど変わりません。どれを選んでも、この規模のアプリなら書く量で困ることはありません。</p>
+  </section>
+
+  <section id="method" aria-labelledby="h-method">
+    <h2 id="h-method">測り方</h2>
+    <ul>
+      <li><strong>PC</strong>: Ryzen 5 3500（6 コア 6 スレッド）、メモリ 64 GB、GeForce RTX 5060 Ti、Windows 11 Home。窓は 1920×1080・60 Hz のモニターに開きました。</li>
+      <li><strong>ビルド</strong>: Rust 1.95.0。3 つともリリースビルドで、同じ設定（<code>lto = true</code>、<code>codegen-units = 1</code>、<code>strip = true</code>）にしました。</li>
+      <li><strong>起動時間</strong>: プロセスを起動してから、最初の画面が出た次のフレームまでの時間です。7 回測った中央値で、1 回目（ファイルの読み込みが遅い回）は除きました。</li>
+      <li><strong>メモリ</strong>: タスクマネージャーの「メモリ」の欄と同じ「プライベート ワーキング セット」です。Tauri は、WebView2 の子プロセス（6 個）も足しました。起動して 3 秒後の値です。</li>
+      <li><strong>CPU</strong>: 10 秒間に使った CPU の時間です。1 コアを使い切った状態を 100% として書きます。</li>
+      <li><strong>スクロール</strong>: 1 万件の一覧を、1 秒に 3,000 ピクセルの速さで 5 秒間、アプリ自身に動かさせました。</li>
+      <li><strong>ビルドの時間</strong>: crate のダウンロードが済んだ状態から、何もない所からのビルドと、<code>main.rs</code> に 1 行足したあとのデバッグビルドを測りました。3 つを 1 つずつ順に、ほかの重い処理と重ねずに測っています（各 1 回）。</li>
+      <li><strong>性能の低い PC のまね</strong>: CPU を 2 コアと 1 コアに制限した条件と、GPU を使わずに CPU で描く条件で測りました。詳しくは<a href="#lowspec">低い性能の PC で</a>に書きました。</li>
+    </ul>
+    <p class="small">1 台の PC での測定です。PC が違えば数字は変わりますが、3 つの差の向きは大きく変わらないと考えています。</p>
+  </section>
+
+  <section id="result" aria-labelledby="h-result">
+    <h2 id="h-result">測った結果</h2>
+    <!-- gen:resultText -->
+    <p>グラフの値は中央値です。egui は描き方の設定で結果が大きく変わったので、既定（wgpu）に加えて、DirectX 12 だけにした設定（<code>WGPU_BACKEND=dx12</code>）と OpenGL で描く設定（glow）も載せました。斜線の棒は、既定ではない設定です。</p>
+    <!-- /gen:resultText -->
+    <h3>起動の速さ</h3>
+    <!-- gen:startup -->
+<figure class="bars" id="c-startup">
+  <figcaption><span class="bars-title">起動してから画面が出るまで</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="tauri" title="Tauri: 948 ms">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:89.5%"></span><span class="bar-val">948 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 1,059 ms">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">1,059 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-dx12" title="egui（DX12）: 782 ms">
+      <span class="bar-name">egui（DX12）</span>
+      <span class="bar-track"><span class="bar" style="--w:73.8%"></span><span class="bar-val">782 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-glow" title="egui（glow）: 481 ms">
+      <span class="bar-name">egui（glow）</span>
+      <span class="bar-track"><span class="bar" style="--w:45.4%"></span><span class="bar-val">481 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI: 555 ms">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:52.4%"></span><span class="bar-val">555 ms</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:startup -->
+    <!-- gen:startupText -->
+    <p>GPUI（0.56 秒）と egui の glow 版（0.48 秒）が速く、Tauri（0.95 秒）と egui の既定（1.06 秒）が遅いという結果でした。</p>
+    <ul>
+      <li>Tauri は、起動のたびに WebView2 の 6 個のプロセスを立ち上げてから、HTML を読み込みます。その分だけ時間がかかります。</li>
+      <li>egui の既定の wgpu は、DirectX 12 と Vulkan の両方を調べてから GPU を選びます。DirectX 12 だけにすると 0.78 秒に縮みました。</li>
+    </ul>
+    <!-- /gen:startupText -->
+    <h3>メモリ</h3>
+    <div class="chart-pair">
+      <!-- gen:memIdle -->
+<figure class="bars" id="c-mem-idle">
+  <figcaption><span class="bars-title">メモリ（空の一覧、待機中）</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="tauri" title="Tauri: 75.7 MB">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:78.2%"></span><span class="bar-val">75.7 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 96.8 MB">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">96.8 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-dx12" title="egui（DX12）: 50.4 MB">
+      <span class="bar-name">egui（DX12）</span>
+      <span class="bar-track"><span class="bar" style="--w:52.1%"></span><span class="bar-val">50.4 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-glow" title="egui（glow）: 34.5 MB">
+      <span class="bar-name">egui（glow）</span>
+      <span class="bar-track"><span class="bar" style="--w:35.7%"></span><span class="bar-val">34.5 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI: 14.4 MB">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:14.9%"></span><span class="bar-val">14.4 MB</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:memIdle -->
+      <!-- gen:mem10k -->
+<figure class="bars" id="c-mem-10k">
+  <figcaption><span class="bars-title">メモリ（1 万件、待機中）</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="tauri" title="Tauri: 84.0 MB">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:84.4%"></span><span class="bar-val">84.0 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 99.5 MB">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">99.5 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-dx12" title="egui（DX12）: 53.1 MB">
+      <span class="bar-name">egui（DX12）</span>
+      <span class="bar-track"><span class="bar" style="--w:53.4%"></span><span class="bar-val">53.1 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-glow" title="egui（glow）: 42.2 MB">
+      <span class="bar-name">egui（glow）</span>
+      <span class="bar-track"><span class="bar" style="--w:42.4%"></span><span class="bar-val">42.2 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI: 17.9 MB">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:18.0%"></span><span class="bar-val">17.9 MB</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:mem10k -->
+      <!-- gen:mem100k -->
+<figure class="bars" id="c-mem-100k">
+  <figcaption><span class="bars-title">メモリ（10 万件、待機中）</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="tauri" title="Tauri: 109.6 MB">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:95.4%"></span><span class="bar-val">109.6 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 114.9 MB">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">114.9 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-dx12" title="egui（DX12）: 66.3 MB">
+      <span class="bar-name">egui（DX12）</span>
+      <span class="bar-track"><span class="bar" style="--w:57.7%"></span><span class="bar-val">66.3 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-glow" title="egui（glow）: 53.7 MB">
+      <span class="bar-name">egui（glow）</span>
+      <span class="bar-track"><span class="bar" style="--w:46.7%"></span><span class="bar-val">53.7 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI: 29.7 MB">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:25.8%"></span><span class="bar-val">29.7 MB</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:mem100k -->
+      <!-- gen:memScroll -->
+<figure class="bars" id="c-mem-scroll">
+  <figcaption><span class="bars-title">メモリ（1 万件を 5 秒スクロールしたあと）</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="tauri" title="Tauri: 153.6 MB">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">153.6 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 102.1 MB">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:66.5%"></span><span class="bar-val">102.1 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-glow" title="egui（glow）: 51.3 MB">
+      <span class="bar-name">egui（glow）</span>
+      <span class="bar-track"><span class="bar" style="--w:33.4%"></span><span class="bar-val">51.3 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI: 18.1 MB">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:11.8%"></span><span class="bar-val">18.1 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui-full" title="GPUI（抑えない）: 18.4 MB">
+      <span class="bar-name">GPUI（抑えない）</span>
+      <span class="bar-track"><span class="bar" style="--w:12.0%"></span><span class="bar-val">18.4 MB</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:memScroll -->
+    </div>
+    <!-- gen:memText -->
+    <p>メモリは、どの条件でも GPUI がいちばん少なく、14.4〜29.7 MB でした。目立った点は 3 つです。</p>
+    <ul>
+      <li><strong>Tauri は使ううちに増える。</strong>待機中は 84 MB でしたが、1 万件を 5 秒スクロールしたあとは 154 MB になりました。WebView2 が、描いた画面の一部を次に使うために残しておくためと考えられます。Rust の 3 つは、スクロールしても数 MB しか増えませんでした。</li>
+      <li><strong>egui の既定は GPU のメモリを多く使う。</strong>wgpu で描くと、ふつうのメモリ 97 MB とは別に、GPU のメモリを 239 MB 使いました。ほかの版は 15〜30 MB です。GPU を CPU に内蔵した安い PC では、GPU のメモリはふつうのメモリから借りるので、その分だけ使えるメモリが減ります。glow で描くと 14.9 MB でした。</li>
+      <li><strong>データを増やしたときの増え方は、JavaScript のほうが大きい。</strong>1 万件から 10 万件にしたとき、Rust の 3 つは 12〜15 MB 増え、Tauri は 26 MB 増えました。同じ 1 件でも、JavaScript のオブジェクトは Rust の構造体より大きくなります。</li>
+    </ul>
+    <p class="small">ここでのメモリは、そのアプリだけが使っている分（プライベート ワーキング セット）です。WebView2 の部品のように、ほかのアプリと分け合える分を足した「ワーキング セット」で見ると、Tauri は 354 MB、egui は 158 MB、GPUI は 59 MB でした。</p>
+    <!-- /gen:memText -->
+    <h3>CPU</h3>
+    <div class="chart-pair">
+      <!-- gen:perFrame -->
+<figure class="bars" id="c-per-frame">
+  <figcaption><span class="bars-title">スクロール中、1 フレームを描くのに使った CPU の時間</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="tauri" title="Tauri: 5.67 ms">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">5.67 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 1.69 ms">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:29.8%"></span><span class="bar-val">1.69 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-glow" title="egui（glow）: 1.93 ms">
+      <span class="bar-name">egui（glow）</span>
+      <span class="bar-track"><span class="bar" style="--w:34.0%"></span><span class="bar-val">1.93 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI: 3.86 ms">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:68.1%"></span><span class="bar-val">3.86 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui-full" title="GPUI（抑えない）: 3.15 ms">
+      <span class="bar-name">GPUI（抑えない）</span>
+      <span class="bar-track"><span class="bar" style="--w:55.6%"></span><span class="bar-val">3.15 ms</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:perFrame -->
+      <!-- gen:fps -->
+<figure class="bars" id="c-fps">
+  <figcaption><span class="bars-title">スクロール中のフレームの数（前面にない窓）</span><span class="bars-hint">棒が長いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="tauri" title="Tauri: 144 fps">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">144 fps</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 143 fps">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:99.4%"></span><span class="bar-val">143 fps</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-glow" title="egui（glow）: 60 fps">
+      <span class="bar-name">egui（glow）</span>
+      <span class="bar-track"><span class="bar" style="--w:41.7%"></span><span class="bar-val">60 fps</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI: 30 fps">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:20.8%"></span><span class="bar-val">30 fps</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui-full" title="GPUI（抑えない）: 144 fps">
+      <span class="bar-name">GPUI（抑えない）</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">144 fps</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:fps -->
+      <!-- gen:idleCpu -->
+<figure class="bars" id="c-idle-cpu">
+  <figcaption><span class="bars-title">待機中の CPU 使用率（1 コア = 100%）</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="tauri" title="Tauri: 0.16 %">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:33.3%"></span><span class="bar-val">0.16 %</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 0.31 %">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:66.7%"></span><span class="bar-val">0.31 %</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-dx12" title="egui（DX12）: 0.16 %">
+      <span class="bar-name">egui（DX12）</span>
+      <span class="bar-track"><span class="bar" style="--w:33.3%"></span><span class="bar-val">0.16 %</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-glow" title="egui（glow）: 0.00 %">
+      <span class="bar-name">egui（glow）</span>
+      <span class="bar-track"><span class="bar" style="--w:0.6%"></span><span class="bar-val">0.00 %</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI: 0.47 %">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">0.47 %</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:idleCpu -->
+      <!-- gen:scrollCpu -->
+<figure class="bars" id="c-scroll-cpu">
+  <figcaption><span class="bars-title">スクロール中の CPU 使用率（1 コア = 100%）</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="tauri" title="Tauri: 82 %">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">82 %</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 24 %">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:29.8%"></span><span class="bar-val">24 %</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-glow" title="egui（glow）: 12 %">
+      <span class="bar-name">egui（glow）</span>
+      <span class="bar-track"><span class="bar" style="--w:14.2%"></span><span class="bar-val">12 %</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI: 12 %">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:14.2%"></span><span class="bar-val">12 %</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui-full" title="GPUI（抑えない）: 45 %">
+      <span class="bar-name">GPUI（抑えない）</span>
+      <span class="bar-track"><span class="bar" style="--w:55.6%"></span><span class="bar-val">45 %</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:scrollCpu -->
+    </div>
+    <!-- gen:cpuText -->
+    <p>1 フレームを描くのに使った CPU の時間は、egui（1.69 ms）がいちばん短く、Tauri（5.67 ms）がいちばん長くなりました。Tauri は、画面を組み立てるプロセスと GPU に渡すプロセスが別れていて、その間のやり取りにも CPU を使います。</p>
+    <p>フレームの数（fps）は、版によって違いました。窓を開いたモニターは 60 Hz ですが、egui の既定と Tauri はメインモニター（144 Hz）の速さで描いていました。Windows の画面の合成（DWM）の速さに合わせて描いているためと考えられます。表示されない分まで描いているので、そのぶん CPU を使います。egui の glow 版は、窓のあるモニターに合わせて 60 fps でした。</p>
+    <p><strong>GPUI は、前面にない窓のフレームを既定で 30 fps に抑えます。</strong>今回は、作業の邪魔をしないよう窓を前面に出さずに測ったので、GPUI の既定の結果は 30 fps・CPU 12% でした。抑えない設定にすると 144 fps・CPU 45% です。後ろで開いたままの窓が CPU と電力を使いにくい作りで、低スペック PC や電池で動くノート PC には良い性質です。</p>
+    <p>待機中の CPU は、どれもほぼ 0 でした。ただし GPUI だけは、回によって 1 コアの 0〜10% ほどを使うことがありました。そのときもフレームは描いておらず、原因は特定できていません。GPUI の Windows 版は、画面の合成が起きるたびにすべての窓へ描き直しの合図を送る専用のスレッドを持っています。これが関係していると考えていますが、確かめきれていません。</p>
+    <!-- /gen:cpuText -->
+    <h3>大きさとビルドの時間</h3>
+    <div class="chart-pair">
+      <!-- gen:exe -->
+<figure class="bars" id="c-exe">
+  <figcaption><span class="bars-title">実行ファイルの大きさ</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="tauri" title="Tauri: 7.8 MB">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:36.6%"></span><span class="bar-val">7.8 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 12.3 MB">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:57.7%"></span><span class="bar-val">12.3 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-glow" title="egui（glow）: 6.7 MB">
+      <span class="bar-name">egui（glow）</span>
+      <span class="bar-track"><span class="bar" style="--w:31.1%"></span><span class="bar-val">6.7 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI: 21.4 MB">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">21.4 MB</span></span>
+    </div>
+  </div>
+  <p class="bars-note">Tauri は、Windows 11 に最初から入っている WebView2 を使うので、その分は含みません。</p>
+</figure>
+<!-- /gen:exe -->
+      <!-- gen:buildClean -->
+<figure class="bars" id="c-build-clean">
+  <figcaption><span class="bars-title">最初のビルドにかかる時間（リリース）</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="tauri" title="Tauri: 6.0 分">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:46.9%"></span><span class="bar-val">6.0 分</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 6.3 分">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:48.5%"></span><span class="bar-val">6.3 分</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI: 12.9 分">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">12.9 分</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:buildClean -->
+      <!-- gen:buildIncr -->
+<figure class="bars" id="c-build-incr">
+  <figcaption><span class="bars-title">1 行直してから動かせるまで（デバッグ）</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="tauri" title="Tauri: 8.2 秒">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">8.2 秒</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 5.9 秒">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:71.6%"></span><span class="bar-val">5.9 秒</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI: 7.6 秒">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:92.1%"></span><span class="bar-val">7.6 秒</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:buildIncr -->
+    </div>
+    <!-- gen:buildText -->
+    <p>最初のビルドは、GPUI が 12.9 分で、Tauri（6.0 分）と egui（6.3 分）の約 2 倍かかりました。GPUI が使う crate は 402 個で、Tauri（225 個）や egui（181 個）よりずっと多いからです。</p>
+    <p>1 行直してからのビルドは、3 つとも 10 秒未満でした（Tauri 8.2 秒、egui 5.9 秒、GPUI 7.6 秒）。ふだんの開発での待ち時間には、ほとんど差がありません。Tauri は、画面（HTML・CSS・JavaScript）を直すだけならビルドそのものが要りません。</p>
+    <p>実行ファイルは、GPUI が 21.4 MB でいちばん大きく、egui の glow 版が 6.7 MB でいちばん小さくなりました。</p>
+    <!-- /gen:buildText -->
+    <!-- gen:table -->
+    <details>
+      <summary>すべての中央値の表</summary>
+      <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cap-all">
+        <table>
+          <caption id="cap-all">条件ごとの中央値（メモリはプライベート ワーキング セット、CPU は 1 コア = 100%）</caption>
+          <thead><tr><th scope="col">条件</th><th scope="col">版</th><th scope="col" class="num">起動（ms）</th><th scope="col" class="num">メモリ（MB）</th><th scope="col" class="num">GPU のメモリ（MB）</th><th scope="col" class="num">fps</th><th scope="col" class="num">最長の間隔（ms）</th><th scope="col" class="num">CPU（%）</th><th scope="col" class="num">1 フレームの CPU（ms）</th></tr></thead>
+          <tbody>
+            <tr><td>空・待機</td><th scope="row">Tauri</th><td class="num">948</td><td class="num">75.7</td><td class="num">18.3</td><td class="num">–</td><td class="num">–</td><td class="num">0.16</td><td class="num">–</td></tr>
+            <tr><td>空・待機</td><th scope="row">egui</th><td class="num">1059</td><td class="num">96.8</td><td class="num">238.6</td><td class="num">–</td><td class="num">–</td><td class="num">0.31</td><td class="num">–</td></tr>
+            <tr><td>空・待機</td><th scope="row">egui（DX12）</th><td class="num">782</td><td class="num">50.4</td><td class="num">247.5</td><td class="num">–</td><td class="num">–</td><td class="num">0.16</td><td class="num">–</td></tr>
+            <tr><td>空・待機</td><th scope="row">egui（glow）</th><td class="num">481</td><td class="num">34.5</td><td class="num">14.9</td><td class="num">–</td><td class="num">–</td><td class="num">0.00</td><td class="num">–</td></tr>
+            <tr><td>空・待機</td><th scope="row">GPUI</th><td class="num">555</td><td class="num">14.4</td><td class="num">17.3</td><td class="num">–</td><td class="num">–</td><td class="num">0.47</td><td class="num">–</td></tr>
+            <tr><td>1 万件・待機</td><th scope="row">Tauri</th><td class="num">1008</td><td class="num">84.0</td><td class="num">22.0</td><td class="num">–</td><td class="num">–</td><td class="num">0.16</td><td class="num">–</td></tr>
+            <tr><td>1 万件・待機</td><th scope="row">egui</th><td class="num">1146</td><td class="num">99.5</td><td class="num">236.3</td><td class="num">–</td><td class="num">–</td><td class="num">0.31</td><td class="num">–</td></tr>
+            <tr><td>1 万件・待機</td><th scope="row">egui（DX12）</th><td class="num">851</td><td class="num">53.1</td><td class="num">247.5</td><td class="num">–</td><td class="num">–</td><td class="num">0.00</td><td class="num">–</td></tr>
+            <tr><td>1 万件・待機</td><th scope="row">egui（glow）</th><td class="num">544</td><td class="num">42.2</td><td class="num">17.5</td><td class="num">–</td><td class="num">–</td><td class="num">0.16</td><td class="num">–</td></tr>
+            <tr><td>1 万件・待機</td><th scope="row">GPUI</th><td class="num">717</td><td class="num">17.9</td><td class="num">18.3</td><td class="num">–</td><td class="num">–</td><td class="num">0.31</td><td class="num">–</td></tr>
+            <tr><td>10 万件・待機</td><th scope="row">Tauri</th><td class="num">1061</td><td class="num">109.6</td><td class="num">22.0</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td></tr>
+            <tr><td>10 万件・待機</td><th scope="row">egui</th><td class="num">1215</td><td class="num">114.9</td><td class="num">238.3</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td></tr>
+            <tr><td>10 万件・待機</td><th scope="row">egui（DX12）</th><td class="num">886</td><td class="num">66.3</td><td class="num">247.5</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td></tr>
+            <tr><td>10 万件・待機</td><th scope="row">egui（glow）</th><td class="num">581</td><td class="num">53.7</td><td class="num">15.4</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td></tr>
+            <tr><td>10 万件・待機</td><th scope="row">GPUI</th><td class="num">820</td><td class="num">29.7</td><td class="num">18.3</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td></tr>
+            <tr><td>1 万件・スクロール</td><th scope="row">Tauri</th><td class="num">929</td><td class="num">153.6</td><td class="num">27.6</td><td class="num">144.0</td><td class="num">7.2</td><td class="num">82</td><td class="num">5.67</td></tr>
+            <tr><td>1 万件・スクロール</td><th scope="row">egui</th><td class="num">1249</td><td class="num">102.1</td><td class="num">236.3</td><td class="num">143.1</td><td class="num">14.4</td><td class="num">24</td><td class="num">1.69</td></tr>
+            <tr><td>1 万件・スクロール</td><th scope="row">egui（glow）</th><td class="num">512</td><td class="num">51.3</td><td class="num">17.5</td><td class="num">60.0</td><td class="num">21.9</td><td class="num">12</td><td class="num">1.93</td></tr>
+            <tr><td>1 万件・スクロール</td><th scope="row">GPUI</th><td class="num">743</td><td class="num">18.1</td><td class="num">22.8</td><td class="num">30.0</td><td class="num">36.8</td><td class="num">12</td><td class="num">3.86</td></tr>
+            <tr><td>1 万件・スクロール</td><th scope="row">GPUI（抑えない）</th><td class="num">595</td><td class="num">18.4</td><td class="num">22.8</td><td class="num">144.0</td><td class="num">9.2</td><td class="num">45</td><td class="num">3.15</td></tr>
+            <tr><td>2 コア・起動</td><th scope="row">Tauri</th><td class="num">1524</td><td class="num">76.5</td><td class="num">22.4</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td></tr>
+            <tr><td>2 コア・起動</td><th scope="row">egui</th><td class="num">1176</td><td class="num">96.9</td><td class="num">238.6</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td></tr>
+            <tr><td>2 コア・起動</td><th scope="row">egui（glow）</th><td class="num">520</td><td class="num">34.6</td><td class="num">14.9</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td></tr>
+            <tr><td>2 コア・起動</td><th scope="row">GPUI</th><td class="num">647</td><td class="num">14.4</td><td class="num">17.3</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td></tr>
+            <tr><td>1 コア・起動</td><th scope="row">Tauri</th><td class="num">4571</td><td class="num">77.3</td><td class="num">26.5</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td></tr>
+            <tr><td>1 コア・起動</td><th scope="row">egui</th><td class="num">1737</td><td class="num">86.4</td><td class="num">236.3</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td></tr>
+            <tr><td>1 コア・起動</td><th scope="row">egui（glow）</th><td class="num">635</td><td class="num">23.3</td><td class="num">14.9</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td></tr>
+            <tr><td>1 コア・起動</td><th scope="row">GPUI</th><td class="num">768</td><td class="num">14.3</td><td class="num">17.3</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td></tr>
+            <tr><td>2 コア・スクロール</td><th scope="row">Tauri</th><td class="num">2272</td><td class="num">145.5</td><td class="num">33.5</td><td class="num">119.2</td><td class="num">68.9</td><td class="num">73</td><td class="num">6.20</td></tr>
+            <tr><td>2 コア・スクロール</td><th scope="row">egui</th><td class="num">2489</td><td class="num">102.0</td><td class="num">238.2</td><td class="num">122.5</td><td class="num">78.7</td><td class="num">25</td><td class="num">1.91</td></tr>
+            <tr><td>2 コア・スクロール</td><th scope="row">egui（glow）</th><td class="num">1019</td><td class="num">51.4</td><td class="num">17.5</td><td class="num">50.5</td><td class="num">98.9</td><td class="num">7</td><td class="num">1.31</td></tr>
+            <tr><td>2 コア・スクロール</td><th scope="row">GPUI</th><td class="num">1076</td><td class="num">18.1</td><td class="num">22.8</td><td class="num">30.0</td><td class="num">39.2</td><td class="num">13</td><td class="num">4.41</td></tr>
+            <tr><td>2 コア・スクロール</td><th scope="row">GPUI（抑えない）</th><td class="num">1214</td><td class="num">18.5</td><td class="num">22.8</td><td class="num">142.9</td><td class="num">27.7</td><td class="num">49</td><td class="num">3.41</td></tr>
+            <tr><td>1 コア・スクロール</td><th scope="row">Tauri</th><td class="num">4665</td><td class="num">131.6</td><td class="num">33.4</td><td class="num">87.2</td><td class="num">101.8</td><td class="num">75</td><td class="num">9.66</td></tr>
+            <tr><td>1 コア・スクロール</td><th scope="row">egui</th><td class="num">1187</td><td class="num">91.4</td><td class="num">238.3</td><td class="num">140.3</td><td class="num">25.1</td><td class="num">23</td><td class="num">1.60</td></tr>
+            <tr><td>1 コア・スクロール</td><th scope="row">egui（glow）</th><td class="num">673</td><td class="num">37.5</td><td class="num">17.5</td><td class="num">59.8</td><td class="num">55.0</td><td class="num">10</td><td class="num">1.66</td></tr>
+            <tr><td>1 コア・スクロール</td><th scope="row">GPUI</th><td class="num">856</td><td class="num">18.0</td><td class="num">22.8</td><td class="num">30.0</td><td class="num">38.9</td><td class="num">10</td><td class="num">3.24</td></tr>
+            <tr><td>1 コア・スクロール</td><th scope="row">GPUI（抑えない）</th><td class="num">1006</td><td class="num">18.3</td><td class="num">22.8</td><td class="num">139.6</td><td class="num">34.5</td><td class="num">43</td><td class="num">3.11</td></tr>
+            <tr><td>GPU なし・起動</td><th scope="row">Tauri</th><td class="num">762</td><td class="num">71.1</td><td class="num">0.0</td><td class="num">–</td><td class="num">–</td><td class="num">0.00</td><td class="num">–</td></tr>
+            <tr><td>GPU なし・起動</td><th scope="row">egui</th><td class="num">1131</td><td class="num">56.2</td><td class="num">17.3</td><td class="num">–</td><td class="num">–</td><td class="num">0.16</td><td class="num">–</td></tr>
+            <tr><td>GPU なし・起動</td><th scope="row">GPUI（WARP）</th><td class="num">237</td><td class="num">8.0</td><td class="num">0.0</td><td class="num">–</td><td class="num">–</td><td class="num">1.71</td><td class="num">–</td></tr>
+            <tr><td>GPU なし・スクロール</td><th scope="row">Tauri</th><td class="num">865</td><td class="num">139.8</td><td class="num">0.0</td><td class="num">144.0</td><td class="num">7.1</td><td class="num">95</td><td class="num">6.57</td></tr>
+            <tr><td>GPU なし・スクロール</td><th scope="row">egui</th><td class="num">1140</td><td class="num">59.9</td><td class="num">17.3</td><td class="num">8.2</td><td class="num">187.3</td><td class="num">160</td><td class="num">195.85</td></tr>
+            <tr><td>GPU なし・スクロール</td><th scope="row">GPUI（WARP）</th><td class="num">252</td><td class="num">14.2</td><td class="num">0.0</td><td class="num">42.2</td><td class="num">85.2</td><td class="num">292</td><td class="num">69.84</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small">待機の条件の CPU は、表示から 3 秒後からの 10 秒間です。スクロールの条件の CPU は、スクロールしていた 5 秒間です。生の結果は <code>data/summary.json</code> にあります。</p>
+    </details>
+    <!-- /gen:table -->
+  </section>
+
+  <section id="lowspec" aria-labelledby="h-lowspec">
+    <h2 id="h-lowspec">低い性能の PC で</h2>
+    <!-- gen:lowText -->
+    <p>メモリの値上がりで PC が高くなり、性能の低い PC を使い続ける人が増えています。そこで、この PC の CPU を 2 コアと 1 コアに制限して、性能の低い CPU をまねました。Windows のアフィニティ（そのプロセスが使ってよいコアの指定）を使い、Tauri の 6 個の子プロセスにも同じ制限がかかったことを確かめています。</p>
+    <p>Rust の 3 つは、1 コアにしても起動が 0.2〜0.7 秒遅くなる程度でした。<strong>Tauri だけが大きく遅くなり、1 コアでは起動に 4.57 秒</strong>（遅い回は 8.1 秒）かかりました。7 個のプロセスが 1 つのコアを取り合うからです。スクロールも 87 fps に落ち、フレームの間が最長で 102 ms 空きました。目で見てカクつきが分かる長さです。</p>
+    <!-- /gen:lowText -->
+    <div class="chart-pair">
+      <!-- gen:start2core -->
+<figure class="bars" id="c-start-2core">
+  <figcaption><span class="bars-title">起動してから画面が出るまで（CPU を 2 コアに制限）</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="tauri" title="Tauri: 1,524 ms">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">1,524 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 1,176 ms">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:77.2%"></span><span class="bar-val">1,176 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-glow" title="egui（glow）: 520 ms">
+      <span class="bar-name">egui（glow）</span>
+      <span class="bar-track"><span class="bar" style="--w:34.1%"></span><span class="bar-val">520 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI: 647 ms">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:42.5%"></span><span class="bar-val">647 ms</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:start2core -->
+      <!-- gen:start1core -->
+<figure class="bars" id="c-start-1core">
+  <figcaption><span class="bars-title">起動してから画面が出るまで（CPU を 1 コアに制限）</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="tauri" title="Tauri: 4,571 ms">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">4,571 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 1,737 ms">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:38.0%"></span><span class="bar-val">1,737 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-glow" title="egui（glow）: 635 ms">
+      <span class="bar-name">egui（glow）</span>
+      <span class="bar-track"><span class="bar" style="--w:13.9%"></span><span class="bar-val">635 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI: 768 ms">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:16.8%"></span><span class="bar-val">768 ms</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:start1core -->
+      <!-- gen:scrollCpu1core -->
+<figure class="bars" id="c-scroll-1core">
+  <figcaption><span class="bars-title">スクロールの滑らかさ（CPU を 1 コアに制限）</span><span class="bars-hint">棒が長いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="tauri" title="Tauri: 87.2 fps">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:62.2%"></span><span class="bar-val">87.2 fps</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 140.3 fps">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">140.3 fps</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-glow" title="egui（glow）: 59.8 fps">
+      <span class="bar-name">egui（glow）</span>
+      <span class="bar-track"><span class="bar" style="--w:42.6%"></span><span class="bar-val">59.8 fps</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI: 30.0 fps">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:21.4%"></span><span class="bar-val">30.0 fps</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui-full" title="GPUI（抑えない）: 139.6 fps">
+      <span class="bar-name">GPUI（抑えない）</span>
+      <span class="bar-track"><span class="bar" style="--w:99.5%"></span><span class="bar-val">139.6 fps</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:scrollCpu1core -->
+    </div>
+    <h3>GPU を使わずに描く</h3>
+    <!-- gen:softText -->
+    <p>古い PC、仮想マシン、リモートデスクトップでは、GPU が使えないことがあります。そこで、3 つとも CPU だけで描く設定にして測りました。egui は Windows の CPU で描く Direct3D（WARP）を選ぶ設定、Tauri は WebView2 の <code>--disable-gpu</code>、GPUI は WARP を選ぶように 8 行を足した測定用の版（<code>src/gpui-warp.diff</code>）です。</p>
+    <p>結果は、ほかの条件とは逆になりました。<strong>Tauri はスクロールでも 144 fps を保ち、1 フレームの CPU は 6.57 ms でした。</strong>Chromium は、GPU がないときも、変わった所だけを CPU で描き直す作りなので、その効果と考えられます。GPUI は 42 fps で、CPU を 2.9 コア分使いました。egui は 8.2 fps で、使えない遅さでした。egui と GPUI は、毎フレーム画面全体を描き直す作りなので、CPU で描くと重くなります。</p>
+    <p class="small">GPUI の起動（0.24 秒）とメモリ（8.0 MB）は、GPU を使うときよりさらに小さくなりました。GPU のドライバーを読み込まないためと考えられます。</p>
+    <!-- /gen:softText -->
+    <div class="chart-pair">
+      <!-- gen:softCpu -->
+<figure class="bars" id="c-soft-cpu">
+  <figcaption><span class="bars-title">GPU なし（CPU で描画）のスクロール中の CPU 使用率</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="tauri" title="Tauri: 95 %">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:32.4%"></span><span class="bar-val">95 %</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 160 %">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:54.9%"></span><span class="bar-val">160 %</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui-warp" title="GPUI: 292 %">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">292 %</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:softCpu -->
+      <!-- gen:softFps -->
+<figure class="bars" id="c-soft-fps">
+  <figcaption><span class="bars-title">GPU なし（CPU で描画）のスクロールの滑らかさ</span><span class="bars-hint">棒が長いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="tauri" title="Tauri: 144.0 fps">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">144.0 fps</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 8.2 fps">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:5.7%"></span><span class="bar-val">8.2 fps</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui-warp" title="GPUI: 42.2 fps">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:29.3%"></span><span class="bar-val">42.2 fps</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:softFps -->
+      <!-- gen:softPerFrame -->
+<figure class="bars" id="c-soft-per-frame">
+  <figcaption><span class="bars-title">GPU なし（CPU で描画）で 1 フレームを描くのに使った CPU の時間</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="tauri" title="Tauri: 6.57 ms">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:3.4%"></span><span class="bar-val">6.57 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 195.85 ms">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">195.85 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui-warp" title="GPUI: 69.84 ms">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:35.7%"></span><span class="bar-val">69.84 ms</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:softPerFrame -->
+    </div>
+    <!-- gen:lowAfter -->
+    <h3>低い性能の PC への優しさのまとめ</h3>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cap-low">
+      <table>
+        <caption id="cap-low">低い性能の PC で効く点</caption>
+        <thead><tr><th scope="col">点</th><th scope="col">いちばん良い</th><th scope="col">いちばん弱い</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">メモリが少ない</th><td><span class="fw gpui">GPUI</span>（14.4 MB）</td><td><span class="fw tauri">Tauri</span>（使ったあと 154 MB）、<span class="fw egui">egui</span> の既定（GPU のメモリ 239 MB）</td></tr>
+          <tr><th scope="row">CPU のコアが少なくても速く起動する</th><td><span class="fw egui">egui</span> の glow 版（1 コアで 0.64 秒）</td><td><span class="fw tauri">Tauri</span>（1 コアで 4.57 秒）</td></tr>
+          <tr><th scope="row">描くときの CPU が少ない</th><td><span class="fw egui">egui</span>（1 フレーム 1.69 ms）</td><td><span class="fw tauri">Tauri</span>（5.67 ms）</td></tr>
+          <tr><th scope="row">後ろの窓が CPU を使わない</th><td><span class="fw gpui">GPUI</span>（既定で 30 fps に抑える）</td><td><span class="fw tauri">Tauri</span>・<span class="fw egui">egui</span>（抑えない）</td></tr>
+          <tr><th scope="row">GPU がなくても動く</th><td><span class="fw tauri">Tauri</span>（144 fps）</td><td><span class="fw egui">egui</span>（8.2 fps）</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>メモリ 8 GB の PC で、この規模のアプリを 10 個開いたとします。単純に 10 倍すると、GPUI は 144〜181 MB、egui の glow 版は 345〜513 MB、Tauri は 757〜1536 MB です。ここで数えたのはそれぞれのアプリだけが使う分なので、10 個開けばほぼこのとおりに増えます。低スペック PC で同時にいくつも開くアプリなら、差ははっきり出ます。</p>
+    <!-- /gen:lowAfter -->
+  </section>
+
+  <section id="review" aria-labelledby="h-review">
+    <h2 id="h-review">作って使って分かったこと</h2>
+    <p>数字に出ない違いを、3 つの版を作ったときの手応えから書きます。</p>
+
+    <h3><span class="fw tauri">Tauri</span></h3>
+    <ul>
+      <li>HTML と CSS の知識がそのまま使えます。入力欄・チェックボックス・キーボードでの移動・スクリーンリーダー・日本語入力は、ブラウザーが受け持ちます。Enter での追加は <code>&lt;form&gt;</code> の送信に任せました。ブラウザーは、変換を確定するための Enter ではフォームを送信しない決まりなので、そのための処理を自分で書く必要がありません。</li>
+      <li>1 万件の一覧を軽く動かすには、「見えている行だけを描く」処理を自分で書く（今回は 60 行ほど）か、ライブラリを入れる必要があります。HTML にはこの機能がないからです。</li>
+      <li>Rust と JavaScript の 2 つの言語を使います。2 つの間のやり取り（<code>invoke</code>）では、引数が JSON に変換されます。</li>
+      <li>画面（HTML・CSS・JavaScript）を直すだけなら、Rust をビルドし直す必要はありません。開発中の待ち時間は、この点で 3 つの中でいちばん短くなります。</li>
+      <li>窓の位置と、前面に出すかどうかは、<code>position</code> と <code>focused</code> で素直に指定できました。</li>
+    </ul>
+
+    <h3><span class="fw egui">egui</span></h3>
+    <ul>
+      <li>3 つの中でいちばん書きやすいと感じました。状態は自分の構造体に持ち、描くコードの中に <code>if ui.button("追加").clicked() { … }</code> と書くだけです。部品と状態をつなぐ仕組みを覚える必要がありません。</li>
+      <li>1 万件の一覧は、<code>ScrollArea::show_rows</code> の 1 行で「見えている行だけを描く」形になりました。</li>
+      <li>0.37 から OS のフォントを読むようになり、日本語は何もしなくても表示されました。以前の版では、日本語のフォントを自分で読み込む必要がありました。</li>
+      <li>見た目は「道具のアプリ」に近くなります。色や角の丸みは変えられますが、Web のような自由な配置（重ねる、折り返す、比率で分ける）は苦手です。</li>
+      <li>まだ 0.x の版で、2026 年は 3 月・6 月・8 月・10 月に版が上がりました。0.33 から 0.36 の間には、アプリの入口が <code>update</code> から <code>ui</code> に変わり、<code>TopBottomPanel</code> も <code>Panel</code> に名前が変わっています。版を上げるたびに書き換えが要ります。</li>
+      <li>既定の描画（wgpu）では、起動時に DirectX 12 と Vulkan の両方を調べてから GPU を選びます。そのため、起動に 1 秒ほどかかります。環境変数 <code>WGPU_BACKEND=dx12</code> で DirectX 12 だけにすると 0.3 秒ほど縮み、OpenGL（glow）で描く設定にするとさらに縮みます（<a href="#result">測った結果</a>を参照）。</li>
+    </ul>
+
+    <h3><span class="fw gpui">GPUI</span></h3>
+    <ul>
+      <li>GPUI Kit の部品（入力欄・ボタン・チェックボックス・表・ドックなど 75 種類以上）を使うと、整った見た目の画面がすぐにできます。文字は Windows の DirectWrite で描かれ、Tauri（Edge）と同じくらいくっきり見えました。egui は文字を自前で描くので、少し細く見えます。</li>
+      <li>GPUI だけでは、入力欄の部品もありません。GPUI Kit なしで作るなら、日本語入力への対応も含めて入力欄を自分で書くことになります。</li>
+      <li>Rust の型と寿命のルールで止まりやすいです。今回は、行を描く関数の戻り値に <code>impl IntoElement + use&lt;&gt;</code> と書く必要がありました。部品（Entity）・<code>Context</code>・<code>listener</code>・<code>processor</code> の使い分けも覚える必要があります。</li>
+      <li>説明の文書が少なく、使い方は crate のソースを読んで探しました。GPUI Kit は、AI のコーディング道具向けの説明（skills）を配っています。</li>
+      <li>つまずいた点が 2 つありました。1 つ目は窓の位置です。表示先のモニター（<code>display_id</code>）を指定しないと、主モニターの外の位置が無視されました。2 つ目は一覧の行の幅です。<code>w_full()</code> を書かないと、行の幅が文字の長さまで縮みました。</li>
+      <li>配る形が分かれています。公式の <code>gpui</code>（1 年前の版）、Zed の写しの <code>gpui-pre</code>・<code>gpui-unofficial</code>、有志の <code>gpui-ce</code>、Longbridge 社の速度を上げた <code>gpui-fast</code> があります。これらは互いに混ぜて使えません。</li>
+    </ul>
+
+    <!-- gen:imeNote -->
+    <p class="note">日本語入力の細かい使い心地（変換中の Enter で誤って追加されないか、変換の候補の窓が入力の位置に出るか）は、窓に入力の焦点を移して手で確かめる必要があります。今回は確かめていないので、確かめたあとで書き足します。</p>
+    <!-- /gen:imeNote -->
+  </section>
+
+  <section id="proscons" aria-labelledby="h-proscons">
+    <h2 id="h-proscons">良さと弱点</h2>
+    <p>3 つとも、はっきりした弱点があります。弱点のないフレームワークは、今回の 3 つにはありませんでした。</p>
+    <div class="trio">
+      <div data-app="tauri">
+        <h3><span class="fw tauri">Tauri</span></h3>
+        <div class="pros-cons">
+          <div>
+            <h4>良さ</h4>
+            <ul>
+              <li>HTML・CSS・JavaScript と、npm の部品（React など）がそのまま使える。見た目の自由度がいちばん高い</li>
+              <li>日本語入力・スクリーンリーダー・文字の描画を、長く使われてきたブラウザーが受け持つ</li>
+              <li>実行ファイルが小さい（7.8 MB）</li>
+              <li>安定版（2.x）。iOS と Android にも出せる。トレイ・自動更新・ダイアログなどの部品がそろっている</li>
+              <li>画面を直すだけなら、Rust をビルドし直さなくてよい</li>
+            </ul>
+          </div>
+          <div>
+            <h4>弱点</h4>
+            <ul>
+              <li>WebView2 の 6 個のプロセスの分、メモリが多い<!-- gen:tauriMem -->（待機中 76 MB、スクロールのあと 154 MB）
+<!-- /gen:tauriMem --></li>
+              <li>OS ごとに表示する部品が違う（Windows は Edge、macOS は Safari、Linux は WebKitGTK）。Linux では表示の不具合や重さの報告が 2026 年も続いている</li>
+              <li>Rust と JavaScript の 2 つの言語を行き来する</li>
+              <li>大量のデータを並べる部品は、自分で作るかライブラリを探す</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div data-app="egui">
+        <h3><span class="fw egui">egui</span></h3>
+        <div class="pros-cons">
+          <div>
+            <h4>良さ</h4>
+            <ul>
+              <li>いちばん書きやすい。状態とそれを描くコードが近くにある</li>
+              <li>OpenGL（glow）で描く設定なら、起動がいちばん速く、メモリも少ない</li>
+              <li>入力がない間は描かないので、待機中の CPU がほぼ 0</li>
+              <li>同じコードが Web（WebAssembly）でも動く</li>
+              <li>0.37 で日本語の表示に手間がかからなくなった。アクセシビリティ（AccessKit）も進んでいる</li>
+            </ul>
+          </div>
+          <div>
+            <h4>弱点</h4>
+            <ul>
+              <li>既定の描画（wgpu）では、メモリと GPU のメモリを多く使い、起動も遅い。設定を変えないと低スペック PC に向かない</li>
+              <li>見た目が「道具」に近く、配置の自由度が低い</li>
+              <li>まだ 0.x で、2〜3 か月ごとに書き換えが要る</li>
+              <li>入力があるたびに画面全体を描き直すので、画面が複雑になるほど CPU を使う</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div data-app="gpui">
+        <h3><span class="fw gpui">GPUI</span></h3>
+        <div class="pros-cons">
+          <div>
+            <h4>良さ</h4>
+            <ul>
+              <li>メモリが 3 つの中でいちばん少なく、起動も速い</li>
+              <li>前面にない窓のフレームを 30fps に抑え、電力と CPU を節約する</li>
+              <li>GPUI Kit で、見た目の整った部品が 75 種類以上そろう。文字がくっきりしている</li>
+              <li>Zed に加えて、Discord や GitButler が採用を進めている</li>
+            </ul>
+          </div>
+          <div>
+            <h4>弱点</h4>
+            <ul>
+              <li>公式の crate が 1 年止まっていて、配る形が分かれている。Zed の都合で中身が変わる</li>
+              <li>説明の文書が少なく、Rust の型と寿命の難しさがそのまま出る</li>
+              <li>実行ファイルが大きく（21.4 MB）、最初のビルドに他の 2 倍の時間がかかる</li>
+              <li>iOS・Android には対応していない。Web はまだ試しの段階</li>
+              <li>待機中の CPU が、回によってばらついた（原因は特定できていない）</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tier" aria-labelledby="h-tier">
+    <h2 id="h-tier">ティア表</h2>
+    <p>測った数字と、作って分かったことから付けました。S がいちばん良く、C がいちばん弱い評価です。2026 年 11 月の時点の評価で、版が上がれば変わります。</p>
+
+    <h3>総合</h3>
+    <dl class="tier" aria-label="総合のティア表">
+      <dt class="t-s">S</dt>
+      <dd><span class="small">該当なし（3 つとも、はっきりした弱点がある）</span></dd>
+      <dt class="t-a">A</dt>
+      <dd>
+        <span class="chip" data-app="tauri">Tauri <small>迷ったらこれ。弱点はメモリ</small></span>
+        <span class="chip" data-app="egui">egui <small>glow の設定なら軽くて速い</small></span>
+      </dd>
+      <dt class="t-b">B</dt>
+      <dd><span class="chip" data-app="gpui">GPUI <small>いちばん軽いが、配る形と文書が落ち着いていない</small></span></dd>
+      <dt class="t-c">C</dt>
+      <dd><span class="small">該当なし</span></dd>
+    </dl>
+
+    <h3>観点ごと</h3>
+    <!-- gen:tierMatrix -->
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cap-tier">
+      <table>
+        <caption id="cap-tier">観点ごとのティア（S・A・B・C）</caption>
+        <thead><tr><th scope="col">観点</th><th scope="col"><span class="fw tauri">Tauri</span></th><th scope="col"><span class="fw egui">egui</span></th><th scope="col"><span class="fw gpui">GPUI</span></th></tr></thead>
+        <tbody>
+          <tr><th scope="row">メモリの少なさ</th><td><span class="grade c">C</span> 76〜154 MB</td><td><span class="grade a">A</span> glow なら 35 MB（既定は <span class="grade c">C</span>）</td><td><span class="grade s">S</span> 14.4 MB</td></tr>
+          <tr><th scope="row">起動の速さ</th><td><span class="grade b">B</span> 0.95 秒</td><td><span class="grade s">S</span> glow なら 0.48 秒（既定は <span class="grade b">B</span>）</td><td><span class="grade s">S</span> 0.56 秒</td></tr>
+          <tr><th scope="row">描くときの CPU の少なさ</th><td><span class="grade c">C</span></td><td><span class="grade s">S</span></td><td><span class="grade a">A</span>（後ろの窓は <span class="grade s">S</span>）</td></tr>
+          <tr><th scope="row">CPU が弱い PC</th><td><span class="grade c">C</span> 1 コアで起動 4.6 秒</td><td><span class="grade a">A</span></td><td><span class="grade s">S</span></td></tr>
+          <tr><th scope="row">GPU のない PC</th><td><span class="grade s">S</span></td><td><span class="grade c">C</span></td><td><span class="grade b">B</span></td></tr>
+          <tr><th scope="row">実行ファイルの小ささ</th><td><span class="grade a">A</span> 7.8 MB</td><td><span class="grade a">A</span> 6.7〜12.3 MB</td><td><span class="grade c">C</span> 21.4 MB</td></tr>
+          <tr><th scope="row">ビルドの速さ</th><td><span class="grade a">A</span> 最初 6.0 分</td><td><span class="grade b">B</span> 最初 6.3 分</td><td><span class="grade c">C</span> 最初 12.9 分</td></tr>
+          <tr><th scope="row">見た目の自由度</th><td><span class="grade s">S</span></td><td><span class="grade c">C</span></td><td><span class="grade a">A</span></td></tr>
+          <tr><th scope="row">作りやすさ</th><td><span class="grade a">A</span> Web の知識が使える</td><td><span class="grade s">S</span></td><td><span class="grade c">C</span></td></tr>
+          <tr><th scope="row">日本語入力とアクセシビリティ</th><td><span class="grade s">S</span> ブラウザーが受け持つ</td><td><span class="grade b">B</span></td><td><span class="grade b">B</span></td></tr>
+          <tr><th scope="row">出せる先（OS など）</th><td><span class="grade s">S</span> Windows・macOS・Linux・iOS・Android</td><td><span class="grade a">A</span> Windows・macOS・Linux・Web</td><td><span class="grade b">B</span> Windows・macOS・Linux</td></tr>
+          <tr><th scope="row">安定性と資料の多さ</th><td><span class="grade s">S</span> 安定版 2.x</td><td><span class="grade a">A</span> 0.x だが長く使われている</td><td><span class="grade c">C</span> 配る形が分かれている</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">日本語入力の評価は、変換の操作を手で確かめる前のものです。egui は日本語入力にもスクリーンリーダー（AccessKit）にも対応していますが、0.37 では入力欄に焦点を移すたびに変換中の文字が確定されます（<code>Memory::request_focus</code> が <code>interrupt_ime</code> を呼ぶ）。毎フレーム焦点を移すようなコードを書くと、日本語が打てなくなります。GPUI のスクリーンリーダーへの対応（AccessKit）は、公式の 0.2.2（2025 年 10 月）にはなく、今回使った写し（gpui-pre 0.3.12）で入っていました。この 2 つは B にしています。</p>
+
+    <h3>低い性能の PC への優しさ</h3>
+    <dl class="tier" aria-label="低い性能の PC への優しさのティア表">
+      <dt class="t-s">S</dt>
+      <dd>
+        <span class="chip" data-app="gpui">GPUI <small>メモリ 14.4 MB、後ろの窓を 30 fps に抑える</small></span>
+        <span class="chip" data-app="egui-glow">egui（glow） <small>起動 0.48 秒、1 コアでも速い</small></span>
+      </dd>
+      <dt class="t-a">A</dt>
+      <dd><span class="small">該当なし</span></dd>
+      <dt class="t-b">B</dt>
+      <dd>
+        <span class="chip" data-app="tauri">Tauri <small>CPU が弱いと遅い。GPU なしでは強い</small></span>
+        <span class="chip" data-app="egui">egui（既定の wgpu） <small>GPU のメモリを 239 MB 使う</small></span>
+      </dd>
+      <dt class="t-c">C</dt>
+      <dd><span class="small">該当なし</span></dd>
+    </dl>
+    <!-- /gen:tierMatrix -->
+  </section>
+
+  <section id="choose" aria-labelledby="h-choose">
+    <h2 id="h-choose">用途ごとの選び方</h2>
+    <!-- gen:choose -->
+    <p>次の順に考えると、たいていの場合は決まります。</p>
+    <ol>
+      <li><strong>iOS や Android にも出したい</strong>なら、<span class="fw tauri">Tauri</span>。3 つの中で、モバイルの安定版があるのは Tauri だけです。</li>
+      <li><strong>性能の低い PC で軽く動かすことを最優先にしたい</strong>なら、見た目へのこだわりで分けます。
+        <ul>
+          <li>道具らしい見た目で構わないなら、<span class="fw egui">egui</span> を glow の設定で使う。</li>
+          <li>見た目も整えたく、Rust に慣れていて、版の変化に付き合えるなら、<span class="fw gpui">GPUI</span>（GPUI Kit）。</li>
+        </ul>
+      </li>
+      <li><strong>それ以外</strong>なら、<span class="fw tauri">Tauri</span>。できることが多く、困ったときに調べられる資料もいちばん多いです。</li>
+    </ol>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="cap-choose">
+      <table>
+        <caption id="cap-choose">用途ごとのおすすめ</caption>
+        <thead><tr><th scope="col">こんなとき</th><th scope="col">選ぶもの</th><th scope="col">理由</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">迷ったとき。長く保守する一般向けのアプリ</th><td><span class="fw tauri">Tauri</span></td><td>安定版で、部品と資料が多い。見た目の自由度が高い</td></tr>
+          <tr><th scope="row">Web の技術を持つ人やチームで作る</th><td><span class="fw tauri">Tauri</span></td><td>HTML・CSS・JavaScript と npm の部品がそのまま使える</td></tr>
+          <tr><th scope="row">iOS・Android にも出す</th><td><span class="fw tauri">Tauri</span></td><td>モバイルの安定版がある</td></tr>
+          <tr><th scope="row">仮想マシンやリモートデスクトップで使われる</th><td><span class="fw tauri">Tauri</span></td><td>GPU がなくても滑らかに動いた</td></tr>
+          <tr><th scope="row">低スペック PC で動かす道具・社内ツール</th><td><span class="fw egui">egui</span>（glow）</td><td>起動が速く、メモリが少なく、書くのも速い</td></tr>
+          <tr><th scope="row">設定画面・デバッグ画面・ゲームの道具</th><td><span class="fw egui">egui</span></td><td>即時モードで、状態を画面にすぐ出せる</td></tr>
+          <tr><th scope="row">ブラウザーでも同じアプリを動かす</th><td><span class="fw egui">egui</span></td><td>同じコードが WebAssembly で動く</td></tr>
+          <tr><th scope="row">エディタやチャットのように一日中開いておくアプリ</th><td><span class="fw gpui">GPUI</span></td><td>メモリが最も少なく、後ろの窓の CPU を抑える</td></tr>
+          <tr><th scope="row">見た目と軽さの両方がほしいネイティブのアプリ</th><td><span class="fw gpui">GPUI</span>（GPUI Kit）</td><td>整った部品がそろい、メモリも少ない</td></tr>
+          <tr><th scope="row">Linux の利用者が多い</th><td><span class="fw egui">egui</span> か <span class="fw gpui">GPUI</span></td><td>Tauri は Linux の WebKitGTK での不具合の報告が続いている</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- /gen:choose -->
+  </section>
+
+  <section id="others" aria-labelledby="h-others">
+    <h2 id="h-others">ほかの選択肢（今回は測っていません）</h2>
+    <p>Rust の GUI には、この 3 つのほかにも使われているものがあります。今回は頼まれた 3 つに絞ったので、次の 3 つは測っていません。</p>
+    <ul>
+      <li><strong>Iced</strong>（0.14、2025 年 12 月）: 状態と画面の作り方が Elm に似た GUI です。System76 社の COSMIC デスクトップの土台に使われています。</li>
+      <li><strong>Slint</strong>（1.19、2026 年 11 月）: 画面を専用の言語（<code>.slint</code>）で書きます。マイコンのような小さな機器でも動くことを売りにしています。ライセンスは、GPL・無料の独自ライセンス・有料の商用ライセンスから選びます。</li>
+      <li><strong>Dioxus</strong>（0.7、0.8 は alpha）: React に似た書き方で、Web・デスクトップ・モバイルに対応します。デスクトップでは、Tauri と同じく WebView で表示します。</li>
+    </ul>
+  </section>
+
+  <section id="reproduce" aria-labelledby="h-reproduce">
+    <h2 id="h-reproduce">ソースと測り直し方</h2>
+    <p>3 つの版のソースと測定の道具は、すべて公開しています（<a href="https://github.com/dikmri/dekiru-html/tree/main/reports/rust-gui">GitHub の reports/rust-gui</a>）。</p>
+    <ul>
+      <li><code>src/common</code>: 3 つの版で共通のデータ・絞り込み・起動引数・記録（テスト 15 件）</li>
+      <li><code>src/tauri-app</code>・<code>src/egui-app</code>・<code>src/gpui-app</code>: それぞれの版</li>
+      <li><code>src/gpui-warp.diff</code>: GPUI を CPU の描画（WARP）に固定する、測定用の変更（8 行）</li>
+      <li><code>bench/bench.mjs</code>: 起動・メモリ・CPU・スクロールを測るスクリプト。<code>bench/probe-server.ps1</code> が、子プロセスを含めたメモリと CPU の時間を数える</li>
+      <li><code>data/summary.json</code>: このページの数字の元になった中央値</li>
+    </ul>
+    <p>Windows で測り直すときは、プロジェクトの最上位で次のように実行します（Tauri 版のビルドには <code>tauri-cli</code> が要ります）。</p>
+    <pre class="note"><code>cd reports/rust-gui/src/egui-app &amp;&amp; cargo build --release
+cd reports/rust-gui/src/gpui-app &amp;&amp; cargo build --release
+cd reports/rust-gui/src/tauri-app/src-tauri &amp;&amp; cargo tauri build --no-bundle
+node reports/rust-gui/bench/bench.mjs --scenarios startup,items10k,items100k,scroll --apps tauri,egui,gpui</code></pre>
+    <p class="small">測定スクリプトは、ビルドの出力先を <code>runtime/rust-gui/target-*</code> と決めています。ビルドするときは <code>CARGO_TARGET_DIR</code> でそろえてください。窓は、メインモニターの左にあるモニターへ、前面に出さずに開きます（<code>--pos</code> で変えられます）。</p>
+  </section>
+
+  <section id="sources" aria-labelledby="h-sources">
+    <h2 id="h-sources">出典</h2>
+    <ul class="small">
+      <li>各 crate の版と公開日: <a href="https://crates.io/crates/tauri">crates.io の tauri</a>、<a href="https://crates.io/crates/egui">egui</a>、<a href="https://crates.io/crates/gpui">gpui</a>、<a href="https://crates.io/crates/gpui-kit">gpui-kit</a>、<a href="https://crates.io/crates/gpui-pre">gpui-pre</a>（2026 年 11 月 20 日に確認）</li>
+      <li>egui 0.37 の変更点（OS のフォントの読み込み、アクセシビリティ）: <a href="https://github.com/emilk/egui/releases/tag/0.37.0">egui のリリースノート</a></li>
+      <li>Zed の開発者が GPUI の作業を後回しにすると伝えた件: <a href="https://news.ycombinator.com/item?id=47003569">Hacker News の 47003569</a>（Zed の Discord の発言の引用）</li>
+      <li>Zed の Linux 版の描画を wgpu に移した変更と、Windows では DirectX 11 を使い続ける話: <a href="https://github.com/zed-industries/zed/pull/46758">zed-industries/zed#46758</a></li>
+      <li>GPUI Kit の説明: <a href="https://crates.io/crates/gpui-component">gpui-component の README</a></li>
+      <li>Discord がデスクトップ版を Rust と GPUI で作り直す件: <a href="https://www.windowslatest.com/2026/11/05/discord-is-killing-its-electron-app-that-can-eat-4gb-of-ram-on-windows-11-and-the-rust-rebuild-uses-just-290mb/">Windows Latest（2026 年 11 月 5 日）</a></li>
+      <li>GitButler が Tauri の版を GPUI の版に置き換える試み: <a href="https://blog.gitbutler.com/gitbutler-0-23">GitButler 0.23 のお知らせ</a></li>
+      <li>Linux の WebKitGTK での Tauri の表示の問題: <a href="https://github.com/tauri-apps/tauri/issues/9304">tauri-apps/tauri#9304</a></li>
+      <li>Tauri 3.0 の alpha の内容（CEF を選べるようにする話など）: <a href="https://github.com/tauri-apps/tauri/milestone/5">tauri の 3.0 のマイルストーン</a></li>
+    </ul>
+  </section>
+
+  <p class="foot"><a href="../">実験レポートの一覧へ</a> ・ <a href="../../">図鑑の表紙へ戻る</a></p>
+</article>
+</main>
+</body>
+</html>

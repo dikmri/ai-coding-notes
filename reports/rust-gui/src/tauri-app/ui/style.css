@@ -1,0 +1,80 @@
+:root {
+  --bg-light: #ffffff;
+  --bg-dark: #1b1b1f;
+  --ink-light: #1f2328;
+  --ink-dark: #e6e6e9;
+  --muted-light: #6a6f76;
+  --muted-dark: #9a9ea6;
+  --rule-light: #e3e5e8;
+  --rule-dark: #34363c;
+  --accent-light: #2563eb;
+  --accent-dark: #7aa2ff;
+
+  --bg: light-dark(var(--bg-light), var(--bg-dark));
+  --ink: light-dark(var(--ink-light), var(--ink-dark));
+  --muted: light-dark(var(--muted-light), var(--muted-dark));
+  --rule: light-dark(var(--rule-light), var(--rule-dark));
+  --accent: light-dark(var(--accent-light), var(--accent-dark));
+
+  /* 起動時は 3 つの版をそろえて明るい表示にする。ダークの切り替えで dark にする */
+  color-scheme: light;
+  accent-color: var(--accent);
+  font: 14px/1.4 "Yu Gothic UI", "Segoe UI", system-ui, sans-serif;
+}
+:root.dark { color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--ink);
+}
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap;
+}
+
+.head { padding: 10px 12px 8px; border-bottom: 1px solid var(--rule); display: grid; gap: 8px; }
+.title-row { display: flex; align-items: baseline; gap: 12px; }
+h1 { margin: 0; font-size: 20px; }
+.sub { color: var(--muted); }
+.dark { margin-left: auto; }
+.add-row { display: flex; gap: 8px; }
+.add-row input { flex: 1; }
+.filter-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.filter-row input { width: 240px; }
+.tabs { display: flex; gap: 4px; }
+.tabs label { padding: 2px 10px; border-radius: 6px; cursor: pointer; }
+.tabs label:has(:checked) { background: color-mix(in oklab, var(--accent) 16%, transparent); }
+.tabs input { position: absolute; opacity: 0; pointer-events: none; }
+.tabs label:has(:focus-visible) { outline: 2px solid var(--accent); }
+
+input[type="text"], input[type="search"] {
+  font: inherit; padding: 5px 8px; border: 1px solid var(--rule); border-radius: 6px;
+  background: var(--bg); color: var(--ink);
+}
+button {
+  font: inherit; padding: 4px 12px; border: 1px solid var(--rule); border-radius: 6px;
+  background: var(--bg); color: var(--ink); cursor: pointer;
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: light-dark(#fff, #10131a); }
+button:hover { border-color: var(--muted); }
+
+.list { flex: 1; overflow-y: auto; position: relative; contain: strict; }
+.spacer { position: relative; }
+.row {
+  position: absolute; top: 0; left: 0; right: 0; height: 32px;
+  display: flex; align-items: center; gap: 12px; padding: 0 12px;
+  border-bottom: 1px solid var(--rule);
+}
+/* display を書いた要素は hidden 属性だけでは隠れないので、明示する */
+.row[hidden] { display: none; }
+.row .text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row.done .text { text-decoration: line-through; color: var(--muted); }
+.row .del { padding: 1px 8px; font-size: 12px; border-color: transparent; }
+.row .del:hover { border-color: var(--rule); }
+
+.foot { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--rule); }
+.message { margin-left: auto; color: var(--muted); }

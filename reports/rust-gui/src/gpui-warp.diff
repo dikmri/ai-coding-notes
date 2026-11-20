@@ -1,0 +1,18 @@
+diff -ru gpui-pre-windows.orig/src/directx_devices.rs gpui-pre-windows/src/directx_devices.rs
+--- gpui-pre-windows.orig/src/directx_devices.rs	2026-11-20 22:15:30.846896400 +0900
++++ gpui-pre-windows/src/directx_devices.rs	2026-11-20 22:15:41.022889200 +0900
+@@ -114,6 +114,14 @@
+ )> {
+     for adapter_index in 0.. {
+         let adapter: IDXGIAdapter1 = unsafe { dxgi_factory.EnumAdapters(adapter_index)?.cast()? };
++        // 測定用: TASKBOOK_GPUI_WARP があるときは、ソフトウェアのアダプター（WARP）だけを使う
++        if std::env::var_os("TASKBOOK_GPUI_WARP").is_some() {
++            if let Ok(desc) = unsafe { adapter.GetDesc1() } {
++                if desc.Flags & 2 == 0 {
++                    continue;
++                }
++            }
++        }
+         if let Ok(desc) = unsafe { adapter.GetDesc1() } {
+             let gpu_name = String::from_utf16_lossy(&desc.Description)
+                 .trim_matches(char::from(0))

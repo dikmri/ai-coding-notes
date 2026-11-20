@@ -1,0 +1,23 @@
+{
+ "tauri": {
+  "measuredAt": "2026-11-20T15:00:50.707Z",
+  "crates": 225,
+  "cleanReleaseSec": 362.514,
+  "cleanDebugSec": 151.781,
+  "incrDebugSec": 8.216
+ },
+ "egui": {
+  "measuredAt": "2026-11-20T15:09:34.258Z",
+  "crates": 181,
+  "cleanReleaseSec": 375.235,
+  "cleanDebugSec": 142.906,
+  "incrDebugSec": 5.881
+ },
+ "gpui": {
+  "measuredAt": "2026-11-20T15:18:19.069Z",
+  "crates": 402,
+  "cleanReleaseSec": 773.747,
+  "cleanDebugSec": 205.962,
+  "incrDebugSec": 7.565
+ }
+}
