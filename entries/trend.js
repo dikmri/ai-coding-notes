@@ -6414,3 +6414,784 @@ dekiru.add({
     build();
   },
 });
+
+dekiru.add({
+  id: 'tr-20261121-interaction-nets', c: 'trend', lv: 3, date: '2026-11-21',
+  t: 'グラフの書き換えだけで計算し、順番を変えても同じ答えになるのを確かめる（Frostbite の interaction nets）',
+  y: 'ぐらふのかきかえだけでけいさんしじゅんばんをかえてもおなじこたえになるのをたしかめるふろすとばいとのいんたらくしょんねっつ',
+  tags: ['Frostbite', 'interaction nets', 'グラフの書き換え', '並列', 'Canvas'],
+  d: '2026年11月18日、Architect Labs が CPU「Frostbite」を発表した。AI のエージェントが、命令セットから回路の配置（GDS）までを設計し、確かめたという。同じくらいの面積の普通の CPU と比べると、電力あたりの性能は 25 種類の処理の幾何平均で 4.59 倍だった（同社の記事による。比べた CPU の名前は伏せてある）。Hacker News では 11月20日に 646 点・コメント 333 件を集めた。Frostbite の土台は、1990年に Yves Lafont が考えた interaction nets という計算の仕組みである。プログラムは節点と線でできたグラフで、どの節点も主の口を1つだけ持つ。2つの節点の主の口どうしが線でつながると「書き換えられる組」になり、決まりに従って、その2つを別の小さなグラフに置き換える。これを繰り返して計算する。1回の書き換えは近くの節点しか変えず、組どうしは重ならない。だから、組をどの順番で書き換えても、全部同時に書き換えても、同じ答えになる。どの値も持ち主が1つしかないので、普通の CPU が多くの電力を使う、共有のキャッシュと、その中身をそろえる仕組みも要らないという。この見本は、記事が入門として勧める Tendrils の解説と同じく、0・+1・足し算・掛け算・複製（δ）・消去（ε）の6種類の節点を使う。入力した式からグラフを作り、書き換えて答えを出す。書き換える順番は5通りから選べる。古い組から1つずつ、ばらばらに1つずつ、全部同時に、それと、タイル 4 枚か 16 枚で分け合う順番である。タイルの動きは、記事がエージェントが作ったと書いている3つの決まりをまねた。自分の仕事があれば先にする。無ければ、隣のタイルから余っている仕事をもらう。それも無ければ休む。下の表で、順番を変えても答えと書き換えた回数は変わらず、かかった手数だけが変わることを確かめられる。Frostbite の命令セット、Rust に似た言語 Vine から中間の形 Ivy への変換、タイルの間の通信路、電力の数字は再現していない。本物の Ivy のネットは、データ・計算の節点・制御の節点の3種類の部品でできている。この見本のタイルは1手に1回だけ書き換え、仕事をもらうのに時間はかからないものとした。数は +1 の節点を数の分だけ並べて表すので、大きな数は扱えない。',
+  p: '足し算の決まりは「0 + y = y」と「(1 + x) + y = 1 + (x + y)」の2つである。＋ の節点の主の口は1つ目の数を向く。1つ目の数の先頭が +1 なら、+1 を1つ答えの側へ送り出し、残りでもう一度足し算をする。答えの +1 は計算の途中から上へ出ていくので、その答えを使う次の足し算は、計算が全部終わるのを待たずに始められる。掛け算は「0 × y = 0」と「(1 + x) × y = x × y + y」である。0 のときは y を消去の節点 ε に渡して消し、1 + x のときは y を複製の節点 δ で2つに写す。δ と ε も、数と出会うと +1 を1つずつ写したり消したりする。主の口は1つだけなので、1つの節点が2つの組に入ることはない。だから、ある組を書き換えても、ほかの組は書き換えられるまま残る。Lafont は、この性質から、どの順番で最後まで書き換えても書き換えの回数が同じになることを示した。全部同時に書き換えるときの手数は、前の書き換えを待たなければならない列のうち、いちばん長いものの長さになる。タイルをいくら増やしても、これより少ない手数にはならない。記事の 5 クイーンの例では、3183 回の書き換えに対して、いちばん長い列は 262 手だった。1手あたり平均 12 組を同時に書き換えられる計算である。タイルの見本では、書き換えで新しくできた組を、それを作ったタイルの仕事にする。自分の仕事は新しいものから取り、隣からもらうときは古いものから取る。',
+  refs: [
+    { title: 'Introducing Frostbite: A new CPU architecture discovered, designed, and verified end-to-end by AI（Architect Labs、2026-11-18）', url: 'https://architectlabs.com/blog/frostbite' },
+    { title: 'Hacker News: Frostbite: A new CPU architecture discovered, designed and verified by AI', url: 'https://news.ycombinator.com/item?id=50572503' },
+    { title: 'Architect Labs の X の投稿（2026-11-18）', url: 'https://x.com/architectlabs/status/2123187520276152487' },
+    { title: 'On Interaction Nets（Tendrils、2026-04-26）', url: 'https://tendrils.co/blog/2026-04-26/on-inets' },
+    { title: 'Yves Lafont: Interaction Nets（POPL 1990）', url: 'https://doi.org/10.1145/96709.96718' },
+  ],
+  html: `<div class="wrap">
+  <form class="ctl" id="f">
+    <label>式 <input type="text" id="ex" value="2 × 3 + 3 × 2" autocomplete="off" spellcheck="false" aria-describedby="exh"></label>
+    <button type="submit">この式で作り直す</button>
+    <label>例
+      <select id="pre">
+        <option value="">選ぶ</option>
+        <option>2 + 3</option>
+        <option>2 × 2</option>
+        <option>2 × 3 + 3 × 2</option>
+        <option>(1 + 2) × (2 + 2)</option>
+        <option>0 × 7</option>
+        <option>3 × 3 × 3</option>
+      </select>
+    </label>
+  </form>
+  <p id="exh" class="small mut">足し算（+）・掛け算（× か *）・括弧が使えます。数は 20 まで、途中の数と答えは 64 までです。</p>
+  <div class="ctl">
+    <label>書き換える順番
+      <select id="mode">
+        <option value="fifo">古い組から1つずつ</option>
+        <option value="rand">ばらばらに1つずつ</option>
+        <option value="t4">タイル 4 枚（2×2）で分け合う</option>
+        <option value="t16" selected>タイル 16 枚（4×4）で分け合う</option>
+        <option value="par">全部同時に</option>
+      </select>
+    </label>
+    <label>速さ
+      <select id="spd">
+        <option value="700">ゆっくり</option>
+        <option value="300" selected>ふつう</option>
+        <option value="90">速い</option>
+      </select>
+    </label>
+  </div>
+  <div class="ctl">
+    <button type="button" id="one">1手進める</button>
+    <label><input type="checkbox" switch id="auto"> 自動で進める</label>
+    <button type="button" id="reset">最初から</button>
+  </div>
+  <canvas id="cv" role="img" aria-label="interaction net の図。上の「答」から下へ、演算と数の節点が線でつながる。太い線が書き換えられる組"></canvas>
+  <p class="legend small mut"><span><i class="n"></i>数（0 と +1）</span><span><i class="o"></i>足し算と掛け算</span><span><i class="d"></i>複製 δ と消去 ε</span><span><i class="w"></i>書き換えられる組（タイルで分け合うときはタイルの色）</span><span><i class="p"></i>主の口</span></p>
+  <div id="tiles" class="tiles" role="group" aria-label="タイルの様子" hidden></div>
+  <p id="tlg" class="small mut" hidden>緑はその手に自分の仕事をしたタイル、橙は隣から仕事をもらったタイル、暗いのは休んだタイル。数は、手の終わりに持っている仕事（書き換えられる組）の数。上の線の色がタイルの色。</p>
+  <p id="msg" class="msg" role="status"></p>
+  <div class="res">
+    <dl id="st" class="st"></dl>
+    <div>
+      <div class="hd">手ごとの、書き換えられる組の数</div>
+      <canvas id="rd" role="img" aria-label="手ごとの、書き換えられる組の数の棒グラフ"></canvas>
+    </div>
+  </div>
+  <div class="tw" tabindex="0" role="region" aria-labelledby="cap">
+    <table>
+      <caption id="cap">同じ式を、順番だけ変えて最後まで書き換えた結果</caption>
+      <thead><tr><th scope="col">順番</th><th scope="col">答え</th><th scope="col">書き換えた回数</th><th scope="col">手数</th><th scope="col">1手あたり</th></tr></thead>
+      <tbody id="tb"></tbody>
+    </table>
+  </div>
+</div>`,
+  css: `:root { color-scheme: dark; --bg: #10131a; --fg: #e4e8f0; --mut: #9aa3b6; --line: #2b3346; --wire: #5a6582; --num: #5fc8b0; --op: #f0b45a; --dup: #b49cff; --out: #d6dcea; --act: #ff7a59; --own: #2f6f5c; --steal: #8a5a1e; --idle: #1b2130; --panel: #161a23; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    .wrap { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .ctl { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin: 0; }
+    .ctl label { display: inline-flex; align-items: center; gap: 6px; }
+    input[type="text"], select, button { font: inherit; min-block-size: 30px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 6px; background: #1e2433; color: var(--fg); }
+    input[type="text"] { inline-size: 12em; max-inline-size: 55vw; }
+    button { cursor: pointer; }
+    :focus-visible { outline: 2px solid #ffd27a; outline-offset: 2px; }
+    input[type="checkbox"][switch] { accent-color: var(--act); margin: 0; cursor: pointer; }
+    .mut { color: var(--mut); }
+    .small { font-size: 12px; margin: 0; }
+    canvas { display: block; inline-size: 100%; background: #0b0d12; border-radius: 4px; }
+    #cv { block-size: 380px; }
+    #rd { block-size: 80px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+    .legend i { display: inline-block; inline-size: 10px; block-size: 10px; border-radius: 50%; vertical-align: -1px; margin-inline-end: 5px; }
+    .legend .n { background: var(--num); }
+    .legend .o { background: var(--op); }
+    .legend .d { background: var(--dup); }
+    .legend .w { inline-size: 16px; block-size: 4px; border-radius: 2px; vertical-align: middle; background: var(--act); }
+    .legend .p { inline-size: 6px; block-size: 6px; vertical-align: 1px; background: var(--fg); }
+    .tiles { display: grid; gap: 4px; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); max-inline-size: 440px; }
+    .tile { border-radius: 4px; padding: 2px 6px; font-size: 11px; line-height: 1.35; background: var(--idle); border-block-start: 3px solid var(--hue, #888); font-variant-numeric: tabular-nums; display: flex; flex-direction: column; }
+    .tile.own { background: var(--own); }
+    .tile.steal { background: var(--steal); }
+    .tile span:first-child { color: var(--mut); }
+    .msg { margin: 0; padding: 6px 8px; border-inline-start: 3px solid var(--act); background: var(--panel); border-radius: 4px; font-size: 13px; min-block-size: 1.5em; }
+    .res { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    @media (min-width: 640px) { .res { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+    .st { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; margin: 0; font-size: 13px; }
+    .st dt { color: var(--mut); }
+    .st dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .hd { font-weight: 600; font-size: 13px; margin-block-end: 4px; }
+    .tw { overflow-x: auto; max-inline-size: 100%; }
+    table { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; min-inline-size: 100%; }
+    caption { text-align: start; font-weight: 600; padding-block-end: 4px; }
+    th, td { padding: 3px 8px; border-block-end: 1px solid var(--line); text-align: end; white-space: nowrap; }
+    th[scope="row"], thead th:first-child { text-align: start; font-weight: 400; }
+    thead th { color: var(--mut); font-weight: 400; }
+    tr.cur th, tr.cur td { background: #22293a; }
+    tr.cur th[scope="row"] { font-weight: 600; }
+    .thumb .wrap { padding: 4px; gap: 4px; }
+    .thumb .ctl, .thumb #exh, .thumb .legend, .thumb #msg, .thumb .res, .thumb .tw, .thumb .tiles, .thumb #tlg { display: none; }
+    .thumb #cv { block-size: 94vh; }`,
+  core() {
+    // ---- 式を読む（足し算・掛け算・括弧。数は 0〜20、途中の数と答えは 64 まで） ----
+    const LIMIT = { num: 20, value: 64, len: 40 };
+    function evalTree(t) {
+      if (!t.op) return t.n;
+      const a = evalTree(t.l), b = evalTree(t.r);
+      return t.op === '+' ? a + b : a * b;
+    }
+    // 表示用の文字列。グラフの形が分かるように、右側の同じ演算にも括弧を付ける
+    function showTree(t) {
+      if (!t.op) return String(t.n);
+      const wrap = (u, right) => (u.op && ((u.op === '+' && t.op === '*') || (right && u.op === t.op))) ? '(' + showTree(u) + ')' : showTree(u);
+      return wrap(t.l, false) + (t.op === '+' ? ' + ' : ' × ') + wrap(t.r, true);
+    }
+    function parseExpr(text) {
+      const s = String(text)
+        .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+        .replace(/[×xX＊]/g, '*').replace(/＋/g, '+').replace(/（/g, '(').replace(/）/g, ')')
+        .replace(/\s+/g, '');
+      if (!s) throw new Error('式が空です');
+      if (s.length > LIMIT.len) throw new Error('式が長すぎます（' + LIMIT.len + ' 文字まで）');
+      let i = 0;
+      function expr() {
+        let t = term();
+        while (s[i] === '+') { i++; t = { op: '+', l: t, r: term() }; }
+        return t;
+      }
+      function term() {
+        let t = fac();
+        while (s[i] === '*') { i++; t = { op: '*', l: t, r: fac() }; }
+        return t;
+      }
+      function fac() {
+        if (s[i] === '(') {
+          i++;
+          const t = expr();
+          if (s[i] !== ')') throw new Error((i + 1) + ' 文字目に ) が要ります');
+          i++;
+          return t;
+        }
+        const m = /^\d+/.exec(s.slice(i));
+        if (!m) throw new Error((i + 1) + ' 文字目に数が要ります');
+        i += m[0].length;
+        const n = Number(m[0]);
+        if (n > LIMIT.num) throw new Error('数は ' + LIMIT.num + ' までにしてください');
+        return { n };
+      }
+      const t = expr();
+      if (i < s.length) throw new Error((i + 1) + ' 文字目の「' + s[i] + '」は使えません');
+      (function check(u) {
+        if (evalTree(u) > LIMIT.value) throw new Error('途中の数と答えは ' + LIMIT.value + ' までにしてください（数の分だけ +1 の節点を並べるため）');
+        if (u.op) { check(u.l); check(u.r); }
+      })(t);
+      return t;
+    }
+
+    // ---- interaction net ----
+    // 節点の種類と補助の口の数。口 0 が主の口（OUT は答えの受け口で、主の口を持たない）
+    const ARITY = { Z: 0, S: 1, ADD: 2, MUL: 2, DUP: 2, ERA: 0, OUT: 0 };
+    function newNet() { return { nodes: new Map(), next: 1, fresh: [], born: [], died: [], count: 0, out: 0 }; }
+    function mk(net, k) {
+      const nd = { id: net.next++, k, p: new Array(ARITY[k] + 1).fill(null) };
+      net.nodes.set(nd.id, nd);
+      return nd;
+    }
+    // 2つの口を線でつなぐ。両方が主の口なら、書き換えられる組として控える
+    function link(net, a, pa, b, pb) {
+      a.p[pa] = [b.id, pb];
+      b.p[pb] = [a.id, pa];
+      if (pa === 0 && pb === 0 && a.k !== 'OUT' && b.k !== 'OUT') net.fresh.push({ a: a.id, b: b.id });
+    }
+    // 外へ出ている線の端 e = [節点, 口] に、新しい節点の口をつなぐ
+    function attach(net, nd, port, e, dying) {
+      if (!e || dying.has(e[0])) throw new Error('組の中で輪になった線は扱えません');
+      link(net, nd, port, net.nodes.get(e[0]), e[1]);
+    }
+    function join(net, e1, e2, dying) {
+      if (!e1 || !e2 || dying.has(e1[0]) || dying.has(e2[0])) throw new Error('組の中で輪になった線は扱えません');
+      link(net, net.nodes.get(e1[0]), e1[1], net.nodes.get(e2[0]), e2[1]);
+    }
+    // 式の木からグラフを作る。数 n は +1 を n 個つないだ列の下に 0 を置く
+    function buildNet(tree) {
+      const net = newNet();
+      function num(n) {
+        let top = mk(net, 'Z');
+        for (let i = 0; i < n; i++) { const s = mk(net, 'S'); link(net, s, 1, top, 0); top = s; }
+        return [top, 0];
+      }
+      function go(t) {
+        if (!t.op) return num(t.n);
+        const l = go(t.l), r = go(t.r);
+        const op = mk(net, t.op === '+' ? 'ADD' : 'MUL');
+        link(net, op, 0, l[0], l[1]);   // 主の口は1つ目の数を向く
+        link(net, op, 1, r[0], r[1]);
+        return [op, 2];                  // 口 2 から答えを出す
+      }
+      const res = go(tree);
+      const out = mk(net, 'OUT');
+      link(net, out, 0, res[0], res[1]);
+      net.out = out.id;
+      const init = net.fresh;
+      net.fresh = [];
+      return { net, init };
+    }
+    // 組を1つ書き換え、新しくできた組の配列を返す
+    function rewrite(net, pair) {
+      let x = net.nodes.get(pair.a), y = net.nodes.get(pair.b);
+      if (!x || !y) throw new Error('もう無い節点の組です');
+      if (x.k === 'Z' || x.k === 'S') { const t = x; x = y; y = t; }   // x を演算、y を数にそろえる
+      if (y.k !== 'Z' && y.k !== 'S') throw new Error('決まりの無い組です: ' + x.k + ' と ' + y.k);
+      const dying = new Set([x.id, y.id]);
+      const zero = y.k === 'Z', rest = zero ? null : y.p[1];   // rest は「1 + rest」の rest
+      const born = (k) => { const nd = mk(net, k); net.born.push([nd.id, x.id, y.id]); return nd; };
+      net.fresh = [];
+      switch (x.k) {
+        case 'ADD':   // 0 + y = y、(1 + x) + y = 1 + (x + y)
+          if (zero) join(net, x.p[1], x.p[2], dying);
+          else {
+            const s = born('S'), a = born('ADD');
+            attach(net, s, 0, x.p[2], dying);
+            link(net, s, 1, a, 2);
+            attach(net, a, 0, rest, dying);
+            attach(net, a, 1, x.p[1], dying);
+          }
+          break;
+        case 'MUL':   // 0 × y = 0（y は消す）、(1 + x) × y = x × y + y（y は写す）
+          if (zero) {
+            attach(net, born('ERA'), 0, x.p[1], dying);
+            attach(net, born('Z'), 0, x.p[2], dying);
+          } else {
+            const d = born('DUP'), m = born('MUL'), a = born('ADD');
+            attach(net, d, 0, x.p[1], dying);
+            attach(net, m, 0, rest, dying);
+            link(net, m, 1, d, 1);
+            link(net, a, 0, m, 2);
+            link(net, a, 1, d, 2);
+            attach(net, a, 2, x.p[2], dying);
+          }
+          break;
+        case 'DUP':   // 数を2つに写す
+          if (zero) {
+            attach(net, born('Z'), 0, x.p[1], dying);
+            attach(net, born('Z'), 0, x.p[2], dying);
+          } else {
+            const s1 = born('S'), s2 = born('S'), d = born('DUP');
+            attach(net, s1, 0, x.p[1], dying);
+            attach(net, s2, 0, x.p[2], dying);
+            attach(net, d, 0, rest, dying);
+            link(net, d, 1, s1, 1);
+            link(net, d, 2, s2, 1);
+          }
+          break;
+        case 'ERA':   // 数を消す
+          if (!zero) attach(net, born('ERA'), 0, rest, dying);
+          break;
+        default:
+          throw new Error('決まりの無い組です: ' + x.k + ' と ' + y.k);
+      }
+      net.nodes.delete(x.id);
+      net.nodes.delete(y.id);
+      net.died.push(x.id, y.id);
+      net.count++;
+      const made = net.fresh;
+      net.fresh = [];
+      return made;
+    }
+    // 答えの受け口から +1 を数える。done は 0 まで届いたか（途中なら、そこまでに出た +1 の数）
+    function decode(net) {
+      const out = net.nodes.get(net.out);
+      let e = out ? out.p[0] : null, v = 0;
+      while (e) {
+        const nd = net.nodes.get(e[0]);
+        if (!nd || e[1] !== 0) break;
+        if (nd.k === 'Z') return { v, done: true };
+        if (nd.k !== 'S') break;
+        v++;
+        e = nd.p[1];
+      }
+      return { v, done: false };
+    }
+
+    // ---- 書き換える順番 ----
+    // 決まった種から同じ乱数の列を作る（mulberry32）
+    function rng(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    // mode: fifo（古い組から1つずつ）、rand（ばらばらに1つずつ）、par（全部同時に）、tiles（k 枚のタイルが分け合う）
+    function makeRunner(tree, mode, opt) {
+      opt = opt || {};
+      const { net, init } = buildNet(tree);
+      const k = mode === 'tiles' ? Math.max(1, (opt.k | 0) || 4) : 1;
+      const cols = Math.ceil(Math.sqrt(k));
+      const rand = rng(opt.seed || 1);
+      const queues = Array.from({ length: k }, () => []);
+      queues[0].push(...init);   // 最初の仕事は全部タイル 0 が持つ
+      const nb = (t) => {
+        const r = Math.floor(t / cols), c = t % cols, out = [];
+        if (c > 0) out.push(t - 1);
+        if (c < cols - 1 && t + 1 < k) out.push(t + 1);
+        if (r > 0) out.push(t - cols);
+        if (t + cols < k) out.push(t + cols);
+        return out;
+      };
+      const R = { net, mode, k, cols, queues, steps: 0, ready: [], tiles: null, nb };
+      R.pending = () => queues.reduce((s, q) => s + q.length, 0);
+      R.done = () => R.pending() === 0;
+      const doOne = (pr, tile, how, did, made) => {
+        did.push({ a: pr.a, b: pr.b, ka: net.nodes.get(pr.a).k, kb: net.nodes.get(pr.b).k, tile, how });
+        made.push(...rewrite(net, pr));
+      };
+      R.step = () => {
+        net.born = []; net.died = [];
+        const did = [];
+        if (R.done()) return did;
+        R.ready.push(R.pending());
+        if (mode !== 'tiles') {
+          const q = queues[0];
+          let batch;
+          if (mode === 'par') batch = q.splice(0);   // 今ある組を全部。新しくできた組は次の手へ回す
+          else if (mode === 'rand') batch = q.splice(Math.floor(rand() * q.length), 1);
+          else batch = q.splice(0, 1);
+          const made = [];
+          for (const pr of batch) doOne(pr, 0, 'own', did, made);
+          q.push(...made);
+        } else {
+          const run = new Array(k).fill(null), how = new Array(k).fill('idle');
+          // 1. 自分の仕事があれば、いちばん新しいものをする
+          for (let t = 0; t < k; t++) if (queues[t].length) { run[t] = queues[t].pop(); how[t] = 'own'; }
+          // 2. 無ければ、余っている仕事がいちばん多い隣から、いちばん古いものをもらう
+          for (let t = 0; t < k; t++) {
+            if (run[t]) continue;
+            let best = -1;
+            for (const u of nb(t)) if (queues[u].length && (best < 0 || queues[u].length > queues[best].length)) best = u;
+            if (best >= 0) { run[t] = queues[best].shift(); how[t] = 'steal'; }
+          }
+          // 3. それも無ければ休む。新しくできた組は、作ったタイルの仕事になる
+          const made = queues.map(() => []);
+          for (let t = 0; t < k; t++) if (run[t]) doOne(run[t], t, how[t], did, made[t]);
+          for (let t = 0; t < k; t++) queues[t].push(...made[t]);
+          R.tiles = how.map((h, t) => ({ how: h, q: queues[t].length }));
+        }
+        R.steps++;
+        return did;
+      };
+      return R;
+    }
+    // 最後まで書き換えて、答え・書き換えた回数・手数を返す
+    function runAll(tree, mode, opt) {
+      const R = makeRunner(tree, mode, opt);
+      let maxNodes = R.net.nodes.size, guard = 0;
+      while (!R.done()) {
+        R.step();
+        if (R.net.nodes.size > maxNodes) maxNodes = R.net.nodes.size;
+        if (++guard > 200000) throw new Error('終わりませんでした');
+      }
+      const ans = decode(R.net);
+      let maxReady = 0;
+      for (const v of R.ready) if (v > maxReady) maxReady = v;
+      return { value: ans.done ? ans.v : null, interactions: R.net.count, steps: R.steps, maxReady, nodes: R.net.nodes.size, maxNodes };
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    if (window.THUMB) document.documentElement.classList.add('thumb');
+    const calm = matchMedia('(prefers-reduced-motion: reduce)');
+    const cv = $('cv'), rd = $('rd'), form = $('f'), exIn = $('ex'), preSel = $('pre'), modeSel = $('mode'), spdSel = $('spd');
+    const oneBtn = $('one'), autoSw = $('auto'), resetBtn = $('reset'), tilesEl = $('tiles'), tlgEl = $('tlg');
+    const msgEl = $('msg'), stEl = $('st'), tbEl = $('tb');
+    const cssVar = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim() || '#888';
+    const COL = { fg: cssVar('--fg'), mut: cssVar('--mut'), wire: cssVar('--wire'), num: cssVar('--num'), op: cssVar('--op'), dup: cssVar('--dup'), out: cssVar('--out'), act: cssVar('--act'), bg: cssVar('--bg') };
+    const FILL = { Z: COL.num, S: COL.num, ADD: COL.op, MUL: COL.op, DUP: COL.dup, ERA: COL.dup, OUT: COL.out };
+    const LABEL = { Z: '0', S: '+1', ADD: '+', MUL: '×', DUP: 'δ', ERA: 'ε', OUT: '答' };
+    // 口の向き。1 は下にある数を受け取る口、-1 は上へ値を渡す口。図では受け取る側を上に置く
+    const DIR = { Z: [-1], S: [-1, 1], ADD: [1, 1, -1], MUL: [1, 1, -1], DUP: [1, -1, -1], ERA: [1], OUT: [1] };
+    const MODES = {
+      fifo: { name: '古い組から1つずつ', mode: 'fifo', opt: {} },
+      rand: { name: 'ばらばらに1つずつ', mode: 'rand', opt: { seed: 7 } },
+      t4: { name: 'タイル 4 枚', mode: 'tiles', opt: { k: 4 } },
+      t16: { name: 'タイル 16 枚', mode: 'tiles', opt: { k: 16 } },
+      par: { name: '全部同時に', mode: 'par', opt: {} },
+    };
+    const OPS = new Set(['ADD', 'MUL', 'DUP', 'ERA']);
+    const RULE = {
+      'ADD-Z': '0 + y = y。＋ と 0 が消え、y が答えの側へつながった',
+      'ADD-S': '(1 + x) + y = 1 + (x + y)。+1 を1つ答えの側へ送り出した',
+      'MUL-Z': '0 × y = 0。y は消去の節点 ε に渡した',
+      'MUL-S': '(1 + x) × y = x × y + y。y を複製の節点 δ で2つに写す',
+      'DUP-Z': '複製 δ が 0 を2つに写した',
+      'DUP-S': '複製 δ が +1 を1つ写し、残りを写し続ける',
+      'ERA-Z': '消去 ε が 0 を消した',
+      'ERA-S': '消去 ε が +1 を1つ消し、残りを消し続ける',
+    };
+    const tileHue = (t, k) => 'hsl(' + (Math.round((t * 360) / Math.max(1, k)) + 20) % 360 + ' 80% 64%)';
+    let tree = null, R = null, pos = new Map(), flash = new Map();
+    let timer = 0, nextTimer = 0, raf = 0, seed = 1, peak = 0;
+
+    function sizeOf(c) {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const w = Math.max(1, c.clientWidth), h = Math.max(1, c.clientHeight);
+      return { dpr, w, h, W: Math.max(1, Math.round(w * dpr)), H: Math.max(1, Math.round(h * dpr)) };
+    }
+    function geo(z) {
+      const L = Math.max(14, Math.min(34, Math.min(z.w, z.h * 1.4) / 13));
+      return { L, r: Math.max(6, Math.min(12, L * 0.36)) };
+    }
+
+    // 最初の並べ方: 答えの受け口から下へ、受け取る口をたどって木の形に置く
+    function treeLayout() {
+      const net = R.net, z = sizeOf(cv), { L } = geo(z);
+      const depth = new Map(), xs = new Map();
+      let leaves = 0, maxD = 0;
+      (function visit(id, d) {
+        depth.set(id, d);
+        if (d > maxD) maxD = d;
+        const nd = net.nodes.get(id), dir = DIR[nd.k], kids = [];
+        for (let i = 0; i < nd.p.length; i++) {
+          const e = nd.p[i];
+          if (dir[i] === 1 && e && !depth.has(e[0])) kids.push(e[0]);
+        }
+        if (!kids.length) { xs.set(id, leaves++); return; }
+        let s = 0;
+        for (const c of kids) { visit(c, d + 1); s += xs.get(c); }
+        xs.set(id, s / kids.length);
+      })(net.out, 0);
+      pos = new Map(); flash = new Map();
+      const dy = Math.min(L, Math.max(4, (z.h - 36) / Math.max(1, maxD)));
+      for (const nd of net.nodes.values()) {
+        const known = depth.has(nd.id);
+        const x = known ? 20 + (xs.get(nd.id) + 0.5) / Math.max(1, leaves) * Math.max(1, z.w - 40) : z.w / 2;
+        const y = known ? 18 + depth.get(nd.id) * dy : z.h / 2;
+        pos.set(nd.id, { x: x + (Math.random() - 0.5) * 2, y, vx: 0, vy: 0 });
+      }
+    }
+
+    // 力で並べ直す: 節点どうしは離れ、線はばねで引き合い、受け取る側を上に保つ
+    function physics(z) {
+      const { L, r } = geo(z), net = R.net, P = [];
+      for (const id of net.nodes.keys()) { const p = pos.get(id); if (p) P.push(p); }
+      const n = P.length, rep = L * L * 0.9, far = 16 * L * L;
+      for (let i = 0; i < n; i++) {
+        const a = P[i];
+        for (let j = i + 1; j < n; j++) {
+          const b = P[j];
+          let dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy;
+          if (d2 > far) continue;
+          if (d2 < 0.01) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d2 = dx * dx + dy * dy + 0.01; }
+          const d = Math.sqrt(d2), f = Math.min(4, rep / d2);
+          const fx = dx / d * f, fy = dy / d * f;
+          a.vx -= fx; a.vy -= fy; b.vx += fx; b.vy += fy;
+        }
+      }
+      for (const nd of net.nodes.values()) {
+        const a = pos.get(nd.id);
+        if (!a) continue;
+        const dir = DIR[nd.k];
+        for (let i = 0; i < nd.p.length; i++) {
+          const e = nd.p[i];
+          if (!e || dir[i] !== 1) continue;   // 線は、受け取る口の側から1回だけ数える
+          const b = pos.get(e[0]);
+          if (!b) continue;
+          const dx = b.x - a.x, dy = b.y - a.y, d = Math.max(0.1, Math.hypot(dx, dy));
+          const f = (d - L) * 0.05;
+          a.vx += dx / d * f; a.vy += dy / d * f; b.vx -= dx / d * f; b.vy -= dy / d * f;
+          const gap = dy - L * 0.55;
+          if (gap < 0) { a.vy += gap * 0.04; b.vy -= gap * 0.04; }
+        }
+      }
+      let E = 0;
+      const x0 = r + 2, x1 = Math.max(x0, z.w - r - 2), y0 = r + 2, y1 = Math.max(y0, z.h - r - 2);
+      for (const p of P) {
+        p.vx += (z.w / 2 - p.x) * 0.0015;
+        p.vx *= 0.78; p.vy *= 0.78;
+        const sp = Math.hypot(p.vx, p.vy);
+        if (sp > 12) { p.vx *= 12 / sp; p.vy *= 12 / sp; }
+        p.x = Math.min(x1, Math.max(x0, p.x + p.vx));
+        p.y = Math.min(y1, Math.max(y0, p.y + p.vy));
+        E += p.vx * p.vx + p.vy * p.vy;
+      }
+      const o = pos.get(net.out);
+      if (o) { o.x = z.w / 2; o.y = Math.min(y1, r + 6); o.vx = 0; o.vy = 0; }
+      return E / Math.max(1, n);
+    }
+
+    function draw() {
+      const z = sizeOf(cv);
+      if (cv.width !== z.W) cv.width = z.W;
+      if (cv.height !== z.H) cv.height = z.H;
+      const g = cv.getContext('2d');
+      g.setTransform(z.dpr, 0, 0, z.dpr, 0, 0);
+      g.clearRect(0, 0, z.w, z.h);
+      if (!R) return;
+      const { r } = geo(z), net = R.net, now = performance.now();
+      const owner = new Map();   // 書き換えられる組を、どのタイルが持っているか
+      if (R.mode === 'tiles') R.queues.forEach((q, t) => { for (const pr of q) { owner.set(pr.a, t); owner.set(pr.b, t); } });
+      g.lineCap = 'round';
+      for (const nd of net.nodes.values()) {
+        const a = pos.get(nd.id);
+        if (!a) continue;
+        const dir = DIR[nd.k];
+        for (let i = 0; i < nd.p.length; i++) {
+          const e = nd.p[i];
+          if (!e || dir[i] !== 1) continue;
+          const b = pos.get(e[0]);
+          if (!b) continue;
+          if (i === 0 && e[1] === 0 && nd.k !== 'OUT') {
+            const t = owner.get(nd.id);
+            g.strokeStyle = R.mode === 'tiles' && t !== undefined ? tileHue(t, R.k) : COL.act;
+            g.lineWidth = 4;
+          } else {
+            g.strokeStyle = COL.wire;
+            g.lineWidth = 1.4;
+          }
+          g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
+        }
+      }
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.font = '600 ' + Math.round(r * 1.05) + 'px system-ui, sans-serif';
+      for (const nd of net.nodes.values()) {
+        const a = pos.get(nd.id);
+        if (!a) continue;
+        const fl = flash.get(nd.id);
+        if (fl !== undefined) {
+          const k = 1 - (now - fl) / 600;
+          if (k > 0) {
+            g.globalAlpha = k * 0.55; g.fillStyle = COL.fg;
+            g.beginPath(); g.arc(a.x, a.y, r + 5, 0, Math.PI * 2); g.fill();
+            g.globalAlpha = 1;
+          } else flash.delete(nd.id);
+        }
+        g.fillStyle = FILL[nd.k];
+        g.beginPath(); g.arc(a.x, a.y, nd.k === 'OUT' ? r * 1.25 : r, 0, Math.PI * 2); g.fill();
+        g.fillStyle = COL.bg;
+        g.fillText(LABEL[nd.k], a.x, a.y + 0.5);
+        if (nd.k !== 'OUT' && nd.p[0]) {   // 主の口の向きに点を打つ
+          const b = pos.get(nd.p[0][0]);
+          if (b) {
+            const dx = b.x - a.x, dy = b.y - a.y, d = Math.max(0.1, Math.hypot(dx, dy));
+            g.fillStyle = COL.fg;
+            g.beginPath(); g.arc(a.x + dx / d * r, a.y + dy / d * r, Math.max(1.6, r * 0.24), 0, Math.PI * 2); g.fill();
+          }
+        }
+      }
+    }
+
+    function drawReady() {
+      const z = sizeOf(rd);
+      if (rd.width !== z.W) rd.width = z.W;
+      if (rd.height !== z.H) rd.height = z.H;
+      const g = rd.getContext('2d');
+      g.setTransform(z.dpr, 0, 0, z.dpr, 0, 0);
+      g.clearRect(0, 0, z.w, z.h);
+      if (!R) return;
+      const a = R.ready, n = a.length;
+      let mx = 1;
+      for (const v of a) if (v > mx) mx = v;
+      const padL = 26, w = Math.max(1, z.w - padL - 4), h = Math.max(1, z.h - 18);
+      const bw = w / Math.max(n, 24);
+      g.fillStyle = COL.act;
+      for (let i = 0; i < n; i++) {
+        const bh = a[i] / mx * h;
+        g.fillRect(padL + i * bw, 4 + h - bh, Math.max(0.6, bw - (bw > 3 ? 1 : 0)), bh);
+      }
+      g.fillStyle = COL.mut; g.font = '10px system-ui, sans-serif';
+      g.textAlign = 'right'; g.textBaseline = 'middle';
+      g.fillText(String(mx), padL - 4, 9);
+      g.fillText('0', padL - 4, 4 + h);
+      g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+      g.fillText('手 →', padL, z.h - 2);
+    }
+
+    function renderStats() {
+      const net = R.net, ans = decode(net);
+      let answer;
+      if (R.done()) answer = ans.done ? String(ans.v) : '出なかった';
+      else answer = ans.v ? '+1 が ' + ans.v + ' 個まで出た（計算中）' : 'まだ出ていない';
+      const rows = [
+        ['式', showTree(tree) + ' = ' + evalTree(tree)],
+        ['答え（グラフから読んだ値）', answer],
+        ['書き換えた回数', String(net.count)],
+        ['手数', String(R.steps)],
+        ['今書き換えられる組', R.pending() + ' 組'],
+        ['節点の数', net.nodes.size + ' 個（いちばん多いとき ' + peak + ' 個）'],
+      ];
+      stEl.replaceChildren();
+      for (const [k, v] of rows) {
+        const dt = document.createElement('dt'), dd = document.createElement('dd');
+        dt.textContent = k; dd.textContent = v;
+        stEl.append(dt, dd);
+      }
+    }
+    function buildTiles() {
+      const isT = R.mode === 'tiles';
+      tilesEl.hidden = !isT; tlgEl.hidden = !isT;
+      tilesEl.replaceChildren();
+      if (!isT) return;
+      tilesEl.style.setProperty('--cols', R.cols);
+      for (let t = 0; t < R.k; t++) {
+        const d = document.createElement('div'), a = document.createElement('span'), b = document.createElement('span');
+        d.className = 'tile';
+        d.style.setProperty('--hue', tileHue(t, R.k));
+        a.textContent = 'タイル ' + t;
+        d.append(a, b);
+        tilesEl.append(d);
+      }
+    }
+    function renderTiles() {
+      if (R.mode !== 'tiles') return;
+      const word = { own: '自分の仕事', steal: 'もらった', idle: '休み' };
+      Array.from(tilesEl.children).forEach((d, t) => {
+        const how = R.tiles ? R.tiles[t].how : 'idle';
+        d.className = 'tile ' + how;
+        d.lastChild.textContent = (R.steps ? word[how] : '待ち') + ' ・ ' + R.queues[t].length;
+      });
+    }
+    function update() { renderStats(); renderTiles(); drawReady(); }
+
+    function renderTable() {
+      tbEl.replaceChildren();
+      for (const [key, m] of Object.entries(MODES)) {
+        const r = runAll(tree, m.mode, m.opt);
+        const tr = document.createElement('tr');
+        tr.dataset.k = key;
+        const cells = [m.name, r.value === null ? '-' : String(r.value), String(r.interactions), String(r.steps), (r.interactions / Math.max(1, r.steps)).toFixed(1)];
+        cells.forEach((c, i) => {
+          const el = document.createElement(i ? 'td' : 'th');
+          if (!i) el.scope = 'row';
+          el.textContent = c;
+          tr.append(el);
+        });
+        tbEl.append(tr);
+      }
+      markRow();
+    }
+    function markRow() { for (const tr of tbEl.children) tr.classList.toggle('cur', tr.dataset.k === modeSel.value); }
+
+    function frame() {
+      raf = 0;
+      if (!R) return;
+      const z = sizeOf(cv);
+      let e = 0;
+      for (let i = 0; i < 2; i++) e = physics(z);
+      draw();
+      if (e > 0.004 || flash.size || (timer && autoSw.checked)) raf = requestAnimationFrame(frame);
+    }
+    function kick() {
+      if (!R) return;
+      if (calm.matches && !window.THUMB) {   // 動きを減らす設定では、並べ終えた形だけを描く
+        const z = sizeOf(cv);
+        for (let i = 0; i < 300; i++) if (physics(z) < 0.004) break;
+        flash.clear();
+        draw();
+        return;
+      }
+      if (!raf) raf = requestAnimationFrame(frame);
+    }
+
+    function ruleOf(d) {
+      const op = OPS.has(d.ka) ? d.ka : d.kb, nm = op === d.ka ? d.kb : d.ka;
+      return RULE[op + '-' + nm] || '';
+    }
+    function stepText(did) {
+      const n = R.steps;
+      if (R.mode === 'tiles') {
+        let own = 0;
+        for (const d of did) if (d.how === 'own') own++;
+        return n + ' 手目: ' + did.length + ' 組を同時に書き換えた。自分の仕事をしたタイルが ' + own + ' 枚、隣から仕事をもらったタイルが ' + (did.length - own) + ' 枚、休んだタイルが ' + (R.k - did.length) + ' 枚。';
+      }
+      if (R.mode === 'par') return n + ' 手目: 重ならない ' + did.length + ' 組を同時に書き換えた。' + (did.length === 1 ? ruleOf(did[0]) + '。' : '');
+      return n + ' 手目: ' + ruleOf(did[0]) + '。';
+    }
+    function doStep() {
+      const z = sizeOf(cv), did = R.step(), now = performance.now();
+      for (const [id, a, b] of R.net.born) {
+        const pa = pos.get(a) || pos.get(b) || { x: z.w / 2, y: z.h / 2 }, pb = pos.get(b) || pa;
+        pos.set(id, { x: (pa.x + pb.x) / 2 + (Math.random() - 0.5) * 10, y: (pa.y + pb.y) / 2 + (Math.random() - 0.5) * 10, vx: 0, vy: 0 });
+        flash.set(id, now);
+      }
+      for (const id of R.net.died) { pos.delete(id); flash.delete(id); }
+      if (R.net.nodes.size > peak) peak = R.net.nodes.size;
+      msgEl.textContent = stepText(did);
+      update();
+      kick();
+    }
+    function finish() {
+      const net = R.net, ans = decode(net), avg = net.count / Math.max(1, R.steps);
+      let s = 'グラフから読んだ答えは ' + (ans.done ? ans.v : '?') + '（式の値は ' + evalTree(tree) + '）。' + net.count + ' 回の書き換えを ' + R.steps + ' 手で終えた。1手あたり平均 ' + avg.toFixed(1) + ' 組。';
+      if (R.mode === 'tiles') s += 'タイルが働いていた割合は ' + Math.round(net.count / Math.max(1, R.steps * R.k) * 100) + '%。';
+      s += '表のとおり、どの順番でも答えと書き換えた回数は同じで、手数だけが違う。';
+      msgEl.textContent = s;
+      update();
+      clearTimeout(nextTimer);
+      if (autoSw.checked) nextTimer = setTimeout(restart, window.THUMB ? 2000 : 3500);
+    }
+    function tick() {
+      timer = 0;
+      if (!R) return;
+      if (R.done()) { finish(); return; }
+      doStep();
+      if (R.done()) finish();
+      else if (autoSw.checked) timer = setTimeout(tick, +spdSel.value);
+    }
+    function restart() {
+      clearTimeout(timer); clearTimeout(nextTimer); timer = 0;
+      if (!tree) return;
+      const m = MODES[modeSel.value];
+      R = makeRunner(tree, m.mode, m.mode === 'rand' ? { seed: seed++ } : m.opt);
+      peak = R.net.nodes.size;
+      treeLayout();
+      buildTiles();
+      msgEl.textContent = '「' + showTree(tree) + '」のグラフを作った。書き換えられる組が ' + R.pending() + ' 組ある。';
+      update();
+      kick();
+      if (autoSw.checked) timer = setTimeout(tick, Math.max(500, +spdSel.value));
+    }
+    function apply(src) {
+      let t;
+      try {
+        t = parseExpr(src);
+        const r = runAll(t, 'par', {});
+        if (r.maxNodes > 420) throw new Error('途中の節点が ' + r.maxNodes + ' 個になり、図が読めなくなります。小さい数にしてください');
+      } catch (err) {
+        msgEl.textContent = 'この式は使えません: ' + err.message;
+        return;
+      }
+      tree = t;
+      renderTable();
+      restart();
+    }
+
+    form.addEventListener('submit', (ev) => { ev.preventDefault(); preSel.value = ''; apply(exIn.value); });
+    preSel.addEventListener('change', () => { if (preSel.value) { exIn.value = preSel.value; apply(preSel.value); } });
+    modeSel.addEventListener('change', () => { markRow(); restart(); });
+    resetBtn.addEventListener('click', restart);
+    oneBtn.addEventListener('click', () => {
+      autoSw.checked = false;
+      clearTimeout(timer); clearTimeout(nextTimer); timer = 0;
+      if (!R) return;
+      if (R.done()) { restart(); return; }
+      doStep();
+      if (R.done()) finish();
+    });
+    autoSw.addEventListener('change', () => {
+      clearTimeout(timer); clearTimeout(nextTimer); timer = 0;
+      if (!autoSw.checked || !R) return;
+      if (R.done()) restart();
+      else { timer = setTimeout(tick, 200); kick(); }
+    });
+    new ResizeObserver(() => { kick(); drawReady(); }).observe(document.querySelector('.wrap'));
+
+    autoSw.checked = !!window.THUMB || !calm.matches;
+    apply(exIn.value);
+  },
+});

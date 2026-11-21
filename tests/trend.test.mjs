@@ -1184,3 +1184,81 @@ test('目当ての近くを広げる横軸: 両端は 0 と 1、目当ては元�
   assert.ok(fish(c + 1, c, n, 1) - fish(c, c, n, 1) > 100 / n);
   assert.equal(fish(5, 3, 0, 1), 0);
 });
+
+const INETS = 'tr-20261121-interaction-nets';
+
+test('interaction nets: 式を読んで値を出し、読めない式は断る', () => {
+  const { parseExpr, evalTree, showTree } = trendCore(INETS, ['parseExpr', 'evalTree', 'showTree']);
+  assert.equal(evalTree(parseExpr('2+3')), 5);
+  assert.equal(evalTree(parseExpr('2 × 3 + 4')), 10);
+  assert.equal(evalTree(parseExpr('(1+2)*(2+2)')), 12);
+  assert.equal(evalTree(parseExpr('２＋３')), 5);
+  assert.equal(showTree(parseExpr('(1+2)*(2+2)')), '(1 + 2) × (2 + 2)');
+  assert.equal(showTree(parseExpr('1+(2+3)')), '1 + (2 + 3)');
+  assert.equal(showTree(parseExpr('1+2+3')), '1 + 2 + 3');
+  for (const bad of ['', '2+', 'abc', '(1+2', '21', '9*9', '2**3', '1+2)']) assert.throws(() => parseExpr(bad), bad);
+});
+
+test('interaction nets: 小さな式の書き換えの回数', () => {
+  const { parseExpr, runAll } = trendCore(INETS, ['parseExpr', 'runAll']);
+  const n = (s) => runAll(parseExpr(s), 'fifo', {}).interactions;
+  assert.equal(n('0+3'), 1);   // ＋ と 0 だけ
+  assert.equal(n('1+1'), 2);   // ＋ と +1、＋ と 0
+  assert.equal(n('3+4'), 4);   // 1つ目の数の +1 の数と、最後の 0
+  assert.equal(n('0*5'), 7);   // × と 0、ε が +1 を5つと 0 を消す
+});
+
+test('interaction nets: どの順番で書き換えても、答えと書き換えの回数は同じ', () => {
+  const { parseExpr, evalTree, runAll } = trendCore(INETS, ['parseExpr', 'evalTree', 'runAll']);
+  for (const s of ['0+3', '1+1', '2*2', '0*5', '5*0', '2*3+3*2', '(1+2)*(2+2)', '3*3*3', '4*(0+1)*2', '(2*3)*(1+2)+3*3']) {
+    const t = parseExpr(s), want = evalTree(t);
+    const base = runAll(t, 'fifo', {});
+    assert.equal(base.value, want, s);
+    assert.equal(base.steps, base.interactions, s);
+    assert.equal(base.nodes, want + 2, s);   // 最後は 答・+1 の列・0 だけが残る
+    const par = runAll(t, 'par', {});
+    const tiles = [1, 2, 4, 16].map((k) => runAll(t, 'tiles', { k }));
+    const rands = [1, 2, 3].map((seed) => runAll(t, 'rand', { seed }));
+    for (const r of [par, ...tiles, ...rands]) {
+      assert.equal(r.value, want, s);
+      assert.equal(r.interactions, base.interactions, s);
+      assert.equal(r.nodes, want + 2, s);
+    }
+    assert.equal(tiles[0].steps, base.interactions, s);   // タイル 1 枚は1つずつと同じ
+    for (const r of tiles) assert.ok(r.steps >= par.steps && r.steps <= base.interactions, s);
+  }
+});
+
+test('interaction nets: 同時に書き換える組は節点を共有せず、答えは上から先に出てくる', () => {
+  const { parseExpr, makeRunner, decode } = trendCore(INETS, ['parseExpr', 'makeRunner', 'decode']);
+  const R = makeRunner(parseExpr('(2*3)*(1+2)+3*3'), 'par', {});
+  let most = 0;
+  while (!R.done()) {
+    const did = R.step(), seen = new Set();
+    for (const d of did) {
+      assert.ok(!seen.has(d.a) && !seen.has(d.b));
+      seen.add(d.a); seen.add(d.b);
+    }
+    most = Math.max(most, did.length);
+  }
+  assert.ok(most >= 3);
+  const Q = makeRunner(parseExpr('3+4'), 'fifo', {});
+  Q.step();
+  const p = decode(Q.net);
+  assert.equal(p.v, 1);
+  assert.equal(p.done, false);
+});
+
+test('interaction nets: タイルは隣からしか仕事をもらえない', () => {
+  const { parseExpr, makeRunner } = trendCore(INETS, ['parseExpr', 'makeRunner']);
+  const R = makeRunner(parseExpr('2*3+3*2+(1+1)*(2+2)'), 'tiles', { k: 16 });
+  assert.deepEqual(Array.from(R.nb(0)).sort((a, b) => a - b), [1, 4]);
+  assert.deepEqual(Array.from(R.nb(5)).sort((a, b) => a - b), [1, 4, 6, 9]);
+  assert.ok(R.pending() >= 3);
+  const first = R.step();
+  // 最初の仕事は全部タイル 0 にあるので、1手目に動けるのはタイル 0 とその隣の 1 と 4 だけ
+  assert.ok(first.length <= 3);
+  for (const d of first) assert.ok([0, 1, 4].includes(d.tile));
+  assert.equal(first.find((d) => d.tile === 0).how, 'own');
+  assert.equal(R.tiles.length, 16);
+});
