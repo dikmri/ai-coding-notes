@@ -5791,3 +5791,626 @@ dekiru.add({
     compute();
   },
 });
+
+dekiru.add({
+  id: 'tr-20261121-skiplist-btree', c: 'trend', lv: 2, date: '2026-11-21',
+  t: '同じ集合を skiplist と B+ 木で作り、探すときに読むメモリの塊を数える（Valkey 9.2）',
+  y: 'おなじしゅうごうをすきっぷりすととびーぷらすぎでつくりさがすときによむめもりのかたまりをかぞえる',
+  tags: ['Valkey', 'skiplist', 'B+ 木', 'キャッシュ', 'Canvas'],
+  d: '2026年11月16日、Redis から分かれたデータベース Valkey のブログに、Rain Valentine さんと Dragos Andriciuc さんの記事が載った。9.2 から、並べ替え済みの集合（sorted set）の作り方を変えたという内容である。これまでの skiplist をやめ、枝が 61 本の B+ 木「fbtree」にした（PR #4206）。記事によると、1件あたりの余分なメモリは 50.3 バイトから、小さい順に入れた場合は 28.5 バイト（43% 減）、ばらばらに入れた場合は 32.0 バイトになった。300 万件の集合で、点数を書き換える ZADD は 105%、ZREM は 76% 速くなった。Hacker News でも 11月21日に上位に載っている。skiplist は1件ごとに別々のメモリの塊を作り、印（ポインタ）でつなぐ。探すときは、1つの塊を読むまで次の塊の場所が分からない。だから、キャッシュに無い塊を読む待ち時間が何度も続く。B+ 木は 61 件を1つの塊にまとめて並べるので、読む塊の数が少ない。この見本は、同じ集合を skiplist（Valkey と同じく、1段上がる確率は 1/4）と B+ 木の両方で作る。そして、1つの値を探すときにたどる道を描き、読んだ塊の数と比べた回数を数える。横軸は、目当ての値の近くを広げて描いている。下のボタンを押すと、この端末の JavaScript で、実際に探す時間も測れる。本物の fbtree は、葉に値（点数と名前をまとめたもの）への印を置き、内側のノードでは目印の先頭 4 バイト（特徴）を SIMD でまとめて比べる。この見本の B+ 木は、点数をノードの中にそのまま並べる簡単な形にした。メモリの数字は記事の形に合わせた大まかな見積もりで、ハッシュ表、メモリ管理の切り上げ、名前の文字列は含めない。消す処理、範囲の取り出し、名前から点数を引くためのハッシュ表は作っていない。',
+  p: 'skiplist で値を探すときは、いちばん上の段から右へ進み、行き過ぎる手前で1段下りる。1段で右へ進む回数は多くても平均 3 回（1/p − 1）で、行き過ぎた塊も1つ読む。だから、比べる回数は段の数（log₄ n）の 3〜4 倍になる。3721 件なら段は約 6 で、読む塊は約 20 個になる。B+ 木は、根から葉まで、1段につき1つの塊しか読まない。読む塊の数は木の高さ（log₆₁ n ほど）で、3721 件なら 2〜3 個になる。その代わり、1つの塊の中で2分探索をするので、比べる回数の差は、読む塊の数の差ほど大きくない（3721 件では、19 回ほどと 12 回ほど）。比べるのは CPU の中の計算で、キャッシュに無い塊をメモリから読む待ち時間よりずっと短い。だから、読む塊の数が速さを決める。小さい順に入れるときは、満杯の右端の葉を半分に分けず、新しい1件だけを新しい葉へ移す。こうすると葉が満杯のまま並び、メモリの無駄が減る（記事の 28.5 バイトと 32.0 バイトの差に当たる）。1件あたりのメモリの見積もりは、skiplist が「戻る印 8 + 段ごとに（次の印 8 + 飛ぶ件数 8）+ 点数 8」バイトである。B+ 木は、葉の大きさ（16 + 8 × 枝の数）と内側のノードの大きさ（16 + 20 × 枝の数）を足して件数で割り、点数の 8 バイトを足した。',
+  refs: [
+    { title: 'From Skiplists to B+ Trees: Making Valkey Sorted Sets More Memory Efficient（Valkey ブログ、2026-11-16）', url: 'https://valkey.io/blog/from-skiplist-to-b+tree/' },
+    { title: 'Hacker News: Valkey kills the skiplist, cuts sorted set overhead by up to 43%', url: 'https://news.ycombinator.com/item?id=50534387' },
+    { title: 'valkey-io/valkey PR #4206: ZSET B+ Tree PR 3: Replace skiplist with FB+ Tree implementation', url: 'https://github.com/valkey-io/valkey/pull/4206' },
+  ],
+  html: `<div class="wrap">
+  <div class="ctl">
+    <label>件数
+      <select id="n">
+        <option value="61">61</option>
+        <option value="3721" selected>3721（61 × 61）</option>
+        <option value="20000">2 万</option>
+        <option value="100000">10 万</option>
+      </select>
+    </label>
+    <label>B+ 木の枝の数
+      <select id="F">
+        <option value="4">4</option>
+        <option value="8">8</option>
+        <option value="16">16</option>
+        <option value="61" selected>61（fbtree と同じ）</option>
+      </select>
+    </label>
+    <label>入れる順
+      <select id="ord">
+        <option value="rand" selected>ばらばらに</option>
+        <option value="seq">小さい順に</option>
+      </select>
+    </label>
+  </div>
+  <div class="ctl">
+    <button type="button" id="go">別の値を探す</button>
+    <label class="sw"><input type="checkbox" switch id="auto"> 自動で探し続ける</label>
+    <label class="sw"><input type="checkbox" switch id="fish" checked> 目当ての近くを広げて描く</label>
+  </div>
+  <section>
+    <div class="hd"><span class="nm">skiplist</span> <span class="mut">Valkey 9.1 まで。1件ごとに別の塊で、高さは 1/4 の確率で1段ずつ増える</span> <span class="cnt">読んだ塊 <b id="sr">0</b> 個・比べた <b id="sc">0</b> 回</span></div>
+    <canvas id="cs" role="img" aria-label="skiplist の段と、探した道の図"></canvas>
+    <div class="hd"><span class="nm">B+ 木</span> <span class="mut">Valkey 9.2 の fbtree を簡単にしたもの。色の濃さはノードの詰まり具合</span> <span class="cnt">読んだ塊 <b id="br">0</b> 個・比べた <b id="bc">0</b> 回</span></div>
+    <canvas id="cb" role="img" aria-label="B+ 木の段と、探した道の図"></canvas>
+    <p class="legend mut small"><span><i class="lp"></i>進んだ道</span><span><i class="lm"></i>読んだが行き過ぎだった塊</span><span><i class="lh"></i>見つけた値</span><span><i class="lt"></i>目当ての値の位置</span></p>
+  </section>
+  <p id="msg" class="msg" role="status"></p>
+  <div class="res">
+    <dl id="st" class="st"></dl>
+    <div class="mem">
+      <div class="hd">1件あたりの、並べるためのメモリ <span class="mut">見積もり</span></div>
+      <div class="bar"><span>skiplist</span><span class="trk"><i id="ms"></i></span><output id="msv">0</output></div>
+      <div class="bar"><span>B+ 木</span><span class="trk"><i id="mb" class="b"></i></span><output id="mbv">0</output></div>
+      <p class="small mut">記事の実測（ハッシュ表なども含む）: skiplist 50.3 バイト → fbtree 28.5 バイト（小さい順に入れた場合）・32.0 バイト（ばらばらに入れた場合）</p>
+    </div>
+  </div>
+  <section class="bench">
+    <div class="hd">この端末で速さを比べる <span class="mut">20 万件をばらばらに入れ、10 万回探す時間</span></div>
+    <div class="ctl"><button type="button" id="bench">測る</button> <span id="bres" class="small" role="status"></span></div>
+    <p class="small mut">JavaScript では、オブジェクトをメモリのどこに置くかを決められない。だから、C で書かれた Valkey と同じ差にはならない。結果は端末と回ごとに変わる。</p>
+  </section>
+</div>`,
+  css: `:root { color-scheme: dark; --bg: #10131a; --fg: #e4e8f0; --mut: #9aa3b6; --line: #2b3346; --tower: #6f86b8; --box: #4fb79a; --path: #ffc562; --miss: #ff8fb3; --hit: #7dffb0; --tgt: #7fd4ff; --panel: #161a23; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    .wrap { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .ctl { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+    .ctl label { display: inline-flex; align-items: center; gap: 6px; }
+    select, button { font: inherit; min-block-size: 30px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 6px; background: #1e2433; color: var(--fg); }
+    button { cursor: pointer; }
+    button:disabled { opacity: 0.55; cursor: default; }
+    :focus-visible { outline: 2px solid #ffd27a; outline-offset: 2px; }
+    input[type="checkbox"][switch] { accent-color: var(--path); margin: 0; cursor: pointer; }
+    .hd { font-weight: 600; display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; }
+    .hd .mut { font-weight: 400; font-size: 12px; }
+    .hd .cnt { margin-inline-start: auto; font-weight: 400; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .hd .cnt b { color: var(--path); }
+    .mut { color: var(--mut); }
+    .small { font-size: 12px; margin: 0; }
+    section { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    canvas { display: block; inline-size: 100%; background: #0b0d12; border-radius: 4px; }
+    #cs { block-size: 180px; }
+    #cb { block-size: 110px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+    .legend i { display: inline-block; inline-size: 14px; block-size: 3px; vertical-align: middle; margin-inline-end: 6px; border-radius: 2px; }
+    .legend .lp { background: var(--path); }
+    .legend .lm { background: var(--miss); }
+    .legend .lh { background: var(--hit); }
+    .legend .lt { background: var(--tgt); }
+    .msg { margin: 0; padding: 6px 8px; border-inline-start: 3px solid var(--path); background: var(--panel); border-radius: 4px; font-size: 13px; }
+    .res { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    @media (min-width: 640px) { .res { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+    .st { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; margin: 0; font-size: 13px; }
+    .st dt { color: var(--mut); }
+    .st dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .mem { display: flex; flex-direction: column; gap: 6px; }
+    .bar { display: grid; grid-template-columns: 5em minmax(0, 1fr) 6.5em; gap: 8px; align-items: center; font-size: 13px; }
+    .trk { block-size: 10px; background: var(--line); border-radius: 5px; overflow: hidden; }
+    .trk i { display: block; block-size: 100%; inline-size: 0; background: var(--tower); transition: inline-size 0.4s; }
+    .trk i.b { background: var(--box); }
+    .bar output { font-variant-numeric: tabular-nums; text-align: end; }
+    .bench { border-block-start: 1px solid var(--line); padding-block-start: 8px; gap: 6px; }
+    @media (prefers-reduced-motion: reduce) { .trk i { transition: none; } }
+    .thumb .wrap { padding: 6px; gap: 4px; }
+    .thumb .ctl, .thumb .legend, .thumb #msg, .thumb .res, .thumb .bench, .thumb .hd .mut { display: none; }
+    .thumb .hd { font-size: 12px; }
+    .thumb #cs { block-size: 44vh; }
+    .thumb #cb { block-size: 28vh; }`,
+  core() {
+    // 決まった種から同じ乱数の列を作る（mulberry32）
+    function rng(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    // 0〜n−1 を、小さい順（seq）か、混ぜた順（rand）に並べる
+    function makeKeys(n, order, rand) {
+      const a = Array.from({ length: n }, (_, i) => i);
+      if (order === 'rand') {
+        for (let i = n - 1; i > 0; i--) {
+          const j = Math.floor(rand() * (i + 1));
+          const t = a[i]; a[i] = a[j]; a[j] = t;
+        }
+      }
+      return a;
+    }
+
+    // ---- skiplist（Redis・Valkey と同じく、1段上がる確率 1/4、最高 32 段） ----
+    const SKIP_P = 0.25, SKIP_MAX = 32;
+    function skipNew() {
+      return { head: { key: -Infinity, next: new Array(SKIP_MAX).fill(null) }, level: 1, n: 0 };
+    }
+    function skipLevel(rand) {
+      let l = 1;
+      while (l < SKIP_MAX && rand() < SKIP_P) l++;
+      return l;
+    }
+    function skipInsert(sl, key, rand) {
+      const upd = new Array(SKIP_MAX);
+      let x = sl.head;
+      for (let i = sl.level - 1; i >= 0; i--) {
+        while (x.next[i] && x.next[i].key < key) x = x.next[i];
+        upd[i] = x;
+      }
+      const lv = skipLevel(rand);
+      if (lv > sl.level) {
+        for (let i = sl.level; i < lv; i++) upd[i] = sl.head;
+        sl.level = lv;
+      }
+      const node = { key, next: new Array(lv).fill(null), rank: 0 };
+      for (let i = 0; i < lv; i++) { node.next[i] = upd[i].next[i]; upd[i].next[i] = node; }
+      sl.n++;
+      return node;
+    }
+    // いちばん下の段をたどって、何番目かを書き込む。小さい順の配列を返す
+    function skipRanks(sl) {
+      const out = [];
+      for (let x = sl.head.next[0]; x; x = x.next[0]) { x.rank = out.length; out.push(x); }
+      return out;
+    }
+    // 探した道を記録しながら探す。reads は読んだ別々の塊の数（入口も 1 と数える）
+    function skipSearch(sl, key) {
+      const steps = [], seen = new Set();
+      let x = sl.head, cmps = 0;
+      for (let i = sl.level - 1; i >= 0; i--) {
+        for (;;) {
+          const y = x.next[i];
+          if (!y) break;
+          cmps++;
+          const again = seen.has(y);
+          seen.add(y);
+          const go = y.key < key;
+          steps.push({ node: y, lv: i, go, again });
+          if (!go) break;
+          x = y;
+        }
+      }
+      const hit = x.next[0];
+      return { found: !!hit && hit.key === key, steps, reads: seen.size + 1, cmps };
+    }
+    // 速さを測るための、記録をしない探し方
+    function skipHas(sl, key) {
+      let x = sl.head;
+      for (let i = sl.level - 1; i >= 0; i--) {
+        let y = x.next[i];
+        while (y && y.key < key) { x = y; y = x.next[i]; }
+      }
+      const y = x.next[0];
+      return !!y && y.key === key;
+    }
+    // 1件あたりのメモリの見積もり: 戻る印 8 + 段ごとに（次の印 8 + 飛ぶ件数 8）+ 点数 8
+    function skipBytes(nodes) {
+      let lv = 0;
+      for (const x of nodes) lv += x.next.length;
+      const avgLv = nodes.length ? lv / nodes.length : 0;
+      return { avgLv, bytes: nodes.length ? 16 + 16 * avgLv : 0 };
+    }
+
+    // ---- B+ 木（枝の数 F。葉は F 件まで、内側のノードは子を F 個まで） ----
+    function btNew(F) {
+      return { F: Math.max(3, F | 0), root: { leaf: true, keys: [], next: null }, depth: 1, n: 0 };
+    }
+    // 並んだ数のうち key 以下がいくつあるか（upper）、key 未満がいくつあるか（lower）。比べた回数も返す
+    function upper(a, key) {
+      let lo = 0, hi = a.length, c = 0;
+      while (lo < hi) { const m = (lo + hi) >> 1; c++; if (a[m] <= key) lo = m + 1; else hi = m; }
+      return [lo, c];
+    }
+    function lower(a, key) {
+      let lo = 0, hi = a.length, c = 0;
+      while (lo < hi) { const m = (lo + hi) >> 1; c++; if (a[m] < key) lo = m + 1; else hi = m; }
+      return [lo, c];
+    }
+    function btInsert(bt, key) {
+      const F = bt.F, path = [];
+      let x = bt.root, rightmost = true;
+      while (!x.leaf) {
+        const i = upper(x.keys, key)[0];
+        path.push([x, i]);
+        if (i < x.kids.length - 1) rightmost = false;
+        x = x.kids[i];
+      }
+      const pos = lower(x.keys, key)[0];
+      if (x.keys[pos] === key) return false;
+      x.keys.splice(pos, 0, key);
+      bt.n++;
+      if (x.keys.length <= F) return true;
+      // 葉があふれた。右端の葉の末尾に足したときは、新しい1件だけを右の葉へ移す（小さい順に入れると満杯の葉が並ぶ）
+      const app = rightmost && pos === x.keys.length - 1;
+      const cut = app ? F : Math.ceil(x.keys.length / 2);
+      const right = { leaf: true, keys: x.keys.splice(cut), next: x.next };
+      x.next = right;
+      let sep = right.keys[0], child = right;
+      for (let d = path.length - 1; d >= 0; d--) {
+        const p = path[d][0], i = path[d][1];
+        p.keys.splice(i, 0, sep);
+        p.kids.splice(i + 1, 0, child);
+        if (p.kids.length <= F) return true;
+        // 内側のノードもあふれた。左に kc 個の子を残し、その境目の目印を親へ上げる
+        const kc = app ? F : Math.ceil(p.kids.length / 2);
+        const rKids = p.kids.splice(kc);
+        const upKey = p.keys[kc - 1];
+        const rKeys = p.keys.splice(kc);
+        p.keys.length = kc - 1;
+        sep = upKey;
+        child = { leaf: false, keys: rKeys, kids: rKids };
+      }
+      bt.root = { leaf: false, keys: [sep], kids: [bt.root, child] };
+      bt.depth++;
+      return true;
+    }
+    // 段ごとのノードの配列を返す。各ノードに、受け持つ順位の範囲 lo〜hi を書き込む
+    function btLevels(bt) {
+      const rows = [];
+      let r = 0;
+      (function walk(x, d) {
+        if (!rows[d]) rows[d] = [];
+        rows[d].push(x);
+        if (x.leaf) { x.lo = r; r += x.keys.length; x.hi = r; return; }
+        for (const k of x.kids) walk(k, d + 1);
+        x.lo = x.kids[0].lo;
+        x.hi = x.kids[x.kids.length - 1].hi;
+      })(bt.root, 0);
+      return rows;
+    }
+    function btSearch(bt, key) {
+      const steps = [];
+      let x = bt.root, cmps = 0;
+      while (!x.leaf) {
+        const [i, c] = upper(x.keys, key);
+        cmps += c;
+        steps.push({ node: x, c });
+        x = x.kids[i];
+      }
+      const [j, c] = lower(x.keys, key);
+      cmps += c;
+      steps.push({ node: x, c });
+      return { found: x.keys[j] === key, steps, reads: steps.length, cmps };
+    }
+    function btHas(bt, key) {
+      let x = bt.root;
+      while (!x.leaf) {
+        const a = x.keys;
+        let lo = 0, hi = a.length;
+        while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] <= key) lo = m + 1; else hi = m; }
+        x = x.kids[lo];
+      }
+      const a = x.keys;
+      let lo = 0, hi = a.length;
+      while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] < key) lo = m + 1; else hi = m; }
+      return a[lo] === key;
+    }
+    // 葉の詰まり具合（0〜1）
+    function btFill(rows, F) {
+      const leaves = rows[rows.length - 1] || [];
+      let k = 0;
+      for (const x of leaves) k += x.keys.length;
+      return leaves.length ? k / (leaves.length * F) : 0;
+    }
+    // 1件あたりのメモリの見積もり: 葉（16 + 8F）と内側のノード（16 + 20F）を件数で割り、点数の 8 を足す
+    function btBytes(rows, n, F) {
+      let leaves = 0, inner = 0;
+      for (const row of rows) for (const x of row) { if (x.leaf) leaves++; else inner++; }
+      return n ? (leaves * (16 + 8 * F) + inner * (16 + 20 * F)) / n + 8 : 0;
+    }
+    // ばらばらに count 回探し、読んだ塊と比べた回数の平均を出す
+    function sampleAvg(sl, bt, n, count, rand) {
+      let sr = 0, sc = 0, br = 0, bc = 0;
+      for (let i = 0; i < count; i++) {
+        const k = Math.floor(rand() * n);
+        const a = skipSearch(sl, k), b = btSearch(bt, k);
+        sr += a.reads; sc += a.cmps; br += b.reads; bc += b.cmps;
+      }
+      return { sr: sr / count, sc: sc / count, br: br / count, bc: bc / count };
+    }
+    // 目当ての近くを広げる横軸。u（0〜n）を 0〜1 に写す。c は目当ての位置、s が小さいほど近くを大きく広げる
+    function fish(u, c, n, s) {
+      if (!(n > 0)) return 0;
+      const uu = Math.min(n, Math.max(0, u)), xc = c / n;
+      if (uu <= c) return c <= 0 ? 0 : xc - xc * Math.log1p((c - uu) / s) / Math.log1p(c / s);
+      const D = n - c;
+      return D <= 0 ? 1 : xc + (1 - xc) * Math.log1p((uu - c) / s) / Math.log1p(D / s);
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    if (window.THUMB) document.documentElement.classList.add('thumb');
+    const calm = matchMedia('(prefers-reduced-motion: reduce)');
+    const nSel = $('n'), fSel = $('F'), oSel = $('ord'), fishSw = $('fish'), goBtn = $('go'), autoSw = $('auto');
+    const cs = $('cs'), cb = $('cb'), stEl = $('st'), msgEl = $('msg');
+    const srEl = $('sr'), scEl = $('sc'), brEl = $('br'), bcEl = $('bc');
+    const benchBtn = $('bench'), bresEl = $('bres');
+    const cssVar = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim() || '#888';
+    const COL = { mut: cssVar('--mut'), line: cssVar('--line'), tower: cssVar('--tower'), box: cssVar('--box'), path: cssVar('--path'), miss: cssVar('--miss'), hit: cssVar('--hit'), tgt: cssVar('--tgt') };
+    const FONT = '10px system-ui, sans-serif';
+    const PAD_L = 46, PAD_R = 10, PAD_Y = 6, SPREAD = 1;
+    // 長い処理の途中で、ときどきブラウザへ順番を返す（scheduler.yield が無いブラウザでは setTimeout）
+    const pause = () => (globalThis.scheduler && typeof scheduler.yield === 'function') ? scheduler.yield() : new Promise((r) => setTimeout(r, 0));
+    let S = null, Q = null, gen = 0, stepTimer = 0, nextTimer = 0, qDd = null;
+    const layers = [
+      { cv: cs, bg: document.createElement('canvas'), key: '', paint: paintSkip, over: overSkip },
+      { cv: cb, bg: document.createElement('canvas'), key: '', paint: paintTree, over: overTree },
+    ];
+
+    function sizeOf(cv) {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const w = Math.max(1, cv.clientWidth), h = Math.max(1, cv.clientHeight);
+      return { dpr, w, h, W: Math.max(1, Math.round(w * dpr)), H: Math.max(1, Math.round(h * dpr)) };
+    }
+    function xOf(u, z) {
+      const pw = Math.max(1, z.w - PAD_L - PAD_R);
+      return PAD_L + pw * (fishSw.checked ? fish(u, Q.key + 0.5, S.n, SPREAD) : u / S.n);
+    }
+    const xMid = (r, z) => (xOf(r, z) + xOf(r + 1, z)) / 2;
+    function line(g, x0, y0, x1, y1) { g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); }
+    function dot(g, x, y, r, fill) {
+      g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2);
+      if (fill) g.fill(); else g.stroke();
+    }
+    function targetLine(g, z) {
+      const tx = xMid(Q.key, z);
+      g.strokeStyle = COL.tgt; g.globalAlpha = 0.8; g.lineWidth = 1; g.setLineDash([3, 3]);
+      line(g, tx, 0, tx, z.h);
+      g.setLineDash([]); g.globalAlpha = 1;
+    }
+
+    // ---- skiplist の図: 段ごとの横の線と、1件ごとの塔 ----
+    function geoSkip(z) {
+      const L = S.sl.level, lh = Math.max(1, (z.h - 2 * PAD_Y) / L);
+      return { L, lh, y: (i) => PAD_Y + (L - 1 - i + 0.5) * lh };
+    }
+    function paintSkip(g, z) {
+      const { L, lh, y } = geoSkip(z);
+      g.font = FONT; g.textBaseline = 'middle'; g.fillStyle = COL.mut;
+      for (let i = 0; i < L; i++) if (lh >= 10 || i === 0 || i === L - 1) g.fillText('段 ' + (i + 1), 4, y(i));
+      g.strokeStyle = COL.line; g.lineWidth = 1;
+      for (let i = 0; i < L; i++) line(g, PAD_L - 10, y(i), z.w - PAD_R, y(i));
+      g.fillStyle = COL.mut;
+      g.fillRect(PAD_L - 10, PAD_Y + lh * 0.2, 5, L * lh - lh * 0.4);   // 入口（どの段にも印を持つ塊）
+      g.fillStyle = COL.tower; g.globalAlpha = 0.65;
+      const bottom = PAD_Y + L * lh - lh * 0.2;
+      for (const nd of S.nodes) {
+        const x0 = xOf(nd.rank, z), wd = xOf(nd.rank + 1, z) - x0;
+        const yTop = PAD_Y + (L - nd.next.length) * lh + lh * 0.2;
+        if (wd >= 3) g.fillRect(x0 + 0.5, yTop, wd - 1, bottom - yTop);
+        else g.fillRect(x0, yTop, Math.max(0.5, wd), bottom - yTop);
+      }
+      g.globalAlpha = 1;
+      targetLine(g, z);
+    }
+    function overSkip(g, z, k) {
+      const { L, y } = geoSkip(z), steps = Q.sk.steps;
+      let cx = PAD_L - 7.5, lvl = L - 1;
+      g.lineWidth = 2;
+      g.fillStyle = COL.path; dot(g, cx, y(lvl), 3, true);
+      for (let i = 0; i < k && i < steps.length; i++) {
+        const s = steps[i];
+        if (s.lv < lvl) { g.strokeStyle = COL.path; line(g, cx, y(lvl), cx, y(s.lv)); lvl = s.lv; }
+        const nx = xMid(s.node.rank, z), cy = y(lvl);
+        const last = i === steps.length - 1 && Q.sk.found && s.node.key === Q.key;
+        if (s.go) {
+          g.strokeStyle = COL.path; line(g, cx, cy, nx, cy);
+          g.fillStyle = COL.path; dot(g, nx, cy, 3, true);
+          cx = nx;
+        } else if (last) {
+          g.strokeStyle = COL.path; line(g, cx, cy, nx, cy);
+          g.fillStyle = COL.hit; dot(g, nx, cy, 4.5, true);
+        } else {
+          g.strokeStyle = COL.miss; g.globalAlpha = 0.7; g.setLineDash([2, 3]);
+          line(g, cx, cy, nx, cy);
+          g.setLineDash([]); g.globalAlpha = 1;
+          g.lineWidth = 1.5; dot(g, nx, cy, 3.5, false); g.lineWidth = 2;
+        }
+      }
+    }
+
+    // ---- B+ 木の図: 段ごとに、ノードが受け持つ範囲を箱で描く ----
+    function geoTree(z) {
+      const D = S.levels.length, lh = Math.max(1, (z.h - 2 * PAD_Y) / D);
+      return { D, lh, y: (d) => PAD_Y + (d + 0.5) * lh };
+    }
+    function paintTree(g, z) {
+      const { D, lh, y } = geoTree(z);
+      g.font = FONT; g.textBaseline = 'middle'; g.fillStyle = COL.mut;
+      for (let d = 0; d < D; d++) {
+        const name = D === 1 ? '根・葉' : d === 0 ? '根' : d === D - 1 ? '葉' : '内側';
+        if (lh >= 10 || d === 0 || d === D - 1) g.fillText(name, 4, y(d));
+      }
+      g.fillStyle = COL.box;
+      for (let d = 0; d < D; d++) {
+        for (const nd of S.levels[d]) {
+          const x0 = xOf(nd.lo, z), wd = xOf(nd.hi, z) - x0, gap = wd > 4 ? 1 : 0;
+          const full = (nd.leaf ? nd.keys.length : nd.kids.length) / S.F;
+          g.globalAlpha = 0.18 + 0.72 * Math.min(1, full);
+          g.fillRect(x0 + gap, y(d) - lh * 0.3, Math.max(0.5, wd - 2 * gap), lh * 0.6);
+        }
+      }
+      g.globalAlpha = 1;
+      targetLine(g, z);
+    }
+    function overTree(g, z, k) {
+      const { lh, y } = geoTree(z), steps = Q.bt.steps, tx = xMid(Q.key, z);
+      g.lineWidth = 2;
+      for (let i = 0; i < k && i < steps.length; i++) {
+        const nd = steps[i].node, x0 = xOf(nd.lo, z), x1 = xOf(nd.hi, z);
+        g.strokeStyle = COL.path;
+        g.strokeRect(x0 + 1, y(i) - lh * 0.3, Math.max(1, x1 - x0 - 2), lh * 0.6);
+        if (i > 0) line(g, tx, y(i - 1), tx, y(i));
+        const last = i === steps.length - 1 && Q.bt.found;
+        g.fillStyle = last ? COL.hit : COL.path;
+        dot(g, tx, y(i), last ? 4.5 : 3, true);
+      }
+    }
+
+    function draw() {
+      if (!S || !Q) return;
+      for (const L of layers) {
+        const z = sizeOf(L.cv);
+        const key = gen + '|' + Q.key + '|' + z.W + 'x' + z.H + '|' + fishSw.checked;
+        if (L.key !== key) {
+          L.bg.width = z.W; L.bg.height = z.H;
+          const gb = L.bg.getContext('2d');
+          gb.setTransform(z.dpr, 0, 0, z.dpr, 0, 0);
+          gb.clearRect(0, 0, z.w, z.h);
+          L.paint(gb, z);
+          L.key = key;
+        }
+        if (L.cv.width !== z.W) L.cv.width = z.W;
+        if (L.cv.height !== z.H) L.cv.height = z.H;
+        const g = L.cv.getContext('2d');
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.clearRect(0, 0, z.W, z.H);
+        g.drawImage(L.bg, 0, 0);
+        g.setTransform(z.dpr, 0, 0, z.dpr, 0, 0);
+        L.over(g, z, Q.k);
+      }
+      const ks = Math.min(Q.k, Q.sk.steps.length), kb = Math.min(Q.k, Q.bt.steps.length);
+      let reads = 1;
+      for (let i = 0; i < ks; i++) if (!Q.sk.steps[i].again) reads++;
+      let bcm = 0;
+      for (let i = 0; i < kb; i++) bcm += Q.bt.steps[i].c;
+      srEl.textContent = reads; scEl.textContent = ks;
+      brEl.textContent = kb; bcEl.textContent = bcm;
+    }
+
+    function fmt(v, d) { return v.toLocaleString('ja-JP', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+    function renderStats() {
+      stEl.replaceChildren();
+      const row = (a, b) => {
+        const dt = document.createElement('dt'), dd = document.createElement('dd');
+        dt.textContent = a; dd.textContent = b;
+        stEl.append(dt, dd);
+        return dd;
+      };
+      qDd = row('探した値', '');
+      const A = S.avg;
+      row('平均（400 回探す）', `skiplist ${fmt(A.sr, 1)} 塊・${fmt(A.sc, 1)} 回 ／ B+ 木 ${fmt(A.br, 1)} 塊・${fmt(A.bc, 1)} 回`);
+      row('skiplist の形', `最高 ${S.sl.level} 段。1件の高さの平均 ${fmt(S.sb.avgLv, 2)} 段`);
+      const leaves = S.levels[S.levels.length - 1].length;
+      row('B+ 木の形', `${S.levels.length} 段。葉 ${leaves.toLocaleString('ja-JP')} 個、葉の詰まり具合 ${fmt(S.fill * 100, 0)}%`);
+      const mx = Math.max(S.sb.bytes, S.bb, 1);
+      $('ms').style.inlineSize = (S.sb.bytes / mx * 100) + '%';
+      $('mb').style.inlineSize = (S.bb / mx * 100) + '%';
+      $('msv').textContent = fmt(S.sb.bytes, 1) + ' バイト';
+      $('mbv').textContent = fmt(S.bb, 1) + ' バイト';
+    }
+
+    function finish() {
+      const sr = Q.sk.reads, br = Q.bt.reads;
+      msgEl.textContent = `skiplist は ${sr} 個の塊を読み、${Q.sk.cmps} 回比べた。B+ 木は ${br} 個の塊を読み、${Q.bt.cmps} 回比べた。` +
+        '速さを決めるのは、比べた回数より読んだ塊の数である。キャッシュに無い塊を読むと、比べる1回よりずっと長く待つ。';
+      clearTimeout(nextTimer);
+      if (autoSw.checked) nextTimer = setTimeout(nextSearch, window.THUMB ? 1300 : 1900);
+    }
+    function step() {
+      Q.k++;
+      draw();
+      if (Q.k < Q.total) stepTimer = setTimeout(step, window.THUMB ? 75 : 120);
+      else finish();
+    }
+    function startSearch(key) {
+      clearTimeout(stepTimer); clearTimeout(nextTimer);
+      const sk = skipSearch(S.sl, key), bt = btSearch(S.bt, key);
+      Q = { key, sk, bt, k: 0, total: Math.max(sk.steps.length, bt.steps.length) };
+      if (qDd) qDd.textContent = `小さい方から ${(key + 1).toLocaleString('ja-JP')} 番目（全 ${S.n.toLocaleString('ja-JP')} 件）`;
+      msgEl.textContent = '探しています…';
+      if (calm.matches && !window.THUMB) { Q.k = Q.total; draw(); finish(); }
+      else step();
+    }
+    function nextSearch() { if (S) startSearch(Math.floor(S.rand() * S.n)); }
+
+    async function build() {
+      const my = ++gen;
+      clearTimeout(stepTimer); clearTimeout(nextTimer);
+      msgEl.textContent = '集合を作っています…';
+      await pause();
+      if (my !== gen) return;
+      const n = +nSel.value, F = +fSel.value, ord = oSel.value;
+      const rand = rng(20261121 + n * 3 + F);
+      const keys = makeKeys(n, ord, rand);
+      const sl = skipNew(), bt = btNew(F);
+      let deadline = performance.now() + 40;
+      for (let i = 0; i < n; i++) {
+        skipInsert(sl, keys[i], rand);
+        btInsert(bt, keys[i]);
+        if ((i & 255) === 255 && performance.now() >= deadline) {
+          await pause();
+          if (my !== gen) return;
+          deadline = performance.now() + 40;
+        }
+      }
+      const nodes = skipRanks(sl), levels = btLevels(bt);
+      S = { n, F, sl, nodes, bt, levels, rand: rng(7 + n + F), avg: sampleAvg(sl, bt, n, 400, rng(99)),
+        sb: skipBytes(nodes), bb: btBytes(levels, n, F), fill: btFill(levels, F) };
+      renderStats();
+      startSearch(Math.floor(n * 0.62));
+    }
+
+    // この端末で、記録をしない探し方の時間を測る。1回の区切りは 2 万回にして、間でブラウザへ順番を返す
+    async function bench() {
+      benchBtn.disabled = true;
+      bresEl.textContent = '20 万件を入れています…';
+      await pause();
+      const N = 200000, M = 100000, CH = 20000, r = rng(42);
+      const keys = makeKeys(N, 'rand', r);
+      const sl = skipNew(), bt = btNew(61);
+      let deadline = performance.now() + 40;
+      for (let i = 0; i < N; i++) {
+        skipInsert(sl, keys[i], r);
+        btInsert(bt, keys[i]);
+        if ((i & 255) === 255 && performance.now() >= deadline) { await pause(); deadline = performance.now() + 40; }
+      }
+      const qs = new Int32Array(M);
+      for (let i = 0; i < M; i++) qs[i] = Math.floor(r() * N);
+      bresEl.textContent = '測っています…';
+      async function timeIt(has, s) {
+        let ms = 0, hit = 0;
+        for (let a = 0; a < M; a += CH) {
+          await pause();
+          const t = performance.now();
+          for (let i = a; i < a + CH; i++) if (has(s, qs[i])) hit++;
+          ms += performance.now() - t;
+        }
+        if (hit !== M) throw new Error('見つからない値があった');
+        return ms;
+      }
+      await timeIt(skipHas, sl); await timeIt(btHas, bt);   // 慣らし
+      const ts = [], tb = [];
+      for (let k = 0; k < 3; k++) { ts.push(await timeIt(skipHas, sl)); tb.push(await timeIt(btHas, bt)); }
+      const mid = (a) => a.slice().sort((p, q) => p - q)[1];
+      const a = mid(ts), b = mid(tb), ratio = a / Math.max(1e-6, b);
+      bresEl.textContent = `skiplist ${fmt(a, 1)} ms、B+ 木 ${fmt(b, 1)} ms（10 万回、3 回測った真ん中の値）。` +
+        (ratio >= 1 ? `B+ 木の方が ${fmt(ratio, 1)} 倍速かった。` : `skiplist の方が ${fmt(1 / ratio, 1)} 倍速かった。`);
+      benchBtn.disabled = false;
+    }
+
+    nSel.addEventListener('change', build);
+    fSel.addEventListener('change', build);
+    oSel.addEventListener('change', build);
+    fishSw.addEventListener('change', draw);
+    goBtn.addEventListener('click', nextSearch);
+    autoSw.addEventListener('change', () => {
+      clearTimeout(nextTimer);
+      if (autoSw.checked && Q && Q.k >= Q.total) nextTimer = setTimeout(nextSearch, 400);
+    });
+    benchBtn.addEventListener('click', () => {
+      bench().catch((err) => { bresEl.textContent = '測れなかった: ' + err.message; benchBtn.disabled = false; });
+    });
+    new ResizeObserver(() => draw()).observe(document.querySelector('.wrap'));
+
+    autoSw.checked = !!window.THUMB || !calm.matches;
+    build();
+  },
+});

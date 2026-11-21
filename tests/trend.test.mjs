@@ -1084,3 +1084,103 @@ test('GRH: Λ(n)、明示公式の定数、零点の波の和が素数の階段�
     assert.ok(Math.abs(s / n) < 0.03, `q=${q} 平均 ${s / n}`);
   }
 });
+
+// ---- skiplist と B+ 木（Valkey 9.2 の sorted set） ----
+const VALKEY = 'tr-20261121-skiplist-btree';
+const valkey = () => trendCore(VALKEY, ['rng', 'makeKeys', 'skipNew', 'skipInsert', 'skipRanks', 'skipSearch', 'skipHas', 'skipBytes',
+  'btNew', 'btInsert', 'btLevels', 'btSearch', 'btHas', 'btFill', 'btBytes', 'sampleAvg', 'fish']);
+function buildBoth(X, n, F, ord, seed) {
+  const r = X.rng(seed);
+  const keys = X.makeKeys(n, ord, r);
+  const sl = X.skipNew(), bt = X.btNew(F);
+  for (const k of keys) { X.skipInsert(sl, k, r); assert.equal(X.btInsert(bt, k), true); }
+  return { sl, bt, nodes: X.skipRanks(sl), levels: X.btLevels(bt) };
+}
+
+test('skiplist と B+ 木: どちらも全部の値を小さい順に持ち、全部を見つける', () => {
+  const X = valkey();
+  for (const [n, F, ord] of [[1, 4, 'seq'], [61, 4, 'rand'], [500, 8, 'seq'], [2000, 16, 'rand'], [3721, 61, 'rand'], [3721, 61, 'seq']]) {
+    const tag = `n=${n} F=${F} ${ord}`;
+    const { sl, bt, nodes, levels } = buildBoth(X, n, F, ord, n * 7 + F);
+    const want = Array.from({ length: n }, (_, i) => i);
+    assert.deepEqual(Array.from(nodes, (x) => x.key), want, tag);
+    assert.deepEqual(Array.from(nodes, (x) => x.rank), want, tag);
+    // 葉はすべて同じ深さにあり、並べると 0〜n−1 になる。どのノードも F を超えない
+    const leaves = levels[levels.length - 1];
+    assert.ok(leaves.every((x) => x.leaf), tag);
+    assert.ok(levels.slice(0, -1).every((row) => row.every((x) => !x.leaf)), tag);
+    assert.deepEqual(Array.from(leaves.flatMap((x) => x.keys)), want, tag);
+    for (const row of levels) {
+      for (const x of row) {
+        if (x.leaf) assert.ok(x.keys.length >= 1 && x.keys.length <= F, tag);
+        else {
+          assert.ok(x.kids.length >= 1 && x.kids.length <= F, tag);
+          assert.equal(x.keys.length, x.kids.length - 1, tag);
+          assert.equal(x.lo, x.kids[0].lo, tag);
+          assert.equal(x.hi, x.kids[x.kids.length - 1].hi, tag);
+        }
+      }
+    }
+    assert.equal(bt.n, n, tag);
+    assert.equal(bt.depth, levels.length, tag);
+    for (let k = 0; k < n; k++) {
+      const a = X.skipSearch(sl, k), b = X.btSearch(bt, k);
+      assert.ok(a.found && b.found && X.skipHas(sl, k) && X.btHas(bt, k), `${tag} k=${k}`);
+      assert.equal(b.reads, levels.length, tag);
+      assert.ok(a.reads >= 2 && a.reads <= a.cmps + 1, tag);
+    }
+    assert.equal(X.skipHas(sl, n), false, tag);
+    assert.equal(X.btHas(bt, -1), false, tag);
+    assert.equal(X.btSearch(bt, n + 5).found, false, tag);
+    assert.equal(X.btInsert(bt, 0), false, `${tag} 同じ値は入れない`);
+  }
+});
+
+test('B+ 木: 小さい順に入れると葉が満杯で並び、ばらばらだと 7 割ほど。メモリの見積もりも記事に近い', () => {
+  const X = valkey();
+  const seq = buildBoth(X, 3721, 61, 'seq', 1);
+  const leaves = seq.levels[seq.levels.length - 1];
+  assert.equal(leaves.length, 61);
+  assert.equal(seq.levels.length, 2);
+  assert.equal(X.btFill(seq.levels, 61), 1);
+  const rnd = buildBoth(X, 20000, 61, 'rand', 2);
+  const fill = X.btFill(rnd.levels, 61);
+  assert.ok(fill > 0.6 && fill < 0.8, `ばらばら ${fill}`);
+  // 並べるための分: skiplist は約 37 バイト、B+ 木は約 17 バイト（小さい順）と約 20 バイト（ばらばら）
+  const sb = X.skipBytes(rnd.nodes);
+  assert.ok(sb.avgLv > 1.28 && sb.avgLv < 1.39, `平均の段 ${sb.avgLv}`);
+  assert.ok(Math.abs(sb.bytes - (16 + 16 * sb.avgLv)) < 1e-9);
+  const bSeq = X.btBytes(seq.levels, 3721, 61), bRnd = X.btBytes(rnd.levels, 20000, 61);
+  assert.ok(bSeq > 16 && bSeq < 17.5, `小さい順 ${bSeq}`);
+  assert.ok(bRnd > bSeq + 2 && bRnd < bSeq + 6, `ばらばら ${bRnd}`);
+  assert.ok(sb.bytes - bRnd > 14, '差は 20 バイトほど');
+});
+
+test('B+ 木は skiplist より読む塊がずっと少なく、比べる回数の差は小さい', () => {
+  const X = valkey();
+  const { sl, bt } = buildBoth(X, 3721, 61, 'rand', 3);
+  const A = X.sampleAvg(sl, bt, 3721, 400, X.rng(99));
+  assert.ok(A.br >= 2 && A.br <= 3, `B+ 木 ${A.br}`);
+  assert.ok(A.sr > 12 && A.sr < 30, `skiplist ${A.sr}`);
+  assert.ok(A.sr / A.br > 4, '塊の数は 4 倍より大きく違う');
+  assert.ok(A.sc / A.bc < 2.5, `比べた回数 ${A.sc} と ${A.bc}`);
+});
+
+test('目当ての近くを広げる横軸: 両端は 0 と 1、目当ては元の位置、途中は単調に増える', () => {
+  const { fish } = valkey();
+  for (const [c, n] of [[0.5, 61], [30.5, 61], [60.5, 61], [12345.5, 100000], [0, 10], [10, 10]]) {
+    assert.ok(Math.abs(fish(0, c, n, 1) - 0) < 1e-12, `c=${c}`);
+    assert.ok(Math.abs(fish(n, c, n, 1) - 1) < 1e-12, `c=${c}`);
+    assert.ok(Math.abs(fish(c, c, n, 1) - c / n) < 1e-12, `c=${c}`);
+    let prev = -1;
+    for (let i = 0; i <= 400; i++) {
+      const v = fish(n * i / 400, c, n, 1);
+      assert.ok(Number.isFinite(v) && v >= prev - 1e-12, `c=${c} i=${i}`);
+      prev = v;
+    }
+  }
+  // 目当てのすぐ隣は、ふつうの横軸より大きく離れる
+  const n = 100000, c = 50000.5;
+  assert.ok(fish(c + 1, c, n, 1) - fish(c, c, n, 1) > 100 / n);
+  assert.equal(fish(5, 3, 0, 1), 0);
+});
