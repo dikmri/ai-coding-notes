@@ -1,0 +1,400 @@
+{
+ "note": "AI の書きやすさの試験（2026-11-21）。各フレームワークで Sonnet と Haiku に 3 回ずつ同じ課題を出した。kargui2 は、試験で見つけた所を直した後の kargui。採点は 8 点満点（確かめ役の AI、tools/ai-test/review.md）。lines は画面のコードの行数（空行とコメントを除く）。",
+ "frameworks": {
+  "egui": {
+   "runs": [
+    {
+     "run": "egui-haiku-1",
+     "model": "haiku",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 178,
+     "score": 7.5,
+     "notes": "状態の選択肢に taskcore の Status::label() を使っているため、「All / Active / Done」ではなく「すべて / 未完了 / 完了」と表示する。「Showing X of Y」も Filter の行ではなく、その下の別の行にある。"
+    },
+    {
+     "run": "egui-haiku-2",
+     "model": "haiku",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 247,
+     "score": 7.5,
+     "notes": "状態の選択肢に taskcore の Status::label() を使っているため、「All / Active / Done」ではなく「すべて / 未完了 / 完了」と表示する。ほかの項目は正しい。"
+    },
+    {
+     "run": "egui-haiku-3",
+     "model": "haiku",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 223,
+     "score": 7,
+     "notes": "一覧の ScrollArea が auto_shrink([false, false]) で CentralPanel の残りの高さをすべて使うため、その後に置いた下の行（Add 10,000・Clear done・Clear all・件数）が窓の外に出て、見えず押せない。絞り込み語はフレームの最初に前のフレームの入力欄の文字を写すので 1 フレーム遅れる（変換中は更新しない）。"
+    },
+    {
+     "run": "egui-sonnet-1",
+     "model": "sonnet",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 182,
+     "score": 8,
+     "notes": "8 項目とも満たしている。細かい点として、「Showing X of Y」は Filter の行ではなく一覧の上の別の行にあり、Store::filter を毎フレーム呼び直している（結果を保持しない）。"
+    },
+    {
+     "run": "egui-sonnet-2",
+     "model": "sonnet",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 198,
+     "score": 7.5,
+     "notes": "起動時のテーマを設定していないので、egui の既定（ThemePreference::System）で OS のテーマに従う。Windows がダークのときは「Dark」が未チェックのまま暗い見た目で始まり、最初のクリックでは見た目が変わらない。"
+    },
+    {
+     "run": "egui-sonnet-3",
+     "model": "sonnet",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 202,
+     "score": 8,
+     "notes": "8 項目とも満たしている。絞り込み結果の保持を上のパネルで更新するため、下の行のボタンや行の操作の直後の 1 フレームだけ古い結果を表示する（store.get が範囲外を None で返すので壊れない）。"
+    }
+   ],
+   "clean": 6,
+   "scores": [
+    7.5,
+    7.5,
+    7,
+    8,
+    7.5,
+    8
+   ],
+   "lines": [
+    178,
+    247,
+    223,
+    182,
+    198,
+    202
+   ],
+   "lines_median": 200.0,
+   "score_avg": 7.58,
+   "full_marks": 2,
+   "n": 6
+  },
+  "gpui": {
+   "runs": [
+    {
+     "run": "gpui-haiku-1",
+     "model": "haiku",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 950,
+     "score": 7,
+     "notes": "状態の選択肢が Status::label() のため「すべて・未完了・完了」と表示され、指定の All / Active / Done になっていない。一覧の行に w_full() がなく、Delete ボタンが行の右端ではなく本文のすぐ後ろに並ぶ（絞り込みを render のたびに全件で計算し直す点も、件数が多いと遅くなる）。"
+    },
+    {
+     "run": "gpui-haiku-2",
+     "model": "haiku",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 841,
+     "score": 7.5,
+     "notes": "状態の選択肢が Status::label() のため「すべて・未完了・完了」と表示され、指定の All / Active / Done になっていない。それ以外は、自作の入力欄が確定の Enter と変換中の絞り込みを正しく扱っている。"
+    },
+    {
+     "run": "gpui-haiku-3",
+     "model": "haiku",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 899,
+     "score": 8,
+     "notes": "欠けている点はない。自作の入力欄は確定したテキストのときだけ Changed を出し、marked_range がある間は Enter で Submit を出さない。"
+    },
+    {
+     "run": "gpui-sonnet-1",
+     "model": "sonnet",
+     "clean": false,
+     "failed_builds": 1,
+     "lines": 233,
+     "score": 7.5,
+     "notes": "一覧の行に w_full() がなく、uniform_list の行は中身の幅に縮むので、Delete ボタンが行の右端ではなく本文のすぐ後ろに並ぶ。IME の確定の Enter と変換中の絞り込みは、gpui-component の Input が出す PressEnter と Change の既定の動きで正しく扱われる。"
+    },
+    {
+     "run": "gpui-sonnet-2",
+     "model": "sonnet",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 253,
+     "score": 8,
+     "notes": "欠けている点はない。PressEnter と Change の処理で marked_text_range も確かめているが、Windows 版の GPUI は確定の Enter を VK_PROCESSKEY として捨て、Input は変換中に Change を出さないので、確認がなくても結果は同じになる。"
+    },
+    {
+     "run": "gpui-sonnet-3",
+     "model": "sonnet",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 1014,
+     "score": 8,
+     "notes": "欠けている点はない。入力欄を EntityInputHandler で自作し、変換中は Changed を出さず、marked_range がある間の Enter も送らない（確定から 60 ms 以内の Enter も捨てるが、使う上で支障はない）。"
+    }
+   ],
+   "clean": 5,
+   "scores": [
+    7,
+    7.5,
+    8,
+    7.5,
+    8,
+    8
+   ],
+   "lines": [
+    950,
+    841,
+    899,
+    233,
+    253,
+    1014
+   ],
+   "lines_median": 870.0,
+   "score_avg": 7.67,
+   "full_marks": 3,
+   "n": 6
+  },
+  "kargui": {
+   "runs": [
+    {
+     "run": "kargui-haiku-1",
+     "model": "haiku",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 93,
+     "score": 7,
+     "notes": "選択肢の文字に Status::label() を使ったため、All・Active・Done ではなく「すべて・未完了・完了」と表示される。一覧の行に fill も grow もなく、Delete が行の右端ではなく本文のすぐ右に並ぶ。"
+    },
+    {
+     "run": "kargui-haiku-2",
+     "model": "haiku",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 123,
+     "score": 7.5,
+     "notes": "一覧の行の中で store.remove を直接呼ぶので、同じ回の後ろの行が古い添字で tasks() を引き、絞り込みなしの短い一覧で最後以外の行の Delete を押すと添字が範囲外になってパニックする。さらに入れ子の row のせいで、Delete が右端ではなく本文のすぐ右に並ぶ。"
+    },
+    {
+     "run": "kargui-haiku-3",
+     "model": "haiku",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 107,
+     "score": 8,
+     "notes": "8 点とも満たしている。Store::filter を毎フレーム呼び直すが、渡すのは確定済みの文字だけなので、変換中の文字では絞り込まれない。"
+    },
+    {
+     "run": "kargui-sonnet-1",
+     "model": "sonnet",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 135,
+     "score": 7.5,
+     "notes": "「Showing X of Y」を絞り込み結果の作り直しより前に描くため、一覧や下の行の操作（Delete・Add 10,000・Clear all など）の後は X が古いまま画面に出る（例: Clear all の後に Showing 10,000 of 0）。ポインターが別の部品へ移るなどして次のフレームが描かれるまで直らない。"
+    },
+    {
+     "run": "kargui-sonnet-2",
+     "model": "sonnet",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 138,
+     "score": 7.5,
+     "notes": "Dark の状態を false で始める一方、画面は Options.dark が None なので OS の設定に従う。OS がダークモードだとスイッチが見た目と逆を示し、最初の切り替えでは見た目が変わらない（Showing X of Y が 3 行目ではなく次の行にある点は減点していない）。"
+    },
+    {
+     "run": "kargui-sonnet-3",
+     "model": "sonnet",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 126,
+     "score": 7.5,
+     "notes": "一覧の行の中にもう 1 つ row を入れ、その中で fill を使っている。入れ子の row は中身の幅にしかならないので、Delete が行の右端ではなく本文のすぐ右に並ぶ。"
+    }
+   ],
+   "clean": 6,
+   "scores": [
+    7,
+    7.5,
+    8,
+    7.5,
+    7.5,
+    7.5
+   ],
+   "lines": [
+    93,
+    123,
+    107,
+    135,
+    138,
+    126
+   ],
+   "lines_median": 124.5,
+   "score_avg": 7.5,
+   "full_marks": 1,
+   "n": 6
+  },
+  "kargui2": {
+   "runs": [
+    {
+     "run": "kargui2-haiku-1",
+     "model": "haiku",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 83,
+     "score": 7.5,
+     "notes": "TaskBook::default() が Store::default() を使うので next_id が 0 から始まり、起動直後に Add 10,000 を押すと generate の id - 1 が u32 の桁あふれになる（debug ビルドではパニック、release では最初の 1 件が 4294967296 番になる）。先に Add で 1 件足すか Clear all を押した後なら正しく動く。"
+    },
+    {
+     "run": "kargui2-haiku-2",
+     "model": "haiku",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 80,
+     "score": 7.5,
+     "notes": "選択肢の文字に Status::label() を使ったため、All・Active・Done ではなく「すべて・未完了・完了」と表示される。ほかの点は正しい。"
+    },
+    {
+     "run": "kargui2-haiku-3",
+     "model": "haiku",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 101,
+     "score": 7.5,
+     "notes": "選択肢の文字に Status::label() を使ったため、All・Active・Done ではなく「すべて・未完了・完了」と表示される。ほかの点は正しい。"
+    },
+    {
+     "run": "kargui2-sonnet-1",
+     "model": "sonnet",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 134,
+     "score": 8,
+     "notes": "8 点とも満たしている。絞り込みの結果は、版の番号・語・状態を鍵にして、変わった時だけ作り直している。"
+    },
+    {
+     "run": "kargui2-sonnet-2",
+     "model": "sonnet",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 87,
+     "score": 8,
+     "notes": "8 点とも満たしている。Store::filter をビューのたびに呼び直すが、渡すのは確定済みの文字だけなので、変換中の文字では絞り込まれない。"
+    },
+    {
+     "run": "kargui2-sonnet-3",
+     "model": "sonnet",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 89,
+     "score": 8,
+     "notes": "8 点とも満たしている。「Showing X of Y」を 3 行目ではなく次の行に置いているが、1 組目の採点と同じく減点していない。"
+    }
+   ],
+   "clean": 6,
+   "scores": [
+    7.5,
+    7.5,
+    7.5,
+    8,
+    8,
+    8
+   ],
+   "lines": [
+    83,
+    80,
+    101,
+    134,
+    87,
+    89
+   ],
+   "lines_median": 88.0,
+   "score_avg": 7.75,
+   "full_marks": 3,
+   "n": 6
+  },
+  "tauri": {
+   "runs": [
+    {
+     "run": "tauri-haiku-1",
+     "model": "haiku",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 353,
+     "score": 8,
+     "notes": "欠けている機能はない。DOM は見えている行だけを作るが、操作のたびに絞り込んだ全行を IPC で JS へ送る。数の区切りは taskcore::group ではなく JS の写しで行う（出る文字は同じ）。"
+    },
+    {
+     "run": "tauri-haiku-2",
+     "model": "haiku",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 284,
+     "score": 8,
+     "notes": "欠けている機能はない。表示の文は Rust 側で taskcore::group を使って作り、行は見えている範囲だけを view コマンドで受け取る。スクロールのたびに間引かずに IPC を送るが、seq で古い応答を捨てている。"
+    },
+    {
+     "run": "tauri-haiku-3",
+     "model": "haiku",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 363,
+     "score": 8,
+     "notes": "欠けている機能はない。DOM は見えている行だけを作るが、操作のたびに絞り込んだ全行を IPC で JS へ送る。"
+    },
+    {
+     "run": "tauri-sonnet-1",
+     "model": "sonnet",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 233,
+     "score": 8,
+     "notes": "欠けている機能はない。窓は setup で WebviewWindowBuilder から作り（title と WINDOW_SIZE の inner_size）、数は Rust 側で taskcore::group にかけ、行は見えている範囲だけを rows コマンドで取り寄せる。"
+    },
+    {
+     "run": "tauri-sonnet-2",
+     "model": "sonnet",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 212,
+     "score": 8,
+     "notes": "欠けている機能はない。数の 3 桁区切りは taskcore::group を呼ばず JS の正規表現の写しで行うが、出る文字は同じ。"
+    },
+    {
+     "run": "tauri-sonnet-3",
+     "model": "sonnet",
+     "clean": true,
+     "failed_builds": 0,
+     "lines": 218,
+     "score": 8,
+     "notes": "欠けている機能はない。counts の span に書いた style 属性（margin-left:auto）は CSP（style-src が nonce だけ）で無効になり、右寄せにならないが、採点の項目には影響しない。"
+    }
+   ],
+   "clean": 6,
+   "scores": [
+    8,
+    8,
+    8,
+    8,
+    8,
+    8
+   ],
+   "lines": [
+    353,
+    284,
+    363,
+    233,
+    212,
+    218
+   ],
+   "lines_median": 258.5,
+   "score_avg": 8.0,
+   "full_marks": 6,
+   "n": 6
+  }
+ }
+}

@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Rust の軽い GUI フレームワーク kargui の作成記録 ― AI コーディングノート</title>
+<meta name="description" content="Tauri・egui・GPUI に学び、それぞれの良い所を 1 つにまとめることを目指して作った Rust の GUI フレームワーク kargui の作成記録。前回と同じ道具で起動・メモリ・CPU を測り、AI に書かせて書きやすさも調べた。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='800'%3EAI%3C/text%3E%3Cpath d='M15 51H49' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<style>
+body { font-size: 0.9375rem; }
+.report {
+  /* フレームワークの色（グラフ・表・札で同じ色を使う）。前回の 3 つと同じ色に、kargui の色を足す */
+  --c-tauri: light-dark(#2a78d6, #3987e5);
+  --c-egui: light-dark(#eb6834, #d95926);
+  --c-gpui: light-dark(#1baf7a, #199e70);
+  --c-kargui-light: #b8321c;
+  --c-kargui-dark: #e0614a;
+  --c-kargui: var(--c-kargui-light);
+  max-inline-size: 60rem; margin-inline: auto; padding: 2rem 1rem 5rem;
+}
+/* light-dark() が使えないブラウザでも、OS の明暗に合わせて kargui の色を変える */
+@media (prefers-color-scheme: dark) { .report { --c-kargui: var(--c-kargui-dark); } }
+@supports (color: light-dark(white, black)) { .report { --c-kargui: light-dark(var(--c-kargui-light), var(--c-kargui-dark)); } }
+.report :is(p, ul, ol, .note, details) { max-inline-size: 44rem; }
+.report p, .report li { text-wrap: pretty; }
+.report a { overflow-wrap: anywhere; }
+.kicker { margin: 0; color: var(--ink-2); font-weight: 600; font-size: 0.875rem; }
+.report h1 { margin: 0.2em 0 0.4em; font: 800 clamp(1.6rem, 1.2rem + 1.6vw, 2.4rem)/1.3 var(--serif); text-wrap: balance; }
+.lede { font-size: 1.0625rem; }
+.report h2 { margin: 3.5rem 0 1rem; padding-top: 0.6em; border-top: 2px solid var(--ink); font: 700 clamp(1.25rem, 1.1rem + 0.6vw, 1.6rem)/1.4 var(--serif); text-wrap: balance; }
+.report h3 { margin: 2.2rem 0 0.6rem; font-size: 1.0625rem; }
+.report figure { margin: 1.5rem 0; }
+.small { color: var(--ink-2); font-size: 0.875rem; }
+.note { margin: 1.5rem 0; padding: 1rem 1.2rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
+.note > :first-child { margin-top: 0; }
+.note > :last-child { margin-bottom: 0; }
+.toc { columns: 2 14rem; font-size: 0.9375rem; }
+.answer { font-size: 1.0625rem; font-weight: 700; }
+
+/* フレームワークの名札 */
+.fw { display: inline-flex; align-items: center; gap: 0.35em; font-weight: 700; white-space: nowrap; }
+.fw::before { content: ""; inline-size: 0.7em; block-size: 0.7em; border-radius: 3px; background: var(--c); }
+.fw.kargui, [data-app="kargui"], [data-app="kargui-gpu"] { --c: var(--c-kargui); }
+.fw.tauri, [data-app="tauri"] { --c: var(--c-tauri); }
+.fw.egui, [data-app="egui"], [data-app="egui-glow"] { --c: var(--c-egui); }
+.fw.gpui, [data-app="gpui"], [data-app="gpui-full"], [data-app="gpui-warp"] { --c: var(--c-gpui); }
+
+/* 棒グラフ（前回と同じ形） */
+.bars { margin: 1.5rem 0; max-inline-size: 44rem; }
+.bars figcaption { display: flex; flex-wrap: wrap; gap: 0.2em 0.8em; align-items: baseline; margin: 0 0 0.6rem; color: var(--ink); font-size: 0.9375rem; }
+.bars-title { font-weight: 700; }
+.bars-hint { color: var(--ink-2); font-size: 0.8125rem; }
+.bar-rows { display: grid; gap: 6px; }
+.bar-row { display: grid; grid-template-columns: 8.5em 1fr; align-items: center; gap: 0.6em; }
+.bar-name { font-size: 0.875rem; font-weight: 600; text-align: end; }
+.bar-track { display: flex; align-items: center; gap: 0.5em; border-inline-start: 1px solid var(--ink-3); min-block-size: 24px; }
+.bar { display: block; inline-size: max(2px, calc(var(--w) * 0.78)); block-size: 18px; border-radius: 0 4px 4px 0; background: var(--c); }
+/* 既定ではない版（kargui の GPU の道・egui の glow・GPUI の抑えない設定）は斜線にする */
+:is([data-app="kargui-gpu"], [data-app="egui-glow"], [data-app="gpui-full"]) .bar { background: repeating-linear-gradient(135deg, var(--c) 0 5px, color-mix(in oklab, var(--c) 45%, var(--paper)) 5px 8px); }
+.bar-val { font-size: 0.8125rem; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink); }
+.bars-note { margin: 0.5rem 0 0; color: var(--ink-2); font-size: 0.8125rem; }
+.chart-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr)); gap: 0 2rem; }
+.chart-pair .bars { margin-block: 1rem; }
+
+/* 表（横に入らなければ、枠の中で横にスクロールする。キーボードでも動かせるように tabindex を付ける） */
+.table-wrap { overflow: auto; max-inline-size: 100%; margin: 1rem 0 1.5rem; }
+.table-wrap:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.report table { border-collapse: collapse; font-size: 0.9375rem; }
+.report caption { text-align: start; font-weight: 700; padding-bottom: 0.4rem; }
+.report th, .report td { padding: 0.45em 0.8em; border-bottom: 1px solid var(--rule); text-align: start; vertical-align: top; }
+.report thead th { border-bottom: 2px solid var(--ink-3); }
+.report tbody th { font-weight: 600; }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: end !important; }
+.met { font-weight: 700; }
+
+.pros-cons { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 0.5rem 1.5rem; }
+.pros-cons h3 { margin: 0.8rem 0 0.2rem; font-size: 0.9375rem; }
+.pros-cons ul { margin: 0; padding-inline-start: 1.2em; }
+.report code { font-family: var(--mono); font-size: 0.875em; overflow-wrap: anywhere; }
+.report pre { overflow-x: auto; padding: 0.8rem 1rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
+.report pre code { overflow-wrap: normal; white-space: pre; }
+.foot { margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--rule); color: var(--ink-2); font-size: 0.875rem; }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="report">
+<article>
+  <p class="kicker">実験レポート 番外編 2 ・ 2026 年 11 月 21 日</p>
+  <h1>Rust の軽い GUI フレームワーク kargui の作成記録</h1>
+  <p class="lede"><a href="../rust-gui/">前回の番外編</a>では、Tauri・egui・GPUI の 3 つで同じ「タスク帳」を作って比べ、3 つにそれぞれ優れた所があると分かりました。そこで、それらの良い所を 1 つにまとめることを目指して、Rust の GUI フレームワーク「kargui」を AI（Claude）と作りました。名前は「軽い」「Rust」「GUI」から取っています。前回と同じ PC・同じ道具・同じ条件で測り、AI に書かせた時の書きやすさも調べました。</p>
+
+  <section id="conclusion" aria-labelledby="h-conclusion">
+    <h2 id="h-conclusion">結論</h2>
+    <p class="answer">起動の速さ・メモリ・CPU は、測った全部の項目で前回の 3 つより軽い値になりました。AI に書かせると、書く量は 4 つの中で最も少なく、仕様どおりに書けた度合いは Tauri が最も高く、kargui がその次でした。ただし kargui は部品も動く OS もまだ少なく、3 つと同じだけの機能を持った上での比べではありません。</p>
+    <ul>
+      <li>起動は 42 ms で、同じ回に測った前回の最良（egui の glow 版）の 344 ms の約 8 分の 1 です。1 万件を入れた時のメモリは 5.4 MB で、GPUI の 17.9 MB の 3 分の 1 以下です。</li>
+      <li>何も起きていない間は CPU を使いません。GPU の無い PC でも、1 フレームの CPU 0.9 ms で 60 fps のスクロールを保ちます。</li>
+      <li>日本語入力（確定の Enter で送らない、変換中は値を変えない、など）と、ナレーターでの読み上げを、作者が手で確かめました。</li>
+      <li>公開している全部の関数と型に、動く例があります。API が変わったのに説明を直していないと、検査で落ちます。</li>
+      <li>弱点もあります。Windows でしか動きません。部品はまだ少なく、ドロップダウンや「押せない状態」の部品がありません。作ってから日が浅く、使った人は作者と AI だけです。今後は実際のアプリを作りながら足りない物を調べ、足していきます。</li>
+    </ul>
+    <p>ソースは <a href="https://github.com/dikmri/kargui">github.com/dikmri/kargui</a> で公開しています（MIT ライセンス）。crates.io にも 0.1 を出します。</p>
+  </section>
+
+  <nav aria-labelledby="h-toc">
+    <h2 id="h-toc">目次</h2>
+    <ol class="toc">
+      <li><a href="#why">なぜ作ったか</a></li>
+      <li><a href="#design">kargui の作り</a></li>
+      <li><a href="#result">測った結果</a></li>
+      <li><a href="#targets">目標に届いたか</a></li>
+      <li><a href="#ime">日本語入力と読み上げ</a></li>
+      <li><a href="#docs">説明が古くならない仕組み</a></li>
+      <li><a href="#ai">AI に書かせて比べた</a></li>
+      <li><a href="#learned">作って分かったこと</a></li>
+      <li><a href="#weak">弱点と、まだできていないこと</a></li>
+      <li><a href="#reproduce">ソースと測り直し方</a></li>
+      <li><a href="#sources">出典</a></li>
+    </ol>
+  </nav>
+
+  <section id="why" aria-labelledby="h-why">
+    <h2 id="h-why">なぜ作ったか</h2>
+    <p>前回の比べでは、3 つにそれぞれ得意な所と、使う場面によっては気になる所がありました。</p>
+    <ul>
+      <li><span class="fw tauri">Tauri</span> は画面を Web の技術で書けて作りやすく、GPU が無い PC でも滑らかに描けます。その分、起動のたびに WebView2 を立ち上げるので、起動に時間がかかり、メモリも多めに使います。</li>
+      <li><span class="fw egui">egui</span> は書き方が簡単で、1 フレームの CPU も少なめです。既定の描き方（wgpu）は GPU のメモリを 170 MB ほど使い、日本語入力では変換中に値が変わりました。</li>
+      <li><span class="fw gpui">GPUI</span> は最も軽く、文字もくっきり描きます。一方で、型と寿命の書き方が難しく、説明も少なめでした。</li>
+    </ul>
+    <p>3 つはどれも、kargui よりずっと多くの機能と利用者を支えている、完成度の高いフレームワークです。kargui は、その中から「egui の書きやすさ」「GPUI の軽さ」「Tauri の作りやすさと説明の多さ」を学び、1 つにまとめることを目指しました。目標の数字は「前回の 3 つの最良より、どの項目でも 3 割良い」にしました。比べる物差しをはっきりさせるためで、機能の多さまで含めた優劣を決めるものではありません。</p>
+  </section>
+
+  <section id="design" aria-labelledby="h-design">
+    <h2 id="h-design">kargui の作り</h2>
+    <p>アプリの画面は、egui と同じ即時モードで書きます。状態は自分の構造体に持ち、<code>view</code> で毎回画面全体を書きます。</p>
+<pre><code>impl App for Counter {
+    fn view(&amp;mut self, ui: &amp;mut Ui) {
+        ui.row(|ui| {
+            ui.label(format!("今の数: {}", self.count));
+            if ui.button("1 足す").clicked() {
+                self.count += 1;
+            }
+        });
+    }
+}</code></pre>
+    <p>中の作りは、書き方とは別に軽さを優先しました。</p>
+    <ul>
+      <li><strong>変わった所だけ描く:</strong> 毎回書いた画面を前の画面と比べ、変わった四角の範囲だけを描き直します。スクロールは今の絵をずらし、新しく見えた帯だけを描きます。</li>
+      <li><strong>既定は CPU で描く:</strong> GPU（Direct3D 11）の準備には 0.3 秒ほどかかります。変わった所だけ描くなら CPU でも十分速いので、既定は CPU で描き、GDI で窓へ写します。GPU で描く道も選べます。</li>
+      <li><strong>OS とは直接つなぐ:</strong> 窓は Win32、文字は DirectWrite、日本語入力は IMM32、読み上げは AccessKit を、間の層を挟まずに使います。使う crate は全部で 26 個です（egui は 181 個）。</li>
+      <li><strong>2 回で決める配置:</strong> 下から大きさを測り、上から場所を決めます。大きさの分からない物の中央寄せや、残りの幅を分けることが 1 フレームで決まります。</li>
+    </ul>
+  </section>
+
+  <section id="result" aria-labelledby="h-result">
+    <h2 id="h-result">測った結果</h2>
+    <p>前回と同じ PC（Ryzen 5 3500・メモリ 64 GB・GeForce RTX 5060 Ti・Windows 11 Home）で、前回と同じ測定の道具を使いました。窓は 60 Hz のサブモニターに、前面に出さずに開きます。リリースビルドの設定も前回と同じです。比べる 3 つは、kargui と同じ回の中で測りました（2026 年 11 月 21 日）。値は中央値です。測った日が違うので、3 つの数字は前回のレポートの数字と少し違います。</p>
+    <p class="small">「kargui」は既定の CPU で描く道、「kargui（GPU）」は Direct3D 11 で描く道です。斜線の棒は、そのフレームワークの既定ではない設定です。</p>
+
+    <h3>起動</h3>
+    <!-- gen:startup -->
+<figure class="bars" id="c-startup">
+  <figcaption><span class="bars-title">起動してから画面が出るまで（空の一覧）</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="kargui" title="kargui: 42 ms">
+      <span class="bar-name">kargui</span>
+      <span class="bar-track"><span class="bar" style="--w:9.3%"></span><span class="bar-val">42 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="kargui-gpu" title="kargui（GPU）: 354 ms">
+      <span class="bar-name">kargui（GPU）</span>
+      <span class="bar-track"><span class="bar" style="--w:78.7%"></span><span class="bar-val">354 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-glow" title="egui（glow）: 344 ms">
+      <span class="bar-name">egui（glow）</span>
+      <span class="bar-track"><span class="bar" style="--w:76.4%"></span><span class="bar-val">344 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI: 450 ms">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">450 ms</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:startup -->
+
+    <h3>メモリ</h3>
+    <div class="chart-pair">
+      <!-- gen:mem10k -->
+<figure class="bars" id="c-mem-10k">
+  <figcaption><span class="bars-title">メモリ（1 万件・待機）</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="kargui" title="kargui: 5.4 MB">
+      <span class="bar-name">kargui</span>
+      <span class="bar-track"><span class="bar" style="--w:12.7%"></span><span class="bar-val">5.4 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="kargui-gpu" title="kargui（GPU）: 12.3 MB">
+      <span class="bar-name">kargui（GPU）</span>
+      <span class="bar-track"><span class="bar" style="--w:29.0%"></span><span class="bar-val">12.3 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI: 17.9 MB">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:42.3%"></span><span class="bar-val">17.9 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-glow" title="egui（glow）: 42.4 MB">
+      <span class="bar-name">egui（glow）</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">42.4 MB</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:mem10k -->
+      <!-- gen:mem100k -->
+<figure class="bars" id="c-mem-100k">
+  <figcaption><span class="bars-title">メモリ（10 万件・待機）</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="kargui" title="kargui: 19.4 MB">
+      <span class="bar-name">kargui</span>
+      <span class="bar-track"><span class="bar" style="--w:36.2%"></span><span class="bar-val">19.4 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="kargui-gpu" title="kargui（GPU）: 25.8 MB">
+      <span class="bar-name">kargui（GPU）</span>
+      <span class="bar-track"><span class="bar" style="--w:48.1%"></span><span class="bar-val">25.8 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI: 29.7 MB">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:55.4%"></span><span class="bar-val">29.7 MB</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-glow" title="egui（glow）: 53.6 MB">
+      <span class="bar-name">egui（glow）</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">53.6 MB</span></span>
+    </div>
+  </div>
+  <p class="bars-note">データそのもの（共通の taskcore）が約 13 MB あります。</p>
+</figure>
+<!-- /gen:mem100k -->
+    </div>
+    <p>CPU で描く道は GPU のメモリを使いません（0 MB）。前回の 3 つは、GPU のメモリを 15〜172 MB 使っていました。</p>
+
+    <h3>スクロール</h3>
+    <!-- gen:perFrame -->
+<figure class="bars" id="c-per-frame">
+  <figcaption><span class="bars-title">スクロール中の 1 フレームの CPU</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="kargui" title="kargui: 0.36 ms">
+      <span class="bar-name">kargui</span>
+      <span class="bar-track"><span class="bar" style="--w:13.4%"></span><span class="bar-val">0.36 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="kargui-gpu" title="kargui（GPU）: 0.59 ms">
+      <span class="bar-name">kargui（GPU）</span>
+      <span class="bar-track"><span class="bar" style="--w:21.8%"></span><span class="bar-val">0.59 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 1.97 ms">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:72.5%"></span><span class="bar-val">1.97 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui-full" title="GPUI（抑えない）: 2.72 ms">
+      <span class="bar-name">GPUI（抑えない）</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">2.72 ms</span></span>
+    </div>
+  </div>
+  <p class="bars-note">測定の道具は CPU の時間を 15.6 ms 単位で数えるので、1 ms 前後の値は回ごとにばらつきます。</p>
+</figure>
+<!-- /gen:perFrame -->
+    <p>kargui は窓のあるモニターの速さ（60 Hz）に合わせて描き、前回の 2 つは 144 Hz で描いています。1 フレームの仕事は、アプリ自身の記録では約 0.58 ms でした。フレームの間隔の最長は 20.6 ms で、目標の「2 フレーム（33.3 ms）以内」に入りました。</p>
+
+    <h3>低い性能の PC で</h3>
+    <div class="chart-pair">
+      <!-- gen:core1 -->
+<figure class="bars" id="c-core1">
+  <figcaption><span class="bars-title">CPU 1 コアでの起動</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="kargui" title="kargui: 43 ms">
+      <span class="bar-name">kargui</span>
+      <span class="bar-track"><span class="bar" style="--w:9.2%"></span><span class="bar-val">43 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="kargui-gpu" title="kargui（GPU）: 364 ms">
+      <span class="bar-name">kargui（GPU）</span>
+      <span class="bar-track"><span class="bar" style="--w:77.8%"></span><span class="bar-val">364 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="egui-glow" title="egui（glow）: 346 ms">
+      <span class="bar-name">egui（glow）</span>
+      <span class="bar-track"><span class="bar" style="--w:73.9%"></span><span class="bar-val">346 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI: 468 ms">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">468 ms</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:core1 -->
+      <!-- gen:softStartup -->
+<figure class="bars" id="c-soft-startup">
+  <figcaption><span class="bars-title">GPU なしの起動</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="kargui" title="kargui: 42 ms">
+      <span class="bar-name">kargui</span>
+      <span class="bar-track"><span class="bar" style="--w:8.1%"></span><span class="bar-val">42 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui-warp" title="GPUI（WARP）: 157 ms">
+      <span class="bar-name">GPUI（WARP）</span>
+      <span class="bar-track"><span class="bar" style="--w:30.3%"></span><span class="bar-val">157 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="tauri" title="Tauri: 518 ms">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">518 ms</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:softStartup -->
+    </div>
+    <!-- gen:softFrame -->
+<figure class="bars" id="c-soft-frame">
+  <figcaption><span class="bars-title">GPU なしのスクロール 1 フレームの CPU</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="kargui" title="kargui: 0.89 ms">
+      <span class="bar-name">kargui</span>
+      <span class="bar-track"><span class="bar" style="--w:1.3%"></span><span class="bar-val">0.89 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="tauri" title="Tauri: 5.22 ms">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:7.7%"></span><span class="bar-val">5.22 ms</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui-warp" title="GPUI（WARP）: 68.18 ms">
+      <span class="bar-name">GPUI（WARP）</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">68.18 ms</span></span>
+    </div>
+  </div>
+</figure>
+<!-- /gen:softFrame -->
+    <p>GPU を使えない条件では、GPUI は Windows の代わりの描き方（WARP）で 1 フレームに 68 ms かかり、Tauri は 5.2 ms かかりました。kargui は変わった所だけを CPU で描くので、0.9 ms で済みます。</p>
+  </section>
+
+  <section id="targets" aria-labelledby="h-targets">
+    <h2 id="h-targets">目標に届いたか</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-labelledby="t-targets">
+      <table>
+        <caption id="t-targets">目標（前回の最良より 3 割良い）と結果</caption>
+        <thead><tr><th scope="col">項目</th><th scope="col" class="num">前回の最良</th><th scope="col" class="num">目標</th><th scope="col" class="num">kargui</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">起動（空の一覧）</th><td class="num">481 ms</td><td class="num">330 ms</td><td class="num met">42 ms</td></tr>
+          <tr><th scope="row">起動（CPU 1 コア）</th><td class="num">635 ms</td><td class="num">440 ms</td><td class="num met">43 ms</td></tr>
+          <tr><th scope="row">起動（GPU なし）</th><td class="num">237 ms</td><td class="num">170 ms</td><td class="num met">42 ms</td></tr>
+          <tr><th scope="row">メモリ（1 万件・待機）</th><td class="num">17.9 MB</td><td class="num">12.5 MB</td><td class="num met">5.4 MB</td></tr>
+          <tr><th scope="row">メモリ（10 万件・待機）</th><td class="num">29.7 MB</td><td class="num">24 MB</td><td class="num met">19.4 MB</td></tr>
+          <tr><th scope="row">GPU のメモリ</th><td class="num">14.9 MB</td><td class="num">10 MB</td><td class="num met">0 MB</td></tr>
+          <tr><th scope="row">待機中の CPU</th><td class="num">0%</td><td class="num">0.16% 以下</td><td class="num met">0%</td></tr>
+          <tr><th scope="row">GPU なしのスクロール 1 フレーム</th><td class="num">6.57 ms</td><td class="num">2.0 ms</td><td class="num met">0.9 ms</td></tr>
+          <tr><th scope="row">実行ファイル</th><td class="num">6.7 MB</td><td class="num">4.5 MB</td><td class="num met">1.0 MB</td></tr>
+          <tr><th scope="row">依存の crate の数</th><td class="num">181</td><td class="num">125</td><td class="num met">26</td></tr>
+          <tr><th scope="row">最初のビルド（リリース）</th><td class="num">362 秒</td><td class="num">250 秒</td><td class="num met">44 秒</td></tr>
+          <tr><th scope="row">タスク帳の画面の行数</th><td class="num">316 行</td><td class="num">220 行</td><td class="num met">198 行</td></tr>
+          <tr><th scope="row">例がある割合</th><td class="num">27.1%</td><td class="num">100%</td><td class="num met">100%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small">「前回の最良」と目標は、前回のレポートの数字から計画の時に決めた値です。ただし「例がある割合」の前回の最良は、前回のレポートには無いので、同じ数え方で 3 つを数えた値（GPUI の gpui-pre）です。kargui の値は 2026 年 11 月 21 日の測定です。ビルドの時間・crate の数・実行ファイルは、前回の数え方で数えました。</p>
+    <p>「AI が 1 回目でビルドを通す割合が 4 つの中で最も高い」という目標は、半分だけ届きました。次の「AI に書かせて比べた」に書いたとおり、組み立ての成功は 3 つが並び、仕様の採点は Tauri が上でした。</p>
+  </section>
+
+  <section id="ime" aria-labelledby="h-ime">
+    <h2 id="h-ime">日本語入力と読み上げ</h2>
+    <p>入力欄は、Windows の日本語入力を最初から扱います。次の 5 つを、キー入力をまねる道具（Google 日本語入力）と作者の手で確かめました。</p>
+    <ol>
+      <li>変換を確定する Enter では、送信になりません。</li>
+      <li>変換中の文字は入力欄の中に下線付きで出ますが、値は確定した時に変わります。絞り込みは、確定するまで走りません。</li>
+      <li>文節ごとに下線を引き、今変換している文節は太くします。</li>
+      <li>候補の窓は、打っている文字の真下に出ます。</li>
+      <li>変換の途中で別の欄を押しても、変換中の文字は元の欄に確定されます。</li>
+    </ol>
+    <p>再変換（確定した文字を選んで変換し直す）は、まだ確かめられていません。作者の環境では変換キーが再変換に割り当たっておらず、Windows 標準の入力欄でも同じ操作で再変換が始まらなかったためです。</p>
+    <p>読み上げは、ナレーターで作者が確かめました。全部の部品に役割と名前があり、スライダーの値、一覧の行の「何件中何件目」、表の選んだ行が読まれます。名前の無い部品を作ると、記録に警告が出ます。</p>
+  </section>
+
+  <section id="docs" aria-labelledby="h-docs">
+    <h2 id="h-docs">説明が古くならない仕組み</h2>
+    <p>前回、GPUI は「物は良いのに説明が少なくて手を出しにくい」と感じました。kargui では、説明を書く決まりを検査にしています。</p>
+    <!-- gen:docs -->
+<figure class="bars" id="c-docs">
+  <figcaption><span class="bars-title">例がある割合（公開項目のうち、動く例を持つ物）</span><span class="bars-hint">棒が長いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="kargui" title="kargui: 100%（131 / 131）">
+      <span class="bar-name">kargui</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">100%（131 / 131）</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI（gpui-pre）: 27.1%（16 / 59）">
+      <span class="bar-name">GPUI（gpui-pre）</span>
+      <span class="bar-track"><span class="bar" style="--w:27.1%"></span><span class="bar-val">27.1%（16 / 59）</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 10.3%（69 / 672）">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:10.3%"></span><span class="bar-val">10.3%（69 / 672）</span></span>
+    </div>
+    <div class="bar-row" data-app="tauri" title="Tauri: 10%（38 / 379）">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:10.0%"></span><span class="bar-val">10%（38 / 379）</span></span>
+    </div>
+  </div>
+  <p class="bars-note">rustdoc の数え方（--show-coverage）。分母は、例の対象になる関数や型などの項目。</p>
+</figure>
+<!-- /gen:docs -->
+    <ul>
+      <li>公開している全部の関数と型に、説明と動く例があります。例は試験として実際に動かします。1 つでも欠けると検査で落ちます。</li>
+      <li>ガイドは日本語で書き、英語に訳しています。ガイドの中のコードも試験で動かします。</li>
+      <li>各ページは、扱う API の形を覚えています。API の形が変わったのにページを見直していないと、検査で落ちます。日本語のページが変わったのに英語の訳を直していない時も落ちます。</li>
+      <li>AI 向けの索引（<code>docs/llms.txt</code>）は、ソースの説明から毎回作ります。手で 2 か所に書くことはありません。</li>
+    </ul>
+  </section>
+
+  <section id="ai" aria-labelledby="h-ai">
+    <h2 id="h-ai">AI に書かせて比べた</h2>
+    <p>4 つのフレームワークそれぞれで、AI（Claude の Sonnet と Haiku）に同じ課題を 3 回ずつ出しました。課題はタスク帳の画面で、データの部分は 4 つとも共通の部品を使います。AI が読んでよいのは、そのフレームワークに付いてくる説明とソースだけです。組み立ては決まった台本で行い、毎回記録しました。各回の AI が開いたファイルも調べ、ほかの回や完成したタスク帳を見た回はありませんでした。出来上がったコードが仕様どおりかは、別の AI が 8 点満点の採点表で採点しました。</p>
+    <!-- gen:aiTable -->
+<div class="table-wrap" tabindex="0" role="region" aria-labelledby="t-ai">
+      <table>
+        <caption id="t-ai">AI に同じ課題を出した結果（Sonnet と Haiku に 3 回ずつ）</caption>
+        <thead><tr><th scope="col">版</th><th scope="col" class="num">一度も失敗しなかった回</th><th scope="col" class="num">仕様の採点（8 点満点の平均）</th><th scope="col" class="num">満点の回</th><th scope="col" class="num">行数の中央値</th></tr></thead>
+        <tbody>
+          <tr><th scope="row"><span class="fw kargui">kargui（直した後）</span></th><td class="num">6 / 6</td><td class="num">7.75</td><td class="num">3</td><td class="num">88 行</td></tr>
+          <tr><th scope="row"><span class="fw kargui">kargui（直す前）</span></th><td class="num">6 / 6</td><td class="num">7.50</td><td class="num">1</td><td class="num">125 行</td></tr>
+          <tr><th scope="row"><span class="fw tauri">Tauri</span></th><td class="num">6 / 6</td><td class="num">8.00</td><td class="num">6</td><td class="num">259 行</td></tr>
+          <tr><th scope="row"><span class="fw gpui">GPUI</span></th><td class="num">5 / 6</td><td class="num">7.67</td><td class="num">3</td><td class="num">870 行</td></tr>
+          <tr><th scope="row"><span class="fw egui">egui</span></th><td class="num">6 / 6</td><td class="num">7.58</td><td class="num">2</td><td class="num">200 行</td></tr>
+        </tbody>
+      </table>
+    </div>
+<!-- /gen:aiTable -->
+    <!-- gen:aiLines -->
+<figure class="bars" id="c-ai-lines">
+  <figcaption><span class="bars-title">AI が書いた画面のコードの行数（6 回の中央値）</span><span class="bars-hint">棒が短いほど良い</span></figcaption>
+  <div class="bar-rows">
+    <div class="bar-row" data-app="kargui" title="kargui（直した後）: 88 行">
+      <span class="bar-name">kargui（直した後）</span>
+      <span class="bar-track"><span class="bar" style="--w:10.1%"></span><span class="bar-val">88 行</span></span>
+    </div>
+    <div class="bar-row" data-app="kargui" title="kargui（直す前）: 125 行">
+      <span class="bar-name">kargui（直す前）</span>
+      <span class="bar-track"><span class="bar" style="--w:14.3%"></span><span class="bar-val">125 行</span></span>
+    </div>
+    <div class="bar-row" data-app="egui" title="egui: 200 行">
+      <span class="bar-name">egui</span>
+      <span class="bar-track"><span class="bar" style="--w:23.0%"></span><span class="bar-val">200 行</span></span>
+    </div>
+    <div class="bar-row" data-app="tauri" title="Tauri: 259 行">
+      <span class="bar-name">Tauri</span>
+      <span class="bar-track"><span class="bar" style="--w:29.7%"></span><span class="bar-val">259 行</span></span>
+    </div>
+    <div class="bar-row" data-app="gpui" title="GPUI: 870 行">
+      <span class="bar-name">GPUI</span>
+      <span class="bar-track"><span class="bar" style="--w:100.0%"></span><span class="bar-val">870 行</span></span>
+    </div>
+  </div>
+  <p class="bars-note">空行とコメントを除いた行数。GPUI は 6 回中 4 回、入力欄そのものを自分で書いていました。</p>
+</figure>
+<!-- /gen:aiLines -->
+    <ul>
+      <li>組み立ての失敗は、30 回中 1 回（GPUI）しか出ませんでした。今の AI なら、どのフレームワークでもほぼ 1 回で組み立てられます。</li>
+      <li>はっきり差が出たのは書く量です。kargui は egui の約半分、Tauri の約 3 分の 1 でした。kargui の AI（Sonnet）は説明を 1〜2 回読んだだけで書き終え、ツールを使った回数は 5〜7 回でした（ほかは 15〜28 回）。</li>
+      <li>GPUI では 6 回中 4 回、日本語入力の仕様を満たすために、公式の例を手本にして入力欄そのもの（約 700 行）を書いていました。</li>
+      <li>日本語入力の 2 点（確定の Enter で足さない、変換中は絞り込まない）は、4 つとも全部の回で満点でした。</li>
+    </ul>
+    <h3>試験で見つけた kargui の弱点を直した</h3>
+    <p>最初の 6 回では、kargui は仕様の採点で 4 つの中で最も低い 7.50 点でした。点を落とした所のうち 3 つは kargui の側の問題だったので直し、同じ課題で 6 回やり直しました。</p>
+    <ul>
+      <li>数の表示を描いた後で絞り込みを作り直す書き方をすると、操作の後に古い数が出ました。入力のあったフレームでは、画面が変わらなくなるまで <code>view</code> を回し直すようにしました。</li>
+      <li>一覧の行の中にもう 1 つ行を入れて <code>fill()</code> を使うと、削除のボタンが行の右端へ行きませんでした。<code>fill()</code> を持つ入れ子の行は、自分も残りの幅を取るようにしました。</li>
+      <li>明暗の切り替えを自分の値で持つと、OS が暗い設定の時にスイッチが見た目と逆を示しました。kargui 自身の明暗につながる <code>dark_mode_switch</code> を足しました。</li>
+    </ul>
+    <p>直した後は 7.75 点になり、Sonnet の 3 回はすべて満点でした。残った減点は、課題のデータの部品の名前の表示（日本語で出る）など、kargui の外の物だけです。採点する AI は人によって厳しさが少し違うので、直す前と直した後の kargui は同じ採点役に頼みました。</p>
+  </section>
+
+  <section id="learned" aria-labelledby="h-learned">
+    <h2 id="h-learned">作って分かったこと</h2>
+    <ul>
+      <li><strong>変わった所だけ描く仕組みは、絵で確かめる:</strong> スクロールで絵をずらすと、上に重なるつまみの古い絵もずれた先に残りました。文字の記録には絵の誤りが残らないので、「変わった所だけ描いた絵」と「全部描き直した絵」を 1 画素ずつ比べる試験を足しました。</li>
+      <li><strong>即時モードは、描いた後の値の変化に弱い:</strong> AI の試験で、描いた後に値を作り直す書き方で古い表示が出ました。フレームワークの側で回し直すと、書く人が順番を気にしなくて済みます。</li>
+      <li><strong>人の確かめを自動にする:</strong> 日本語入力の確かめは、前面の窓へキー入力をまねて送るので、作者が PC を使っている間は走らせられません。作者が 10 分席を外した時だけ走り、キーやマウスに触るとすぐ止まる道具を作りました。この PC はマウスに触れていなくても小さな揺れの入力が出続けていたので、手で動かした入力だけを数える形にしています。</li>
+    </ul>
+  </section>
+
+  <section id="weak" aria-labelledby="h-weak">
+    <h2 id="h-weak">弱点と、まだできていないこと</h2>
+    <div class="pros-cons">
+      <div>
+        <h3>弱点</h3>
+        <ul>
+          <li>Windows 10/11 でしか動きません。</li>
+          <li>部品と仕組みが少なめです。複数行の入力欄、ドロップダウン、押せない状態の部品、メニューやポップアップ、画像、複数の窓などがありません。足りない物の一覧は <a href="https://github.com/dikmri/kargui#status-and-next-steps">README の「Status and next steps」</a>に載せ、実際のアプリを作りながら足していきます。</li>
+          <li>作ってから日が浅く、使った人は作者と AI だけです。</li>
+          <li>測ったのは 1 台の PC だけです。</li>
+        </ul>
+      </div>
+      <div>
+        <h3>まだできていないこと</h3>
+        <ul>
+          <li>再変換の確かめ（上の「日本語入力と読み上げ」を参照）。</li>
+          <li>GPU で描く道（既定ではない）のスクロールで、0.2 秒止まる回がありました。</li>
+          <li>NVDA での読み上げは、まだ確かめていません。</li>
+          <li>macOS と Linux、説明のサイト。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="reproduce" aria-labelledby="h-reproduce">
+    <h2 id="h-reproduce">ソースと測り直し方</h2>
+    <p>ソース・ガイド・測定の台本・AI の試験の道具は、<a href="https://github.com/dikmri/kargui">github.com/dikmri/kargui</a> にあります。</p>
+<pre><code>cargo run --release -p taskbook-kargui -- --items 10000
+cargo test --workspace --exclude kargui-spike
+cargo run -p xtask -- check
+bash tools/bench-phase3.sh</code></pre>
+    <p>測定の台本は、前回のレポートの測定の道具（<a href="../rust-gui/">reports/rust-gui/bench/</a>）を使います。このページのグラフは <code>reports/kargui/bench/charts.mjs</code> が <code>reports/kargui/data/</code> の数字から作っています。</p>
+  </section>
+
+  <section id="sources" aria-labelledby="h-sources">
+    <h2 id="h-sources">出典</h2>
+    <ul>
+      <li><a href="../rust-gui/">Rust の GUI はどれを選ぶ？ Tauri・egui・GPUI で同じアプリを作って比べた</a>（前回の番外編、2026 年 11 月 20 日）</li>
+      <li><a href="https://github.com/dikmri/kargui">kargui のソース</a>（MIT ライセンス）</li>
+      <li>kargui が使う crate: windows 0.62.2、accesskit 0.25.2、accesskit_windows 0.35.2、unicode-segmentation 1.12.0</li>
+      <li>比べたフレームワーク: egui 0.37.0（eframe 0.37.0）、gpui-kit 0.10.0（gpui-pre 0.3.12）、tauri 2.12.7</li>
+    </ul>
+  </section>
+
+  <p class="foot"><a href="../">実験レポートの一覧へ戻る</a></p>
+</article>
+</main>
+</body>
+</html>
