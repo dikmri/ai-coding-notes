@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>自分で作ったら勝てたか？ Rust の GUI フレームワーク kargui ― AI コーディングノート</title>
-<meta name="description" content="Tauri・egui・GPUI の長所を残して短所をなくす Rust の GUI フレームワーク kargui を作り、前回と同じ道具で起動・メモリ・CPU を測り、AI に書かせて書きやすさも比べたレポート。">
+<title>Rust の軽い GUI フレームワーク kargui の作成記録 ― AI コーディングノート</title>
+<meta name="description" content="Tauri・egui・GPUI に学び、それぞれの良い所を 1 つにまとめることを目指して作った Rust の GUI フレームワーク kargui の作成記録。前回と同じ道具で起動・メモリ・CPU を測り、AI に書かせて書きやすさも調べた。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='800'%3EAI%3C/text%3E%3Cpath d='M15 51H49' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="../../css/site.css">
 <style>
@@ -103,20 +103,20 @@ body { font-size: 0.9375rem; }
 <main id="main" class="report">
 <article>
   <p class="kicker">実験レポート 番外編 2 ・ 2026 年 11 月 21 日</p>
-  <h1>自分で作ったら勝てたか？ Rust の GUI フレームワーク kargui を作って、同じ道具で測った</h1>
-  <p class="lede"><a href="../rust-gui/">前回の番外編</a>では、Tauri・egui・GPUI の 3 つで同じ「タスク帳」を作って比べ、どれも一長一短だと分かりました。そこで、3 つの長所を残して短所をなくす Rust の GUI フレームワーク「kargui（カーグイ）」を、AI（Claude）と作りました。前回と同じ PC・同じ道具・同じ条件で測り、AI に書かせて書きやすさも比べています。</p>
+  <h1>Rust の軽い GUI フレームワーク kargui の作成記録</h1>
+  <p class="lede"><a href="../rust-gui/">前回の番外編</a>では、Tauri・egui・GPUI の 3 つで同じ「タスク帳」を作って比べ、3 つにそれぞれ優れた所があると分かりました。そこで、それらの良い所を 1 つにまとめることを目指して、Rust の GUI フレームワーク「kargui」を AI（Claude）と作りました。名前は「軽い」「Rust」「GUI」から取っています。前回と同じ PC・同じ道具・同じ条件で測り、AI に書かせた時の書きやすさも調べました。</p>
 
   <section id="conclusion" aria-labelledby="h-conclusion">
     <h2 id="h-conclusion">結論</h2>
-    <p class="answer">速さとメモリは、測った全部の項目で前回の 3 つを大きく上回りました。AI に書かせると、書く量は 4 つの中で最も少なく、仕様どおりに書けた度合いは Tauri に次ぐ 2 位でした。</p>
+    <p class="answer">起動の速さ・メモリ・CPU は、測った全部の項目で前回の 3 つより軽い値になりました。AI に書かせると、書く量は 4 つの中で最も少なく、仕様どおりに書けた度合いは Tauri が最も高く、kargui がその次でした。ただし kargui は部品も動く OS もまだ少なく、3 つと同じだけの機能を持った上での比べではありません。</p>
     <ul>
       <li>起動は 42 ms で、同じ回に測った前回の最良（egui の glow 版）の 344 ms の約 8 分の 1 です。1 万件を入れた時のメモリは 5.4 MB で、GPUI の 17.9 MB の 3 分の 1 以下です。</li>
       <li>何も起きていない間は CPU を使いません。GPU の無い PC でも、1 フレームの CPU 0.9 ms で 60 fps のスクロールを保ちます。</li>
       <li>日本語入力（確定の Enter で送らない、変換中は値を変えない、など）と、ナレーターでの読み上げを、作者が手で確かめました。</li>
       <li>公開している全部の関数と型に、動く例があります。API が変わったのに説明を直していないと、検査で落ちます。</li>
-      <li>弱点もあります。Windows でしか動きません。部品はまだ少なく、ドロップダウンや「押せない状態」の部品がありません。作ってから日が浅く、使った人は作者と AI だけです。</li>
+      <li>弱点もあります。Windows でしか動きません。部品はまだ少なく、ドロップダウンや「押せない状態」の部品がありません。作ってから日が浅く、使った人は作者と AI だけです。今後は実際のアプリを作りながら足りない物を調べ、足していきます。</li>
     </ul>
-    <p>ソースは <a href="https://github.com/dikmri/kargui">github.com/dikmri/kargui</a> で公開しています（MIT OR Apache-2.0）。</p>
+    <p>ソースは <a href="https://github.com/dikmri/kargui">github.com/dikmri/kargui</a> で公開しています（MIT ライセンス）。crates.io にも 0.1 を出します。</p>
   </section>
 
   <nav aria-labelledby="h-toc">
@@ -138,13 +138,13 @@ body { font-size: 0.9375rem; }
 
   <section id="why" aria-labelledby="h-why">
     <h2 id="h-why">なぜ作ったか</h2>
-    <p>前回の比べでは、3 つにそれぞれ得意と苦手がありました。</p>
+    <p>前回の比べでは、3 つにそれぞれ得意な所と、使う場面によっては気になる所がありました。</p>
     <ul>
-      <li><span class="fw tauri">Tauri</span> は画面を Web の技術で書けて作りやすい一方、起動のたびに WebView2 を立ち上げるので、起動が遅くメモリも多く使います。</li>
-      <li><span class="fw egui">egui</span> は書き方が簡単ですが、既定の描き方（wgpu）は GPU のメモリを 170 MB ほど使います。日本語入力では、変換中に値が変わります。</li>
-      <li><span class="fw gpui">GPUI</span> は最も軽い一方、型と寿命の書き方が難しく、説明も少なめです。</li>
+      <li><span class="fw tauri">Tauri</span> は画面を Web の技術で書けて作りやすく、GPU が無い PC でも滑らかに描けます。その分、起動のたびに WebView2 を立ち上げるので、起動に時間がかかり、メモリも多めに使います。</li>
+      <li><span class="fw egui">egui</span> は書き方が簡単で、1 フレームの CPU も少なめです。既定の描き方（wgpu）は GPU のメモリを 170 MB ほど使い、日本語入力では変換中に値が変わりました。</li>
+      <li><span class="fw gpui">GPUI</span> は最も軽く、文字もくっきり描きます。一方で、型と寿命の書き方が難しく、説明も少なめでした。</li>
     </ul>
-    <p>そこで「egui の書きやすさ」「GPUI の軽さ」「Tauri の作りやすさと説明の多さ」を残し、それぞれの苦手を持たないフレームワークを目指しました。目標は「前回の 3 つの最良より、どの項目でも 3 割良い」です。</p>
+    <p>3 つはどれも、kargui よりずっと多くの機能と利用者を支えている、完成度の高いフレームワークです。kargui は、その中から「egui の書きやすさ」「GPUI の軽さ」「Tauri の作りやすさと説明の多さ」を学び、1 つにまとめることを目指しました。目標の数字は「前回の 3 つの最良より、どの項目でも 3 割良い」にしました。比べる物差しをはっきりさせるためで、機能の多さまで含めた優劣を決めるものではありません。</p>
   </section>
 
   <section id="design" aria-labelledby="h-design">
@@ -171,7 +171,7 @@ body { font-size: 0.9375rem; }
 
   <section id="result" aria-labelledby="h-result">
     <h2 id="h-result">測った結果</h2>
-    <p>前回と同じ PC（Ryzen 5 3500・メモリ 64 GB・GeForce RTX 5060 Ti・Windows 11 Home）で、前回と同じ測定の道具を使いました。窓は 60 Hz のサブモニターに、前面に出さずに開きます。リリースビルドの設定も前回と同じです。比べる相手は、kargui と同じ回の中で測りました（2026 年 11 月 21 日）。値は中央値です。測った日が違うので、相手の数字は前回のレポートの数字と少し違います。</p>
+    <p>前回と同じ PC（Ryzen 5 3500・メモリ 64 GB・GeForce RTX 5060 Ti・Windows 11 Home）で、前回と同じ測定の道具を使いました。窓は 60 Hz のサブモニターに、前面に出さずに開きます。リリースビルドの設定も前回と同じです。比べる 3 つは、kargui と同じ回の中で測りました（2026 年 11 月 21 日）。値は中央値です。測った日が違うので、3 つの数字は前回のレポートの数字と少し違います。</p>
     <p class="small">「kargui」は既定の CPU で描く道、「kargui（GPU）」は Direct3D 11 で描く道です。斜線の棒は、そのフレームワークの既定ではない設定です。</p>
 
     <h3>起動</h3>
@@ -499,7 +499,7 @@ body { font-size: 0.9375rem; }
         <h3>弱点</h3>
         <ul>
           <li>Windows 10/11 でしか動きません。</li>
-          <li>部品が少なめです。ドロップダウン、押せない状態の部品、重ねて出す窓（ポップアップ）、表の列の幅を変える操作がありません。</li>
+          <li>部品と仕組みが少なめです。複数行の入力欄、ドロップダウン、押せない状態の部品、メニューやポップアップ、画像、複数の窓などがありません。足りない物の一覧は <a href="https://github.com/dikmri/kargui#status-and-next-steps">README の「Status and next steps」</a>に載せ、実際のアプリを作りながら足していきます。</li>
           <li>作ってから日が浅く、使った人は作者と AI だけです。</li>
           <li>測ったのは 1 台の PC だけです。</li>
         </ul>
@@ -530,9 +530,9 @@ bash tools/bench-phase3.sh</code></pre>
     <h2 id="h-sources">出典</h2>
     <ul>
       <li><a href="../rust-gui/">Rust の GUI はどれを選ぶ？ Tauri・egui・GPUI で同じアプリを作って比べた</a>（前回の番外編、2026 年 11 月 20 日）</li>
-      <li><a href="https://github.com/dikmri/kargui">kargui のソース</a>（MIT OR Apache-2.0）</li>
+      <li><a href="https://github.com/dikmri/kargui">kargui のソース</a>（MIT ライセンス）</li>
       <li>kargui が使う crate: windows 0.62.2、accesskit 0.25.2、accesskit_windows 0.35.2、unicode-segmentation 1.12.0</li>
-      <li>比べた相手: egui 0.37.0（eframe 0.37.0）、gpui-kit 0.10.0（gpui-pre 0.3.12）、tauri 2.12.7</li>
+      <li>比べたフレームワーク: egui 0.37.0（eframe 0.37.0）、gpui-kit 0.10.0（gpui-pre 0.3.12）、tauri 2.12.7</li>
     </ul>
   </section>
 
