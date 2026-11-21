@@ -1262,3 +1262,126 @@ test('interaction nets: タイルは隣からしか仕事をもらえない', ()
   assert.equal(first.find((d) => d.tile === 0).how, 'own');
   assert.equal(R.tiles.length, 16);
 });
+
+// ---- 量子化のビット配分（LookAtMyQuant） ----
+const MQ = 'tr-20261122-mixed-quant';
+const MQ_NAMES = ['rng', 'makeSpiral', 'initNet', 'cloneNet', 'makeActs', 'forward', 'makeTrainer', 'makePieces', 'pieceBits', 'quantize', 'applyPlan', 'planBits', 'fullBits', 'weightCount', 'compare', 'damageMeter', 'damageTable', 'allocate'];
+
+test('量子化: 0 ビットは全部 0、段の数は 2^b 以下、ビットを増やすと誤差は増えない', () => {
+  const { quantize, rng } = trendCore(MQ, MQ_NAMES);
+  const r = rng(5);
+  const vals = Float64Array.from({ length: 32 }, () => (r() - 0.5) * 3);
+  const z = quantize(vals, 0);
+  assert.ok(z.q.every((x) => x === 0));
+  assert.ok(near(z.mse, vals.reduce((s, x) => s + x * x, 0) / 32));
+  let prev = Infinity;
+  const amax = Math.max(...vals.map(Math.abs));
+  for (const b of [1, 2, 3, 4, 6, 8]) {
+    const { q, mse } = quantize(vals, b);
+    assert.ok(new Set(q).size <= 2 ** b, `${b} ビット`);
+    assert.ok(q.every((x) => Math.abs(x) <= amax + 1e-12), `${b} ビット`);
+    assert.ok(mse <= prev + 1e-15, `${b} ビット`);
+    prev = mse;
+  }
+  assert.ok(prev < 1e-4);
+  assert.equal(quantize(new Float64Array(4), 3).mse, 0);
+});
+
+test('量子化: 部品は 32 個ずつ 69 個で、どの重みもちょうど1回ずつ入る。大きさの数え方', () => {
+  const { initNet, makePieces, planBits, fullBits, weightCount, pieceBits } = trendCore(MQ, MQ_NAMES);
+  const net = initNet(1);
+  const pcs = makePieces(net);
+  assert.equal(pcs.length, 69);
+  assert.ok(pcs.every((p) => p.idx.length === 32));
+  net.forEach((L, l) => {
+    const seen = new Int32Array(L.W.length);
+    for (const p of pcs) if (p.layer === l) for (const i of p.idx) seen[i]++;
+    assert.ok(seen.every((c) => c === 1), `層 ${l}`);
+  });
+  assert.equal(weightCount(net), 2208);
+  assert.equal(fullBits(net), (2208 + 99) * 16);
+  assert.equal(pieceBits(32, 0), 0);
+  assert.equal(pieceBits(32, 3), 32 * 3 + 16);
+  for (const b of [1, 2, 3, 4]) assert.equal(planBits(net, pcs, pcs.map(() => b)), 2208 * (b + 0.5) + 99 * 16);
+});
+
+test('量子化: 配分の動的計画法は、総当たりと同じ最小の悪化を予算の中で見つける', () => {
+  const { allocate, rng } = trendCore(MQ, MQ_NAMES);
+  const r = rng(11);
+  const opts = [0, 1, 2, 4];
+  for (let trial = 0; trial < 30; trial++) {
+    const N = 4;
+    const table = Array.from({ length: N }, () => {
+      let d = 1 + r() * 3;
+      return Float64Array.from(opts, () => (d *= 0.2 + r() * 0.6));
+    });
+    const costs = table.map(() => opts.map((b) => (b ? 32 * b + 16 : 0)));
+    const allowed = opts.map((b) => trial % 3 !== 0 || b > 0);
+    const budget = Math.floor(r() * 600);
+    let best = Infinity;
+    const rec = (i, used, dmg) => {
+      if (used > budget) return;
+      if (i === N) { best = Math.min(best, dmg); return; }
+      opts.forEach((_, k) => { if (allowed[k]) rec(i + 1, used + costs[i][k], dmg + table[i][k]); });
+    };
+    rec(0, 0, 0);
+    const a = allocate(table, costs, budget, allowed);
+    if (best === Infinity) { assert.equal(a, null); continue; }
+    assert.ok(near(a.predicted, best), `試し ${trial}`);
+    let used = 0, dmg = 0;
+    a.choice.forEach((k, i) => { assert.ok(allowed[k]); used += costs[i][k]; dmg += table[i][k]; });
+    assert.ok(used <= budget);
+    assert.equal(used, a.bits);
+    assert.ok(near(dmg, a.predicted));
+  }
+  assert.equal(allocate([Float64Array.of(1)], [[16]], -5), null);
+  assert.throws(() => allocate([Float64Array.of(1)], [[10]], 100));
+});
+
+test('量子化: 悪化の測り方（後ろだけ計算し直す）は、部品を1つ量子化して全部流した KL と一致する', () => {
+  const { initNet, makeSpiral, makePieces, damageMeter, quantize, cloneNet, compare } = trendCore(MQ, MQ_NAMES);
+  const net = initNet(3);
+  const calib = makeSpiral(4, 10);
+  const pcs = makePieces(net);
+  const bits = [0, 1, 3];
+  const m = damageMeter(net, pcs, calib, bits);
+  for (const pi of [0, 1, 2, 40, 67, 68]) {
+    m.measure(pi);
+    const pc = pcs[pi];
+    bits.forEach((b, bi) => {
+      const vals = Float64Array.from(pc.idx, (i) => net[pc.layer].W[i]);
+      const qn = cloneNet(net);
+      const { q } = quantize(vals, b);
+      pc.idx.forEach((wi, k) => { qn[pc.layer].W[wi] = q[k]; });
+      assert.ok(near(m.table[pi][bi], compare(net, qn, calib).kl, 1e-9), `部品 ${pi}・${b} ビット`);
+    });
+  }
+});
+
+test('量子化: 学習すると見分けられるようになり、同じ大きさなら配分した方が元に近い', () => {
+  const { initNet, makeSpiral, makeTrainer, makePieces, damageTable, applyPlan, planBits, fullBits, weightCount, pieceBits, allocate, compare } = trendCore(MQ, MQ_NAMES);
+  const train = makeSpiral(1, 120), test = makeSpiral(1001, 120);
+  const net = initNet(1);
+  const tr = makeTrainer(net, train, 1);
+  const first = tr.step(50, 0.01);
+  while (tr.t < 1600) tr.step(50, tr.t < 1000 ? 0.01 : 0.003);
+  const last = tr.step(1, 0.003);
+  assert.ok(last < first);
+  assert.ok(compare(net, net, test).acc > 0.95);
+  const BITS = [0, 1, 2, 3, 4, 6, 8];
+  const pcs = makePieces(net);
+  const { table } = damageTable(net, pcs, train, BITS);
+  const costs = pcs.map((p) => BITS.map((b) => pieceBits(p.idx.length, b)));
+  const fixed = fullBits(net) - weightCount(net) * 16;
+  for (const b of [1, 2, 3]) {
+    const uplan = pcs.map(() => b);
+    const ubits = planBits(net, pcs, uplan);
+    const a = allocate(table, costs, ubits - fixed);
+    const plan = Array.from(a.choice, (k) => BITS[k]);
+    assert.ok(planBits(net, pcs, plan) <= ubits);
+    const u = compare(net, applyPlan(net, pcs, uplan), test);
+    const al = compare(net, applyPlan(net, pcs, plan), test);
+    assert.ok(al.kl < u.kl, `${b} ビット`);
+    assert.ok(al.acc >= u.acc, `${b} ビット`);
+  }
+});

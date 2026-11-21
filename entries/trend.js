@@ -7195,3 +7195,827 @@ dekiru.add({
     apply(exIn.value);
   },
 });
+
+dekiru.add({
+  id: 'tr-20261122-mixed-quant', c: 'trend', lv: 3, date: '2026-11-22',
+  t: '同じ大きさのまま、量子化のビット数を部品ごとに配り分けて、元との差を小さくする（LookAtMyQuant）',
+  y: 'おなじおおきさのままりょうしかのびっとすうをぶひんごとにくばりわけてもととのさをちいさくするるっくあっとまいくおんと',
+  tags: ['LookAtMyQuant', 'Inkling 2 Mini', '量子化', '動的計画法', 'Canvas'],
+  d: '2026年11月20日、Thinking Machines が、ノートパソコンで動く言語モデル Inkling 2 Mini（重み 264 億個）を公開した。Hacker News では 1333 点を集めた。翌日、ShinMegamiBoson さんの量子化の道具 LookAtMyQuant が、このモデルの文章の部分の重みを 18.89 GB から 5.38 GB（重み1つあたり平均 1.63 ビット）に縮めたと発表し、こちらも Hacker News で 269 点を集めた。よく使われる量子化の形式は、ほとんどの行列を同じビット数で保存する。LookAtMyQuant は、モデルの部品を1つだけ圧縮したとき、モデル全体の出力がどれだけ悪くなるかを部品ごとに測る。そして、決めた大きさに収まる中で悪化の合計が最も小さくなるように、部品ごとに保存の仕方を選ぶ。解説のページには、Gemma 4 E2B で、llama.cpp の Q4_K_M と同じ大きさのまま、元のモデルとの差（KL）が 12 分の 1 になったと書かれている。この見本は、その考え方を小さなネットワークで再現する。開くと、3本の腕のうずまきを見分けるネットワーク（2→32→32→32→3、重み 2,208 個）をその場で学習させる。重みを 32 個ずつ 69 個の部品に分け、部品ごとに 0（消す）・1・2・3・4・6・8 ビットで量子化したときの悪化を、学習に使った点の上で全部測る。次に、全部の部品を同じビット数にしたときと同じバイト数の中で、悪化の合計が最も小さい配り方を動的計画法で求める。上の3つの図は、元のネットワーク・そろえた量子化・配分した量子化が平面をどう見分けるかを示し、学習に使っていない 360 点での正解率と、元との差（KL）を出す。下の図は、部品ごとの悪化と配ったビット数、それと大きさと KL の関係である。再現していない所: 本物は、言語モデルの行列、語の出現の多さで分けた埋め込みの区分、KV キャッシュを部品にして、トレリス符号など多くの保存の仕方から選ぶ。少しの部品を測った結果から残りの悪化を予測し、量子化の後に元のモデルを手本にした学習（蒸留）で直す。この見本の保存の仕方は、目盛り1つの一様な量子化と、部品を消すことの2つだけである。悪化は予測せずに全部測り、量子化の後の学習もしない。',
+  p: '部品ごとの悪化は、重みが変わった層から後ろだけを計算し直して測る。行の部品なら、その行が受け持つ出口1つの値だけが変わるので、前の層までの計算は覚えておいた値をそのまま使える。配り方を決めるのは「部品ごとに保存の仕方を1つ選び、ビット数の合計を予算以下にして、悪化の合計を最小にする」問題である。ビット数を 16 ビット単位で数えると、部品の数 × 予算 × 選び方の数に比例する手間の動的計画法で、最適な組み合わせが求まる。ただし、これは「部品ごとの悪化は足し算できる」と仮定したときの最適である。表の「足し算の予想 → 実際」で、全部を同時に量子化して測り直した値と比べられる。3〜4 ビットあたりでは予想とほぼ合い、大きく削るほど予想から外れる。外れ方は、予想より悪くなることも、良くなることもある。入力の層の2つの部品（x の重み 32 個と y の重み 32 個）は、ほかの部品より何桁も大きく効くので、多くのビットを受け取る。ビット数が少ないときは、効かない出口の行を丸ごと消し、浮いたビットを効く部品へ回す。一様な量子化は、0 を持たない 2^b 段の値を等間隔に並べ、いちばん外の段の高さを、部品の重みの二乗誤差が最小になるように探す。部品ごとに 16 ビットの目盛りを持つので、そろえた b ビットは重み1つあたり b + 0.5 ビットになる。',
+  refs: [
+    { title: 'LookAtMyQuant（GitHub。README に Inkling-2-Mini の 5.4 GB 版の結果）', url: 'https://github.com/ShinMegamiBoson/lookatmyquant' },
+    { title: 'LookAtMyQuant の解説（方法と Gemma 4 E2B の結果）', url: 'https://lookatmyquant.pages.dev' },
+    { title: 'LookAtMyQuant 2（行ごとにビット数を配る作り方）', url: 'https://lookatmyquant2.pages.dev' },
+    { title: 'Hacker News: Inkling-2-Mini in 5.4 GB Memory', url: 'https://news.ycombinator.com/item?id=50591853' },
+    { title: 'Hacker News: Inkling 2 Mini', url: 'https://news.ycombinator.com/item?id=50581260' },
+    { title: 'Thinking Machines の X の投稿（2026-11-20）', url: 'https://x.com/thinkymachines/status/2123871643797995872' },
+  ],
+  html: `<div class="wrap">
+  <p id="msg" class="msg" role="status">学習の準備をしています</p>
+  <div class="ctl">
+    <label for="bits">そろえる側のビット数</label>
+    <input type="range" id="bits" min="1" max="4" step="1" value="2">
+    <output id="bitsv" for="bits">2 ビット</output>
+  </div>
+  <div class="ctl">
+    <label><input type="checkbox" switch id="prune" checked> 部品を消す（0 ビット）も選べる</label>
+    <button type="button" id="again">別の種で学習し直す</button>
+  </div>
+  <div class="panels">
+    <figure><canvas id="c0" role="img" aria-label="元のネットワークが平面をどう見分けるかの図"></canvas><figcaption><b>元</b><small class="ex">（16 ビット）</small><span id="s0"></span></figcaption></figure>
+    <figure><canvas id="c1" role="img" aria-label="全部の部品を同じビット数にしたネットワークの図"></canvas><figcaption><b id="h1">そろえた 2 ビット</b><span id="s1"></span></figcaption></figure>
+    <figure><canvas id="c2" role="img" aria-label="ビット数を配り分けたネットワークの図"></canvas><figcaption><b>配分した</b><small class="ex">（同じ大きさ）</small><span id="s2"></span></figcaption></figure>
+  </div>
+  <p class="legend small mut"><span><i class="k0"></i><i class="k1"></i><i class="k2"></i>3本の腕（色が濃いほど自信がある）</span><span><i class="ng"></i>白い縁の点は、見分けを間違えた点</span></p>
+  <p id="sum" class="sum"></p>
+  <div class="box">
+    <div class="hd">部品ごとの悪化と、配ったビット数</div>
+    <canvas id="map" role="img" aria-label="部品ごとの悪化と配ったビット数の図"></canvas>
+    <p class="small mut">橙の棒: その部品だけを 2 ビットにしたときの悪化（KL、対数目盛り。1 マス上がると 10 倍）。下の数: 配分で配ったビット数。× は 0 ビットで消した部品。入力の層は列（x と y の重み）、ほかの層は行（1つの出口に入る重み）を部品にした。</p>
+  </div>
+  <div class="box">
+    <div class="hd">大きさと、元との差（KL、対数目盛り）</div>
+    <canvas id="crv" role="img" aria-label="大きさと元との差の図"></canvas>
+    <p class="legend small mut"><span><i class="u"></i>そろえた量子化（数はビット数）</span><span><i class="a"></i>配分した量子化</span><span><i class="cur"></i>今の大きさ</span></p>
+  </div>
+  <div class="tw" tabindex="0" role="region" aria-labelledby="cap">
+    <table>
+      <caption id="cap">同じ大きさでの比べ（KL と正解率は学習に使っていない 360 点で測った）</caption>
+      <thead><tr><th scope="col">大きさ</th><th scope="col">そろえた KL</th><th scope="col">正解率</th><th scope="col">配分した KL</th><th scope="col">正解率</th><th scope="col">足し算の予想 → 実際</th><th scope="col">消した部品</th></tr></thead>
+      <tbody id="tb"></tbody>
+    </table>
+  </div>
+</div>`,
+  css: `:root { color-scheme: dark; --bg: #10131a; --fg: #e4e8f0; --mut: #9aa3b6; --line: #2b3346; --panel: #161a23; --k0: #5fc8b0; --k1: #f0b45a; --k2: #b49cff; --uni: #f07a8a; --alloc: #6fb6ff; --dmg: #f08c5a; --act: #6fb6ff; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    .wrap { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .ctl { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin: 0; }
+    .ctl label { display: inline-flex; align-items: center; gap: 6px; }
+    input[type="range"] { accent-color: var(--act); inline-size: 10em; margin: 0; cursor: pointer; }
+    output { font-variant-numeric: tabular-nums; }
+    button { font: inherit; min-block-size: 30px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 6px; background: #1e2433; color: var(--fg); cursor: pointer; }
+    button:disabled { opacity: .5; cursor: default; }
+    :focus-visible { outline: 2px solid #ffd27a; outline-offset: 2px; }
+    input[type="checkbox"][switch] { accent-color: var(--act); margin: 0; cursor: pointer; }
+    .mut { color: var(--mut); }
+    .small { font-size: 12px; margin: 0; }
+    .msg { margin: 0; padding: 6px 8px; border-inline-start: 3px solid var(--act); background: var(--panel); border-radius: 4px; font-size: 13px; min-block-size: 1.5em; }
+    .panels { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+    figure { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+    figcaption { font-size: 12px; line-height: 1.45; color: var(--mut); }
+    figcaption b { color: var(--fg); font-weight: 600; }
+    figcaption small { font-size: inherit; }
+    figcaption span { display: block; font-variant-numeric: tabular-nums; }
+    canvas { display: block; inline-size: 100%; background: #0b0d12; border-radius: 4px; }
+    .panels canvas { aspect-ratio: 1; block-size: auto; }
+    #map { block-size: 184px; }
+    #crv { block-size: 220px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+    .legend i { display: inline-block; inline-size: 10px; block-size: 10px; border-radius: 50%; vertical-align: -1px; margin-inline-end: 4px; }
+    .legend .k0 { background: var(--k0); margin-inline-end: 2px; }
+    .legend .k1 { background: var(--k1); margin-inline-end: 2px; }
+    .legend .k2 { background: var(--k2); }
+    .legend .ng { background: transparent; border: 2px solid #fff; inline-size: 8px; block-size: 8px; }
+    .legend .u { background: var(--uni); }
+    .legend .a { inline-size: 16px; block-size: 3px; border-radius: 2px; vertical-align: middle; background: var(--alloc); }
+    .legend .cur { inline-size: 0; block-size: 12px; border-radius: 0; border-inline-start: 2px dashed var(--fg); vertical-align: -2px; }
+    .sum { margin: 0; font-size: 13px; line-height: 1.6; min-block-size: 1.6em; }
+    .box { display: flex; flex-direction: column; gap: 4px; }
+    .hd { font-size: 12px; color: var(--mut); }
+    .tw { overflow-x: auto; }
+    table { border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+    caption { text-align: start; color: var(--mut); padding-block-end: 4px; }
+    th, td { padding: 3px 8px; border-block-end: 1px solid var(--line); text-align: end; white-space: nowrap; }
+    th[scope="row"], thead th:first-child { text-align: start; font-weight: 400; }
+    thead th { color: var(--mut); font-weight: 400; }
+    tr.cur th, tr.cur td { background: #22293a; }
+    tr.cur th[scope="row"] { font-weight: 600; }
+    .thumb .wrap { padding: 4px; gap: 4px; }
+    .thumb .ctl, .thumb .legend, .thumb .sum, .thumb .box, .thumb .tw { display: none; }
+    .thumb .msg { font-size: 11px; padding: 2px 6px; }
+    .thumb .panels { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+    .thumb figcaption { font-size: 10px; }
+    .thumb .ex { display: none; }`,
+  core() {
+    // ---- 乱数（種から同じ列が出る） ----
+    function rng(seed) {
+      let s = seed >>> 0;
+      return () => {
+        s = (s + 0x6D2B79F5) >>> 0;
+        let t = s;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    function gauss(r) {
+      const u = Math.max(1e-12, r());
+      return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * r());
+    }
+
+    // ---- 3本の腕のうずまき（平面の点と、0・1・2 の組） ----
+    function makeSpiral(seed, perClass) {
+      const r = rng(seed), K = 3, n = perClass * K;
+      const X = new Float64Array(n * 2), Y = new Int32Array(n);
+      for (let k = 0; k < K; k++) {
+        for (let i = 0; i < perClass; i++) {
+          const j = k * perClass + i;
+          const t = (i + r()) / perClass;
+          const rad = 0.08 + 0.92 * t;
+          const ang = k * 2 * Math.PI / K + t * 4.2 + gauss(r) * 0.13;
+          X[j * 2] = rad * Math.cos(ang);
+          X[j * 2 + 1] = rad * Math.sin(ang);
+          Y[j] = k;
+        }
+      }
+      return { X, Y, n };
+    }
+
+    // ---- 小さなネットワーク 2 → 32 → 32 → 32 → 3（間は tanh、最後は softmax） ----
+    const SIZES = [2, 32, 32, 32, 3];
+    const FLOAT_BITS = 16, SCALE_BITS = 16;
+    function initNet(seed) {
+      const r = rng(seed), layers = [];
+      for (let l = 0; l + 1 < SIZES.length; l++) {
+        const nin = SIZES[l], nout = SIZES[l + 1];
+        const W = new Float64Array(nin * nout), b = new Float64Array(nout);
+        const sd = Math.sqrt(1 / nin) * (l === 0 ? 2.5 : 1);
+        for (let i = 0; i < W.length; i++) W[i] = gauss(r) * sd;
+        layers.push({ nin, nout, W, b });
+      }
+      return layers;
+    }
+    function cloneNet(net) {
+      return net.map((L) => ({ nin: L.nin, nout: L.nout, W: Float64Array.from(L.W), b: Float64Array.from(L.b) }));
+    }
+    function makeActs() { return SIZES.map((n) => new Float64Array(n)); }
+    function softmax(z) {
+      let m = -Infinity;
+      for (let i = 0; i < z.length; i++) if (z[i] > m) m = z[i];
+      const p = new Float64Array(z.length);
+      let s = 0;
+      for (let i = 0; i < z.length; i++) { p[i] = Math.exp(z[i] - m); s += p[i]; }
+      for (let i = 0; i < z.length; i++) p[i] /= s;
+      return p;
+    }
+    // 1点を流して確率を返す。acts を渡すと、各層の出力（tanh の後。最後の層は softmax の前）をそこに入れる
+    function forward(net, x0, x1, acts) {
+      const A = acts || makeActs();
+      A[0][0] = x0; A[0][1] = x1;
+      const last = net.length - 1;
+      for (let l = 0; l <= last; l++) {
+        const L = net[l], a = A[l], o = A[l + 1];
+        for (let r = 0; r < L.nout; r++) {
+          let s = L.b[r];
+          const base = r * L.nin;
+          for (let j = 0; j < L.nin; j++) s += L.W[base + j] * a[j];
+          o[r] = l === last ? s : Math.tanh(s);
+        }
+      }
+      return softmax(A[last + 1]);
+    }
+
+    // ---- 学習（Adam。32 点ずつの束で、正解の確率を少しならす）。step(k, lr) を何度も呼んで少しずつ進める ----
+    function makeTrainer(net, data, seed) {
+      const r = rng(seed ^ 0x5bd1e995);
+      const zeros = () => net.map((L) => ({ W: new Float64Array(L.W.length), b: new Float64Array(L.b.length) }));
+      const m = zeros(), v = zeros(), g = zeros();
+      const acts = makeActs(), deltas = SIZES.map((n) => new Float64Array(n));
+      const B = 32, SMOOTH = 0.1;
+      let t = 0;
+      function step(k, lr) {
+        let lossSum = 0;
+        for (let it = 0; it < k; it++) {
+          for (const G of g) { G.W.fill(0); G.b.fill(0); }
+          let loss = 0;
+          for (let bi = 0; bi < B; bi++) {
+            const j = Math.floor(r() * data.n);
+            const p = forward(net, data.X[j * 2], data.X[j * 2 + 1], acts);
+            loss -= Math.log(Math.max(1e-12, p[data.Y[j]]));
+            const dl = deltas[net.length];
+            for (let c = 0; c < p.length; c++) dl[c] = p[c] - (c === data.Y[j] ? 1 - SMOOTH * (p.length - 1) / p.length : SMOOTH / p.length);
+            for (let l = net.length - 1; l >= 0; l--) {
+              const L = net[l], d = deltas[l + 1], a = acts[l], G = g[l];
+              for (let o = 0; o < L.nout; o++) {
+                const dv = d[o];
+                G.b[o] += dv;
+                const base = o * L.nin;
+                for (let i = 0; i < L.nin; i++) G.W[base + i] += dv * a[i];
+              }
+              if (l > 0) {
+                const dp = deltas[l];
+                for (let i = 0; i < L.nin; i++) {
+                  let s = 0;
+                  for (let o = 0; o < L.nout; o++) s += L.W[o * L.nin + i] * d[o];
+                  dp[i] = s * (1 - a[i] * a[i]);
+                }
+              }
+            }
+          }
+          t++;
+          const b1 = 0.9, b2 = 0.999, c1 = 1 - Math.pow(b1, t), c2 = 1 - Math.pow(b2, t);
+          for (let l = 0; l < net.length; l++) {
+            for (const key of ['W', 'b']) {
+              const P = net[l][key], G = g[l][key], M = m[l][key], V = v[l][key];
+              for (let i = 0; i < P.length; i++) {
+                const gi = G[i] / B;
+                M[i] = b1 * M[i] + (1 - b1) * gi;
+                V[i] = b2 * V[i] + (1 - b2) * gi * gi;
+                P[i] -= lr * (M[i] / c1) / (Math.sqrt(V[i] / c2) + 1e-8);
+              }
+            }
+          }
+          lossSum += loss / B;
+        }
+        return lossSum / Math.max(1, k);
+      }
+      return { step, get t() { return t; } };
+    }
+
+    // ---- 部品（量子化の単位）: 重み 32 個と、16 ビットの目盛り1つ ----
+    // 入力の層は列（x の重み 32 個と y の重み 32 個）、ほかの層は行（1つの出口に入る重み）を部品にする
+    function makePieces(net) {
+      const out = [];
+      net.forEach((L, l) => {
+        if (l === 0) {
+          for (let c = 0; c < L.nin; c++) {
+            const idx = new Int32Array(L.nout);
+            for (let r = 0; r < L.nout; r++) idx[r] = r * L.nin + c;
+            out.push({ layer: l, kind: 'col', k: c, idx });
+          }
+        } else {
+          for (let r = 0; r < L.nout; r++) {
+            const idx = new Int32Array(L.nin);
+            for (let i = 0; i < L.nin; i++) idx[i] = r * L.nin + i;
+            out.push({ layer: l, kind: 'row', k: r, idx });
+          }
+        }
+      });
+      return out;
+    }
+    function pieceBits(nw, b) { return b === 0 ? 0 : nw * b + SCALE_BITS; }
+
+    // ---- 一様な量子化。0 を持たない 2^b 段を等間隔に並べ、いちばん外の段の高さを二乗誤差が最小になるように探す ----
+    // b = 0 は部品を消す（全部 0 にする）
+    function quantize(vals, b) {
+      const n = vals.length;
+      if (b === 0) {
+        let e = 0;
+        for (let i = 0; i < n; i++) e += vals[i] * vals[i];
+        return { q: new Float64Array(n), mse: n ? e / n : 0, edge: 0 };
+      }
+      let amax = 0;
+      for (let i = 0; i < n; i++) amax = Math.max(amax, Math.abs(vals[i]));
+      if (amax === 0) return { q: new Float64Array(n), mse: 0, edge: 0 };
+      const levels = 2 ** b;
+      let best = null;
+      for (let k = 20; k <= 100; k += 4) {
+        const edge = amax * k / 100;                 // いちばん外の段の高さ
+        const half = edge / (1 - 1 / levels);        // 段の高さは -half + (c + 0.5) × 幅
+        const w = 2 * half / levels;
+        const q = new Float64Array(n);
+        let e = 0;
+        for (let i = 0; i < n; i++) {
+          let c = Math.floor((vals[i] + half) / w);
+          if (c < 0) c = 0; else if (c > levels - 1) c = levels - 1;
+          q[i] = -half + (c + 0.5) * w;
+          const d = vals[i] - q[i];
+          e += d * d;
+        }
+        if (!best || e < best.e) best = { e, q, edge };
+      }
+      return { q: best.q, mse: best.e / n, edge: best.edge };
+    }
+
+    // ---- 配り方（部品ごとのビット数の並び）を当てたネットワークと、その大きさ ----
+    function applyPlan(net, pcs, plan) {
+      const qn = cloneNet(net);
+      pcs.forEach((pc, i) => {
+        const W = net[pc.layer].W, vals = new Float64Array(pc.idx.length);
+        pc.idx.forEach((wi, j) => { vals[j] = W[wi]; });
+        const { q } = quantize(vals, plan[i]);
+        pc.idx.forEach((wi, j) => { qn[pc.layer].W[wi] = q[j]; });
+      });
+      return qn;
+    }
+    // バイアスは 16 ビットのまま数える
+    function planBits(net, pcs, plan) {
+      let bits = 0;
+      pcs.forEach((pc, i) => { bits += pieceBits(pc.idx.length, plan[i]); });
+      for (const L of net) bits += L.b.length * FLOAT_BITS;
+      return bits;
+    }
+    function fullBits(net) {
+      let n = 0;
+      for (const L of net) n += L.W.length + L.b.length;
+      return n * FLOAT_BITS;
+    }
+    function weightCount(net) {
+      let n = 0;
+      for (const L of net) n += L.W.length;
+      return n;
+    }
+
+    // ---- 元との差（KL(元 ‖ 量子化)、点の平均）と正解率 ----
+    function klDiv(p, q) {
+      let s = 0;
+      for (let c = 0; c < p.length; c++) if (p[c] > 0) s += p[c] * Math.log(p[c] / Math.max(1e-12, q[c]));
+      return s;
+    }
+    function compare(orig, qn, data) {
+      const a1 = makeActs(), a2 = makeActs();
+      let kl = 0, ok = 0;
+      for (let j = 0; j < data.n; j++) {
+        const x = data.X[j * 2], y = data.X[j * 2 + 1];
+        const p = forward(orig, x, y, a1), q = forward(qn, x, y, a2);
+        kl += klDiv(p, q);
+        let arg = 0;
+        for (let c = 1; c < q.length; c++) if (q[c] > q[arg]) arg = c;
+        if (data.Y && arg === data.Y[j]) ok++;
+      }
+      return { kl: kl / Math.max(1, data.n), acc: data.Y ? ok / Math.max(1, data.n) : null };
+    }
+
+    // ---- 部品を1つだけ量子化したときの悪化（KL）を測る。measure(i) で部品 i の全部のビット数を埋める ----
+    // 元の各層の値を覚えておき、重みが変わった層から後ろだけを計算し直す
+    function damageMeter(net, pcs, calib, bitsList) {
+      const n = calib.n, NL = net.length, last = NL - 1;
+      const post = [], pre = [], probs = [];
+      const acts = makeActs();
+      for (let j = 0; j < n; j++) {
+        probs.push(forward(net, calib.X[j * 2], calib.X[j * 2 + 1], acts));
+        post.push(acts.map((a) => Float64Array.from(a)));
+        const pr = [];
+        for (let l = 0; l < NL; l++) {
+          const L = net[l], a = post[j][l], o = new Float64Array(L.nout);
+          for (let r = 0; r < L.nout; r++) {
+            let s = L.b[r];
+            for (let i = 0; i < L.nin; i++) s += L.W[r * L.nin + i] * a[i];
+            o[r] = s;
+          }
+          pr.push(o);
+        }
+        pre.push(pr);
+      }
+      const table = pcs.map(() => new Float64Array(bitsList.length));
+      const mseTable = pcs.map(() => new Float64Array(bitsList.length));
+      const work = SIZES.map((s) => new Float64Array(s));
+      function measure(pi) {
+        const pc = pcs[pi], l0 = pc.layer, L = net[l0];
+        const vals = new Float64Array(pc.idx.length);
+        pc.idx.forEach((wi, k) => { vals[k] = L.W[wi]; });
+        bitsList.forEach((b, bi) => {
+          const { q, mse } = quantize(vals, b);
+          mseTable[pi][bi] = mse;
+          const dw = new Float64Array(q.length);
+          for (let k = 0; k < q.length; k++) dw[k] = q[k] - vals[k];
+          let kl = 0;
+          for (let j = 0; j < n; j++) {
+            const z = work[l0 + 1];
+            z.set(pre[j][l0]);
+            if (pc.kind === 'col') {
+              const xin = post[j][0][pc.k];
+              for (let r = 0; r < L.nout; r++) z[r] += dw[r] * xin;
+            } else {
+              const a = post[j][l0];
+              let s = 0;
+              for (let i = 0; i < L.nin; i++) s += dw[i] * a[i];
+              z[pc.k] += s;
+            }
+            let a = new Float64Array(z.length);
+            for (let r = 0; r < z.length; r++) a[r] = l0 === last ? z[r] : Math.tanh(z[r]);
+            for (let l = l0 + 1; l < NL; l++) {
+              const M = net[l], o = new Float64Array(M.nout);
+              for (let r = 0; r < M.nout; r++) {
+                let s = M.b[r];
+                const base = r * M.nin;
+                for (let i = 0; i < M.nin; i++) s += M.W[base + i] * a[i];
+                o[r] = l === last ? s : Math.tanh(s);
+              }
+              a = o;
+            }
+            kl += klDiv(probs[j], softmax(a));
+          }
+          table[pi][bi] = kl / Math.max(1, n);
+        });
+      }
+      return { table, mseTable, measure };
+    }
+    function damageTable(net, pcs, calib, bitsList) {
+      const m = damageMeter(net, pcs, calib, bitsList);
+      for (let i = 0; i < pcs.length; i++) m.measure(i);
+      return m;
+    }
+
+    // ---- 予算の中で悪化の合計が最小になる組み合わせ ----
+    // 部品ごとに選び方を1つ選ぶナップサック問題を、16 ビット単位の動的計画法で解く。
+    // costs[i][k] は部品 i を k 番目の選び方にしたときのビット数（16 の倍数）。allowed[k] が false の選び方は使わない
+    function allocate(table, costs, budgetBits, allowed) {
+      const U = 16, N = table.length;
+      const cap = Math.floor(budgetBits / U);
+      if (!(cap >= 0)) return null;
+      let dp = new Float64Array(cap + 1).fill(Infinity);
+      dp[0] = 0;
+      const pick = [];
+      for (let i = 0; i < N; i++) {
+        const nd = new Float64Array(cap + 1).fill(Infinity);
+        const pk = new Int8Array(cap + 1).fill(-1);
+        for (let k = 0; k < table[i].length; k++) {
+          if (allowed && !allowed[k]) continue;
+          if (costs[i][k] % U) throw new Error('ビット数は 16 の倍数にする');
+          const c = costs[i][k] / U, d = table[i][k];
+          for (let u = c; u <= cap; u++) {
+            const val = dp[u - c] + d;
+            if (val < nd[u]) { nd[u] = val; pk[u] = k; }
+          }
+        }
+        pick.push(pk);
+        dp = nd;
+      }
+      let bestU = -1;
+      for (let u = 0; u <= cap; u++) if (dp[u] < Infinity && (bestU < 0 || dp[u] < dp[bestU])) bestU = u;
+      if (bestU < 0) return null;
+      const choice = new Int32Array(N);
+      let u = bestU;
+      for (let i = N - 1; i >= 0; i--) {
+        const k = pick[i][u];
+        choice[i] = k;
+        u -= costs[i][k] / U;
+      }
+      return { choice, predicted: dp[bestU], bits: bestU * U };
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const thumb = !!window.THUMB;
+    if (thumb) document.documentElement.classList.add('thumb');
+    const BITS = [0, 1, 2, 3, 4, 6, 8];       // 部品ごとに選べるビット数（0 は消す）
+    const UNI = [1, 2, 3, 4];                 // そろえる側のビット数
+    const CURVE_UNI = [1, 2, 3, 4, 6, 8];
+    const STEPS = thumb ? 1200 : 1600, RES = 72, EXT = 1.15;
+    const cssVar = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim() || '#888';
+    const COL = { fg: cssVar('--fg'), mut: cssVar('--mut'), line: cssVar('--line'), uni: cssVar('--uni'), alloc: cssVar('--alloc'), dmg: cssVar('--dmg') };
+    const CLS = [[95, 200, 176], [240, 180, 90], [180, 156, 255]];
+    const BG = [11, 13, 18];
+    const BIT_COL = { 0: '#2a2f3b', 1: '#22405e', 2: '#295582', 3: '#316ca6', 4: '#3c84c6', 6: '#5fa3df', 8: '#9ccaf2' };
+    const msgEl = $('msg'), bitsIn = $('bits'), bitsOut = $('bitsv'), pruneSw = $('prune'), againBtn = $('again');
+    const sumEl = $('sum'), tbEl = $('tb'), h1El = $('h1'), mapCv = $('map'), crvCv = $('crv');
+    const cvs = [$('c0'), $('c1'), $('c2')], caps = [$('s0'), $('s1'), $('s2')];
+    const pause = () => (globalThis.scheduler && typeof globalThis.scheduler.yield === 'function'
+      ? globalThis.scheduler.yield() : new Promise((r) => setTimeout(r, 0)));
+    const say = (t) => { msgEl.textContent = t; };
+    const bytes = (bits) => Math.round(bits / 8).toLocaleString('ja-JP') + ' バイト';
+    const fmtKL = (v) => (v >= 0.01 ? v.toFixed(3) : v >= 0.0001 ? v.toFixed(4) : v.toExponential(1));
+    const pct = (a) => (a * 100).toFixed(1) + '%';
+    let gen = 0, S = null, seed = 1;
+
+    // 学習 → 部品ごとの悪化を測る。50 ms を超えないように区切り、間で画面と操作に順番を譲る
+    async function build(sd) {
+      const my = ++gen;
+      S = null;
+      againBtn.disabled = true;
+      sumEl.textContent = '';
+      tbEl.replaceChildren();
+      const train = makeSpiral(sd, 120), test = makeSpiral(sd + 1000, 120);
+      const net = initNet(sd);
+      const tr = makeTrainer(net, train, sd);
+      let until = performance.now() + 40;
+      say(`学習しています（0 / ${STEPS} 回）`);
+      while (tr.t < STEPS) {
+        tr.step(10, tr.t < STEPS * 0.62 ? 0.01 : 0.003);
+        if (performance.now() >= until) {
+          say(`学習しています（${tr.t} / ${STEPS} 回）`);
+          await pause();
+          if (my !== gen) return;
+          until = performance.now() + 40;
+        }
+      }
+      const pcs = makePieces(net);
+      // 小窓では測る点を減らして早く描く
+      const calib = thumb ? makeSpiral(sd + 2000, 40) : train;
+      const meter = damageMeter(net, pcs, calib, BITS);
+      for (let i = 0; i < pcs.length; i++) {
+        meter.measure(i);
+        if (performance.now() >= until) {
+          say(`部品を1つずつ量子化して、悪化を測っています（${i + 1} / ${pcs.length}）`);
+          await pause();
+          if (my !== gen) return;
+          until = performance.now() + 40;
+        }
+      }
+      const W = weightCount(net), full = fullBits(net);
+      const st = {
+        seed: sd, net, train: calib, test, pcs, table: meter.table, W, full, fixed: full - W * FLOAT_BITS,
+        costs: pcs.map((p) => BITS.map((b) => pieceBits(p.idx.length, b))),
+        orig: compare(net, net, test), rows: new Map(), curves: new Map(), imgs: new Map([['orig', probImage(net)]]),
+      };
+      S = st;
+      againBtn.disabled = false;
+      msgEl.hidden = thumb;
+      say(`種 ${sd} で学習しました。重み ${W.toLocaleString('ja-JP')} 個を 32 個ずつ ${pcs.length} 個の部品に分け、部品ごとに ${BITS.length} 通りのビット数で悪化を測りました。`);
+      render();
+      if (!thumb) await ensureCurve(st, pruneSw.checked);
+    }
+
+    // そろえた b ビットと、同じ大きさで配分したもの
+    function row(st, b, prune) {
+      const key = b + (prune ? 'p' : 'n');
+      if (st.rows.has(key)) return st.rows.get(key);
+      const uplan = st.pcs.map(() => b);
+      const uq = applyPlan(st.net, st.pcs, uplan);
+      const ubits = planBits(st.net, st.pcs, uplan);
+      const allowed = BITS.map((x) => prune || x > 0);
+      const a = allocate(st.table, st.costs, ubits - st.fixed, allowed);
+      const plan = Array.from(a.choice, (k) => BITS[k]);
+      const aq = applyPlan(st.net, st.pcs, plan);
+      const r = {
+        b, key, uq, aq, plan, ubits, abits: planBits(st.net, st.pcs, plan),
+        u: compare(st.net, uq, st.test), al: compare(st.net, aq, st.test),
+        predicted: a.predicted, actual: compare(st.net, aq, st.train).kl,
+        pruned: plan.filter((x) => x === 0).length,
+      };
+      st.rows.set(key, r);
+      return r;
+    }
+
+    // 予算を 40 バイトずつ変えて配分し、大きさと KL の線を作る
+    async function ensureCurve(st, prune) {
+      const key = prune ? 'p' : 'n';
+      if (st.curves.has(key) || st.curves.has(key + '-busy')) return;
+      st.curves.set(key + '-busy', true);
+      const allowed = BITS.map((x) => prune || x > 0);
+      const pts = [];
+      let until = performance.now() + 40;
+      for (let B = 400; B <= 2600; B += 40) {
+        const a = allocate(st.table, st.costs, B * 8 - st.fixed, allowed);
+        if (a) {
+          const plan = Array.from(a.choice, (k) => BITS[k]);
+          pts.push({ bits: planBits(st.net, st.pcs, plan), kl: compare(st.net, applyPlan(st.net, st.pcs, plan), st.test).kl });
+        }
+        if (performance.now() >= until) {
+          await pause();
+          if (S !== st) return;
+          until = performance.now() + 40;
+        }
+      }
+      const uni = CURVE_UNI.map((b) => {
+        const plan = st.pcs.map(() => b);
+        return { b, bits: planBits(st.net, st.pcs, plan), kl: compare(st.net, applyPlan(st.net, st.pcs, plan), st.test).kl };
+      });
+      st.curves.delete(key + '-busy');
+      st.curves.set(key, { pts, uni });
+      if (S === st) render();
+    }
+
+    // 平面の各点で確率を求め、3色を混ぜた小さな絵にする（自信があるほど濃い）
+    function probImage(net) {
+      const c = document.createElement('canvas');
+      c.width = RES; c.height = RES;
+      const g = c.getContext('2d');
+      const im = g.createImageData(RES, RES);
+      const acts = makeActs();
+      for (let py = 0; py < RES; py++) {
+        for (let px = 0; px < RES; px++) {
+          const x = ((px + 0.5) / RES * 2 - 1) * EXT, y = (1 - (py + 0.5) / RES * 2) * EXT;
+          const p = forward(net, x, y, acts);
+          let r = 0, gg = 0, bb = 0, mx = 0;
+          for (let k = 0; k < 3; k++) {
+            r += p[k] * CLS[k][0]; gg += p[k] * CLS[k][1]; bb += p[k] * CLS[k][2];
+            mx = Math.max(mx, p[k]);
+          }
+          const t = 0.2 + 0.6 * (mx - 1 / 3) * 1.5;
+          const o = (py * RES + px) * 4;
+          im.data[o] = BG[0] + (r - BG[0]) * t;
+          im.data[o + 1] = BG[1] + (gg - BG[1]) * t;
+          im.data[o + 2] = BG[2] + (bb - BG[2]) * t;
+          im.data[o + 3] = 255;
+        }
+      }
+      g.putImageData(im, 0, 0);
+      return c;
+    }
+
+    function fit(c) {
+      const rc = c.getBoundingClientRect();
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const w = Math.max(1, Math.round(rc.width * dpr)), h = Math.max(1, Math.round(rc.height * dpr));
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+      return { g: c.getContext('2d'), w, h, dpr };
+    }
+
+    // 見分け方の図と、学習に使っていない点（間違えた点は白い縁）
+    function drawPanel(c, img, net, st) {
+      const { g, w, h, dpr } = fit(c);
+      g.imageSmoothingEnabled = true;
+      g.drawImage(img, 0, 0, w, h);
+      const acts = makeActs(), T = st.test;
+      const rad = Math.max(1.2, (thumb ? 1.4 : 2.2) * dpr * Math.min(1, w / (220 * dpr)));
+      let wrong = 0;
+      for (let j = 0; j < T.n; j++) {
+        const x = T.X[j * 2], y = T.X[j * 2 + 1];
+        const p = forward(net, x, y, acts);
+        let arg = 0;
+        for (let k = 1; k < 3; k++) if (p[k] > p[arg]) arg = k;
+        const ok = arg === T.Y[j];
+        if (!ok) wrong++;
+        const cc = CLS[T.Y[j]];
+        g.beginPath();
+        g.arc((x / EXT + 1) / 2 * w, (1 - y / EXT) / 2 * h, ok ? rad : rad * 1.3, 0, Math.PI * 2);
+        g.fillStyle = `rgb(${cc[0]},${cc[1]},${cc[2]})`;
+        g.fill();
+        g.lineWidth = ok ? (thumb ? 0.4 : 0.8) * dpr : (thumb ? 1 : 1.6) * dpr;
+        g.strokeStyle = ok ? 'rgba(0,0,0,.7)' : '#fff';
+        g.stroke();
+      }
+      return wrong;
+    }
+
+    // 上に「その部品だけを 2 ビットにしたときの悪化」の棒、下に配ったビット数
+    function drawMap(st, r) {
+      const { g, w, h, dpr } = fit(mapCv);
+      g.clearRect(0, 0, w, h);
+      const groups = [['入力', 0], ['1 層', 1], ['2 層', 2], ['出力', 3]];
+      const lw = 40 * dpr, rowH = h / groups.length, cw = (w - lw - 4 * dpr) / 32;
+      const k2 = BITS.indexOf(2), barH = rowH * 0.48, gap = 3 * dpr;
+      g.textBaseline = 'middle';
+      groups.forEach(([label, layer], gi) => {
+        const y0 = gi * rowH;
+        g.fillStyle = COL.mut;
+        g.font = `${11 * dpr}px system-ui, sans-serif`;
+        g.textAlign = 'left';
+        g.fillText(label, 2 * dpr, y0 + rowH / 2);
+        // 10 倍ごとの目盛りの線（1e-7 〜 1）
+        g.strokeStyle = COL.line;
+        g.lineWidth = 1;
+        for (let e = 0; e <= 7; e++) {
+          const yy = Math.round(y0 + gap + barH * (e / 7)) + 0.5;
+          g.globalAlpha = e === 0 || e === 7 ? 0.9 : 0.35;
+          g.beginPath(); g.moveTo(lw, yy); g.lineTo(w - 4 * dpr, yy); g.stroke();
+        }
+        g.globalAlpha = 1;
+        let j = 0;
+        st.pcs.forEach((pc, pi) => {
+          if (pc.layer !== layer) return;
+          const x = lw + j * cw;
+          j++;
+          const d = st.table[pi][k2];
+          const v = Math.max(0, Math.min(1, (Math.log10(Math.max(d, 1e-7)) + 7) / 7));
+          g.fillStyle = COL.dmg;
+          g.fillRect(x + 1, y0 + gap + barH * (1 - v), Math.max(1, cw - 2), barH * v);
+          const b = r.plan[pi], cy = y0 + gap * 2 + barH, ch = rowH - barH - gap * 3;
+          g.fillStyle = BIT_COL[b];
+          g.fillRect(x + 1, cy, Math.max(1, cw - 2), ch);
+          if (cw >= 10 * dpr) {
+            g.fillStyle = b >= 6 ? '#0d1420' : '#e4e8f0';
+            g.textAlign = 'center';
+            g.font = `${Math.min(12, cw / dpr - 1) * dpr}px system-ui, sans-serif`;
+            g.fillText(b === 0 ? '×' : String(b), x + cw / 2, cy + ch / 2);
+          }
+        });
+      });
+    }
+
+    // 横は大きさ（バイト）、縦は KL（対数目盛り）
+    function drawCurve(st, r, prune) {
+      const { g, w, h, dpr } = fit(crvCv);
+      g.clearRect(0, 0, w, h);
+      const cur = st.curves.get(prune ? 'p' : 'n');
+      const L = 44 * dpr, R = 10 * dpr, T = 10 * dpr, B = 22 * dpr;
+      const x0 = 400, x1 = 2600, y0 = -5, y1 = 0.5;
+      const X = (bits) => L + (bits / 8 - x0) / (x1 - x0) * (w - L - R);
+      const Y = (kl) => T + (y1 - Math.max(y0, Math.min(y1, Math.log10(Math.max(kl, 1e-9))))) / (y1 - y0) * (h - T - B);
+      g.strokeStyle = COL.line;
+      g.lineWidth = 1;
+      g.fillStyle = COL.mut;
+      g.font = `${10.5 * dpr}px system-ui, sans-serif`;
+      for (let e = y0; e <= 0; e++) {
+        const y = Math.round(Y(10 ** e)) + 0.5;
+        g.beginPath(); g.moveTo(L, y); g.lineTo(w - R, y); g.stroke();
+        g.textAlign = 'right'; g.textBaseline = 'middle';
+        g.fillText(e === 0 ? '1' : '1e' + e, L - 4 * dpr, y);
+      }
+      for (let bx = 500; bx <= 2500; bx += 500) {
+        const x = Math.round(X(bx * 8)) + 0.5;
+        g.beginPath(); g.moveTo(x, T); g.lineTo(x, h - B); g.stroke();
+        g.textAlign = 'center'; g.textBaseline = 'top';
+        g.fillText(bx.toLocaleString('ja-JP') + ' B', x, h - B + 5 * dpr);
+      }
+      const xc = Math.round(X(r.ubits)) + 0.5;
+      g.strokeStyle = COL.fg;
+      g.setLineDash([4 * dpr, 4 * dpr]);
+      g.beginPath(); g.moveTo(xc, T); g.lineTo(xc, h - B); g.stroke();
+      g.setLineDash([]);
+      if (!cur) {
+        g.fillStyle = COL.mut; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText('配分の線を計算しています', (L + w - R) / 2, h / 2);
+        return;
+      }
+      g.strokeStyle = COL.alloc;
+      g.lineWidth = 2 * dpr;
+      g.lineJoin = 'round';
+      g.beginPath();
+      cur.pts.forEach((p, i) => { const x = X(p.bits), y = Y(p.kl); if (i) g.lineTo(x, y); else g.moveTo(x, y); });
+      g.stroke();
+      cur.uni.forEach((u) => {
+        const x = X(u.bits), y = Y(u.kl);
+        g.fillStyle = COL.uni;
+        g.beginPath(); g.arc(x, y, 4 * dpr, 0, Math.PI * 2); g.fill();
+        g.fillStyle = COL.fg; g.textAlign = 'center'; g.textBaseline = 'bottom';
+        g.fillText(String(u.b), x, y - 5 * dpr);
+      });
+    }
+
+    function renderTable(st, prune) {
+      const b0 = +bitsIn.value;
+      tbEl.replaceChildren(...UNI.map((b) => {
+        const r = row(st, b, prune);
+        const tr = document.createElement('tr');
+        if (b === b0) tr.className = 'cur';
+        const cells = [`${b} ビット・${bytes(r.ubits)}`, fmtKL(r.u.kl), pct(r.u.acc), fmtKL(r.al.kl), pct(r.al.acc), `${fmtKL(r.predicted)} → ${fmtKL(r.actual)}`, `${r.pruned} 個`];
+        cells.forEach((t, i) => {
+          const c = document.createElement(i ? 'td' : 'th');
+          if (!i) c.scope = 'row';
+          c.textContent = t;
+          tr.append(c);
+        });
+        return tr;
+      }));
+    }
+
+    function render() {
+      const b = +bitsIn.value, prune = pruneSw.checked;
+      bitsOut.textContent = `${b} ビット（目盛りを入れて重み1つあたり ${b + 0.5} ビット）`;
+      bitsIn.setAttribute('aria-valuetext', `${b} ビット`);
+      h1El.textContent = `そろえた ${b} ビット`;
+      const st = S;
+      if (!st) return;
+      const r = row(st, b, prune);
+      if (!st.imgs.has('u' + b)) st.imgs.set('u' + b, probImage(r.uq));
+      if (!st.imgs.has('a' + r.key)) st.imgs.set('a' + r.key, probImage(r.aq));
+      drawPanel(cvs[0], st.imgs.get('orig'), st.net, st);
+      drawPanel(cvs[1], st.imgs.get('u' + b), r.uq, st);
+      drawPanel(cvs[2], st.imgs.get('a' + r.key), r.aq, st);
+      if (thumb) {
+        caps[0].textContent = `正解率 ${pct(st.orig.acc)}`;
+        caps[1].textContent = `正解率 ${pct(r.u.acc)}`;
+        caps[2].textContent = `正解率 ${pct(r.al.acc)}`;
+      } else {
+        caps[0].textContent = `${bytes(st.full)}・正解率 ${pct(st.orig.acc)}`;
+        caps[1].textContent = `${bytes(r.ubits)}・KL ${fmtKL(r.u.kl)}・正解率 ${pct(r.u.acc)}`;
+        caps[2].textContent = `${bytes(r.abits)}・KL ${fmtKL(r.al.kl)}・正解率 ${pct(r.al.acc)}`;
+      }
+      cvs[0].setAttribute('aria-label', `元のネットワークが平面をどう見分けるかの図。正解率 ${pct(st.orig.acc)}`);
+      cvs[1].setAttribute('aria-label', `全部の部品を ${b} ビットにしたネットワークの図。正解率 ${pct(r.u.acc)}`);
+      cvs[2].setAttribute('aria-label', `同じ大きさでビット数を配り分けたネットワークの図。正解率 ${pct(r.al.acc)}`);
+      if (thumb) return;
+      const cur = st.curves.get(prune ? 'p' : 'n');
+      let same = '';
+      if (cur) {
+        let hit = null;
+        for (const p of cur.pts) if (p.kl <= r.u.kl && (!hit || p.bits < hit.bits)) hit = p;
+        if (hit && hit.bits < r.ubits) same = `そろえた ${b} ビットと同じくらい元に近いもの（KL ${fmtKL(r.u.kl)} 以下）は、配分すると約 ${bytes(hit.bits)}（${Math.round(hit.bits / r.ubits * 100)}%）で作れた。`;
+      }
+      const inBits = r.plan.slice(0, 2).join('・');
+      const samePlan = !prune && r.plan.every((x) => x === b);
+      sumEl.textContent = samePlan
+        ? `部品を消せないときは、${b} ビットより少ない選び方が無いので、${bytes(r.ubits)}では配分しても全部 ${b} ビットのままになる。` + same
+        : `同じ ${bytes(r.ubits)}で、そろえた ${b} ビットは正解率 ${pct(r.u.acc)}、配分すると ${pct(r.al.acc)}。入力の層の2つの部品には ${inBits} ビットを配り、${r.pruned} 個の部品を消した。` + same;
+      drawMap(st, r);
+      mapCv.setAttribute('aria-label', `部品ごとの悪化と配ったビット数の図。入力の層の部品に ${inBits} ビット、消した部品は ${r.pruned} 個`);
+      drawCurve(st, r, prune);
+      crvCv.setAttribute('aria-label', `大きさと元との差の図。今の大きさは ${bytes(r.ubits)}`);
+      renderTable(st, prune);
+    }
+
+    bitsIn.addEventListener('input', render);
+    pruneSw.addEventListener('change', () => {
+      render();
+      if (S && !thumb) ensureCurve(S, pruneSw.checked);
+    });
+    againBtn.addEventListener('click', () => { seed++; build(seed); });
+    // 幅が変わったときだけ描き直す。表や文の書き換えで高さが変わっても、観察の通知の中では描かない
+    let lastW = -1;
+    new ResizeObserver((ents) => {
+      const w = Math.round(ents[0].contentRect.width);
+      if (w === lastW) return;
+      lastW = w;
+      setTimeout(render, 0);
+    }).observe(document.querySelector('.wrap'));
+
+    if (thumb) {
+      // 小窓では、そろえる側のビット数を 1 → 2 → 3 → 2 と自動で変えて見せる
+      const seq = [1, 2, 3, 2];
+      let i = 0;
+      bitsIn.value = seq[0];
+      setInterval(() => {
+        if (!S) return;
+        i = (i + 1) % seq.length;
+        bitsIn.value = seq[i];
+        render();
+      }, 2400);
+    }
+    build(seed);
+  },
+});
