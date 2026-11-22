@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 5 章 ドラッグ＆ドロップ ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="0.2 の後の 1 つ目として、窓の中のドラッグ＆ドロップを足しました。型で受け取る物を決める書き方、押してから引っ張り始めるまでの状態、本物の窓で見つかった不具合、ついでに直した並べ方の決まりを、図とスクリーンショットで紹介します。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 5 章</p>
+  <h1>ドラッグ＆ドロップ</h1>
+  <p class="lede">0.2 の後の 1 つ目として、窓の中のドラッグ＆ドロップを足しました。一覧の並べ替え・タブの入れ替え・ドッキングなど、後で作る物の土台になるからです。この章では、書き方の決め方、押してから落とすまでの状態、本物の窓で見つかった不具合を順に書きます。途中で、並べ方の決まり（<code>Size::Fill</code>）も直しました。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>荷物の型で「どこに落とせるか」を決める書き方</li>
+      <li>クリックと引っ張りを見分ける決まり（Windows と同じ 4 ピクセル）</li>
+      <li>押す・動かす・離すが 1 回にまとめて届いても落とせる作り</li>
+      <li>本物の窓で見つかった不具合 3 つと、並べ方の決まりの直し</li>
+    </ul>
+  </section>
+
+  <h2 id="api">書き方: 型で受け取る物を決める</h2>
+  <p>引っ張り出す部品に <code>.drag_source(荷物)</code> を付け、受け取る部品に <code>.dropped::&lt;型&gt;()</code> を付けます。同じ型の荷物が落とされた時だけ、<code>Some(荷物)</code> が返ります。Dear ImGui と egui の「型付きの荷物」と同じ考え方です。</p>
+<pre><code>#[derive(Clone, Copy)]
+struct Card(usize);
+
+for (k, name) in todo.iter().enumerate() {
+    ui.label(name).drag_source(Card(k));
+}
+let mut done_column = ui.column(|ui| {
+    ui.heading("済み");
+});
+if let Some(Card(k)) = done_column.dropped::&lt;Card&gt;() {
+    done.push(todo.remove(k));
+}</code></pre>
+  <p>型で決めるので、カードを「ごみ箱」に落とす、ファイルを「カードの列」に落とす、といった取り違えは起きません。受け取れない所の上では、ポインターが禁止の形になります。</p>
+  <!-- gen:ddshot -->
+<figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/drag_and_drop-dark.webp"><img src="img/shots/drag_and_drop-light.webp" alt="To do の列から Done の列へカードを引っ張っている途中。Done の列が囲まれ、カードの影がポインターについている" width="440" height="200" loading="lazy" decoding="async"></picture><figcaption>引っ張っている途中。受け取る「Done」の列を主の色で囲み、元のカードの名前を書いた箱がポインターについて動く。</figcaption></figure>
+<!-- /gen:ddshot -->
+
+  <h2 id="state">押してから落とすまで</h2>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 300" role="img" aria-labelledby="st-title st-desc">
+      <title id="st-title">ドラッグ＆ドロップの状態</title>
+      <desc id="st-desc">押した状態から、横か縦に 4 ピクセルより動かすと引っ張り中になる。動かさずに離せばクリック。引っ張り中に受け取る部品の上で離すと落とす。受け取る部品の外で離すか、Esc を押すか、マウスのつかみが外れると取り消す。</desc>
+      <defs>
+        <marker id="ah5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrow-head"/></marker>
+        <marker id="lh5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="loop-head"/></marker>
+      </defs>
+      <rect class="box-soft" x="20" y="110" width="150" height="64" rx="10"/>
+      <text class="label" x="38" y="138">押した</text>
+      <text class="sub" x="38" y="158">引っ張り出せる部品の上</text>
+      <rect class="box" x="275" y="110" width="170" height="64" rx="10"/>
+      <text class="label" x="293" y="138">引っ張り中</text>
+      <text class="sub" x="293" y="158">影がポインターについて動く</text>
+      <rect class="box" x="550" y="30" width="150" height="64" rx="10"/>
+      <text class="label" x="568" y="58">落とす</text>
+      <text class="sub" x="568" y="78">dropped() が Some</text>
+      <rect class="box-warn" x="550" y="190" width="150" height="64" rx="10"/>
+      <text class="label" x="568" y="218">取り消す</text>
+      <text class="sub" x="568" y="238">何も起きない</text>
+      <rect class="box" x="20" y="230" width="150" height="50" rx="10"/>
+      <text class="label" x="38" y="260">クリック</text>
+      <path class="arrow" d="M172 142 H272" marker-end="url(#ah5)"/>
+      <text class="sub" x="180" y="132">横か縦に 4 より動く</text>
+      <path class="arrow" d="M95 176 V228" marker-end="url(#ah5)"/>
+      <text class="sub" x="102" y="208">動かさずに離す</text>
+      <path class="arrow" d="M447 130 L548 70" marker-end="url(#ah5)"/>
+      <text class="sub" x="440" y="84">受け取る部品の上で離す</text>
+      <path class="loop" d="M447 156 L548 216" marker-end="url(#lh5)"/>
+      <text class="loop-text" x="452" y="252">外で離す・Esc・</text>
+      <text class="loop-text" x="452" y="270">つかみが外れる</text>
+    </svg>
+    <figcaption>ドラッグ＆ドロップの状態。引っ張っている間に受け取る部品の上を通ると、その部品を主の色で囲む。</figcaption>
+  </figure>
+
+  <h3>1 回にまとめて届いても落とす</h3>
+  <p>素早く動かすと、押す・動かす・離すの 3 つが、1 フレームの間にまとめて届くことがあります。荷物はアプリの <code>view</code> の中で <code>.drag_source(荷物)</code> が渡す値なので、入力を振り分けている時点では、まだ手元にありません。</p>
+  <p>そこで、離した時には「どこに落としたか」だけを覚えます。荷物は、そのフレームの <code>view</code> で元の部品の <code>.drag_source</code> が呼ばれた時に受け取ります。受け取る部品の方が先に作られた場合は、その回では受け取らず、同じフレームの次の回（描く回）で渡します。第 1 章の「ビューを何回も呼ぶ」仕組みが、ここで役に立ちました。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 荷物を 1 回だけ受け取れば、Clone が要らない</span>
+    <p>荷物を受け取るのは、引っ張り始めた後の 1 回だけです。毎フレーム作り直さないので、荷物の型に <code>Clone</code> を求めずに済みました。ファイルのハンドルのような、写せない値も運べます。</p>
+  </div>
+
+  <h2 id="bugs">見つかった不具合</h2>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-bugs">
+    <table>
+      <caption id="t-bugs">ドラッグ＆ドロップで見つかった不具合</caption>
+      <thead><tr><th scope="col">起きたこと</th><th scope="col">原因</th><th scope="col">見つけ方</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">ラベルの上から押すと、引っ張りが始まらない</th><td data-label="原因">窓は「押している部品がある時」だけ、マウスの動きを kargui に渡していた。ラベルは押す対象ではない</td><td data-label="見つけ方">窓の処理を読んで見つけた（試験台は動きを直接送るので、試験では出ない）</td></tr>
+        <tr><th scope="row">「移す」ボタンを押すと、メニューが開かずに引っ張りが始まる</th><td data-label="原因">押した点からの距離（√(2²+4²) ≈ 4.5）を 4 と比べていた。Windows は横と縦を別々に比べる</td><td data-label="見つけ方">作者が本物の窓で試した記録（横 2・縦 4 のずれ）</td></tr>
+        <tr><th scope="row">Esc で取り消した後も、ボタンを押したままだと禁止の形が残る</th><td data-label="原因">マウスをつかんでいる間は、OS がポインターの形を聞いてこない（WM_SETCURSOR が来ない）</td><td data-label="見つけ方">ポインターの形の記録を足す時に、コードを読んで見つけた</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい書き方: クリックと引っ張りを、距離で見分ける</span>
+    <p>押した点からの距離で比べると、斜めの小さなずれで引っ張りが始まり、クリックが消えます。Windows の SM_CXDRAG・SM_CYDRAG と同じく、横か縦のどちらかが 4 ピクセルを超えた時に始めてください。作者の記録と同じずれ（横 2・縦 4）がクリックになることを、試験で確かめています。</p>
+  </div>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい作り方: 引っ張る操作だけを用意する</span>
+    <p>引っ張る操作は、手が思うように動かない人には難しく、キーボードや読み上げソフトではできません。WCAG 2.2 の 2.5.7 も、引っ張らずにできる別のやり方を求めています。見本のカードの板は、どのカードにも「移す」メニュー（ほかの列へ・上へ・下へ）を置いています。</p>
+  </div>
+
+  <h2 id="fill">ついでに直した並べ方の決まり</h2>
+  <p>見本のカードの板を撮ると、3 つの列の幅がそろっていませんでした。3 つとも同じ重みの <code>Size::Fill(1.0)</code> なのに、入力欄のある 1 列目だけが広くなっていました。</p>
+  <p>原因は、<code>Fill</code> の長さを「中身の長さ ＋ 残りの取り分」で決めていたことです。同じ取り分を足しても、中身の長い子は広くなります。WinUI の Grid の <code>*</code> や CSS の <code>flex: 1</code> は、同じ重みなら中身に関わらず同じ長さにします。kargui もそれに合わせ、「重みどおりに分け、中身より短くはしない」に直しました。</p>
+  <!-- gen:fill -->
+<div class="pair">
+  <figure class="bars" id="c-fill-old">
+    <figcaption><span class="bars-title">直す前: 3 つの Fill(1.0) の幅</span><span class="bars-hint">中身 250・80・80、全体 900</span></figcaption>
+    <div class="bar-rows">
+      <div class="bar-row" data-v="old"><span class="bar-name">1 列目</span><span class="bar-track"><span class="bar" style="--w: 98.3%"></span><span class="bar-val">413</span></span></div>
+      <div class="bar-row" data-v="old"><span class="bar-name">2 列目</span><span class="bar-track"><span class="bar" style="--w: 57.9%"></span><span class="bar-val">243</span></span></div>
+      <div class="bar-row" data-v="old"><span class="bar-name">3 列目</span><span class="bar-track"><span class="bar" style="--w: 57.9%"></span><span class="bar-val">243</span></span></div>
+    </div>
+  </figure>
+  <figure class="bars" id="c-fill-new">
+    <figcaption><span class="bars-title">直した後: 3 つの Fill(1.0) の幅</span><span class="bars-hint">同じ重みなら同じ幅</span></figcaption>
+    <div class="bar-rows">
+      <div class="bar-row" data-v="new"><span class="bar-name">1 列目</span><span class="bar-track"><span class="bar" style="--w: 71.4%"></span><span class="bar-val">300</span></span></div>
+      <div class="bar-row" data-v="new"><span class="bar-name">2 列目</span><span class="bar-track"><span class="bar" style="--w: 71.4%"></span><span class="bar-val">300</span></span></div>
+      <div class="bar-row" data-v="new"><span class="bar-name">3 列目</span><span class="bar-track"><span class="bar" style="--w: 71.4%"></span><span class="bar-val">300</span></span></div>
+    </div>
+  </figure>
+</div>
+<p class="small">並べ方の試験と同じ数字です。直す前の値は、試験を先に書いて今の作りで走らせた時に出た値です。</p>
+<!-- /gen:fill -->
+  <p>直した後の決まりでも、中身が取り分より長い子は中身の長さで止まります。カードの板の 1 列目は入力欄とボタンの中身が取り分より広いので、少し広いままです。2 列目と 3 列目は同じ幅になりました。今ある写真は、この直しで 1 枚も変わりませんでした。<code>Fill</code> が 1 つだけの行（入力欄とボタンなど）は、前と同じ結果になるからです。</p>
+  <!-- gen:board -->
+<figure class="shot"><picture><source media="(prefers-color-scheme: dark)" srcset="img/apps/board-dark.webp"><img src="img/apps/board-light.webp" alt="カードの板の見本。3 つの列にカードが並び、どのカードにも「移す」ボタンがある" width="761" height="491" loading="lazy" decoding="async"></picture><figcaption>カードの板（<code>examples/board</code>）。カードは引っ張っても、「移す」メニューからも移せる。</figcaption></figure>
+<!-- /gen:board -->
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="04-release.html">← 第 4 章 CI を初めて回した日と 0.2.0</a>
+    <a href="./">目次 →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>

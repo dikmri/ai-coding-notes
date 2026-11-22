@@ -1,0 +1,145 @@
+/* kargui 開発レポート（連載）の共通の見た目。サイト共通の css/site.css の上に重ねる */
+
+.dev {
+  /* 版の色（グラフ・表・札で同じ色を使う）。kargui の色は作成記録と同じ */
+  --c-v010: light-dark(#9a8f7c, #8a8170);
+  --c-v020: light-dark(#d07a5f, #c46a50);
+  --c-now: light-dark(#b8321c, #e0614a);
+  --c-old: light-dark(#9a8f7c, #8a8170);
+  --c-new: light-dark(#b8321c, #e0614a);
+  --c-flow: light-dark(#26407c, #9db6ff);
+  --c-flow-soft: light-dark(#e7ecf7, #1f2638);
+  max-inline-size: 60rem;
+  margin-inline: auto;
+  padding: 2rem 1rem 5rem;
+  font-size: 0.9375rem;
+}
+/* light-dark() が使えないブラウザでも、OS の明暗に合わせる */
+@media (prefers-color-scheme: dark) {
+  .dev { --c-v010: #8a8170; --c-v020: #c46a50; --c-now: #e0614a; --c-old: #8a8170; --c-new: #e0614a; --c-flow: #9db6ff; --c-flow-soft: #1f2638; }
+}
+@supports (color: light-dark(white, black)) {
+  .dev {
+    --c-v010: light-dark(#9a8f7c, #8a8170);
+    --c-v020: light-dark(#d07a5f, #c46a50);
+    --c-now: light-dark(#b8321c, #e0614a);
+    --c-old: light-dark(#9a8f7c, #8a8170);
+    --c-new: light-dark(#b8321c, #e0614a);
+    --c-flow: light-dark(#26407c, #9db6ff);
+    --c-flow-soft: light-dark(#e7ecf7, #1f2638);
+  }
+}
+
+.dev :is(p, ul, ol, .note, .pitfall, .insight, details) { max-inline-size: 44rem; }
+.dev p, .dev li { text-wrap: pretty; line-height: 1.85; }
+.dev a { overflow-wrap: anywhere; }
+.dev .kicker { margin: 0; color: var(--ink-2); font-weight: 600; font-size: 0.875rem; }
+.dev h1 { margin: 0.2em 0 0.4em; font: 800 clamp(1.6rem, 1.2rem + 1.6vw, 2.4rem)/1.3 var(--serif); text-wrap: balance; }
+.dev .lede { font-size: 1.0625rem; }
+.dev h2 { margin: 3.5rem 0 1rem; padding-top: 0.6em; border-top: 2px solid var(--ink); font: 700 clamp(1.25rem, 1.1rem + 0.6vw, 1.6rem)/1.4 var(--serif); text-wrap: balance; }
+.dev h3 { margin: 2.2rem 0 0.6rem; font-size: 1.0625rem; }
+.dev figure { margin: 1.8rem 0; }
+.dev figcaption { margin-top: 0.6rem; color: var(--ink-2); font-size: 0.875rem; line-height: 1.7; }
+.dev .small { color: var(--ink-2); font-size: 0.875rem; }
+.dev code { font-family: var(--mono); font-size: 0.875em; }
+.dev pre {
+  max-inline-size: 44rem; overflow-x: auto; padding: 0.9rem 1rem; border: 1px solid var(--rule); border-radius: var(--r);
+  background: var(--card); font: 0.8125rem/1.6 var(--mono);
+}
+.dev pre code { font-size: inherit; }
+
+/* この章で分かること（章の頭） */
+.dev .learn { margin: 1.5rem 0; padding: 1rem 1.2rem; border-radius: var(--r); background: var(--paper-2); max-inline-size: 44rem; }
+.dev .learn > h2, .dev .learn > p:first-child { margin: 0 0 0.4rem; padding: 0; border: 0; font: 700 0.9375rem/1.5 var(--sans); }
+.dev .learn ul { margin: 0; padding-inline-start: 1.2em; }
+
+/* 囲み: 補足・やめた方がいい書き方・分かったこと */
+.dev .note, .dev .pitfall, .dev .insight { margin: 1.5rem 0; padding: 1rem 1.2rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
+.dev .pitfall { border-inline-start: 6px solid var(--shu); }
+.dev .insight { border-inline-start: 6px solid var(--ai); }
+.dev :is(.note, .pitfall, .insight) > :first-child { margin-top: 0; }
+.dev :is(.note, .pitfall, .insight) > :last-child { margin-bottom: 0; }
+.dev .box-title { display: block; margin-bottom: 0.3rem; font-weight: 700; }
+
+/* スクリーンショット */
+.dev .shot img { display: block; inline-size: auto; max-inline-size: 100%; block-size: auto; border-radius: 10px; box-shadow: var(--lift); }
+.dev .shot.flat img { box-shadow: none; border: 1px solid var(--rule); }
+.dev .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); gap: 1.4rem 1.2rem; align-items: start; }
+.dev .gallery figure { margin: 0; }
+.dev .gallery img { inline-size: 100%; block-size: auto; border-radius: 8px; border: 1px solid var(--rule); background: var(--card); }
+.dev .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: 1rem; align-items: start; }
+.dev .pair figure { margin: 0; }
+
+/* 図解（SVG）: 色は CSS の値から取る */
+.dev .diagram { overflow-x: auto; }
+.dev .diagram svg { display: block; inline-size: 100%; min-inline-size: 36rem; max-inline-size: 45rem; block-size: auto; font-family: var(--sans); }
+.dev .diagram .box { fill: var(--card); stroke: var(--c-flow); stroke-width: 1.5; }
+.dev .diagram .box-soft { fill: var(--c-flow-soft); stroke: var(--c-flow); stroke-width: 1.5; }
+.dev .diagram .box-warn { fill: var(--card); stroke: var(--shu); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.dev .diagram .label { fill: var(--ink); font-size: 14px; font-weight: 600; }
+.dev .diagram .sub { fill: var(--ink-2); font-size: 12px; }
+.dev .diagram .arrow { stroke: var(--ink-2); stroke-width: 1.5; fill: none; }
+.dev .diagram .arrow-head { fill: var(--ink-2); }
+.dev .diagram .loop { stroke: var(--shu); stroke-width: 1.5; fill: none; stroke-dasharray: 4 3; }
+.dev .diagram .loop-head { fill: var(--shu); }
+.dev .diagram .loop-text { fill: var(--shu); font-size: 12px; font-weight: 600; }
+
+/* 棒グラフ（作成記録と同じ形） */
+.dev .bars { margin: 1.5rem 0; max-inline-size: 44rem; }
+.dev .bars figcaption { display: flex; flex-wrap: wrap; gap: 0.2em 0.8em; align-items: baseline; margin: 0 0 0.6rem; color: var(--ink); font-size: 0.9375rem; }
+.dev .bars-title { font-weight: 700; }
+.dev .bars-hint { color: var(--ink-2); font-size: 0.8125rem; }
+.dev .bar-rows { display: grid; gap: 6px; }
+.dev .bar-row { display: grid; grid-template-columns: 7.5em 1fr; align-items: center; gap: 0.6em; }
+.dev .bar-name { font-size: 0.875rem; font-weight: 600; text-align: end; }
+.dev .bar-track { display: flex; align-items: center; gap: 0.5em; border-inline-start: 1px solid var(--ink-3); min-block-size: 24px; }
+.dev .bar { display: block; inline-size: max(2px, calc(var(--w) * 0.78)); block-size: 18px; border-radius: 0 4px 4px 0; background: var(--c); }
+.dev .bar-val { font: 600 0.8125rem/1 var(--sans); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dev [data-v="v010"] { --c: var(--c-v010); }
+.dev [data-v="v020"] { --c: var(--c-v020); }
+.dev [data-v="now"] { --c: var(--c-now); }
+.dev [data-v="old"] { --c: var(--c-old); }
+.dev [data-v="new"] { --c: var(--c-new); }
+
+/* 版の名札 */
+.dev .ver { display: inline-flex; align-items: center; gap: 0.35em; font-weight: 700; white-space: nowrap; }
+.dev .ver::before { content: ""; inline-size: 0.7em; block-size: 0.7em; border-radius: 3px; background: var(--c); }
+
+/* 表（狭い所では行ごとのカードにする） */
+.dev .table-wrap { overflow: auto; max-inline-size: 100%; margin: 1.5rem 0; container-type: inline-size; }
+.dev .table-wrap:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
+.dev table { border-collapse: separate; border-spacing: 0; font-size: 0.875rem; line-height: 1.6; }
+.dev caption { caption-side: top; text-align: start; padding-bottom: 0.5rem; font-weight: 700; font-size: 0.9375rem; }
+.dev th, .dev td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--rule); text-align: start; vertical-align: top; }
+.dev thead th { position: sticky; inset-block-start: 0; z-index: 1; background: var(--paper-2); border-bottom: 2px solid var(--ink-3); white-space: nowrap; }
+.dev td.num, .dev th.num { text-align: end; font-variant-numeric: tabular-nums; white-space: nowrap; }
+@container (width < 34rem) {
+  .dev .stack-table :is(table, thead, tbody, tr, th, td) { display: block; }
+  .dev .stack-table thead { display: none; }
+  .dev .stack-table tr { margin-block-end: 1rem; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+  .dev .stack-table tbody th { background: var(--paper-2); }
+  .dev .stack-table td { border-bottom: 1px dashed var(--rule); }
+  .dev .stack-table td.num { text-align: start; }
+  .dev .stack-table td[data-label]::before { content: attr(data-label) "： "; color: var(--ink-2); font-weight: 600; }
+}
+
+/* 章の一覧（目次のページ） */
+.dev .chapters { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); gap: 1.2rem; }
+.dev .chapters a { display: block; block-size: 100%; padding: 0 0 1rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); color: inherit; text-decoration: none; overflow: hidden; box-shadow: var(--shadow); }
+.dev .chapters a:hover { box-shadow: var(--lift); }
+.dev .chapters img { display: block; inline-size: 100%; block-size: auto; aspect-ratio: 16 / 9; object-fit: cover; object-position: top left; border-bottom: 1px solid var(--rule); }
+.dev .chapters .ch-no { margin: 0.8rem 1rem 0; color: var(--ink-2); font-size: 0.8125rem; font-weight: 700; }
+.dev .chapters h3 { margin: 0.2rem 1rem 0.4rem; font: 700 1.0625rem/1.4 var(--serif); }
+.dev .chapters p { margin: 0 1rem; font-size: 0.875rem; color: var(--ink-2); line-height: 1.7; }
+
+/* 章の間を移る案内 */
+.dev .chapter-nav { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.8rem; margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--rule); font-size: 0.9375rem; }
+.dev .chapter-nav a { text-decoration: none; }
+.dev .chapter-nav a:hover { text-decoration: underline; }
+
+/* 年表（目次のページの commit の流れ） */
+.dev .timeline { display: grid; gap: 4px; max-inline-size: 44rem; margin: 1.5rem 0; }
+.dev .tl-row { display: grid; grid-template-columns: 9em 1fr; align-items: center; gap: 0.6em; font-size: 0.8125rem; }
+.dev .tl-name { text-align: end; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.dev .tl-track { display: flex; align-items: center; gap: 0.5em; min-block-size: 20px; border-inline-start: 1px solid var(--ink-3); }
+.dev .tl-bar { display: block; inline-size: max(2px, calc(var(--w) * 0.8)); block-size: 14px; border-radius: 0 3px 3px 0; background: var(--c, var(--c-now)); }
