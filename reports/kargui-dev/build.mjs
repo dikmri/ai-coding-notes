@@ -129,6 +129,9 @@ ${rows.join("\n")}
 </figure>`;
 }
 
+/** 第 9 章の実行ファイルの大きさ（タスク帳を release で組み立てて測った） */
+const EXE = "タスク帳の実行ファイルは 1,391,616 バイト（1.39 MB）で、前の版（7492df6）の 1,372,160 バイトより 19,456 バイト増えました。どちらも同じ手順で release で組み立てて測りました。";
+
 const CHAPTERS = [
   { href: "01-frame.html", no: "第 1 章", title: "1 フレームの中で起きること", text: "入力が届いてから画面に出るまで。ビューを何回も呼ぶ理由、前のフレームの配置で当たりを決める理由。", thumb: "shots/list" },
   { href: "02-widgets.html", no: "第 2 章", title: "0.1 から 0.2 へ、部品をそろえた順番", text: "13 のフレームワークに学んで足す部品を決め、土台から作った。部品の写真と、足すのにかかった時間。", thumb: "shots/more_widgets" },
@@ -138,6 +141,7 @@ const CHAPTERS = [
   { href: "06-motion.html", no: "第 6 章", title: "動き（アニメーション）", text: "数を 1 つ返す書き方、OS の「アニメーション効果」に従う作り、試験台で動きを切る理由、起動のたびに 6 フレーム描いていた不具合。", thumb: "motion/open-060" },
   { href: "07-fonts.html", no: "第 7 章", title: "書体", text: "Font の 3 つの形と書体の探し方、入力欄の書体が 1 フレーム遅れて伝わる理由、作者の記録から見つけた行の間の不具合。", thumb: "fonts/lines" },
   { href: "08-pickers.html", no: "第 8 章", title: "色と時刻の選択", text: "時刻をます目にした理由、濃淡の面を絵で描く方法、作者の記録から見つけた打つ途中の番号と、引っ張っても選べない入力欄。", thumb: "pickers/time" },
+  { href: "09-rich-text.html", no: "第 9 章", title: "書式付きの文字", text: "範囲を表示だけにした理由、1 つの段落として並べて部分ごとに色を付ける仕組み、見えないコードの背景と Linux で落ちた試験。", thumb: "rich/sample" },
 ];
 
 function chapters() {
@@ -222,6 +226,13 @@ ${figure("apps/expenses", "家計簿の見本", "家計簿（<code>examples/expe
   "08-pickers.html": {
     time: () => figure("pickers/time", "時刻の欄の下に、時のます目（00 から 23）と分のます目（00 から 55 まで 5 分ずつ）が出ている。9 時と 30 分が選ばれている", "時刻の選択。時を選ぶと分へ移り、分を選ぶと閉じる（日本語の言葉、試験台で撮った）。", { flat: true }),
     color: () => figure("pickers/color", "色の欄の下に、彩度と明るさの面、色相の帯、不透明度の帯、色の番号の欄、16 色の見本が出ている", "色の選択（<code>.alpha()</code> 付き）。面と帯は、色を計算した絵を画像として描く。", { flat: true }),
+  },
+  "09-rich-text.html": {
+    sample: () => figure("rich/sample", "2 行の段落。「元に戻せません」は太字、「Ctrl+Z」は等幅で薄い背景、「バックアップの仕組み」は主の色に下線のリンク、「1,980」は取り消し線、「1,280」は赤い太字、「（税込み、日曜まで）」は小さい弱い字で「日曜まで」は斜体", "上のコードに値段の行を足した段落（試験台で 2 倍で撮った）。部分ごとに太字・コード・リンク・取り消し線・色・小さい斜体が付いている。", { flat: true }),
+    wrapped: () => figure("rich/wrapped", "「詳しくは」の後のリンクが 2 行にまたがり、1 行目と 2 行目のそれぞれに焦点の枠が出ている", "2 行にまたがるリンクに Tab で焦点を当てた所。枠は行ごとに描く（幅 300 の窓、試験台で 2 倍で撮った）。", { flat: true }),
+    underline: () => `${figure("rich/underline-before", "直す前。1 行目の終わりのリンク「how」の下線が、後ろの空白の下まで伸びている", "直す前。1 行目の「how」の下線が、行末の空白の下まで伸びている（英語の写真の右上を 2 倍に拡大）。", { flat: true })}
+  ${figure("rich/underline-after", "直した後。1 行目のリンク「how」の下線は、how の右端で止まっている", "直した後。下線は「how」の右端で止まる。", { flat: true })}`,
+    exe: () => EXE,
   },
   "07-fonts.html": {
     fonts: () => figure("fonts/lines", "複数行の入力欄が 3 つ並ぶ。左から UI の書体、等幅、BIZ UDP ゴシック。どれも同じ行の間で並んでいる", "同じ文を 3 つの書体で出した複数行の入力欄。左から UI の書体（Yu Gothic UI）、<code>.monospace()</code>（BIZ UD ゴシック）、<code>.font(Font::family(\"BIZ UDPGothic\"))</code>。試験台で撮った。", { flat: true }),
