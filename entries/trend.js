@@ -8019,3 +8019,652 @@ dekiru.add({
     build(seed);
   },
 });
+
+dekiru.add({
+  id: 'tr-20261122-model-check', c: 'trend', lv: 3, date: '2026-11-22',
+  t: 'ルールを1つ書くだけで、操作の順番を全部調べて、ルールが破れるいちばん短い手順を見つける（TLA+ / Quint のモデル検査）',
+  y: 'るーるをひとつかくだけでそうさのじゅんばんをぜんぶしらべてるーるがやぶれるいちばんみじかいてじゅんをみつけるてぃーえるえーぷらすくいんとのもでるけんさ',
+  tags: ['TLA+', 'Quint', 'モデル検査', '決定的シミュレーションテスト', '幅優先探索', 'Canvas'],
+  d: '2026年11月21日、karamage さんが Zenn に「【TLA+】AIにテストケースを書かせるな。ルールを書け」を公開した。AI が実装とテストの両方を書くと、テストは実装と同じ思い込みを引き継ぐ。そこで人は「どんな順番で操作しても守られるべきルール」だけを書き、どの順番を試すかは機械に任せる、という記事である。記事は TLA+ 系の言語 Quint で、在庫 2 枚のチケットを 3 人が買う設計を書く。確認画面で在庫を見て、確定では在庫を見ずに減らす書き方では、quint run が 12 ミリ秒で「3 枚売れて在庫が −1」になる手順を見つけた。確定のときにもう一度在庫を見るように直すと、モデル検査器の TLC が 29 通りの状態を全部調べて、違反は無いと答えた。前日の 11 月 20 日には、Outdata の記事「Deterministic Simulation Testing Is For Everyone」が Hacker News に載った。乱数の種から環境（入力・時刻・通信など）を作り、同じ種なら同じ失敗が必ず出るようにするテストの方法を、分散データベース以外でも使おうという記事である。この見本は、2 つの記事の中心の部分をブラウザだけで作り直す。題材は、チケット販売、2 人の係が同じ口座から送金する処理、1 人用の部屋の札（相互排除）の 3 つである。題材ごとに元の書き方と直した書き方があり、操作とルールを JavaScript の状態機械で書いてある。「ランダムに試す」は、種から作った乱数で操作をでたらめに選び、200 本の手順を流す（quint run と、決定的シミュレーションテストにあたる）。同じ種でもう一度押すと、同じ手順がもう一度出る。「全部調べる」は、最初の状態から幅優先で、たどり着ける状態を 1 つ残らず作る（TLC にあたる）。ルールが破れる状態と、誰も動けなくなる状態（行き詰まり）を探し、そこまでのいちばん短い手順を表に出す。図の点は状態で、左から右へ手数が増える。点を押すと、その状態までのいちばん短い手順が表に出る。直した書き方のチケット販売を全部調べると、記事の TLC と同じく 29 通りの状態になり、作った状態（重なりを含む）も同じ 55 になる。再現していない所: TLA+ や Quint の言語は読めず、題材は見本の中に JavaScript で書いた 3 つだけである。TLC が持つ対称性による削減、「いつかは必ず入れる」のような時間についての性質（活性）の検査、記事の後半にあるモデルベーステスト（作った手順を本物の実装に流して状態を比べる）は作っていない。決定的シミュレーションテストのうち、通信の遅れや故障、時刻、ディスクを真似る部分も無く、乱数で選ぶのは操作の順番だけである。',
+  p: '操作は next(状態) が「今できる操作」を全部返す形で書く。誰がいつ動くかを決めないので、ランダムな実行も、全部を調べる探索も、同じ関数を使える。全部を調べる探索は、状態を文字列のキーにして Map に入れ、同じ状態を 2 度たどらないようにする。新しい状態を見つけたときに、どの状態からどの操作で来たか（親）を覚えておく。幅優先で探すので、親を最初の状態までさかのぼった手順が、その状態へのいちばん短い手順になる。ルールが破れる状態のうち見つけた順で最初のものを選べば、最短の反例が得られる。行き詰まりは「ルールは守られているが、できる操作が 1 つも無く、全員が終わった状態でもない」状態として数える。部屋の札で「自分の札を立ててから相手の札を見る」書き方は、2 人とも札を立てたところで止まる。ランダムな実行は、種から同じ列を出す小さな乱数（mulberry32）だけで操作を選ぶので、種が同じなら手順も同じになる。ランダムな実行で違反が出なくても「出なかった」としか言えないが、全部を調べる探索は、調べ残しが 0 であることを数で示せる。ただし、確かめたのは在庫 2 枚・3 人のような小さな世界だけである。',
+  refs: [
+    { title: '【TLA+】AIにテストケースを書かせるな。ルールを書け（karamage さん、Zenn、2026-11-21）', url: 'https://zenn.dev/karamage/articles/73027ee36796dc' },
+    { title: 'Deterministic Simulation Testing Is For Everyone（Outdata、2026-11-20）', url: 'https://outdata.net/blog/261120' },
+    { title: 'Hacker News: Deterministic Simulation Testing Is for Everyone', url: 'https://news.ycombinator.com/item?id=50574264' },
+    { title: 'Quint（公式サイト）', url: 'https://quint.sh/' },
+    { title: 'Reliable Software in the LLM Era（Quint のブログ）', url: 'https://quint.sh/posts/llm_era' },
+  ],
+  html: `<div class="wrap">
+  <div class="sel">
+    <label for="spec">題材</label><select id="spec"></select>
+    <label for="ver">書き方</label><select id="ver"></select>
+  </div>
+  <div class="box">
+    <div class="hd">操作とルール（色の付いた行が、書き方の違う所）</div>
+    <pre id="code" class="code"></pre>
+  </div>
+  <div class="ctl">
+    <button type="button" id="run">ランダムに試す（200 本）</button>
+    <label>種 <input type="number" id="seed" min="0" max="4294967295" step="1" value="1" inputmode="numeric"></label>
+    <button type="button" id="all">全部調べる</button>
+  </div>
+  <p id="msg" class="msg" role="status"></p>
+  <canvas id="graph" role="img" aria-label="状態の図"></canvas>
+  <p class="legend small mut"><span><i class="n"></i>調べた状態</span><span><i class="b"></i>ルールが破れる</span><span><i class="s"></i>行き詰まり</span><span><i class="e"></i>全員が終わった</span><span><i class="r"></i>ランダムの手順が通った</span><span><i class="p"></i>表の手順</span></p>
+  <p class="small mut">点は状態です。左端が最初の状態で、右へ行くほど手数が多くなります。点を押すと、その状態までのいちばん短い手順が表に出ます。</p>
+  <p id="cov" class="small"></p>
+  <div class="tw" tabindex="0" role="region" aria-labelledby="cap">
+    <table>
+      <caption id="cap"></caption>
+      <thead><tr id="hd"></tr></thead>
+      <tbody id="tb"></tbody>
+    </table>
+  </div>
+</div>`,
+  css: `:root { color-scheme: dark; --bg: #10131a; --fg: #e4e8f0; --mut: #9aa3b6; --line: #2f3850; --panel: #161a23; --node: #8592ad; --bad: #ff6b6b; --stuck: #f0a040; --end: #5fc8a0; --seen: #6fb6ff; --path: #ffd27a; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    .wrap { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .ctl { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+    .ctl label { display: inline-flex; align-items: center; gap: 6px; }
+    select, input, button { font: inherit; color: var(--fg); background: #1e2433; border: 1px solid var(--line); border-radius: 6px; }
+    select { min-block-size: 30px; padding: 2px 6px; max-inline-size: 100%; }
+    input[type="number"] { inline-size: 7em; min-block-size: 30px; padding: 2px 6px; font-variant-numeric: tabular-nums; }
+    button { min-block-size: 30px; padding: 2px 12px; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: default; }
+    :focus-visible { outline: 2px solid var(--path); outline-offset: 2px; }
+    .mut { color: var(--mut); }
+    .small { font-size: 12px; margin: 0; }
+    .box { display: flex; flex-direction: column; gap: 4px; }
+    .hd { font-size: 12px; color: var(--mut); }
+    .code { margin: 0; padding: 8px 10px; background: var(--panel); border-radius: 6px; font: 12.5px/1.6 ui-monospace, Consolas, monospace; overflow-x: auto; white-space: pre; }
+    .code > * { display: block; }
+    .code mark { background: #3a3320; color: #ffe2a0; }
+    .code .cm { color: var(--mut); }
+    .code .rl { color: #9fe0c0; }
+    .msg { margin: 0; padding: 6px 8px; border-inline-start: 3px solid var(--seen); background: var(--panel); border-radius: 4px; font-size: 13px; min-block-size: 1.5em; }
+    canvas { display: block; inline-size: 100%; block-size: 260px; background: #0b0d12; border-radius: 6px; cursor: pointer; }
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+    .legend i { display: inline-block; inline-size: 10px; block-size: 10px; border-radius: 50%; vertical-align: -1px; margin-inline-end: 4px; }
+    .legend .n { background: var(--node); }
+    .legend .b { background: var(--bad); }
+    .legend .s { background: var(--stuck); }
+    .legend .e { background: var(--end); }
+    .legend .r { background: transparent; border: 2px solid var(--seen); inline-size: 8px; block-size: 8px; }
+    .legend .p { inline-size: 16px; block-size: 3px; border-radius: 2px; vertical-align: middle; background: var(--path); }
+    #cov { min-block-size: 1.2em; }
+    .tw { overflow-x: auto; }
+    table { border-collapse: separate; border-spacing: 0; font-size: 12px; font-variant-numeric: tabular-nums; }
+    caption { text-align: start; color: var(--mut); padding-block-end: 4px; }
+    th, td { padding: 3px 8px; border-block-end: 1px solid var(--line); text-align: start; white-space: nowrap; }
+    thead th { color: var(--mut); font-weight: 400; }
+    tbody th { position: sticky; inset-inline-start: 0; background: var(--bg); font-weight: 400; color: var(--mut); text-align: end; }
+    td.chg { color: var(--path); }
+    tr.bad td, tr.bad th { background: #3a1e24; }
+    tr.stuck td, tr.stuck th { background: #3a2c18; }
+    .sel { display: grid; grid-template-columns: auto minmax(0, 26em); gap: 6px 8px; align-items: center; justify-content: start; }
+    .sel select { inline-size: 100%; }
+    .code .tt { color: var(--fg); font-weight: 600; }
+    .thumb, .thumb body { overflow: hidden; }
+    .thumb .wrap { padding: 4px; gap: 4px; }
+    .thumb .sel, .thumb .ctl, .thumb .box, .thumb .legend, .thumb .small, .thumb .tw { display: none; }
+    .thumb .msg { font-size: 11px; padding: 2px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .thumb canvas { block-size: calc(100vh - 40px); min-block-size: 40px; }`,
+  core() {
+    // ---- 乱数（種から同じ列が出る） ----
+    function rng(seed) {
+      let s = seed >>> 0;
+      return () => {
+        s = (s + 0x6D2B79F5) >>> 0;
+        let t = s;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    const put = (str, i, ch) => str.slice(0, i) + ch + str.slice(i + 1);
+
+    // ---- 題材 ----
+    // init: 最初の状態 / key: 状態を表す文字列 / next(s, v): 今できる操作を全部返す（誰が動くかは決めない）
+    // ok(s, v): ルールが守られているか / done(s, v): 全員が終わったか（操作が無くても行き詰まりではない）
+    const PHASE = { I: '待ち', C: '確認済み', B: '購入', S: '売り切れ' };
+    const SPECS = {
+      ticket: {
+        short: 'チケット販売',
+        title: 'チケット販売（在庫 2 枚を 3 人が買う）',
+        versions: [
+          { id: 'bug', label: '元の書き方（確定のときに在庫を見ない）' },
+          { id: 'fix', label: '直した書き方（確定のときにもう一度見る）' },
+        ],
+        code: {
+          bug: [
+            '#毎回、誰か 1 人が、今できる操作を 1 つする（順番は決めない）',
+            '確認(u)  u が「待ち」のときだけ',
+            '         u ← 在庫 > 0 なら「確認済み」、0 なら「売り切れ」',
+            '確定(u)  u が「確認済み」のときだけ',
+            '*        在庫 ← 在庫 − 1、売れた ← 売れた + 1、u ← 「購入」',
+            '!ルール   売れた ≤ 2（最初の在庫）',
+          ],
+          fix: [
+            '#毎回、誰か 1 人が、今できる操作を 1 つする（順番は決めない）',
+            '確認(u)  u が「待ち」のときだけ',
+            '         u ← 在庫 > 0 なら「確認済み」、0 なら「売り切れ」',
+            '確定(u)  u が「確認済み」のときだけ',
+            '*        在庫 > 0 なら 在庫 ← 在庫 − 1、売れた ← 売れた + 1、u ← 「購入」',
+            '*        0 なら u ← 「売り切れ」',
+            '!ルール   売れた ≤ 2（最初の在庫）',
+          ],
+        },
+        steps: 12,
+        cols: ['在庫', '売れた', 'A', 'B', 'C'],
+        init: () => ({ stock: 2, sold: 0, ph: 'III' }),
+        key: (s) => `${s.stock}/${s.sold}/${s.ph}`,
+        next(s, v) {
+          const out = [];
+          for (let i = 0; i < 3; i++) {
+            const u = 'ABC'[i], p = s.ph[i];
+            if (p === 'I') {
+              out.push({ act: `${u} が確認画面を開く${s.stock > 0 ? '' : '（売り切れ）'}`, s: { stock: s.stock, sold: s.sold, ph: put(s.ph, i, s.stock > 0 ? 'C' : 'S') } });
+            } else if (p === 'C') {
+              if (v === 'bug' || s.stock > 0) out.push({ act: `${u} が確定を押す`, s: { stock: s.stock - 1, sold: s.sold + 1, ph: put(s.ph, i, 'B') } });
+              else out.push({ act: `${u} が確定を押す（売り切れ）`, s: { stock: s.stock, sold: s.sold, ph: put(s.ph, i, 'S') } });
+            }
+          }
+          return out;
+        },
+        ok: (s) => s.sold <= 2,
+        done: (s) => !/[IC]/.test(s.ph),
+        row: (s) => [s.stock, s.sold, ...Array.from(s.ph, (c) => PHASE[c])],
+      },
+      bank: {
+        short: '2 人の送金',
+        title: '2 人の送金（甲の 100 円から、係1 が 30 円、係2 が 50 円を乙へ）',
+        versions: [
+          { id: 'bug', label: '元の書き方（残高を読んでから、計算した値を書く）' },
+          { id: 'fix', label: '直した書き方（読むと書くを 1 回で行う）' },
+        ],
+        code: {
+          bug: [
+            '#係1 と係2 が同時に動く。毎回、どちらか 1 人が 1 手進む',
+            '送金(a)',
+            '*  t ← 甲の残高を読む',
+            '*  甲 ← t − a',
+            '*  t ← 乙の残高を読む',
+            '*  乙 ← t + a',
+            '!ルール   2 人とも終わったら、甲 + 乙 = 100',
+          ],
+          fix: [
+            '#係1 と係2 が同時に動く。毎回、どちらか 1 人が 1 手進む',
+            '送金(a)',
+            '*  甲 ← 甲 − a（読むと書くを 1 回で。データベースの UPDATE など）',
+            '*  乙 ← 乙 + a',
+            '!ルール   2 人とも終わったら、甲 + 乙 = 100',
+          ],
+        },
+        steps: 12,
+        cols: ['甲', '乙', '係1', '係2'],
+        init: () => ({ x: 100, y: 0, pc: [0, 0], t: [0, 0] }),
+        key: (s) => `${s.x}/${s.y}/${s.pc}/${s.t}`,
+        next(s, v) {
+          const out = [], AMT = [30, 50];
+          for (let i = 0; i < 2; i++) {
+            const pc = s.pc[i], a = AMT[i], who = `係${i + 1}`;
+            const mk = (np, nt, x, y, act) => {
+              const P = s.pc.slice(), T = s.t.slice();
+              P[i] = np; T[i] = nt;
+              out.push({ act, s: { x, y, pc: P, t: T } });
+            };
+            if (v === 'bug') {
+              if (pc === 0) mk(1, s.x, s.x, s.y, `${who} が甲の残高を読む（${s.x} 円）`);
+              else if (pc === 1) mk(2, 0, s.t[i] - a, s.y, `${who} が甲に ${s.t[i] - a} 円を書く`);
+              else if (pc === 2) mk(3, s.y, s.x, s.y, `${who} が乙の残高を読む（${s.y} 円）`);
+              else if (pc === 3) mk(4, 0, s.x, s.t[i] + a, `${who} が乙に ${s.t[i] + a} 円を書く`);
+            } else {
+              if (pc === 0) mk(2, 0, s.x - a, s.y, `${who} が甲から ${a} 円を引く`);
+              else if (pc === 2) mk(4, 0, s.x, s.y + a, `${who} が乙に ${a} 円を足す`);
+            }
+          }
+          return out;
+        },
+        ok: (s) => !(s.pc[0] === 4 && s.pc[1] === 4) || s.x + s.y === 100,
+        done: (s) => s.pc[0] === 4 && s.pc[1] === 4,
+        row(s, v) {
+          const st = (i) => {
+            const pc = s.pc[i];
+            if (pc === 0) return '始める前';
+            if (pc === 1) return `甲を読んだ（t = ${s.t[i]}）`;
+            if (pc === 2) return v === 'bug' ? '甲に書いた' : '甲から引いた';
+            if (pc === 3) return `乙を読んだ（t = ${s.t[i]}）`;
+            return '終わり';
+          };
+          return [s.x, s.y, st(0), st(1)];
+        },
+      },
+      room: {
+        short: '1 人用の部屋の札',
+        title: '1 人用の部屋の札（A と B が出入りをくり返す）',
+        versions: [
+          { id: 'look', label: '相手の札を見てから、自分の札を立てる' },
+          { id: 'flag', label: '自分の札を立ててから、相手の札を見る' },
+          { id: 'peterson', label: 'ピーターソンの方法（自分の札と、譲る札）' },
+        ],
+        code: {
+          look: [
+            '#A と B が、外 → 部屋 → 外 を何度でもくり返す。毎回、どちらか 1 人が 1 手進む',
+            '入る  *相手の札が下りているのを見る',
+            '      *自分の札を立てて、部屋に入る',
+            '出る   自分の札を下ろして、外へ出る',
+            '!ルール   A と B が同時に部屋の中にいない（誰も動けなくなる状態も探す）',
+          ],
+          flag: [
+            '#A と B が、外 → 部屋 → 外 を何度でもくり返す。毎回、どちらか 1 人が 1 手進む',
+            '入る  *自分の札を立てる',
+            '      *相手の札が下りるまで待ってから、部屋に入る',
+            '出る   自分の札を下ろして、外へ出る',
+            '!ルール   A と B が同時に部屋の中にいない（誰も動けなくなる状態も探す）',
+          ],
+          peterson: [
+            '#A と B が、外 → 部屋 → 外 を何度でもくり返す。毎回、どちらか 1 人が 1 手進む',
+            '入る   自分の札を立てる',
+            '      *1 枚しかない「お先にどうぞ」の札を、相手に向ける',
+            '      *相手の札が下りているか、譲る札が自分を向くまで待ってから、部屋に入る',
+            '出る   自分の札を下ろして、外へ出る',
+            '!ルール   A と B が同時に部屋の中にいない（誰も動けなくなる状態も探す）',
+          ],
+        },
+        steps: 40,
+        cols: ['A', 'B', 'A の札', 'B の札', '譲る札'],
+        init: () => ({ pc: [0, 0], f: [0, 0], turn: 0 }),
+        key: (s) => `${s.pc}/${s.f}/${s.turn}`,
+        next(s, v) {
+          const out = [], IN = v === 'peterson' ? 3 : 2;
+          for (let i = 0; i < 2; i++) {
+            const o = 1 - i, who = 'AB'[i], other = 'AB'[o], pc = s.pc[i];
+            const mk = (np, nf, turn, act) => {
+              const P = s.pc.slice(), F = s.f.slice();
+              P[i] = np; F[i] = nf;
+              out.push({ act, s: { pc: P, f: F, turn } });
+            };
+            if (pc === IN) mk(0, 0, s.turn, `${who} が札を下ろして外へ出る`);
+            else if (v === 'look') {
+              if (pc === 0 && !s.f[o]) mk(1, 0, s.turn, `${who} が ${other} の札を見る（下りている）`);
+              else if (pc === 1) mk(2, 1, s.turn, `${who} が札を立てて部屋に入る`);
+            } else if (v === 'flag') {
+              if (pc === 0) mk(1, 1, s.turn, `${who} が札を立てる`);
+              else if (pc === 1 && !s.f[o]) mk(2, 1, s.turn, `${who} が ${other} の札を見て（下りている）部屋に入る`);
+            } else {
+              if (pc === 0) mk(1, 1, s.turn, `${who} が札を立てる`);
+              else if (pc === 1) mk(2, 1, o, `${who} が譲る札を ${other} に向ける`);
+              else if (pc === 2 && (!s.f[o] || s.turn === i)) mk(3, 1, s.turn, `${who} が部屋に入る（${!s.f[o] ? `${other} の札が下りている` : '譲る札が自分を向いている'}）`);
+            }
+          }
+          return out;
+        },
+        ok(s, v) {
+          const IN = v === 'peterson' ? 3 : 2;
+          return !(s.pc[0] === IN && s.pc[1] === IN);
+        },
+        done: () => false,
+        row(s, v) {
+          const NAMES = { look: ['外', '札を見た', '部屋の中'], flag: ['外', '待つ', '部屋の中'], peterson: ['外', '札を立てた', '待つ', '部屋の中'] }[v];
+          const fl = (b) => (b ? '立てた' : '下ろした');
+          return [NAMES[s.pc[0]], NAMES[s.pc[1]], fl(s.f[0]), fl(s.f[1]), v === 'peterson' ? `${'AB'[s.turn]} に向く` : '—'];
+        },
+      },
+    };
+
+    // ---- 全部調べる（幅優先）: たどり着ける状態を全部作り、親を覚える ----
+    function explore(spec, v, limit = 20000) {
+      const s0 = spec.init(v);
+      const nodes = [s0], index = new Map([[spec.key(s0), 0]]);
+      const depth = [0], parent = [-1], via = ['最初の状態'], edges = [], outdeg = [];
+      let generated = 1;
+      for (let i = 0; i < nodes.length; i++) {
+        const outs = spec.next(nodes[i], v);
+        outdeg.push(outs.length);
+        generated += outs.length;
+        for (const o of outs) {
+          const k = spec.key(o.s);
+          let j = index.get(k);
+          if (j === undefined) {
+            if (nodes.length >= limit) throw new Error('状態が多すぎます');
+            j = nodes.length;
+            index.set(k, j);
+            nodes.push(o.s);
+            depth.push(depth[i] + 1);
+            parent.push(i);
+            via.push(o.act);
+          }
+          edges.push([i, j]);
+        }
+      }
+      const bad = [], stuck = [], ends = [];
+      nodes.forEach((s, i) => {
+        if (!spec.ok(s, v)) bad.push(i);
+        else if (!outdeg[i]) (spec.done(s, v) ? ends : stuck).push(i);
+      });
+      let maxDepth = 0;
+      for (const d of depth) if (d > maxDepth) maxDepth = d;
+      return { nodes, index, depth, parent, via, edges, generated, bad, stuck, ends, maxDepth };
+    }
+
+    // 親をさかのぼって、最初の状態から i までの手順（状態の番号の並び）を作る
+    function pathTo(g, i) {
+      const p = [];
+      for (let k = i; k >= 0; k = g.parent[k]) p.push(k);
+      return p.reverse();
+    }
+
+    // ---- ランダムに試す: 種から作った乱数で操作を選び、手順を traces 本流す ----
+    function simulate(spec, v, seed, traces, maxSteps) {
+      const r = rng(seed), seen = new Set();
+      let steps = 0, trace = [];
+      for (let t = 1; t <= traces; t++) {
+        let s = spec.init(v);
+        trace = [{ act: '最初の状態', s }];
+        seen.add(spec.key(s));
+        for (let k = 0; k < maxSteps; k++) {
+          const outs = spec.next(s, v);
+          if (!outs.length) {
+            if (!spec.done(s, v)) return { kind: 'stuck', t, steps, trace, seen };
+            break;
+          }
+          const o = outs[Math.floor(r() * outs.length)];
+          s = o.s;
+          steps++;
+          trace.push(o);
+          seen.add(spec.key(s));
+          if (!spec.ok(s, v)) return { kind: 'bad', t, steps, trace, seen };
+        }
+      }
+      return { kind: 'ok', t: traces, steps, trace, seen };
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const thumb = !!window.THUMB;
+    if (thumb) document.documentElement.classList.add('thumb');
+    const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888';
+    const COL = { line: cssVar('--line'), node: cssVar('--node'), bad: cssVar('--bad'), stuck: cssVar('--stuck'), end: cssVar('--end'), seen: cssVar('--seen'), path: cssVar('--path') };
+    const specSel = $('spec'), verSel = $('ver'), codeEl = $('code'), runBtn = $('run'), allBtn = $('all'), seedIn = $('seed');
+    const msgEl = $('msg'), cv = $('graph'), covEl = $('cov'), capEl = $('cap'), hdEl = $('hd'), tbEl = $('tb');
+    const ctx = cv.getContext('2d');
+    const TRACES = 200;
+    let spec = null, ver = '', g = null, kinds = [], pos = [], rad = 5, revealed = 0, seen = new Set(), path = null, anim = 0, lastSim = null;
+    let W = 1, H = 1, dpr = 1;
+    const say = (t) => { msgEl.textContent = t; };
+
+    for (const [id, sp] of Object.entries(SPECS)) specSel.add(new Option(sp.short, id));
+    function fillVer() {
+      const sp = SPECS[specSel.value];
+      verSel.replaceChildren(...sp.versions.map((x) => new Option(x.label, x.id)));
+    }
+
+    function setup() {
+      anim++;
+      spec = SPECS[specSel.value];
+      ver = verSel.value;
+      g = explore(spec, ver);
+      kinds = g.nodes.map(() => 'node');
+      for (const i of g.ends) kinds[i] = 'end';
+      for (const i of g.stuck) kinds[i] = 'stuck';
+      for (const i of g.bad) kinds[i] = 'bad';
+      revealed = 0;
+      seen = new Set();
+      path = null;
+      lastSim = null;
+      allBtn.disabled = false;
+      renderCode();
+      covEl.textContent = '';
+      showTrace(null, '');
+      say('まだ調べていません。「ランダムに試す」は操作の順番をでたらめに選んで流し、「全部調べる」はたどり着ける状態を 1 つ残らず作ります。');
+      cv.setAttribute('aria-label', '状態の図（まだ調べていない）');
+      resize();
+    }
+
+    // 行の印: * がある行は書き方の違う行（* は空白にして桁をそろえる）。行頭の # は説明、! はルール
+    function renderCode() {
+      const tt = document.createElement('span');
+      tt.className = 'tt';
+      tt.textContent = spec.title;
+      codeEl.replaceChildren(tt, ...spec.code[ver].map((ln) => {
+        const head = /^[#!]/.test(ln) ? ln[0] : '';
+        const el = document.createElement(ln.includes('*') ? 'mark' : 'span');
+        if (head === '#') el.className = 'cm';
+        if (head === '!') el.className = 'rl';
+        el.textContent = (head ? ln.slice(1) : ln).replace('*', ' ');
+        return el;
+      }));
+    }
+
+    function resize() {
+      dpr = Math.min(2, window.devicePixelRatio || 1);
+      W = Math.max(1, cv.clientWidth);
+      H = Math.max(1, cv.clientHeight);
+      cv.width = Math.max(1, Math.round(W * dpr));
+      cv.height = Math.max(1, Math.round(H * dpr));
+      layout();
+      draw();
+    }
+
+    // 列 = 手数（幅優先の深さ）。列の中は、前の列の親の高さの平均で並べて、線の交差を減らす
+    function layout() {
+      if (!g) return;
+      const D = Math.max(1, g.maxDepth), padX = 16, padY = 14;
+      const cols = [];
+      g.depth.forEach((d, i) => { (cols[d] = cols[d] || []).push(i); });
+      const preds = g.nodes.map(() => []);
+      for (const [a, b] of g.edges) if (g.depth[a] + 1 === g.depth[b]) preds[b].push(a);
+      pos = new Array(g.nodes.length);
+      let minRow = Infinity;
+      cols.forEach((ids, d) => {
+        const x = padX + (W - 2 * padX) * (g.maxDepth ? d / D : 0.5);
+        if (d > 0) {
+          const bary = (i) => preds[i].reduce((s, a) => s + pos[a][1], 0) / Math.max(1, preds[i].length);
+          const by = new Map(ids.map((i) => [i, bary(i)]));
+          ids.sort((a, b) => by.get(a) - by.get(b) || a - b);
+        }
+        const gap = (H - 2 * padY) / ids.length;
+        minRow = Math.min(minRow, gap);
+        ids.forEach((i, k) => { pos[i] = [x, padY + gap * (k + 0.5)]; });
+      });
+      rad = Math.max(2, Math.min(7, ((W - 2 * padX) / D) * 0.2, minRow * 0.36));
+    }
+
+    function edge(a, b) {
+      const [x1, y1] = pos[a], [x2, y2] = pos[b];
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      if (g.depth[b] === g.depth[a] + 1) ctx.lineTo(x2, y2);
+      else {
+        // 手数が戻る線（出入りのくり返しなど）は、上へ曲げて描く
+        const my = Math.max(2, Math.min(y1, y2) - 16 - Math.abs(x1 - x2) * 0.15);
+        ctx.quadraticCurveTo((x1 + x2) / 2, my, x2, y2);
+      }
+      ctx.stroke();
+    }
+
+    function draw() {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      if (!g || !pos.length) return;
+      const vis = (i) => i < revealed || seen.has(i);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = COL.line;
+      for (const [a, b] of g.edges) if (vis(a) && vis(b)) edge(a, b);
+      if (path && path.length > 1) {
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = COL.path;
+        for (let k = 0; k + 1 < path.length; k++) edge(path[k], path[k + 1]);
+      }
+      const onPath = new Set(path || []);
+      for (let i = 0; i < g.nodes.length; i++) {
+        if (!vis(i)) continue;
+        const [x, y] = pos[i];
+        const r = onPath.has(i) ? rad * 1.35 : rad;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = i >= revealed && kinds[i] === 'node' ? COL.seen : COL[kinds[i]];
+        ctx.fill();
+        if (seen.has(i)) {
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = COL.seen;
+          ctx.beginPath();
+          ctx.arc(x, y, r + 2.2, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+    }
+
+    function showTrace(rows, title) {
+      capEl.textContent = rows ? `${title}（${rows.length - 1} 手）` : '手順はまだありません';
+      const th = (t) => { const e = document.createElement('th'); e.scope = 'col'; e.textContent = t; return e; };
+      hdEl.replaceChildren(th('手'), th('操作'), ...spec.cols.map(th));
+      let prev = null;
+      tbEl.replaceChildren(...(rows || []).map((r, k) => {
+        const tr = document.createElement('tr');
+        const h = document.createElement('th');
+        h.scope = 'row';
+        h.textContent = k;
+        const a = document.createElement('td');
+        a.textContent = r.act;
+        const vals = spec.row(r.s, ver);
+        tr.append(h, a, ...vals.map((x, j) => {
+          const td = document.createElement('td');
+          td.textContent = x;
+          if (prev && prev[j] !== x) td.className = 'chg';
+          return td;
+        }));
+        prev = vals;
+        if (!spec.ok(r.s, ver)) tr.className = 'bad';
+        else if (!spec.next(r.s, ver).length && !spec.done(r.s, ver)) tr.className = 'stuck';
+        return tr;
+      }));
+    }
+    const bfsRows = (p) => p.map((i) => ({ act: g.via[i], s: g.nodes[i] }));
+
+    function coverage() {
+      if (!seen.size) { covEl.textContent = ''; return; }
+      covEl.textContent = revealed >= g.nodes.length
+        ? `ランダムの手順が通った状態: 全部の ${g.nodes.length} 通りのうち ${seen.size} 通り（青い輪）`
+        : `ランダムの手順が通った状態: ${seen.size} 通り（全部で何通りあるかは「全部調べる」で分かります）`;
+    }
+
+    // 全部調べる: 幅優先で見つけた順に点を出していき、最後に最短の反例を示す
+    function exploreAll() {
+      const my = ++anim, N = g.nodes.length, dur = thumb ? 1300 : 1600, t0 = performance.now();
+      path = null;
+      showTrace(null, '');
+      revealed = 0;
+      allBtn.disabled = true;
+      const tick = () => {
+        if (my !== anim) return;
+        const f = Math.min(1, (performance.now() - t0) / dur);
+        revealed = Math.max(1, Math.ceil(N * f));
+        say(thumb ? `${spec.short}: 幅優先でたどっています（${revealed} 通り）` : `最初の状態から幅優先でたどっています（見つけた状態 ${revealed} 通り）`);
+        draw();
+        if (f < 1) setTimeout(tick, 33);
+        else finish();
+      };
+      tick();
+    }
+    function finish() {
+      allBtn.disabled = false;
+      revealed = g.nodes.length;
+      const N = g.nodes.length;
+      const target = g.bad.length ? g.bad[0] : g.stuck.length ? g.stuck[0] : -1;
+      let s = `全部で ${N} 通りの状態を調べました（作った状態は重なりを含めて ${g.generated}、調べ残し 0）。`;
+      if (g.bad.length) s += `ルールが破れる状態が ${g.bad.length} 通りあります。そこまでのいちばん短い手順は ${g.depth[target]} 手です（表）。`;
+      if (g.stuck.length) s += `誰も動けなくなる状態（行き詰まり）が ${g.stuck.length} 通りあります。${g.bad.length ? '' : `そこまでのいちばん短い手順は ${g.depth[target]} 手です（表）。`}`;
+      if (!g.bad.length && !g.stuck.length) s += 'ルールが破れる状態も、行き詰まりもありません。この小さな世界では、どの順番で操作してもルールが守られます。';
+      // 小窓では 1 行に収まる短い要約にする
+      if (thumb) s = `${spec.short}: ${N} 通りを全部調べ、${g.bad.length ? `${g.depth[target]} 手でルールが破れる` : g.stuck.length ? `${g.depth[target]} 手で行き詰まる` : '違反なし'}`;
+      say(s);
+      cv.setAttribute('aria-label', `状態の図: 全部で ${N} 通り。ルールが破れる状態 ${g.bad.length} 通り、行き詰まり ${g.stuck.length} 通り`);
+      if (target >= 0) {
+        path = pathTo(g, target);
+        showTrace(bfsRows(path), g.bad.length ? 'ルールが破れるまでのいちばん短い手順' : '行き詰まるまでのいちばん短い手順');
+      } else if (g.ends.length) {
+        path = pathTo(g, g.ends[0]);
+        showTrace(bfsRows(path), '全員が終わるまでの手順の 1 つ');
+      }
+      coverage();
+      draw();
+    }
+
+    // ランダムに試す: 同じ種なら、同じ手順がもう一度出る
+    function runRandom() {
+      anim++;
+      allBtn.disabled = false;
+      const sd = Math.min(4294967295, Math.max(0, Math.floor(Number(seedIn.value) || 0)));
+      seedIn.value = String(sd);
+      const res = simulate(spec, ver, sd, TRACES, spec.steps);
+      for (const k of res.seen) {
+        const i = g.index.get(k);
+        if (i !== undefined) seen.add(i);
+      }
+      const sig = `${res.kind}|${res.t}|${res.steps}|${res.trace.map((x) => spec.key(x.s)).join(' ')}`;
+      let again = '種を変えずにもう一度押すと、同じ手順がもう一度出ます。';
+      if (lastSim && lastSim.seed === sd) again = lastSim.sig === sig ? '前と同じ種なので、前とまったく同じ手順がもう一度出ました。' : '前と同じ種なのに、手順が変わりました。';
+      lastSim = { seed: sd, sig };
+      const n = res.trace.length - 1;
+      if (res.kind === 'bad') say(`種 ${sd}: ${res.t} 本目の手順の ${n} 手目で、ルールが破れました（ここまでに試した手は合わせて ${res.steps}）。${again}`);
+      else if (res.kind === 'stuck') say(`種 ${sd}: ${res.t} 本目の手順の ${n} 手目で、誰も動けなくなりました（行き詰まり。ここまでに試した手は合わせて ${res.steps}）。${again}`);
+      else say(`種 ${sd}: ${TRACES} 本の手順（合わせて ${res.steps} 手）を試し、ルールが破れる場面も行き詰まりも出ませんでした。ただし、出なかったと言えるのは試した手順だけです。表は最後の 1 本です。${again}`);
+      path = res.trace.map((x) => g.index.get(spec.key(x.s))).filter((i) => i !== undefined);
+      showTrace(res.trace, res.kind === 'ok' ? `種 ${sd} の最後の手順` : `種 ${sd} で見つかった手順`);
+      coverage();
+      draw();
+    }
+
+    // 点を押すと、その状態までのいちばん短い手順を表に出す
+    cv.addEventListener('click', (ev) => {
+      if (!g) return;
+      const rc = cv.getBoundingClientRect();
+      const x = ev.clientX - rc.left, y = ev.clientY - rc.top;
+      let best = -1, bd = 14 * 14;
+      for (let i = 0; i < g.nodes.length; i++) {
+        if (!(i < revealed || seen.has(i))) continue;
+        const d2 = (pos[i][0] - x) ** 2 + (pos[i][1] - y) ** 2;
+        if (d2 < bd) { bd = d2; best = i; }
+      }
+      if (best < 0) return;
+      path = pathTo(g, best);
+      showTrace(bfsRows(path), '押した状態までのいちばん短い手順');
+      draw();
+    });
+
+    specSel.addEventListener('change', () => { fillVer(); setup(); });
+    verSel.addEventListener('change', setup);
+    runBtn.addEventListener('click', runRandom);
+    allBtn.addEventListener('click', exploreAll);
+
+    let lastW = -1;
+    new ResizeObserver((ents) => {
+      const w = Math.round(ents[0].contentRect.width);
+      if (w === lastW) return;
+      lastW = w;
+      setTimeout(resize, 0);
+    }).observe(cv);
+
+    fillVer();
+    if (thumb) {
+      // 小窓では、題材と書き方を順に変えながら、全部調べる様子を見せる
+      const plan = [['ticket', 'bug'], ['ticket', 'fix'], ['room', 'flag'], ['bank', 'bug']];
+      let k = 0;
+      const loop = () => {
+        const [sp, ve] = plan[k % plan.length];
+        k++;
+        specSel.value = sp;
+        fillVer();
+        verSel.value = ve;
+        setup();
+        exploreAll();
+        setTimeout(loop, 4200);
+      };
+      loop();
+    } else {
+      setup();
+    }
+  },
+});

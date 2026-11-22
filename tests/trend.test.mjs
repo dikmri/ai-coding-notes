@@ -1385,3 +1385,92 @@ test('量子化: 学習すると見分けられるようになり、同じ大き
     assert.ok(al.acc >= u.acc, `${b} ビット`);
   }
 });
+
+// ---- モデル検査（tr-20261122-model-check） ----
+const MC = 'tr-20261122-model-check';
+
+test('モデル検査: 直したチケット販売は、記事の TLC と同じ 29 通りの状態（作った状態 55）で、違反も行き詰まりもない', () => {
+  const { SPECS, explore } = trendCore(MC, ['SPECS', 'explore']);
+  const g = explore(SPECS.ticket, 'fix');
+  assert.equal(g.nodes.length, 29);
+  assert.equal(g.generated, 55);
+  assert.equal(g.bad.length, 0);
+  assert.equal(g.stuck.length, 0);
+  // 全員が終わった状態では、売れた枚数はちょうど 2 枚
+  for (const i of g.ends) assert.equal(g.nodes[i].sold, 2);
+});
+
+test('モデル検査: 元のチケット販売は、3 人が確認してから 3 人が確定する 6 手で 3 枚売れる', () => {
+  const { SPECS, explore, pathTo } = trendCore(MC, ['SPECS', 'explore', 'pathTo']);
+  const g = explore(SPECS.ticket, 'bug');
+  assert.ok(g.bad.length > 0);
+  const p = pathTo(g, g.bad[0]);
+  assert.equal(p.length - 1, 6);
+  const last = g.nodes[p[p.length - 1]];
+  assert.equal(last.sold, 3);
+  assert.equal(last.stock, -1);
+  // 幅優先なので、最初に見つけた違反がいちばん短い
+  for (const i of g.bad) assert.ok(g.depth[i] >= g.depth[g.bad[0]]);
+});
+
+test('モデル検査: 手順は最初の状態から 1 手ずつ、実際にある操作でつながる', () => {
+  const { SPECS, explore, pathTo } = trendCore(MC, ['SPECS', 'explore', 'pathTo']);
+  for (const [name, sp] of Object.entries(SPECS)) {
+    for (const v of sp.versions) {
+      const g = explore(sp, v.id);
+      const has = new Set(g.edges.map(([a, b]) => a + '>' + b));
+      for (let i = 0; i < g.nodes.length; i++) {
+        const p = pathTo(g, i);
+        assert.equal(p[0], 0, `${name}/${v.id}`);
+        assert.equal(p.length - 1, g.depth[i], `${name}/${v.id}`);
+        for (let k = 0; k + 1 < p.length; k++) assert.ok(has.has(p[k] + '>' + p[k + 1]), `${name}/${v.id}`);
+      }
+    }
+  }
+});
+
+test('モデル検査: 送金は、読んでから書くと合計が 100 円から変わり、1 回で足し引きすると変わらない', () => {
+  const { SPECS, explore } = trendCore(MC, ['SPECS', 'explore']);
+  const bug = explore(SPECS.bank, 'bug');
+  const sums = new Set(bug.bad.map((i) => bug.nodes[i].x + bug.nodes[i].y));
+  assert.ok(bug.bad.length > 0);
+  assert.ok(!sums.has(100));
+  assert.ok(sums.has(130) && sums.has(50));   // 増えることも、減ることもある
+  const fix = explore(SPECS.bank, 'fix');
+  assert.equal(fix.bad.length, 0);
+  assert.equal(fix.ends.length, 1);
+  const end = fix.nodes[fix.ends[0]];
+  assert.deepEqual([end.x, end.y], [20, 80]);
+});
+
+test('モデル検査: 部屋の札は、見てから立てると 2 人とも入れ、立ててから見ると行き詰まり、ピーターソンの方法はどちらも無い', () => {
+  const { SPECS, explore, pathTo } = trendCore(MC, ['SPECS', 'explore', 'pathTo']);
+  const look = explore(SPECS.room, 'look');
+  assert.ok(look.bad.length > 0);
+  assert.equal(look.stuck.length, 0);
+  assert.equal(pathTo(look, look.bad[0]).length - 1, 4);
+  const flag = explore(SPECS.room, 'flag');
+  assert.equal(flag.bad.length, 0);
+  assert.ok(flag.stuck.length > 0);
+  assert.equal(pathTo(flag, flag.stuck[0]).length - 1, 2);
+  const pet = explore(SPECS.room, 'peterson');
+  assert.equal(pet.bad.length, 0);
+  assert.equal(pet.stuck.length, 0);
+});
+
+test('モデル検査: ランダムな実行は、同じ種なら同じ手順になり、通った状態は全部を調べた状態に含まれる', () => {
+  const { SPECS, explore, simulate } = trendCore(MC, ['SPECS', 'explore', 'simulate']);
+  const sig = (r) => r.kind + '|' + r.t + '|' + r.trace.map((x) => x.act).join('/');
+  for (const [name, sp] of Object.entries(SPECS)) {
+    for (const v of sp.versions) {
+      const a = simulate(sp, v.id, 7, 50, sp.steps), b = simulate(sp, v.id, 7, 50, sp.steps);
+      assert.equal(sig(a), sig(b), `${name}/${v.id}`);
+      const g = explore(sp, v.id);
+      for (const k of a.seen) assert.ok(g.index.has(k), `${name}/${v.id}`);
+      // 違反の無い書き方では、ランダムでも違反は出ない
+      if (!g.bad.length && !g.stuck.length) assert.equal(a.kind, 'ok', `${name}/${v.id}`);
+    }
+  }
+  // 元のチケット販売は、200 本のうちどこかで違反が見つかる
+  assert.equal(simulate(SPECS.ticket, 'bug', 1, 200, SPECS.ticket.steps).kind, 'bad');
+});
