@@ -1596,3 +1596,102 @@ test('パン: 耳の内側の輪郭は外側の内側にあり、パン全体が
     assert.ok(x > G.ox && x < G.ox + G.w * G.cell && y > G.oy && y < G.oy + G.h * G.cell);
   }
 });
+
+// 次の文字を当てる力と圧縮（Perplexity and Intelligence）
+const PERP = 'tr-20261123-perplexity-compress';
+const PP_NAMES = ['MAX_ORDER', 'charsOf', 'train', 'alphabetOf', 'usedOrder', 'prob', 'dist', 'evaluate', 'lossCurve', 'topK', 'cumFreq', 'encode', 'decode', 'randomLetters'];
+const PP_JA = '朝は晴れ。気温は八度で、少し寒い。昼から雲が出て、夕方に小雨が降った。駅まで歩いて、パンを買って帰った。\n朝はくもり。気温は十度で、風が強い。昼は晴れて、少し暖かくなった。駅まで自転車で行って、本を借りて帰った。\n朝は雨。気温は九度で、とても寒い。昼も雨が続いて、夕方にやんだ。家で本を読んで、夜にパンを焼いた。';
+const PP_JA_TEST = '朝はくもり。気温は九度で、少し寒い。昼から雨が降って、夕方にやんだ。駅まで歩いて、本を借りて帰った。';
+
+test('当てる: 手で計算した Witten–Bell の確率と一致する', () => {
+  const X = trendCore(PERP, PP_NAMES);
+  const m = X.train(X.charsOf('abab'), 2);
+  // 0 文字の文脈: a が 2 回・b が 2 回・種類は 2 → (2 + 2 × 1/2) ÷ (4 + 2) = 1/2
+  assert.ok(near(X.prob(m, ['a'], 0, 0, 'a', 2), 0.5));
+  // 「a」の後: b が 2 回・種類は 1 → b は (2 + 1 × 1/2) ÷ 3、a は (0 + 1 × 1/2) ÷ 3
+  assert.ok(near(X.prob(m, ['a', 'x'], 1, 1, 'b', 2), 2.5 / 3));
+  assert.ok(near(X.prob(m, ['a', 'x'], 1, 1, 'a', 2), 0.5 / 3));
+  // 学習が空なら、一覧の文字は全部同じ確率
+  const empty = X.train([], 3);
+  assert.ok(near(X.prob(empty, ['x', 'y'], 2, 3, 'q', 5), 1 / 5));
+  assert.equal(X.usedOrder(empty, ['x'], 1, 3), -1);
+});
+
+test('当てる: 全部の文字の確率は合計 1 で、1 文字ずつ求めた確率と同じ', () => {
+  const X = trendCore(PERP, PP_NAMES);
+  const tr = X.charsOf(PP_JA), te = X.charsOf(PP_JA_TEST);
+  const m = X.train(tr, X.MAX_ORDER), A = X.alphabetOf(tr, te);
+  for (const order of [0, 1, 3, 6]) {
+    for (const i of [0, 1, 5, 20, te.length - 1]) {
+      const p = X.dist(m, te, i, order, A);
+      assert.ok(near(p.reduce((s, v) => s + v, 0), 1, 1e-9), `order ${order} i ${i}`);
+      for (const j of [0, 7, A.length - 1]) assert.ok(near(p[j], X.prob(m, te, i, order, A[j], A.length), 1e-12));
+    }
+  }
+  // 上位の予想は確率の高い順
+  const top = X.topK(X.dist(m, te, 3, 2, A), A, 5);
+  for (let k = 1; k < top.length; k++) assert.ok(top[k - 1].p >= top[k].p);
+});
+
+test('当てる: 文脈を長くすると学習に使った文の損失は下がり続け、使わなかった文との差が開く', () => {
+  const X = trendCore(PERP, PP_NAMES);
+  const tr = X.charsOf(PP_JA), te = X.charsOf(PP_JA_TEST);
+  const m = X.train(tr, X.MAX_ORDER), K = X.alphabetOf(tr, te).length;
+  const a = X.lossCurve(m, tr, K, X.MAX_ORDER), b = X.lossCurve(m, te, K, X.MAX_ORDER);
+  for (let k = 1; k < a.length; k++) assert.ok(a[k] <= a[k - 1] + 1e-12, `学習用 ${k}`);
+  assert.ok(b[2] < b[0]);
+  assert.ok(a[6] < b[6]);
+  // パープレキシティは e の損失乗、ビットは損失 ÷ ln 2
+  const ev = X.evaluate(m, te, 2, K);
+  assert.ok(near(ev.ppl, Math.exp(ev.loss)) && near(ev.bpc, ev.loss / Math.LN2));
+  assert.ok(near(ev.totalBits, ev.bits.reduce((s, v) => s + v, 0), 1e-6));
+});
+
+test('圧縮: 算術符号は元に戻せて、大きさは損失から計算した値に近い', () => {
+  const X = trendCore(PERP, PP_NAMES);
+  const L = 'abcdefghijklmnopqrstuvwxyz';
+  const cases = [
+    [X.charsOf(PP_JA), X.charsOf(PP_JA_TEST)],
+    [X.charsOf('the cat sat on the mat. the dog sat on the log. '), X.charsOf('the cat sat on the log. the dog sat.')],
+    [X.charsOf(X.randomLetters(7, 600, L)), X.charsOf(X.randomLetters(11, 200, L))],
+    [[], X.charsOf('xyz')],
+    [X.charsOf('abc'), []],
+  ];
+  for (const [tr, te] of cases) {
+    const m = X.train(tr, X.MAX_ORDER), A = X.alphabetOf(tr, te);
+    for (let order = 0; order <= X.MAX_ORDER; order++) {
+      const enc = X.encode(m, te, order, A);
+      assert.equal(X.decode(m, enc.bytes, order, A).join(''), te.join(''), `order ${order}`);
+      assert.equal(enc.bytes.length, Math.ceil(enc.bits / 8));
+      const ideal = X.evaluate(m, te, order, Math.max(1, A.length)).totalBits;
+      // 32 ビットの文字数・終わりの 2 ビットと、度数に直したときのずれ（1 文字あたり 0.1 ビットまで）
+      assert.ok(enc.bits - 32 <= ideal + 0.1 * te.length + 4, `order ${order}: ${enc.bits - 32} > ${ideal}`);
+      assert.ok(enc.bits - 32 >= ideal - 1, `order ${order}`);
+    }
+  }
+});
+
+test('圧縮: でたらめな英字は当てようがなく、約 26 個から選ぶのと同じ。文脈を長くするとかえって悪くなる', () => {
+  const X = trendCore(PERP, PP_NAMES);
+  const L = 'abcdefghijklmnopqrstuvwxyz';
+  assert.equal(X.randomLetters(3, 50, L), X.randomLetters(3, 50, L));
+  assert.notEqual(X.randomLetters(3, 50, L), X.randomLetters(4, 50, L));
+  assert.match(X.randomLetters(3, 500, L), /^[a-z]{500}$/);
+  const tr = X.charsOf(X.randomLetters(7, 1200, L)), te = X.charsOf(X.randomLetters(11, 300, L));
+  const m = X.train(tr, X.MAX_ORDER), K = X.alphabetOf(tr, te).length;
+  const e0 = X.evaluate(m, te, 0, K), e3 = X.evaluate(m, te, 3, K);
+  assert.ok(e0.ppl > 20 && e0.ppl < 32, `order 0: ${e0.ppl}`);
+  // 1 回しか出なかった文脈に引っぱられる（学習用の文を覚えただけで、当てる力は上がらない）
+  assert.ok(e3.loss > e0.loss, `order 3: ${e3.ppl}`);
+});
+
+test('圧縮: 度数はどの文字も 1 以上で合計は上限以下。種類が多すぎると止める', () => {
+  const X = trendCore(PERP, PP_NAMES);
+  const p = new Float64Array([0.999999, 0.000001, 0]);
+  const cum = X.cumFreq(p, 65536);
+  for (let j = 0; j < 3; j++) assert.ok(cum[j + 1] - cum[j] >= 1);
+  assert.ok(cum[3] <= 65536);
+  assert.throws(() => X.cumFreq(new Float64Array(40000).fill(1 / 40000), 65536));
+  assert.deepEqual(Array.from(X.charsOf('a\r\nb\rc')), ['a', '\n', 'b', '\n', 'c']);
+  assert.deepEqual(Array.from(X.charsOf('😀a')), ['😀', 'a']);
+});

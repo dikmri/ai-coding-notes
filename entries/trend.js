@@ -9664,3 +9664,562 @@ dekiru.add({
     requestAnimationFrame(frame);
   },
 });
+
+dekiru.add({
+  id: 'tr-20261123-perplexity-compress', c: 'trend', lv: 3, date: '2026-11-23',
+  t: '次の文字を当てる力をパープレキシティで測り、その予測で文章を本当に圧縮する（OpenAI「Perplexity and Intelligence」）',
+  y: 'つぎのもじをあてるちからをぱーぷれきしてぃではかりそのよそくでぶんしょうをほんとうにあっしゅくする',
+  tags: ['Perplexity and Intelligence', 'パープレキシティ', '算術符号', 'n-gram', 'CompressionStream', 'Canvas'],
+  d: '2026年11月22日、OpenAI の Chief Scientist の Jakub Pachocki さんが記事「Perplexity and Intelligence」を公開し、Hacker News では取得した時点で 396 点・263 件のコメントを集めていた。記事は、言語モデルの事前学習を「圧縮する道具（次を予測する道具と同じもの）を作ること」と説明する。そして、学習に使っていない文での予測の外れ具合（パープレキシティ。交差エントロピーの損失と同じもの）を、各社で比べる共通の物差しにしようと提案している。社内の値として、GPT‑3.5 が約 0.99、GPT‑4 が約 0.91 で、0.8 を下回ってからサイバーセキュリティや数学で大きな能力が現れたと書いている。この見本では、直前の 0〜6 文字から次の 1 文字を当てる小さなモデル（文字の並びの回数を数え、Witten–Bell の方法でなめらかにしたもの）をブラウザの中で学習させ、学習に使わなかった文で損失とパープレキシティを測る。さらに、そのモデルが出す確率で算術符号を作って文を実際にビット列へ圧縮し、元に戻して一致することを確かめ、ブラウザの deflate（CompressionStream）と大きさを比べる。予測が上手いほど小さく縮む、という記事の前提を手元で確かめられる。再現できていない所: 記事の値はトークン単位で、大きなモデルと OpenAI の社内の評価用データで測ったもの。この見本は 1 文字単位の小さな数え上げのモデルなので、数の大きさは記事の値と比べられない。算術符号は、文字の一覧（学習用の文と当てさせる文に出てくる文字）を送る側と受け取る側が同じものを持っている前提で、一覧を送る分は大きさに入れていない。',
+  p: '損失は「実際に来た文字に付けていた確率」の −ln の平均で、e の損失乗がパープレキシティになる。パープレキシティが 4 なら、毎回 4 つの候補から同じ確率で選ぶ場合と同じくらい当てにくい。確率 p の文字は算術符号でおよそ −log₂p ビットで書けるので、損失の合計 ÷ ln 2 ÷ 8 がほぼ圧縮後のバイト数になる。符号を作る側は 32 ビットの整数の区間 [low, high] を文字の確率の幅に狭め、上の桁が決まったら書き出す。受け取る側は同じモデルで同じ確率を計算し、同じ順に区間を狭めて文字を取り出す。確率は整数の度数（合計は 65536 以下、どの文字も 1 以上）に直してから使い、両側の計算の結果がずれないようにしている。',
+  refs: [
+    { title: 'Perplexity and Intelligence（OpenAI、Jakub Pachocki、2026-11-22）', url: 'https://openai.com/index/perplexity-and-intelligence/' },
+    { title: 'Hacker News: Perplexity and Intelligence（2026-11-22）', url: 'https://news.ycombinator.com/item?id=50601525' },
+    { title: 'Jakub Pachocki さんの X の投稿（2026-11-22）', url: 'https://x.com/merettm/status/2124549218995949967' },
+    { title: 'Arithmetic coding（Wikipedia）', url: 'https://en.wikipedia.org/wiki/Arithmetic_coding' },
+  ],
+  html: `<div class="app">
+  <div class="bar">
+    <label class="row">文の組 <select id="preset">
+      <option value="ja">天気の日記（日本語）</option>
+      <option value="en">天気の日記（英語）</option>
+      <option value="rnd">でたらめな英字（当てようがない）</option>
+    </select></label>
+    <span class="row"><label for="ord">直前の何文字を見るか</label><input type="range" id="ord" min="0" max="6" step="1" value="3"><output id="ordOut" for="ord">3 文字</output></span>
+  </div>
+  <div class="texts">
+    <label>学習に使う文<textarea id="trainT" spellcheck="false"></textarea></label>
+    <label>当てさせる文（学習には使わない）<textarea id="testT" spellcheck="false"></textarea></label>
+  </div>
+  <div class="stats">
+    <div class="stat"><span>損失（1 文字あたりの log-perplexity）</span><b id="lossO">-</b><span>ナット</span></div>
+    <div class="stat"><span>パープレキシティ（e の損失乗）</span><b id="pplO">-</b><span>個の候補から選ぶのと同じ当てにくさ</span></div>
+    <div class="stat"><span>1 文字を書くのに要る長さ</span><b id="bpcO">-</b><span>ビット</span></div>
+  </div>
+  <div id="heat" class="heat" tabindex="0" aria-label="当てさせる文。色が濃い文字ほど当てられなかった。左右の矢印キーで文字を選ぶと、そのときの予想が下に出る"></div>
+  <p id="pick" class="pick" role="status"></p>
+  <div class="lower">
+    <figure>
+      <canvas id="cv" role="img" aria-label="直前の文字数と損失のグラフ"></canvas>
+      <figcaption><span class="key k1"></span>学習に使わなかった文　<span class="key k2"></span>学習に使った文（低いほどよく当たる）</figcaption>
+    </figure>
+    <div class="tw"><table>
+      <caption>当てさせる文を縮めた大きさ</caption>
+      <thead><tr><th scope="col">やり方</th><th scope="col">バイト</th><th scope="col">1 文字あたりのビット</th></tr></thead>
+      <tbody id="cmp"></tbody>
+    </table></div>
+  </div>
+  <p id="note" class="small"></p>
+  <p class="small">算術符号の実物には、先頭に文字数（4 バイト）が入っている。deflate の 2 行目は「学習用の文と当てさせる文をつないで縮めた大きさ − 学習用の文だけを縮めた大きさ」で、モデルと同じく学習用の文を先に知っている条件にそろえたもの。</p>
+</div>`,
+  css: `:root { color-scheme: light; --bg: #f4f2ec; --fg: #23211d; --mut: #625d53; --line: #d6d0c3; --panel: #fffdf8; --acc: #1d6a86; --hot: #d4452a; --train: #8a8478; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    .app { box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; padding: 10px; max-inline-size: 980px; margin-inline: auto; }
+    .bar { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; }
+    .row { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    select, output { font: inherit; }
+    select { max-inline-size: 100%; }
+    #ord { accent-color: var(--acc); inline-size: min(200px, 46vw); }
+    #ord:focus-visible { outline: 2px solid var(--acc); outline-offset: 4px; }
+    output { min-inline-size: 3.5em; font-variant-numeric: tabular-nums; }
+    .texts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 8px; }
+    .texts label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--mut); }
+    textarea { box-sizing: border-box; inline-size: 100%; block-size: 6.5em; resize: vertical; font: 13px/1.5 system-ui, sans-serif; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
+    .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+    .stat { min-inline-size: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; display: flex; flex-direction: column; }
+    .stat span { font-size: 11px; color: var(--mut); line-height: 1.35; }
+    .stat b { font-size: 22px; line-height: 1.25; font-variant-numeric: tabular-nums; }
+    .heat { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; max-block-size: 10.5em; overflow: auto; font-size: 15px; line-height: 1.85; }
+    .heat:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+    .heat span { border-radius: 2px; background: color-mix(in oklab, var(--hot) calc(var(--s, 0) * 85%), transparent); }
+    .heat span.sel { outline: 2px solid var(--acc); outline-offset: 1px; }
+    .pick { margin: 0; min-block-size: 3em; font-size: 13px; }
+    .pick .ctx { background: #e6eef1; border-radius: 3px; padding-inline: 3px; white-space: pre; }
+    .pick .hit { font-weight: 700; color: var(--acc); }
+    .lower { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 8px; align-items: start; }
+    figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
+    canvas { display: block; inline-size: 100%; block-size: 180px; }
+    figcaption { font-size: 12px; color: var(--mut); }
+    .key { display: inline-block; inline-size: 18px; block-size: 0; border-block-start: 3px solid var(--acc); vertical-align: middle; margin-inline-end: 4px; }
+    .key.k2 { border-block-start: 3px dashed var(--train); }
+    .tw { overflow-x: auto; }
+    table { border-collapse: collapse; inline-size: 100%; font-size: 12.5px; background: var(--panel); border: 1px solid var(--line); }
+    caption { text-align: start; font-size: 12px; color: var(--mut); padding-block-end: 2px; }
+    th, td { border-block-end: 1px solid var(--line); padding: 4px 6px; text-align: start; font-weight: normal; }
+    thead th { color: var(--mut); font-size: 11.5px; }
+    td.num { text-align: end; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    tr.best th { font-weight: 700; }
+    .small { font-size: 12px; color: var(--mut); margin: 0; }
+    .thumb .texts, .thumb .small, .thumb .tw, .thumb .pick { display: none; }
+    .thumb .heat { max-block-size: 6.5em; }
+    @media (max-width: 420px) { .stat b { font-size: 18px; } }`,
+  core() {
+    // 直前の何文字まで数えておくか（スライダーの上限）
+    const MAX_ORDER = 6;
+
+    // 文字列を「文字」（コードポイント）の配列にする。改行は \n にそろえる
+    function charsOf(text) {
+      return Array.from(String(text).replace(/\r\n?/g, '\n'));
+    }
+
+    // 学習: 長さ 0〜maxOrder の文脈ごとに、その後に来た文字の回数を数える
+    // ctx のキーは文脈の文字列（長さ 0 は ''）、値は { n: 回数の合計, m: 文字 → 回数 }
+    function train(chars, maxOrder) {
+      const ctx = new Map();
+      for (let i = 0; i < chars.length; i++) {
+        const c = chars[i];
+        let key = '';
+        for (let k = 0; k <= maxOrder && k <= i; k++) {
+          if (k > 0) key = chars[i - k] + key;
+          let node = ctx.get(key);
+          if (!node) { node = { n: 0, m: new Map() }; ctx.set(key, node); }
+          node.n++;
+          node.m.set(c, (node.m.get(c) || 0) + 1);
+        }
+      }
+      return { maxOrder, ctx };
+    }
+
+    // 文字の一覧（符号にするとき、送る側と受け取る側が同じ一覧を持つ）
+    function alphabetOf(...lists) {
+      const s = new Set();
+      for (const L of lists) for (const c of L) s.add(c);
+      return [...s].sort();
+    }
+
+    // 位置 i で、実際に使える文脈の長さ（学習用の文に一度も出なかった文脈は使えない）
+    function usedOrder(model, hist, i, order) {
+      let key = '', used = -1;
+      for (let k = 0; k <= order && k <= i; k++) {
+        if (k > 0) key = hist[i - k] + key;
+        if (!model.ctx.has(key)) break;
+        used = k;
+      }
+      return used;
+    }
+
+    // hist の i 文字目に文字 c が来る確率（Witten–Bell の方法）
+    // 短い文脈から順に p = (その文脈で c が来た回数 + 種類数 × 1 つ短い文脈での p) ÷ (その文脈の回数 + 種類数)
+    // 一番下は、一覧の K 種類の文字が同じ確率 1/K
+    function prob(model, hist, i, order, c, K) {
+      let p = 1 / K, key = '';
+      for (let k = 0; k <= order && k <= i; k++) {
+        if (k > 0) key = hist[i - k] + key;
+        const node = model.ctx.get(key);
+        if (!node) break;
+        const T = node.m.size;
+        p = ((node.m.get(c) || 0) + T * p) / (node.n + T);
+      }
+      return p;
+    }
+
+    // 位置 i に来る文字について、一覧の全部の文字の確率（合計は 1）。prob と同じ式を全部の文字に使う
+    function dist(model, hist, i, order, alphabet) {
+      const K = alphabet.length, p = new Float64Array(K).fill(1 / K);
+      let key = '';
+      for (let k = 0; k <= order && k <= i; k++) {
+        if (k > 0) key = hist[i - k] + key;
+        const node = model.ctx.get(key);
+        if (!node) break;
+        const T = node.m.size, den = node.n + T;
+        for (let j = 0; j < K; j++) p[j] = ((node.m.get(alphabet[j]) || 0) + T * p[j]) / den;
+      }
+      return p;
+    }
+
+    // 文を 1 文字ずつ当てさせて、外れ具合を測る
+    // bits[i] は i 文字目に付けていた確率の −log2。loss は −ln の平均（log-perplexity）、ppl は e の loss 乗
+    function evaluate(model, chars, order, K) {
+      const bits = new Float64Array(chars.length);
+      let nats = 0;
+      for (let i = 0; i < chars.length; i++) {
+        const p = prob(model, chars, i, order, chars[i], K);
+        nats -= Math.log(p);
+        bits[i] = -Math.log2(p);
+      }
+      const loss = nats / Math.max(1, chars.length);
+      return { bits, nats, loss, ppl: Math.exp(loss), bpc: loss / Math.LN2, totalBits: nats / Math.LN2 };
+    }
+
+    // 文脈の長さ 0〜maxOrder ごとの損失
+    function lossCurve(model, chars, K, maxOrder) {
+      const out = [];
+      for (let k = 0; k <= maxOrder; k++) out.push(chars.length ? evaluate(model, chars, k, K).loss : NaN);
+      return out;
+    }
+
+    // 確率の高い順に k 個
+    function topK(p, alphabet, k) {
+      const idx = Array.from(p, (_, j) => j).sort((a, b) => p[b] - p[a] || (alphabet[a] < alphabet[b] ? -1 : 1));
+      return idx.slice(0, k).map((j) => ({ c: alphabet[j], p: p[j] }));
+    }
+
+    // 算術符号: 32 ビットの区間 [low, high]。HALF・Q1・Q3 は区間の半分と 4 分の 1 の位置
+    const AC = { TOP: 2 ** 32, HALF: 2 ** 31, Q1: 2 ** 30, Q3: 3 * 2 ** 30, TOTAL: 2 ** 16 };
+
+    // 確率を整数の度数の累計にする。どの文字も 1 以上にして、幅 0 で区間が消えないようにする
+    // cum[j]〜cum[j+1] が j 番目の文字の幅、cum[K] は total 以下
+    function cumFreq(p, total) {
+      const K = p.length, spare = total - K;
+      if (spare < K) throw new Error('文字の種類が多すぎて符号にできません（' + K + ' 種類）');
+      const cum = new Float64Array(K + 1);
+      for (let j = 0; j < K; j++) cum[j + 1] = cum[j] + 1 + Math.floor(p[j] * spare);
+      return cum;
+    }
+
+    // 圧縮: 先頭 32 ビットに文字数、続けて算術符号のビット列
+    function encode(model, chars, order, alphabet) {
+      const index = new Map(alphabet.map((c, j) => [c, j]));
+      const out = [];
+      let cur = 0, nb = 0, pending = 0;
+      const put = (b) => { cur = (cur << 1) | b; nb++; if ((nb & 7) === 0) { out.push(cur); cur = 0; } };
+      // 区間が真ん中をまたいで縮んだときは、次に決まる桁の反対を pending 個まとめて書く
+      const emit = (b) => { put(b); for (; pending > 0; pending--) put(1 - b); };
+      const n = chars.length, K = alphabet.length;
+      for (let s = 31; s >= 0; s--) put(Math.floor(n / 2 ** s) % 2);
+      let low = 0, high = AC.TOP - 1;
+      for (let i = 0; i < n; i++) {
+        const j = index.get(chars[i]);
+        if (j === undefined) throw new Error('一覧に無い文字です: ' + chars[i]);
+        const cum = cumFreq(dist(model, chars, i, order, alphabet), AC.TOTAL), tot = cum[K];
+        const range = high - low + 1;
+        high = low + Math.floor(range * cum[j + 1] / tot) - 1;
+        low = low + Math.floor(range * cum[j] / tot);
+        for (;;) {
+          if (high < AC.HALF) emit(0);
+          else if (low >= AC.HALF) { emit(1); low -= AC.HALF; high -= AC.HALF; }
+          else if (low >= AC.Q1 && high < AC.Q3) { pending++; low -= AC.Q1; high -= AC.Q1; }
+          else break;
+          low *= 2; high = high * 2 + 1;
+        }
+      }
+      // 終わり: 区間の中に入る値を 2 ビット分（と pending）書く
+      pending++;
+      emit(low < AC.Q1 ? 0 : 1);
+      const bits = nb;
+      if (nb & 7) out.push(cur << (8 - (nb & 7)));
+      return { bytes: Uint8Array.from(out), bits };
+    }
+
+    // 元に戻す: 同じモデルで同じ確率を計算し、同じ順に区間を狭める。読み終えた後のビットは 0 とみなす
+    function decode(model, bytes, order, alphabet) {
+      let pos = 0;
+      const bit = () => { const v = bytes[pos >> 3]; const b = v === undefined ? 0 : (v >> (7 - (pos & 7))) & 1; pos++; return b; };
+      let n = 0;
+      for (let s = 0; s < 32; s++) n = n * 2 + bit();
+      if (n > 1e6) throw new Error('文字数が大きすぎます: ' + n);
+      let low = 0, high = AC.TOP - 1, value = 0;
+      for (let s = 0; s < 32; s++) value = value * 2 + bit();
+      const out = [], K = alphabet.length;
+      for (let i = 0; i < n; i++) {
+        const cum = cumFreq(dist(model, out, i, order, alphabet), AC.TOTAL), tot = cum[K];
+        const range = high - low + 1;
+        const target = Math.floor(((value - low + 1) * tot - 1) / range);
+        let lo = 0, hi = K - 1;
+        while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (cum[mid] <= target) lo = mid; else hi = mid - 1; }
+        out.push(alphabet[lo]);
+        high = low + Math.floor(range * cum[lo + 1] / tot) - 1;
+        low = low + Math.floor(range * cum[lo] / tot);
+        for (;;) {
+          if (high < AC.HALF) { /* 上の桁が 0 に決まった。区間を広げるだけ */ }
+          else if (low >= AC.HALF) { low -= AC.HALF; high -= AC.HALF; value -= AC.HALF; }
+          else if (low >= AC.Q1 && high < AC.Q3) { low -= AC.Q1; high -= AC.Q1; value -= AC.Q1; }
+          else break;
+          low *= 2; high = high * 2 + 1; value = value * 2 + bit();
+        }
+      }
+      return out;
+    }
+
+    // でたらめな文字列（種を決めると毎回同じ並びになる）
+    function randomLetters(seed, n, letters) {
+      let a = seed >>> 0;
+      const out = [];
+      for (let i = 0; i < n; i++) {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        out.push(letters[Math.floor((((t ^ (t >>> 14)) >>> 0) / 4294967296) * letters.length)]);
+      }
+      return out.join('');
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const thumb = !!window.THUMB;
+    if (thumb) document.documentElement.classList.add('thumb');
+    const preset = $('preset'), ord = $('ord'), ordOut = $('ordOut'), trainT = $('trainT'), testT = $('testT');
+    const lossO = $('lossO'), pplO = $('pplO'), bpcO = $('bpcO');
+    const heat = $('heat'), pick = $('pick'), cv = $('cv'), g = cv.getContext('2d'), cmp = $('cmp'), note = $('note');
+    const css = getComputedStyle(document.documentElement);
+    const col = (name, alt) => (css.getPropertyValue(name).trim() || alt);
+    const C = { acc: col('--acc', '#1d6a86'), train: col('--train', '#8a8478'), line: col('--line', '#d6d0c3'), mut: col('--mut', '#625d53'), fg: col('--fg', '#23211d') };
+    const LIMIT = { train: 8000, test: 2000 };
+
+    const JA_TRAIN = [
+      '十一月一日。朝は晴れ。気温は八度で、少し寒い。昼から雲が出て、夕方に小雨が降った。駅まで歩いて、パンを買って帰った。',
+      '十一月二日。朝はくもり。気温は十度で、風が強い。昼は晴れて、少し暖かくなった。駅まで自転車で行って、本を借りて帰った。',
+      '十一月三日。朝は雨。気温は九度で、とても寒い。昼も雨が続いて、夕方にやんだ。家で本を読んで、夜にパンを焼いた。',
+      '十一月四日。朝は晴れ。気温は七度で、とても寒い。昼は晴れて、空が青かった。駅まで歩いて、牛乳を買って帰った。',
+      '十一月五日。朝はくもり。気温は十一度で、風は弱い。昼から晴れて、暖かくなった。公園まで歩いて、写真を撮って帰った。',
+      '十一月六日。朝は晴れ。気温は九度で、少し寒い。昼は雲が多く、夕方に風が強くなった。駅まで自転車で行って、パンを買って帰った。',
+      '十一月七日。朝は雨。気温は八度で、風が強い。昼から雨がやんで、夕方は晴れた。家で手紙を書いて、夜に本を読んだ。',
+    ].join('\n');
+    const JA_TEST = [
+      '十一月八日。朝はくもり。気温は九度で、少し寒い。昼から雨が降って、夕方にやんだ。駅まで歩いて、本を借りて帰った。',
+      '十一月九日。朝は晴れ。気温は十度で、風は弱い。昼は晴れて、暖かくなった。公園まで自転車で行って、パンを買って帰った。',
+    ].join('\n');
+    const EN_TRAIN = [
+      'Nov 1. Morning was sunny. It was 8 degrees and a little cold. Clouds came in the afternoon and light rain fell in the evening. I walked to the station and bought bread.',
+      'Nov 2. Morning was cloudy. It was 10 degrees and windy. The afternoon was sunny and a little warm. I rode my bike to the station and borrowed a book.',
+      'Nov 3. Morning was rainy. It was 9 degrees and very cold. The rain went on all afternoon and stopped in the evening. I read a book at home and baked bread at night.',
+      'Nov 4. Morning was sunny. It was 7 degrees and very cold. The afternoon was clear and the sky was blue. I walked to the station and bought milk.',
+      'Nov 5. Morning was cloudy. It was 11 degrees and calm. The afternoon was sunny and warm. I walked to the park and took photos.',
+      'Nov 6. Morning was sunny. It was 9 degrees and a little cold. The afternoon was cloudy and the wind got strong in the evening. I rode my bike to the station and bought bread.',
+      'Nov 7. Morning was rainy. It was 8 degrees and windy. The rain stopped in the afternoon and the evening was clear. I wrote a letter at home and read a book at night.',
+    ].join('\n');
+    const EN_TEST = [
+      'Nov 8. Morning was cloudy. It was 9 degrees and a little cold. Rain fell in the afternoon and stopped in the evening. I walked to the station and borrowed a book.',
+      'Nov 9. Morning was sunny. It was 10 degrees and calm. The afternoon was sunny and warm. I rode my bike to the park and bought bread.',
+    ].join('\n');
+    const LETTERS = 'abcdefghijklmnopqrstuvwxyz';
+    const PRESETS = {
+      ja: { train: JA_TRAIN, test: JA_TEST },
+      en: { train: EN_TRAIN, test: EN_TEST },
+      rnd: { train: randomLetters(7, 1200, LETTERS), test: randomLetters(11, 300, LETTERS) },
+    };
+
+    let S = null, sel = -1, ev = null, dfTok = 0, timer = 0;
+    const show = (c) => (c === '\n' ? '改行' : c === ' ' ? '空白' : c);
+    const pct = (p) => (p >= 0.1 ? (p * 100).toFixed(0) : p >= 0.001 ? (p * 100).toFixed(1) : (p * 100).toFixed(3)) + '%';
+    const fmtPpl = (v) => (v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : String(Math.round(v)));
+
+    function load(name) {
+      const p = PRESETS[name] || PRESETS.ja;
+      trainT.value = p.train;
+      testT.value = p.test;
+      sel = -1;
+      rebuild();
+    }
+
+    // 文が変わったとき: 学習し直し、文脈の長さごとの損失を測り、当てさせる文の文字を並べ直す
+    function rebuild() {
+      let trainC = charsOf(trainT.value), testC = charsOf(testT.value);
+      const cut = [];
+      if (trainC.length > LIMIT.train) { trainC = trainC.slice(0, LIMIT.train); cut.push('学習用の文は先頭の ' + LIMIT.train + ' 文字だけを使います。'); }
+      if (testC.length > LIMIT.test) { testC = testC.slice(0, LIMIT.test); cut.push('当てさせる文は先頭の ' + LIMIT.test + ' 文字だけを使います。'); }
+      const model = train(trainC, MAX_ORDER);
+      const alphabet = alphabetOf(trainC, testC), K = Math.max(1, alphabet.length);
+      const curves = { train: lossCurve(model, trainC, K, MAX_ORDER), test: lossCurve(model, testC, K, MAX_ORDER) };
+      const frag = document.createDocumentFragment(), spans = [];
+      testC.forEach((c, i) => {
+        const s = document.createElement('span');
+        s.textContent = c === '\n' ? '↵\n' : c;
+        s.dataset.i = String(i);
+        spans.push(s);
+        frag.append(s);
+      });
+      heat.replaceChildren(frag);
+      S = { trainC, testC, model, alphabet, K, curves, cut, spans, df: null, dfMsg: '', code: null, codeErr: '' };
+      if (sel >= testC.length) sel = -1;
+      update();
+      runDeflate();
+    }
+
+    // 文脈の長さが変わったとき: 外れ具合・色・算術符号・表・グラフを作り直す
+    function update() {
+      if (!S) return;
+      const order = Number(ord.value);
+      ordOut.textContent = order + ' 文字';
+      ord.setAttribute('aria-valuetext', '直前の ' + order + ' 文字');
+      const n = S.testC.length;
+      ev = evaluate(S.model, S.testC, order, S.K);
+      lossO.textContent = n ? ev.loss.toFixed(3) : '-';
+      pplO.textContent = n ? fmtPpl(ev.ppl) : '-';
+      bpcO.textContent = n ? ev.bpc.toFixed(2) : '-';
+      for (let i = 0; i < n; i++) S.spans[i].style.setProperty('--s', Math.min(1, ev.bits[i] / 10).toFixed(3));
+      S.code = null; S.codeErr = '';
+      if (n) {
+        try {
+          const t0 = performance.now();
+          const enc = encode(S.model, S.testC, order, S.alphabet);
+          const back = decode(S.model, enc.bytes, order, S.alphabet);
+          S.code = { bytes: enc.bytes.length, bits: enc.bits, same: back.join('') === S.testC.join(''), ms: performance.now() - t0 };
+        } catch (e) { S.codeErr = e.message; }
+      }
+      renderTable();
+      drawChart();
+      showPick();
+    }
+
+    async function deflateSize(str) {
+      const s = new Blob([str]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+      return (await new Response(s).arrayBuffer()).byteLength;
+    }
+    function runDeflate() {
+      const tok = ++dfTok, my = S;
+      if (!('CompressionStream' in window)) { my.dfMsg = 'この環境は CompressionStream に未対応のため、deflate の行は空けています。'; renderTable(); return; }
+      const tr = my.trainC.join(''), te = my.testC.join('');
+      Promise.all([deflateSize(te), deflateSize(tr), deflateSize(tr + te)]).then(([alone, a, ab]) => {
+        if (tok !== dfTok) return;
+        my.df = { alone, cond: Math.max(0, ab - a) };
+        renderTable();
+      }).catch((e) => {
+        if (tok !== dfTok) return;
+        my.dfMsg = 'deflate で縮められませんでした（' + e.message + '）。';
+        renderTable();
+      });
+    }
+
+    function renderTable() {
+      const n = S.testC.length, raw = new TextEncoder().encode(S.testC.join('')).length;
+      // 3 つ目の値は「実際に縮めた大きさか」。太字の印は、実際に縮めた中で一番小さい行に付ける
+      const rows = [
+        ['元の文字（UTF-8）', n ? raw : null, false],
+        ['deflate で当てさせる文だけを縮める', n && S.df ? S.df.alone : null, true],
+        ['deflate に学習用の文を先に読ませる', n && S.df ? S.df.cond : null, true],
+        ['このモデルの損失から計算した大きさ', n ? Math.ceil(ev.totalBits / 8) : null, false],
+        ['このモデルの予測で算術符号にした実物', S.code ? S.code.bytes : null, true],
+      ];
+      const known = rows.filter((r) => r[2] && r[1] != null).map((r) => r[1]);
+      const best = known.length ? Math.min(...known) : -1;
+      const frag = document.createDocumentFragment();
+      for (const [name, bytes, real] of rows) {
+        const tr = document.createElement('tr');
+        if (real && bytes === best) tr.className = 'best';
+        const th = document.createElement('th');
+        th.scope = 'row';
+        th.textContent = name;
+        const b = document.createElement('td'), per = document.createElement('td');
+        b.className = per.className = 'num';
+        b.textContent = bytes == null ? '-' : String(bytes);
+        per.textContent = bytes == null || !n ? '-' : (bytes * 8 / n).toFixed(2);
+        tr.append(th, b, per);
+        frag.append(tr);
+      }
+      cmp.replaceChildren(frag);
+      const msg = [];
+      if (S.code) msg.push(S.code.same ? '算術符号から元に戻した文は、元の文と 1 文字も違わなかった（符号化と復元で ' + S.code.ms.toFixed(0) + ' ms）。' : '元に戻した文が元と一致しなかった。');
+      if (S.codeErr) msg.push('算術符号にできませんでした: ' + S.codeErr);
+      if (S.dfMsg) msg.push(S.dfMsg);
+      msg.push(...S.cut);
+      msg.push('記事の値（GPT‑4 で約 0.91 など）は 1 トークンあたりで、ここの値は 1 文字あたりなので、数の大きさは比べられない。');
+      note.textContent = msg.join(' ');
+    }
+
+    function showPick() {
+      for (const s of heat.querySelectorAll('.sel')) s.classList.remove('sel');
+      const n = S.testC.length;
+      if (sel < 0 || sel >= n) {
+        pick.textContent = n ? '色の濃い文字ほど、モデルが当てられなかった文字です。文字を押すか、文を選んで左右の矢印キーを押すと、その時の予想が出ます。' : '当てさせる文を入れてください。';
+        return;
+      }
+      const order = Number(ord.value), c = S.testC[sel];
+      S.spans[sel].classList.add('sel');
+      const p = dist(S.model, S.testC, sel, order, S.alphabet);
+      const top = topK(p, S.alphabet, 5), used = usedOrder(S.model, S.testC, sel, order);
+      const pc = p[S.alphabet.indexOf(c)];
+      const ctxText = S.testC.slice(Math.max(0, sel - Math.max(0, used)), sel).join('').replace(/\n/g, '↵');
+      const span = (cls, text) => { const e = document.createElement('span'); e.className = cls; e.textContent = text; return e; };
+      const parts = [];
+      if (used > 0) parts.push('直前の ', span('ctx', ctxText), ' の次の文字の予想: ');
+      else parts.push((sel === 0 ? '文の始まりなので' : '学習用の文に同じ並びが無いので') + '、文字の多さだけで予想: ');
+      top.forEach((t, k) => {
+        parts.push(k ? '・' : '');
+        parts.push(t.c === c ? span('hit', '「' + show(t.c) + '」' + pct(t.p)) : '「' + show(t.c) + '」' + pct(t.p));
+      });
+      parts.push('。実際は「' + show(c) + '」で、付けていた確率は ' + pct(pc) + '（' + (-Math.log2(pc)).toFixed(1) + ' ビット）。');
+      if (used > 0 && used < order && sel >= order) parts.push('直前の ' + order + ' 文字の並びは学習用の文に無かったので、' + used + ' 文字まで縮めて当てた。');
+      pick.replaceChildren(...parts);
+    }
+
+    function drawChart() {
+      const r = cv.getBoundingClientRect(), dpr = Math.max(1, window.devicePixelRatio || 1);
+      const W = Math.max(1, Math.round(r.width)), H = Math.max(1, Math.round(r.height));
+      const bw = Math.max(1, Math.round(W * dpr)), bh = Math.max(1, Math.round(H * dpr));
+      if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, W, H);
+      if (!S) return;
+      const order = Number(ord.value);
+      const pad = { l: 34, r: 10, t: 10, b: 24 };
+      const vals = [...S.curves.train, ...S.curves.test].filter(Number.isFinite);
+      const top = Math.max(0.5, ...vals) * 1.08;
+      const X = (k) => pad.l + (Math.max(1, W - pad.l - pad.r)) * k / MAX_ORDER;
+      const Y = (v) => pad.t + (Math.max(1, H - pad.t - pad.b)) * (1 - v / top);
+      // 選んでいる文脈の長さ
+      g.fillStyle = 'rgba(29, 106, 134, 0.10)';
+      g.fillRect(X(order) - 10, pad.t, 20, Math.max(0, H - pad.t - pad.b));
+      // 目盛り
+      g.font = '11px system-ui, sans-serif';
+      g.lineWidth = 1;
+      const step = top > 6 ? 2 : top > 3 ? 1 : 0.5;
+      g.textAlign = 'right'; g.textBaseline = 'middle';
+      for (let v = 0; v <= top; v += step) {
+        g.strokeStyle = C.line;
+        g.beginPath(); g.moveTo(pad.l, Y(v)); g.lineTo(W - pad.r, Y(v)); g.stroke();
+        g.fillStyle = C.mut; g.fillText(v.toFixed(step < 1 ? 1 : 0), pad.l - 4, Y(v));
+      }
+      g.textAlign = 'center'; g.textBaseline = 'top';
+      for (let k = 0; k <= MAX_ORDER; k++) { g.fillStyle = k === order ? C.fg : C.mut; g.fillText(String(k), X(k), H - pad.b + 5); }
+      const line = (arr, color, dash) => {
+        g.strokeStyle = color; g.lineWidth = 2; g.setLineDash(dash);
+        g.beginPath();
+        let started = false;
+        arr.forEach((v, k) => { if (!Number.isFinite(v)) return; if (started) g.lineTo(X(k), Y(v)); else { g.moveTo(X(k), Y(v)); started = true; } });
+        g.stroke();
+        g.setLineDash([]);
+        g.fillStyle = color;
+        arr.forEach((v, k) => { if (Number.isFinite(v)) { g.beginPath(); g.arc(X(k), Y(v), k === order ? 4 : 2.5, 0, Math.PI * 2); g.fill(); } });
+      };
+      line(S.curves.train, C.train, [5, 4]);
+      line(S.curves.test, C.acc, []);
+      const say = (arr) => arr.map((v, k) => k + ' 文字 ' + (Number.isFinite(v) ? v.toFixed(2) : '-')).join('、');
+      cv.setAttribute('aria-label', '直前に見る文字数と損失（ナット）のグラフ。学習に使わなかった文: ' + say(S.curves.test) + '。学習に使った文: ' + say(S.curves.train) + '。');
+    }
+
+    function choose(i, byKey) {
+      sel = i;
+      showPick();
+      if (byKey && S.spans[i]) {
+        // 枠の中だけを動かす（ページ全体は動かさない）
+        const s = S.spans[i], t = s.offsetTop;
+        if (t < heat.scrollTop) heat.scrollTop = t;
+        else if (t + s.offsetHeight > heat.scrollTop + heat.clientHeight) heat.scrollTop = t + s.offsetHeight - heat.clientHeight;
+      }
+    }
+    heat.addEventListener('click', (e) => { const s = e.target.closest('span[data-i]'); if (s) choose(Number(s.dataset.i), false); });
+    heat.addEventListener('pointerover', (e) => { if (e.pointerType !== 'mouse') return; const s = e.target.closest('span[data-i]'); if (s) choose(Number(s.dataset.i), false); });
+    heat.addEventListener('keydown', (e) => {
+      const n = S ? S.testC.length : 0;
+      if (!n) return;
+      let k;
+      if (e.key === 'ArrowRight') k = sel < 0 ? 0 : Math.min(n - 1, sel + 1);
+      else if (e.key === 'ArrowLeft') k = sel < 0 ? 0 : Math.max(0, sel - 1);
+      else if (e.key === 'Home') k = 0;
+      else if (e.key === 'End') k = n - 1;
+      else return;
+      e.preventDefault();
+      choose(k, true);
+    });
+    ord.addEventListener('input', update);
+    preset.addEventListener('change', () => load(preset.value));
+    const later = () => { clearTimeout(timer); timer = setTimeout(rebuild, 300); };
+    trainT.addEventListener('input', later);
+    testT.addEventListener('input', later);
+    new ResizeObserver(() => drawChart()).observe(cv);
+
+    if (thumb) ord.value = '0';
+    load('ja');
+    if (thumb) {
+      // 一覧の小窓: 見る文字数を 0 から 6 まで順に増やし、色と損失が変わる様子を見せる
+      let k = 0;
+      setInterval(() => {
+        k = (k + 1) % (MAX_ORDER + 1);
+        ord.value = String(k);
+        update();
+      }, 1000);
+    }
+  },
+});
