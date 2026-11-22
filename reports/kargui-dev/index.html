@@ -40,7 +40,7 @@
     <span class="box-title">今の kargui（2026 年 11 月 22 日）</span>
     <ul>
       <li>版は 0.2.0（<a href="https://crates.io/crates/kargui">crates.io</a>）。ふつうのデスクトップアプリを kargui だけで書けるところまで来ました。</li>
-      <li>GitHub の main には、0.2.0 の後に足した窓の中のドラッグ＆ドロップが入っています（<a href="https://github.com/dikmri/kargui">github.com/dikmri/kargui</a>、MIT ライセンス）。</li>
+      <li>GitHub の main には、0.2.0 の後に足したドラッグ＆ドロップ（窓の中と、エクスプローラーから落とすファイル）が入っています（<a href="https://github.com/dikmri/kargui">github.com/dikmri/kargui</a>、MIT ライセンス）。第 6 章の動きの道具は、手元の main にあり、まだ GitHub に送っていません。</li>
       <li>窓を開けるのは Windows 10/11 だけです。Linux と macOS は、試験だけを毎回走らせています。</li>
     </ul>
   </div>
@@ -53,6 +53,7 @@
     <li><a href="03-apps.html"><picture><source media="(prefers-color-scheme: dark)" srcset="img/apps/expenses-dark.webp"><img src="img/apps/expenses-light.webp" alt="" width="721" height="631" loading="lazy" decoding="async"></picture><p class="ch-no">第 3 章</p><h3>ふつうのアプリで見つけたこと</h3><p>メモ帳・家計簿・ファイルの閲覧を書いて見つかった不足と、起動が 14 ms 遅くなった理由。</p></a></li>
     <li><a href="04-release.html"><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/dialog-dark.webp"><img src="img/shots/dialog-light.webp" alt="" width="440" height="240" loading="lazy" decoding="async"></picture><p class="ch-no">第 4 章</p><h3>CI を初めて回した日と 0.2.0</h3><p>手元で通る試験が CI で落ちた 2 つの理由と、使い方を壊す変更を調べてから版を出す手順。</p></a></li>
     <li><a href="05-drag-and-drop.html"><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/drag_and_drop-dark.webp"><img src="img/shots/drag_and_drop-light.webp" alt="" width="440" height="200" loading="lazy" decoding="async"></picture><p class="ch-no">第 5 章</p><h3>ドラッグ＆ドロップ</h3><p>型で受け取る物を決める書き方、エクスプローラーから落とすファイル、本物の窓で見つかった不具合、並べ方の決まり。</p></a></li>
+    <li><a href="06-motion.html"><picture><source media="(prefers-color-scheme: dark)" srcset="img/motion/open-060-dark.webp"><img src="img/motion/open-060-light.webp" alt="" width="600" height="224" loading="lazy" decoding="async"></picture><p class="ch-no">第 6 章</p><h3>動き（アニメーション）</h3><p>数を 1 つ返す書き方、OS の「アニメーション効果」に従う作り、試験台で動きを切る理由、起動のたびに 6 フレーム描いていた不具合。</p></a></li>
 <!-- /gen:chapters -->
   </ul>
 
@@ -61,21 +62,21 @@
   <!-- gen:versions-table -->
 <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-versions">
     <table>
-      <caption id="t-versions">版ごとの数（2026 年 11 月 22 日。軽さは 3 つの版のタスク帳を同じ PC で往復の順に各 10 回測った中央値）</caption>
+      <caption id="t-versions">版ごとの数（2026 年 11 月 22 日（第 6 章を書いた時に測り直した）。軽さは 3 つの版のタスク帳を同じ PC で往復の順に各 10 回測った中央値）</caption>
       <thead><tr><th scope="col">項目</th><th scope="col" class="num"><span class="ver" data-v="v010">0.1.0</span></th><th scope="col" class="num"><span class="ver" data-v="v020">0.2.0</span></th><th scope="col" class="num"><span class="ver" data-v="now">今の main</span></th></tr></thead>
       <tbody>
-        <tr><th scope="row">コードの行数（crates/kargui/src）</th><td class="num" data-label="0.1.0">9,502</td><td class="num" data-label="0.2.0">20,510</td><td class="num" data-label="今の main">21,192</td></tr>
-        <tr><th scope="row">公開の項目（型・関数・欄など）</th><td class="num" data-label="0.1.0">345</td><td class="num" data-label="0.2.0">759</td><td class="num" data-label="今の main">788</td></tr>
-        <tr><th scope="row">試験（#[test] の数）</th><td class="num" data-label="0.1.0">79</td><td class="num" data-label="0.2.0">176</td><td class="num" data-label="今の main">188</td></tr>
-        <tr><th scope="row">説明の動く例（doctest）</th><td class="num" data-label="0.1.0">206</td><td class="num" data-label="0.2.0">520</td><td class="num" data-label="今の main">555</td></tr>
-        <tr><th scope="row">ガイドの章</th><td class="num" data-label="0.1.0">9 章</td><td class="num" data-label="0.2.0">17 章</td><td class="num" data-label="今の main">18 章</td></tr>
+        <tr><th scope="row">コードの行数（crates/kargui/src）</th><td class="num" data-label="0.1.0">9,502</td><td class="num" data-label="0.2.0">20,510</td><td class="num" data-label="今の main">21,987</td></tr>
+        <tr><th scope="row">公開の項目（型・関数・欄など）</th><td class="num" data-label="0.1.0">345</td><td class="num" data-label="0.2.0">759</td><td class="num" data-label="今の main">797</td></tr>
+        <tr><th scope="row">試験（#[test] の数）</th><td class="num" data-label="0.1.0">79</td><td class="num" data-label="0.2.0">176</td><td class="num" data-label="今の main">202</td></tr>
+        <tr><th scope="row">説明の動く例（doctest）</th><td class="num" data-label="0.1.0">206</td><td class="num" data-label="0.2.0">520</td><td class="num" data-label="今の main">569</td></tr>
+        <tr><th scope="row">ガイドの章</th><td class="num" data-label="0.1.0">9 章</td><td class="num" data-label="0.2.0">17 章</td><td class="num" data-label="今の main">19 章</td></tr>
         <tr><th scope="row">部品の写真</th><td class="num" data-label="0.1.0">11 枚</td><td class="num" data-label="0.2.0">30 枚</td><td class="num" data-label="今の main">31 枚</td></tr>
         <tr><th scope="row">見本のアプリ</th><td class="num" data-label="0.1.0">5 本</td><td class="num" data-label="0.2.0">8 本</td><td class="num" data-label="今の main">9 本</td></tr>
-        <tr><th scope="row">起動（表示まで、中央値）</th><td class="num" data-label="0.1.0">50.5 ms</td><td class="num" data-label="0.2.0">53 ms</td><td class="num" data-label="今の main">55.5 ms</td></tr>
-        <tr><th scope="row">1 万件を入れた起動</th><td class="num" data-label="0.1.0">59 ms</td><td class="num" data-label="0.2.0">62 ms</td><td class="num" data-label="今の main">59 ms</td></tr>
-        <tr><th scope="row">メモリ（起動直後）</th><td class="num" data-label="0.1.0">3.7 MB</td><td class="num" data-label="0.2.0">3.7 MB</td><td class="num" data-label="今の main">3.7 MB</td></tr>
-        <tr><th scope="row">メモリ（1 万件）</th><td class="num" data-label="0.1.0">5.4 MB</td><td class="num" data-label="0.2.0">5.5 MB</td><td class="num" data-label="今の main">5.4 MB</td></tr>
-        <tr><th scope="row">実行ファイル（タスク帳）</th><td class="num" data-label="0.1.0">1.07 MB</td><td class="num" data-label="0.2.0">1.27 MB</td><td class="num" data-label="今の main">1.29 MB</td></tr>
+        <tr><th scope="row">起動（表示まで、中央値）</th><td class="num" data-label="0.1.0">56 ms</td><td class="num" data-label="0.2.0">58 ms</td><td class="num" data-label="今の main">53 ms</td></tr>
+        <tr><th scope="row">1 万件を入れた起動</th><td class="num" data-label="0.1.0">58 ms</td><td class="num" data-label="0.2.0">56 ms</td><td class="num" data-label="今の main">58.5 ms</td></tr>
+        <tr><th scope="row">メモリ（起動直後）</th><td class="num" data-label="0.1.0">3.7 MB</td><td class="num" data-label="0.2.0">3.7 MB</td><td class="num" data-label="今の main">3.8 MB</td></tr>
+        <tr><th scope="row">メモリ（1 万件）</th><td class="num" data-label="0.1.0">5.4 MB</td><td class="num" data-label="0.2.0">5.5 MB</td><td class="num" data-label="今の main">5.5 MB</td></tr>
+        <tr><th scope="row">実行ファイル（タスク帳）</th><td class="num" data-label="0.1.0">1.07 MB</td><td class="num" data-label="0.2.0">1.27 MB</td><td class="num" data-label="今の main">1.32 MB</td></tr>
       </tbody>
     </table>
   </div>
@@ -85,33 +86,33 @@
   <figure class="bars" id="c-loc">
     <figcaption><span class="bars-title">コードの行数</span><span class="bars-hint">crates/kargui/src</span></figcaption>
     <div class="bar-rows">
-      <div class="bar-row" data-v="v010"><span class="bar-name">0.1.0</span><span class="bar-track"><span class="bar" style="--w: 44.8%"></span><span class="bar-val">9,502 行</span></span></div>
-      <div class="bar-row" data-v="v020"><span class="bar-name">0.2.0</span><span class="bar-track"><span class="bar" style="--w: 96.8%"></span><span class="bar-val">20,510 行</span></span></div>
-      <div class="bar-row" data-v="now"><span class="bar-name">今の main</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">21,192 行</span></span></div>
+      <div class="bar-row" data-v="v010"><span class="bar-name">0.1.0</span><span class="bar-track"><span class="bar" style="--w: 43.2%"></span><span class="bar-val">9,502 行</span></span></div>
+      <div class="bar-row" data-v="v020"><span class="bar-name">0.2.0</span><span class="bar-track"><span class="bar" style="--w: 93.3%"></span><span class="bar-val">20,510 行</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">今の main</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">21,987 行</span></span></div>
     </div>
   </figure>
   <figure class="bars" id="c-api">
     <figcaption><span class="bars-title">公開の項目</span><span class="bars-hint">rustdoc の JSON で数えた</span></figcaption>
     <div class="bar-rows">
-      <div class="bar-row" data-v="v010"><span class="bar-name">0.1.0</span><span class="bar-track"><span class="bar" style="--w: 43.8%"></span><span class="bar-val">345 個</span></span></div>
-      <div class="bar-row" data-v="v020"><span class="bar-name">0.2.0</span><span class="bar-track"><span class="bar" style="--w: 96.3%"></span><span class="bar-val">759 個</span></span></div>
-      <div class="bar-row" data-v="now"><span class="bar-name">今の main</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">788 個</span></span></div>
+      <div class="bar-row" data-v="v010"><span class="bar-name">0.1.0</span><span class="bar-track"><span class="bar" style="--w: 43.3%"></span><span class="bar-val">345 個</span></span></div>
+      <div class="bar-row" data-v="v020"><span class="bar-name">0.2.0</span><span class="bar-track"><span class="bar" style="--w: 95.2%"></span><span class="bar-val">759 個</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">今の main</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">797 個</span></span></div>
     </div>
   </figure>
   <figure class="bars" id="c-startup">
     <figcaption><span class="bars-title">起動（ミリ秒）</span><span class="bars-hint">短いほど速い。同じ時に往復で測った中央値</span></figcaption>
     <div class="bar-rows">
-      <div class="bar-row" data-v="v010"><span class="bar-name">0.1.0</span><span class="bar-track"><span class="bar" style="--w: 91.0%"></span><span class="bar-val">50.5 ms</span></span></div>
-      <div class="bar-row" data-v="v020"><span class="bar-name">0.2.0</span><span class="bar-track"><span class="bar" style="--w: 95.5%"></span><span class="bar-val">53 ms</span></span></div>
-      <div class="bar-row" data-v="now"><span class="bar-name">今の main</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">55.5 ms</span></span></div>
+      <div class="bar-row" data-v="v010"><span class="bar-name">0.1.0</span><span class="bar-track"><span class="bar" style="--w: 96.6%"></span><span class="bar-val">56 ms</span></span></div>
+      <div class="bar-row" data-v="v020"><span class="bar-name">0.2.0</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">58 ms</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">今の main</span><span class="bar-track"><span class="bar" style="--w: 91.4%"></span><span class="bar-val">53 ms</span></span></div>
     </div>
   </figure>
   <figure class="bars" id="c-mem">
     <figcaption><span class="bars-title">メモリ（1 万件、MB）</span><span class="bars-hint">少ないほど軽い</span></figcaption>
     <div class="bar-rows">
-      <div class="bar-row" data-v="v010"><span class="bar-name">0.1.0</span><span class="bar-track"><span class="bar" style="--w: 99.6%"></span><span class="bar-val">5.4 MB</span></span></div>
-      <div class="bar-row" data-v="v020"><span class="bar-name">0.2.0</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">5.5 MB</span></span></div>
-      <div class="bar-row" data-v="now"><span class="bar-name">今の main</span><span class="bar-track"><span class="bar" style="--w: 99.8%"></span><span class="bar-val">5.4 MB</span></span></div>
+      <div class="bar-row" data-v="v010"><span class="bar-name">0.1.0</span><span class="bar-track"><span class="bar" style="--w: 99.5%"></span><span class="bar-val">5.4 MB</span></span></div>
+      <div class="bar-row" data-v="v020"><span class="bar-name">0.2.0</span><span class="bar-track"><span class="bar" style="--w: 99.8%"></span><span class="bar-val">5.5 MB</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">今の main</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">5.5 MB</span></span></div>
     </div>
   </figure>
 </div>
@@ -138,7 +139,7 @@
   <p>kargui の commit を、2 時間ごとの数で並べました。0.1.0 までの段階 0〜4 は<a href="../kargui/">作成記録</a>に、その後はこの連載に書いています。</p>
   <!-- gen:timeline -->
 <figure>
-  <div class="timeline" role="img" aria-label="2 時間ごとの commit の数。78 件">
+  <div class="timeline" role="img" aria-label="2 時間ごとの commit の数。83 件">
     <div class="tl-row"><span class="tl-name">11/21 4時</span><span class="tl-track"><span class="tl-bar" style="--w: 35.3%"></span><span class="bar-val">6 件</span></span></div>
     <div class="tl-row"><span class="tl-name">11/21 6時</span><span class="tl-track"><span class="tl-bar" style="--w: 47.1%"></span><span class="bar-val">8 件</span></span></div>
     <div class="tl-row"><span class="tl-name">11/21 8時</span><span class="tl-track"><span class="tl-bar" style="--w: 58.8%"></span><span class="bar-val">10 件</span></span></div>
@@ -156,14 +157,16 @@
     <div class="tl-row"><span class="tl-name">11/22 8時</span><span class="tl-track"><span class="tl-bar" style="--w: 0.0%"></span><span class="bar-val">0 件</span></span></div>
     <div class="tl-row"><span class="tl-name">11/22 10時</span><span class="tl-track"><span class="tl-bar" style="--w: 17.6%"></span><span class="bar-val">3 件 ・ 0.2.0</span></span></div>
     <div class="tl-row"><span class="tl-name">11/22 12時</span><span class="tl-track"><span class="tl-bar" style="--w: 0.0%"></span><span class="bar-val">0 件</span></span></div>
-    <div class="tl-row"><span class="tl-name">11/22 14時</span><span class="tl-track"><span class="tl-bar" style="--w: 11.8%"></span><span class="bar-val">2 件</span></span></div>
+    <div class="tl-row"><span class="tl-name">11/22 14時</span><span class="tl-track"><span class="tl-bar" style="--w: 29.4%"></span><span class="bar-val">5 件</span></span></div>
+    <div class="tl-row"><span class="tl-name">11/22 16時</span><span class="tl-track"><span class="tl-bar" style="--w: 11.8%"></span><span class="bar-val">2 件</span></span></div>
   </div>
-  <figcaption>2 時間ごとの commit の数（日本時間）。全部で 78 件。0.1.0 と 0.2.0 の準備をした時間に印を付けた。</figcaption>
+  <figcaption>2 時間ごとの commit の数（日本時間）。全部で 83 件。0.1.0 と 0.2.0 の準備をした時間に印を付けた。</figcaption>
 </figure>
 <!-- /gen:timeline -->
 
   <h2 id="updates">更新の履歴</h2>
   <ul>
+    <li>2026 年 11 月 22 日: 第 6 章「動き（アニメーション）」を書いた。版ごとの数（表とグラフ）を 3 つの版で測り直した</li>
     <li>2026 年 11 月 22 日: 第 5 章に「エクスプローラーからファイルを落とす」を書き足した（届く順番で成否が変わった不具合の話を含む）</li>
     <li>2026 年 11 月 22 日: 連載を始めた。第 1 章〜第 5 章（0.1 から 0.2 と、ドラッグ＆ドロップ）</li>
   </ul>
