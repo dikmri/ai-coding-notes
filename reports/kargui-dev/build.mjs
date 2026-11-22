@@ -134,7 +134,7 @@ const CHAPTERS = [
   { href: "02-widgets.html", no: "第 2 章", title: "0.1 から 0.2 へ、部品をそろえた順番", text: "13 のフレームワークに学んで足す部品を決め、土台から作った。部品の写真と、足すのにかかった時間。", thumb: "shots/more_widgets" },
   { href: "03-apps.html", no: "第 3 章", title: "ふつうのアプリで見つけたこと", text: "メモ帳・家計簿・ファイルの閲覧を書いて見つかった不足と、起動が 14 ms 遅くなった理由。", thumb: "apps/expenses" },
   { href: "04-release.html", no: "第 4 章", title: "CI を初めて回した日と 0.2.0", text: "手元で通る試験が CI で落ちた 2 つの理由と、使い方を壊す変更を調べてから版を出す手順。", thumb: "shots/dialog" },
-  { href: "05-drag-and-drop.html", no: "第 5 章", title: "ドラッグ＆ドロップ", text: "型で受け取る物を決める書き方、本物の窓で見つかった不具合、ついでに直した並べ方の決まり。", thumb: "shots/drag_and_drop" },
+  { href: "05-drag-and-drop.html", no: "第 5 章", title: "ドラッグ＆ドロップ", text: "型で受け取る物を決める書き方、エクスプローラーから落とすファイル、本物の窓で見つかった不具合、並べ方の決まり。", thumb: "shots/drag_and_drop" },
 ];
 
 function chapters() {
