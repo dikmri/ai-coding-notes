@@ -137,6 +137,7 @@ const CHAPTERS = [
   { href: "05-drag-and-drop.html", no: "第 5 章", title: "ドラッグ＆ドロップ", text: "型で受け取る物を決める書き方、エクスプローラーから落とすファイル、本物の窓で見つかった不具合、並べ方の決まり。", thumb: "shots/drag_and_drop" },
   { href: "06-motion.html", no: "第 6 章", title: "動き（アニメーション）", text: "数を 1 つ返す書き方、OS の「アニメーション効果」に従う作り、試験台で動きを切る理由、起動のたびに 6 フレーム描いていた不具合。", thumb: "motion/open-060" },
   { href: "07-fonts.html", no: "第 7 章", title: "書体", text: "Font の 3 つの形と書体の探し方、入力欄の書体が 1 フレーム遅れて伝わる理由、作者の記録から見つけた行の間の不具合。", thumb: "fonts/lines" },
+  { href: "08-pickers.html", no: "第 8 章", title: "色と時刻の選択", text: "時刻をます目にした理由、濃淡の面を絵で描く方法、作者の記録から見つけた打つ途中の番号と、引っ張っても選べない入力欄。", thumb: "pickers/time" },
 ];
 
 function chapters() {
@@ -217,6 +218,10 @@ ${figure("apps/expenses", "家計簿の見本", "家計簿（<code>examples/expe
   ], 7)}
 </div>
 <p class="small">reports/rust-gui/bench の startup で、2 つの版を同じ時に往復の順で測った（各 15 回）。動きの前は a15bb46、直す前は 6faa5d3、直した後は 34c0402。使っているメモリは working set、自分だけのメモリは private bytes。</p>`,
+  },
+  "08-pickers.html": {
+    time: () => figure("pickers/time", "時刻の欄の下に、時のます目（00 から 23）と分のます目（00 から 55 まで 5 分ずつ）が出ている。9 時と 30 分が選ばれている", "時刻の選択。時を選ぶと分へ移り、分を選ぶと閉じる（日本語の言葉、試験台で撮った）。", { flat: true }),
+    color: () => figure("pickers/color", "色の欄の下に、彩度と明るさの面、色相の帯、不透明度の帯、色の番号の欄、16 色の見本が出ている", "色の選択（<code>.alpha()</code> 付き）。面と帯は、色を計算した絵を画像として描く。", { flat: true }),
   },
   "07-fonts.html": {
     fonts: () => figure("fonts/lines", "複数行の入力欄が 3 つ並ぶ。左から UI の書体、等幅、BIZ UDP ゴシック。どれも同じ行の間で並んでいる", "同じ文を 3 つの書体で出した複数行の入力欄。左から UI の書体（Yu Gothic UI）、<code>.monospace()</code>（BIZ UD ゴシック）、<code>.font(Font::family(\"BIZ UDPGothic\"))</code>。試験台で撮った。", { flat: true }),

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 8 章 色と時刻の選択 ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="0.2 の後の 4 つ目として、色の選択と時刻の選択を足しました。時刻をます目にした理由、濃淡の塗りが無い描き方で色の面を描く方法、作者の手の確かめで見つかった 3 つのこと（打つ途中の番号、同じ記録が 3 回、入力欄を引っ張っても選べない）を、写真と表で紹介します。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 8 章</p>
+  <h1>色と時刻の選択</h1>
+  <p class="lede">0.2 の後の 4 つ目として、色の選択と時刻の選択を足しました。どちらも、欄を押すと下に選ぶ物が出る部品です。今ある部品（日付の選択の重ねて出す層・スライダーの引っ張り・入力欄）を組み合わせて作りました。この章では、時刻をます目にした理由、色の面の描き方、そして作者の手の確かめで見つかった 3 つのことを書きます。3 つ目は、色の選択とは関係なく、全部の入力欄で引っ張って文字を選べないという、前からの不具合でした。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>時刻の選択を、スクロールする列ではなくます目にした理由</li>
+      <li>濃淡の塗りを持たない描き方で、色の面と帯を描く方法</li>
+      <li>灰色を通っても色相を忘れない、選んだ色をずらさない、という細かい決まり</li>
+      <li>打っている途中の値を使ってはいけない理由（作者の記録から）</li>
+      <li>2 回押しを数える場所を、窓の処理にした理由</li>
+    </ul>
+  </section>
+
+  <h2 id="time">時刻の選択: 列ではなくます目</h2>
+  <p><code>ui.time_picker(&amp;mut 時刻)</code> は、押すと時と分のます目を出します。時を選ぶと分のます目へ移り、分を選ぶと閉じます。矢印で動き、Enter か Space で選び、Esc で閉じます。分は 5 分ずつで、<code>.minute_step(15)</code> のように刻みを変えられます。</p>
+  <!-- gen:time -->
+<figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/pickers/time-dark.webp"><img src="img/pickers/time-light.webp" alt="時刻の欄の下に、時のます目（00 から 23）と分のます目（00 から 55 まで 5 分ずつ）が出ている。9 時と 30 分が選ばれている" width="1038" height="422" loading="lazy" decoding="async"></picture><figcaption>時刻の選択。時を選ぶと分へ移り、分を選ぶと閉じる（日本語の言葉、試験台で撮った）。</figcaption></figure>
+<!-- /gen:time -->
+  <p>WinUI の時刻の選択は、時と分を縦にスクロールする列で選びます。kargui でも最初は列で作るつもりでした。ところが kargui のスクロールの入れ物は、作る時にスクロールの位置を決めます。開いたその回に、選んでいる時刻の所までスクロールしておくのが難しい作りです。そこで、スクロールの要らないます目にしました。時は 6 列 × 4 行の 24 個、分は刻みが 5 分なら 12 個です。日付の選択の暦と同じく、読み上げソフトには「時」と「分」という名前の 2 つの格子として伝わります。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 作り手の関数の設定は、次のフレームから効く</span>
+    <p><code>ui.time_picker(&amp;mut t).minute_step(15)</code> の <code>.minute_step</code> は、<code>time_picker</code> の呼び出しの後に付きます。ます目は呼び出しの中で作るので、その回には間に合いません。第 7 章の入力欄の書体と同じく、設定を覚えておいて次のフレームで使います。ます目が出るのは欄を押した後なので、開いた時にはいつも効いています。</p>
+  </div>
+
+  <h2 id="color">色の選択: 濃淡の面を絵で描く</h2>
+  <p><code>ui.color_picker(&amp;mut 色)</code> は、押すと次の物を出します。彩度（左から右）と明るさ（下から上）の面、色相の帯、色の番号（<code>#RRGGBB</code>）の欄、見本の 16 色です。<code>.alpha()</code> を付けると不透明度の帯が増えます。</p>
+  <!-- gen:color -->
+<figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/pickers/color-dark.webp"><img src="img/pickers/color-light.webp" alt="色の欄の下に、彩度と明るさの面、色相の帯、不透明度の帯、色の番号の欄、16 色の見本が出ている" width="562" height="728" loading="lazy" decoding="async"></picture><figcaption>色の選択（<code>.alpha()</code> 付き）。面と帯は、色を計算した絵を画像として描く。</figcaption></figure>
+<!-- /gen:color -->
+  <p>kargui の描く道具は、四角・角の丸い四角・文字・画像を描けますが、濃淡の塗り（グラデーション）を持ちません。面と帯は、画素の色を計算した絵を作り、画像として描きました。232 × 150 の面でも 3 万 5 千画素なので、作るのは一瞬です。同じ絵は作り直さないよう、最近の 8 枚を覚えておきます。Direct3D 11 の描き方（既定ではない）はまだ画像を描かないので、そちらでは面と帯が出ません。</p>
+
+  <h3>細かい決まり</h3>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-rules">
+    <table>
+      <caption id="t-rules">色の選択で決めたこと</caption>
+      <thead><tr><th scope="col">決まり</th><th scope="col">理由</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">開いている間は、色を HSV（色相・彩度・明るさ）で持つ</th><td data-label="理由">灰色（彩度 0）には色相が無い。RGB だけで持つと、彩度を 0 まで下げて戻した時に、色相が赤（0 度）に変わる</td></tr>
+        <tr><th scope="row">見本と番号で選んだ色は、HSV を通さずに返す</th><td data-label="理由">HSV に変えて戻すと、値が 1 億分の 1 ほどずれる。アプリが見本の色と <code>==</code> で比べると、同じにならない</td></tr>
+        <tr><th scope="row">面の位置は「幅 − 1」で割る</th><td data-label="理由">幅で割ると、いちばん右の画素を押しても彩度が 1 にならない（#FF0000 のはずが #FD0101）。試験で見つけた</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="checks">作者の手の確かめで見つかった 3 つのこと</h2>
+  <p>作者が設定の見本で、面を引っ張る・見本を押す・番号を打つ・時刻を選ぶを試しました。記録を読むと、3 つのことが見つかりました。</p>
+
+  <h3>1. 打っている途中の番号で、色が飛んだ</h3>
+  <p>作者は番号の欄の <code>#8E24AA</code> を Backspace で消し、<code>#FF8800</code> と打ちました。記録には、途中で色が 3 回変わった跡がありました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-typing">
+    <table>
+      <caption id="t-typing">記録に出ていた、番号の欄の文字と色</caption>
+      <thead><tr><th scope="col">欄の文字</th><th scope="col">その時の色</th><th scope="col">作者がしたかったこと</th></tr></thead>
+      <tbody>
+        <tr><th scope="row"><code>#8E2</code></th><td data-label="その時の色">#88EE22（黄緑）</td><td data-label="作者がしたかったこと">消している途中</td></tr>
+        <tr><th scope="row"><code>#FF9</code></th><td data-label="その時の色">#FFFF99（薄い黄）</td><td data-label="作者がしたかったこと">打っている途中</td></tr>
+        <tr><th scope="row"><code>#FF8</code></th><td data-label="その時の色">#FFFF88</td><td data-label="作者がしたかったこと">打っている途中</td></tr>
+        <tr><th scope="row"><code>#FF8800</code></th><td data-label="その時の色">#FF8800（橙）</td><td data-label="作者がしたかったこと">これが欲しかった</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>3 桁の番号（<code>#RGB</code>）も正しい色の番号なので、読めた時にすぐ色にしていました。打ったり消したりする途中は、たまたま 3 桁になるたびに色が変わります。直した後は、打っている間は 6 桁（<code>.alpha()</code> なら 8 桁も）になった時だけ色を変え、3 桁は Enter で決めた時だけ読みます。作者の手順と同じ試験を先に書き、直す前の作りで同じ #88EE22 になって落ちることを確かめました。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい作り方: 打っている途中の値を、読めたらすぐ使う</span>
+    <p>入力欄の文字は、打ち終えるまで途中の形を通ります。途中の形がたまたま正しい値になることがあり、それを使うと画面が意図しない値に飛びます。打ち終えたと分かる形（決まった桁数）か、Enter で決めた時だけ使ってください。</p>
+  </div>
+
+  <h3>2. 同じ記録が 3 回ずつ書かれていた</h3>
+  <p>面を引っ張っている間、色が変わった記録（<code>color.pick</code>）が、同じ時刻に 3 回ずつ並んでいました。第 1 章のとおり、kargui は 1 フレームの中でビューを何回か回します（入力を渡す回・描く回・画面がそろうまで回し直す回）。押している間はどの回も「動かした」と判断し、同じ色を 3 回書いていました。色そのものは正しく変わっていたので、記録だけの問題です。色が実際に変わった回だけ書くように直し、次の確かめでは、記録の数がアプリの記録（<code>accent</code>）と同じ 65 回になりました。</p>
+
+  <h3>3. 入力欄を引っ張っても、文字を選べなかった</h3>
+  <p>作者から「色の番号の欄を引っ張っても選べない。Backspace を連打するしかないのか」という知らせがありました。調べると、色の選択の欄だけでなく、kargui の全部の入力欄で同じでした。入力欄は、押した瞬間の位置だけを覚えてキャレットを置き、押したまま動かした位置を使っていませんでした。2 回押しで単語を選ぶ仕組みもありませんでした（Ctrl+A で全部を選ぶことはできました）。</p>
+  <p>直した後は、押したまま動かすと押した所からそこまでを選びます。2 回押しは単語、3 回押しは 1 行の欄なら全部、何行も書く欄なら押した行を選びます。</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 230" role="img" aria-labelledby="dc-title dc-desc">
+      <title id="dc-title">2 回押しを数える場所</title>
+      <desc id="dc-desc">窓の処理が、OS の 2 回押しの時間と距離で何回目の押しかを数え、押した出来事に回数を付けて kargui の入力に渡す。入力欄は回数を見て、1 回ならキャレット、2 回なら単語、3 回なら全部か 1 行を選ぶ。試験台は止めた時計なので回数を数えず、試験が double_click と triple_click で回数を決める。</desc>
+      <defs>
+        <marker id="ah8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrow-head"/></marker>
+      </defs>
+      <rect class="box-soft" x="10" y="20" width="200" height="74" rx="10"/>
+      <text class="label" x="26" y="48">窓の処理（Windows）</text>
+      <text class="sub" x="26" y="70">OS の 2 回押しの時間と距離</text>
+      <text class="sub" x="26" y="86">で何回目かを数える</text>
+      <rect class="box-soft" x="10" y="136" width="200" height="74" rx="10"/>
+      <text class="label" x="26" y="164">試験台</text>
+      <text class="sub" x="26" y="186">時計が止まっているので、試験が</text>
+      <text class="sub" x="26" y="202">double_click で回数を決める</text>
+      <rect class="box" x="260" y="78" width="180" height="74" rx="10"/>
+      <text class="label" x="276" y="106">押した出来事</text>
+      <text class="sub" x="276" y="128">PointerDown { count }</text>
+      <rect class="box" x="490" y="78" width="220" height="74" rx="10"/>
+      <text class="label" x="506" y="106">入力欄</text>
+      <text class="sub" x="506" y="128">1 キャレット・2 単語・3 全部</text>
+      <path class="arrow" d="M212 57 L258 100" marker-end="url(#ah8)"/>
+      <path class="arrow" d="M212 173 L258 130" marker-end="url(#ah8)"/>
+      <path class="arrow" d="M442 115 H487" marker-end="url(#ah8)"/>
+    </svg>
+    <figcaption>2 回押しを数える場所。数えるのは窓の処理で、kargui の中は回数を受け取るだけ。</figcaption>
+  </figure>
+  <p>2 回押しを数える場所は、kargui の中（入力の振り分け）ではなく、窓の処理にしました。理由は 2 つです。1 つは、Windows の設定（2 回押しの速さと距離）をそのまま使えることです。もう 1 つは試験台です。試験台の時計は止まっているので、時刻で数えると、試験の中で同じ欄を 2 回 <code>click</code> しただけで 2 回押しになり、今ある試験が壊れます。窓の処理が数えて押した出来事に回数を付け、試験台では試験が <code>double_click</code>・<code>triple_click</code> で回数を決める形にしました。作者の確かめの記録には、押した回数が 1・2・3 と並び、引っ張って選んだ番号を打ち直せていました。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 試験台で通る操作が、本物の窓で通るとは限らない</span>
+    <p>試験台の <code>drag</code> は、押す・動かす・離すを 1 回で送ります。入力欄の引っ張りを確かめる試験は無く、作者が本物の窓で試すまで、選べないことに気づきませんでした。部品を足す時は、その部品の中の入力欄のように「前からある部品」の使い方も、作者の手の確かめの手順に入れるようにします。</p>
+  </div>
+
+  <h2 id="weight">軽さ</h2>
+  <p>色と時刻の選択を使わないタスク帳は、前の版と同じ時に交互に測って、起動 52〜55 ms（前の版は 52〜58 ms）、メモリも同じでした。実行ファイルは 31 KB 増えて 1.37 MB です。濃淡の絵は色の選択を開いた時に初めて作るので、使わないアプリでは作りません。</p>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="07-fonts.html">← 第 7 章 書体</a>
+    <a href="./">目次 →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>
