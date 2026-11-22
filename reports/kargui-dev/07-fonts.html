@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 7 章 書体 ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="0.2 の後の 3 つ目として、書体を選べるようにしました。Font の 3 つの形、OS とアプリの書体の探し方、入力欄の書体が 1 フレーム遅れて伝わる理由、作者の手の確かめで見つかった行の間の不具合を、図と写真で紹介します。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 7 章</p>
+  <h1>書体</h1>
+  <p class="lede">0.2 の後の 3 つ目として、書体を選べるようにしました。今までの kargui は、Windows では Yu Gothic UI だけで文字を出していました。コードを等幅で見せたい、読みやすい書体に切り替えたい、アプリに決まった書体を入れたい、という望みに応えます。書式付きの文字（太字・色・大きさが混ざった文）の土台にもなります。この章では、書き方、書体の探し方、入力欄で困ったこと、作者の手の確かめで見つかった行の間の不具合を順に書きます。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>書体を表す <code>Font</code> の 3 つの形と、窓・部品・アプリの書体のファイルの決め方</li>
+      <li>名前から書体を探す順番と、見つからない時の扱い</li>
+      <li>入力欄の書体が 1 フレーム遅れて伝わる理由（即時モードの順番の話）</li>
+      <li>BIZ UD ゴシックの行がくっついた不具合と、作者の記録から見つけた手順</li>
+      <li>使わないアプリの起動を遅くしない作り</li>
+    </ul>
+  </section>
+
+  <h2 id="api">書き方: 窓の書体と部品の書体</h2>
+  <p>書体は <code>Font</code> で表します。形は 3 つです。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-font">
+    <table>
+      <caption id="t-font">Font の 3 つの形（Windows の場合）</caption>
+      <thead><tr><th scope="col">書き方</th><th scope="col">使う書体</th><th scope="col">向いている所</th></tr></thead>
+      <tbody>
+        <tr><th scope="row"><code>Font::Ui</code>（既定）</th><td data-label="使う書体">Yu Gothic UI</td><td data-label="向いている所">ふつうの画面の文字</td></tr>
+        <tr><th scope="row"><code>Font::Monospace</code></th><td data-label="使う書体">BIZ UD ゴシック。無ければ Consolas、MS ゴシックの順</td><td data-label="向いている所">コード・ファイルの名前・桁をそろえる数</td></tr>
+        <tr><th scope="row"><code>Font::family("名前")</code></th><td data-label="使う書体">アプリが渡したファイルか、OS に入っている書体</td><td data-label="向いている所">読みやすさ・アプリの見た目に合わせた書体</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>窓全体の書体は <code>Options::font</code> で決め、動かしている間は <code>ui.set_font</code> で変えます。ラベル・入力欄・複数行の入力欄は、<code>.font(書体)</code> か <code>.monospace()</code> で自分の書体を持てます。アプリに書体を入れる時は、ファイルの中身を <code>Options::fonts</code> に渡します。書き方は iced と egui の形に近づけました。どちらも、書体のデータをアプリが渡し、文字ごとに書体を名前や種類で選びます。</p>
+<pre><code>let mut options = Options::new("帳簿");
+options.font = Font::family("BIZ UDPGothic");
+// アプリに入れる書体: options.fonts.push(include_bytes!("ShopSans.ttf").as_slice().into());
+
+// view の中
+ui.label("ID: 4F2A-0019").monospace();
+ui.text_area(&amp;mut code).monospace();</code></pre>
+  <!-- gen:fonts -->
+<figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/fonts/lines-dark.webp"><img src="img/fonts/lines-light.webp" alt="複数行の入力欄が 3 つ並ぶ。左から UI の書体、等幅、BIZ UDP ゴシック。どれも同じ行の間で並んでいる" width="1400" height="300" loading="lazy" decoding="async"></picture><figcaption>同じ文を 3 つの書体で出した複数行の入力欄。左から UI の書体（Yu Gothic UI）、<code>.monospace()</code>（BIZ UD ゴシック）、<code>.font(Font::family("BIZ UDPGothic"))</code>。試験台で撮った。</figcaption></figure>
+<!-- /gen:fonts -->
+
+  <h3>等幅は、日本語も持つ書体を先に</h3>
+  <p>等幅の候補は、日本語も持つ BIZ UD ゴシックを先にしました。英字だけの等幅の書体（Consolas など）を選ぶと、日本語は OS の代わりの書体で出るので、日本語の幅が英字の 2 字分になりません。BIZ UD ゴシックなら、日本語 1 字が英字 2 字とちょうど同じ幅です。作者がメモ帳で打った時の記録でも、キャレットは日本語 1 字で 14 ピクセル、英字 1 字で 7 ピクセルずつ進んでいました。Linux では Noto Sans Mono CJK JP と TakaoGothic を先に置いています。</p>
+
+  <h2 id="find">名前から書体を探す</h2>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 250" role="img" aria-labelledby="fd-title fd-desc">
+      <title id="fd-title">Font::family の名前から書体を探す順番</title>
+      <desc id="fd-desc">まずアプリが渡した書体のファイルの中を探す。無ければ OS に入っている書体の中を探す。どちらにも無ければ UI の書体で出し、記録に font.missing と書く。決めた結果は書体ごとに覚える。</desc>
+      <defs>
+        <marker id="ah7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrow-head"/></marker>
+        <marker id="lh7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="loop-head"/></marker>
+      </defs>
+      <rect class="box-soft" x="10" y="30" width="150" height="70" rx="10"/>
+      <text class="label" x="26" y="58">Font::family</text>
+      <text class="sub" x="26" y="80">"BIZ UDPGothic"</text>
+      <rect class="box" x="195" y="30" width="160" height="70" rx="10"/>
+      <text class="label" x="211" y="58">アプリの書体</text>
+      <text class="sub" x="211" y="80">Options::fonts の中</text>
+      <rect class="box" x="390" y="30" width="150" height="70" rx="10"/>
+      <text class="label" x="406" y="58">OS の書体</text>
+      <text class="sub" x="406" y="80">初めて要る時に読む</text>
+      <rect class="box-warn" x="575" y="30" width="135" height="70" rx="10"/>
+      <text class="label" x="590" y="58">UI の書体</text>
+      <text class="sub" x="590" y="80">font.missing</text>
+      <path class="arrow" d="M162 65 H192" marker-end="url(#ah7)"/>
+      <path class="arrow" d="M357 65 H387" marker-end="url(#ah7)"/>
+      <path class="loop" d="M542 65 H572" marker-end="url(#lh7)"/>
+      <text class="sub" x="360" y="52">無い</text>
+      <text class="loop-text" x="545" y="52">無い</text>
+      <path class="arrow" d="M275 102 V170" marker-end="url(#ah7)"/>
+      <path class="arrow" d="M465 102 V170" marker-end="url(#ah7)"/>
+      <rect class="box-soft" x="195" y="172" width="345" height="60" rx="10"/>
+      <text class="label" x="211" y="198">見つかった書体で並べる</text>
+      <text class="sub" x="211" y="219">決めた結果は書体ごとに覚え、毎回は探さない</text>
+    </svg>
+    <figcaption>名前から書体を探す順番。アプリが渡した書体は、OS に同じ名前の書体があっても先に使う。</figcaption>
+  </figure>
+  <p>Windows では、アプリが渡した書体のファイルを DirectWrite のメモリの書体の読み込み（<code>CreateInMemoryFontFileLoader</code>）で読み、名前で探せる一覧を作ります。Linux などの道では、parley の中の fontique に登録します。名前の書体が見つからない時は UI の書体で出すので、文字が消えることはありません。書体に無い文字（英字だけの書体の中の日本語など）は、OS の代わりの書体で出ます。</p>
+  <h3>使わないアプリを遅くしない</h3>
+  <p>第 3 章で、起動の時に大きな DLL を読み込んで 14 ms 遅くした失敗がありました。そこで、書体の仕組みも使う時まで何も読まないようにしました。<code>Options::fonts</code> が空なら書体のデータを読まず、OS の書体の一覧も、等幅や名前の書体を初めて使う時まで読みません。UI の書体だけを使うタスク帳は、前の版と同じ時に交互に測って、起動 53〜55 ms（前の版は 54〜58 ms）、メモリも同じでした。実行ファイルは 21 KB 増えて 1.34 MB です。</p>
+
+  <h2 id="field">入力欄の書体は 1 フレーム遅れて伝わる</h2>
+  <p>ラベルの書体は、描く時に部品の情報から読めば済みます。入力欄では困ったことがありました。kargui の入力欄は、<code>ui.text_area(&amp;mut s)</code> を呼んだその中で、キーの入力を文字に当てます。上下の矢印でキャレットを動かす時は、文字を並べて「同じ横の位置」を測ります。ところが <code>.monospace()</code> は、その呼び出しの後に付きます。入力を処理している時点では、まだ書体が分かりません。</p>
+<pre><code>ui.text_area(&amp;mut code)   // ← ここでキーの入力を処理する（書体はまだ分からない）
+    .monospace();          // ← 書体が決まるのはここ</code></pre>
+  <p>そこで、<code>.monospace()</code> が決めた書体を入力欄の状態に覚えておき、次のフレームの入力の処理で使うことにしました。入力欄を作るたびに覚えた書体を一度忘れ、<code>.font()</code> が呼ばれたらまた覚えます。アプリが <code>.font()</code> を呼ばなくなれば、次のフレームから窓の書体に戻ります。</p>
+  <p>試験では、1 行目に <code>MMMM</code>、2 行目に <code>aaaaaaaa</code> と書き、1 行目の終わりから下の矢印で 2 行目へ動かします。等幅なら M 4 つ分の位置は a 4 つ分なので、キャレットは 9 番目に来ます。<code>.monospace()</code> を外して走らせると 12 番目に行き、試験が落ちることも確かめました。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 即時モードでは「後から付く設定」は、その回の入力の処理に間に合わない</span>
+    <p>即時モードの部品は、呼んだ時に入力を処理して結果を返します。<code>.font()</code> のように後から付ける設定は、その回の入力の処理には使えません。第 1 章の「前のフレームの配置で当たりを決める」と同じく、前のフレームの値を使うのが kargui の決まった形です。書体が変わるのは利用者の操作の合間なので、1 フレームの遅れは見えません。</p>
+  </div>
+
+  <h2 id="lines">作者の手の確かめで見つかった、行の間の不具合</h2>
+  <p>作者がメモ帳で「表示 &gt; 等幅の書体」を試すと、記録の中のキャレットの高さが 19 ピクセルから 14 ピクセルに下がっていました。14 ピクセルは文字の大きさと同じです。行の上下にすき間が無く、行がくっついて見えていました。</p>
+  <!-- gen:linesfix -->
+<figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/fonts/lines-before-dark.webp"><img src="img/fonts/lines-before-light.webp" alt="直す前。等幅と BIZ UDP ゴシックの欄は行がくっつき、欄の高さも低い" width="1400" height="300" loading="lazy" decoding="async"></picture><figcaption>直す前（dd6474e）。等幅と BIZ UDP ゴシックは、行の高さが文字の大きさと同じ 14 ピクセル。</figcaption></figure>
+  <figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/fonts/lines-dark.webp"><img src="img/fonts/lines-light.webp" alt="直した後。3 つの欄とも同じ行の間と高さ" width="1400" height="300" loading="lazy" decoding="async"></picture><figcaption>直した後（b8e9d93）。UI の書体の行の高さに広げ、字を行の真ん中に置く。</figcaption></figure>
+<!-- /gen:linesfix -->
+  <p>BIZ UD ゴシックと BIZ UDP ゴシックは、書体の中の行の高さが文字の大きさと同じに作られています。kargui は書体どおりの行の高さで並べていたので、UI の書体（14 ピクセルで行の高さ 18.6）よりずっと詰まりました。直し方は、UI の書体以外は、行の高さが UI の書体より低ければ UI の書体の行の高さに広げ、字を行の真ん中に置く、です。DirectWrite では <code>SetLineSpacing</code>（UNIFORM）、parley では <code>LineHeight::Absolute</code> を使います。書体を変えても行の間と入力欄の高さが変わらないので、設定で書体を切り替えても画面の並びが崩れません。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-lines">
+    <table>
+      <caption id="t-lines">記録で見た行の高さ（文字の大きさ 14 ピクセル）</caption>
+      <thead><tr><th scope="col">書体</th><th scope="col" class="num">直す前</th><th scope="col" class="num">直した後</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">UI の書体（Yu Gothic UI）</th><td class="num" data-label="直す前">19 px</td><td class="num" data-label="直した後">19 px</td></tr>
+        <tr><th scope="row">等幅（BIZ UD ゴシック）</th><td class="num" data-label="直す前">14 px</td><td class="num" data-label="直した後">19 px</td></tr>
+        <tr><th scope="row">BIZ UDP ゴシック</th><td class="num" data-label="直す前">14 px</td><td class="num" data-label="直した後">19 px</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="small">直す前はキャレットの高さ（<code>ime.caret</code> の <code>h</code>）、直した後は Enter で次の行へ移った時のキャレットの位置の差（116 → 135）。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい作り方: 書体の中の行の高さを、そのまま行の間に使う</span>
+    <p>書体の行の高さは、書体ごとに大きく違います。そのまま使うと、書体を切り替えただけで行がくっついたり、入力欄の高さが変わって画面の並びが崩れたりします。UI の書体の行の高さを下限にし、書体の方が低い時は広げてください。先に「行の間が UI の書体以上で、字が行に収まる」という試験を書き、DirectWrite と parley の両方で直す前に落ちることを確かめてから直しました。</p>
+  </div>
+  <div class="insight">
+    <span class="box-title">分かったこと: 見た目の不具合も、記録の数字から見つかる</span>
+    <p>作者からの知らせは「試した」だけでした。記録のキャレットの高さが 19 から 14 に変わっていたので、行がくっついていると分かりました。部品の位置や大きさを記録に書いておくと、言葉にされない見た目の不具合も拾えます。</p>
+  </div>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="06-motion.html">← 第 6 章 動き（アニメーション）</a>
+    <a href="./">目次 →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>
