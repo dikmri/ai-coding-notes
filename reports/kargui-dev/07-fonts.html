@@ -148,6 +148,28 @@ ui.text_area(&amp;mut code).monospace();</code></pre>
     <p>作者からの知らせは「試した」だけでした。記録のキャレットの高さが 19 から 14 に変わっていたので、行がくっついていると分かりました。部品の位置や大きさを記録に書いておくと、言葉にされない見た目の不具合も拾えます。</p>
   </div>
 
+  <h3>CI でもう 1 つ見つかった: 英字だけの等幅の書体</h3>
+  <p>直した版を GitHub に送ると、CI の Windows と macOS で、行の間の試験が落ちました。手元では通っていた試験です。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-ci">
+    <table>
+      <caption id="t-ci">CI で落ちた時の行の間（文字の大きさ 14 ピクセル）</caption>
+      <thead><tr><th scope="col">環境</th><th scope="col">等幅になった書体</th><th scope="col" class="num">等幅の行の間</th><th scope="col" class="num">UI の書体の行の間</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">手元の Windows</th><td data-label="等幅になった書体">BIZ UD ゴシック</td><td class="num" data-label="等幅の行の間">18.6</td><td class="num" data-label="UI の書体の行の間">18.6</td></tr>
+        <tr><th scope="row">CI の Windows</th><td data-label="等幅になった書体">Consolas（BIZ UD ゴシックが無い）</td><td class="num" data-label="等幅の行の間">16.4</td><td class="num" data-label="UI の書体の行の間">18.6</td></tr>
+        <tr><th scope="row">CI の macOS</th><td data-label="等幅になった書体">Menlo</td><td class="num" data-label="等幅の行の間">16</td><td class="num" data-label="UI の書体の行の間">21</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>原因は、書体の行の高さを日本語の「あ」で測っていたことでした。Consolas や Menlo は英字だけの書体なので、「あ」は OS の代わりの書体で並びます。測った行の高さは代わりの書体の高い行で、UI の書体より低くないと判断し、広げる処理が効きませんでした。英字だけの行は、Consolas の 16.4 ピクセルのまま詰まります。手元の PC には BIZ UD ゴシックが入っているので、この道を通りませんでした。</p>
+  <p>直し方は、英字（Ag）と日本語（あ）の両方で測り、低い方を書体の行の高さにする、です。書体に無い字は代わりの書体で並んで高くなるので、低い方がその書体自身の行の高さです。試験に英字だけの等幅の書体（Windows は Consolas、macOS は Menlo、Linux は DejaVu Sans Mono）を足し、手元で CI と同じ数（16.39 と 16）で落ちることを確かめてから直しました（221f65d）。</p>
+  <p>直した版の CI では、Windows でもう 1 つ、設定の見本の試験が同じ理由で落ちました。書体を等幅に変えると「システム」の幅が変わる、という試験です。「システム」は日本語だけなので、Consolas では代わりの書体で出て、幅が 44 ピクセルのまま変わりません。英字を含む「14 pt」で測るように直しました。手元で Consolas を名前で選ぶと、「14 pt」は 32 から 39 ピクセルに変わります。</p>
+  <p>その次の CI では、Windows で Linux と同じ道（parley）を試す段が落ちました。「日本語も持つ等幅の書体なら、日本語 1 字が英字 2 字分」という試験です。この試験は、日本語も持つ等幅の書体が無い時は飛ばすはずでした。ところが、試験が見ていた書体の名前は候補の並び（<code>"BIZ UDGothic", Consolas, …</code>）そのもので、入っていない BIZ UD ゴシックが先頭にあるだけで「ある」と見なしていました。実際は英字が Consolas、漢字が MS ゴシックで並び、幅は 2 対 1 になりません。並びの中で入っている最初の書体の名前を見るように直しました（2ad664e）。CI の Windows は 2 つの文字の道で試験を走らせますが、前の段で落ちると後の段は走りません。3 回の CI で 1 つずつ見つかったのはそのためです。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい試験: 手元に入っている書体だけで確かめる</span>
+    <p>書体は PC ごとに入っている物が違います。手元で通った試験が、書体の違う CI で初めて落ちました。書体に頼る試験は、日本語も持つ書体と英字だけの書体の両方を名前で選んで確かめてください。</p>
+  </div>
+
   <nav class="chapter-nav" aria-label="章の移動">
     <a href="06-motion.html">← 第 6 章 動き（アニメーション）</a>
     <a href="./">目次 →</a>

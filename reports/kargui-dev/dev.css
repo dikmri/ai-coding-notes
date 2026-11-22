@@ -114,7 +114,7 @@
 .dev thead th { position: sticky; inset-block-start: 0; z-index: 1; background: var(--paper-2); border-bottom: 2px solid var(--ink-3); white-space: nowrap; }
 .dev td.num, .dev th.num { text-align: end; font-variant-numeric: tabular-nums; white-space: nowrap; }
 @container (width < 34rem) {
-  .dev .stack-table :is(table, thead, tbody, tr, th, td) { display: block; }
+  .dev .stack-table :is(table, caption, thead, tbody, tr, th, td) { display: block; }
   .dev .stack-table thead { display: none; }
   .dev .stack-table tr { margin-block-end: 1rem; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
   .dev .stack-table tbody th { background: var(--paper-2); }
