@@ -1,0 +1,19 @@
+{
+  "measured": "2026 年 11 月 22 日。軽さは 3 つの版のタスク帳を同じ PC で往復の順に各 10 回測った中央値",
+  "how": {
+    "loc": "git show で crates/kargui/src の .rs を数えた行数",
+    "api": "rustdoc の JSON から、公開の道で届く項目（型・関数・欄・値・トレイトの実装）を数えた数",
+    "tests": "crates/kargui/src と examples の #[test] の数",
+    "doctests": "cargo test --doc の数（0.1.0 は --list で数えた）",
+    "startup": "reports/rust-gui/bench/bench.mjs の startup（窓が出るまで、ms）",
+    "items10k": "同じく items10k（1 万件を入れて窓が出るまで、ms）",
+    "mem": "起動直後の private working set（MiB）",
+    "mem10k": "1 万件を入れた時の private working set（MiB）",
+    "exe": "taskbook-kargui.exe の大きさ（1,000,000 バイトを 1 MB）"
+  },
+  "versions": [
+    { "key": "v010", "name": "0.1.0", "date": "2026-11-21", "commit": "d940ce7", "loc": 9502, "api": 345, "tests": 79, "doctests": 206, "guide": 9, "shots": 11, "examples": 5, "startup": 50.5, "items10k": 59, "mem": 3.68, "mem10k": 5.43, "exe": 1.07 },
+    { "key": "v020", "name": "0.2.0", "date": "2026-11-22", "commit": "7a95ec9", "loc": 20510, "api": 759, "tests": 176, "doctests": 520, "guide": 17, "shots": 30, "examples": 8, "startup": 53, "items10k": 62, "mem": 3.70, "mem10k": 5.45, "exe": 1.27 },
+    { "key": "now", "name": "今の main", "date": "2026-11-22", "commit": "917482e", "loc": 21192, "api": 788, "tests": 188, "doctests": 555, "guide": 18, "shots": 31, "examples": 9, "startup": 55.5, "items10k": 59, "mem": 3.70, "mem10k": 5.44, "exe": 1.29 }
+  ]
+}

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 1 章 1 フレームの中で起きること ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="kargui は、毎フレーム画面を書き直す書き方と、前のフレームの配置を残しておく仕組みを組み合わせています。入力が届いてから画面に出るまでに何が起きるかを、図と例で説明します。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 1 章</p>
+  <h1>1 フレームの中で起きること</h1>
+  <p class="lede">kargui のアプリは、画面の中身を毎フレーム書き直します。それでも軽く動くのは、前のフレームの配置を残しておき、変わった所だけを描くからです。この章では、マウスのクリックが届いてから画面に出るまでに、kargui の中で何が起きるかを順に追います。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>1 回の入力で、アプリの <code>view</code> が最大 4 回呼ばれる理由</li>
+      <li>クリックがどの部品に当たったかを、前のフレームの配置で決める理由</li>
+      <li>部品の名前（id）がソースの位置から作られることと、そこから来る注意点</li>
+      <li>何も起きていない間に CPU を使わない仕組み</li>
+    </ul>
+  </section>
+
+  <h2 id="immediate">毎フレーム書き直す書き方</h2>
+  <p>kargui のアプリは、画面の中身を 1 つの関数 <code>view</code> に書きます。ボタンを押したかどうかは、ボタンを作った所の戻り値で分かります。Dear ImGui や egui と同じ「即時モード」と呼ばれる書き方です。</p>
+<pre><code>struct Counter {
+    n: u32,
+}
+
+impl App for Counter {
+    fn view(&amp;mut self, ui: &amp;mut Ui) {
+        ui.label(format!("押した回数: {}", self.n));
+        if ui.button("押す").clicked() {
+            self.n += 1;
+        }
+    }
+}</code></pre>
+  <p>この書き方では、画面の状態とアプリのデータを別々に持ちません。<code>self.n</code> を変えれば、次のフレームの画面に新しい数が出ます。部品を作って、後から中身を書き換える手順が要りません。</p>
+  <p>ただし、即時モードには弱点もあります。部品の大きさは、作り終えるまで分かりません。中央に寄せる・残りの幅を分けるといった並べ方は、1 回の呼び出しでは決められません。kargui は、<code>view</code> を呼ぶたびに画面の木（部品の親子の並び）を作り、木ができてから並べ方を決めます。即時モードの書きやすさと、残しておく木（保持モード）の並べ方を組み合わせた作りです。</p>
+
+  <h2 id="flow">入力が届いてから画面に出るまで</h2>
+  <p>入力が届いたフレームでは、次の順に処理が進みます。</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 600" role="img" aria-labelledby="flow-title flow-desc">
+      <title id="flow-title">1 フレームの流れ</title>
+      <desc id="flow-desc">入力が届く、振り分け、ビュー 1 回目、ビュー 2 回目、回し直し、配置、描くと読み上げの木、の順に進む。描いた結果の配置は次のフレームの振り分けで使う。</desc>
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrow-head"/></marker>
+        <marker id="lh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="loop-head"/></marker>
+      </defs>
+      <!-- 左の列: 処理の順 -->
+      <rect class="box-soft" x="30" y="16" width="330" height="58" rx="10"/>
+      <text class="label" x="48" y="40">1. 入力が届く</text>
+      <text class="sub" x="48" y="61">押す・動かす・離す・キー・日本語入力</text>
+      <rect class="box" x="30" y="96" width="330" height="58" rx="10"/>
+      <text class="label" x="48" y="120">2. 振り分け</text>
+      <text class="sub" x="48" y="141">当たった部品は、前のフレームの配置で決める</text>
+      <rect class="box" x="30" y="176" width="330" height="58" rx="10"/>
+      <text class="label" x="48" y="200">3. ビュー 1 回目（入力の回）</text>
+      <text class="sub" x="48" y="221">clicked() や changed() が true を返す</text>
+      <rect class="box" x="30" y="256" width="330" height="58" rx="10"/>
+      <text class="label" x="48" y="280">4. ビュー 2 回目（描く回）</text>
+      <text class="sub" x="48" y="301">入力を渡さずに、画面の木を作り直す</text>
+      <rect class="box-warn" x="30" y="336" width="330" height="58" rx="10"/>
+      <text class="label" x="48" y="360">5. 回し直し（最大 2 回）</text>
+      <text class="sub" x="48" y="381">画面の木が前の回と同じになるまで</text>
+      <rect class="box" x="30" y="416" width="330" height="58" rx="10"/>
+      <text class="label" x="48" y="440">6. 配置（測る → 置く）</text>
+      <text class="sub" x="48" y="461">下から大きさを測り、上から場所を決める</text>
+      <rect class="box" x="30" y="496" width="330" height="58" rx="10"/>
+      <text class="label" x="48" y="520">7. 描く・読み上げの木</text>
+      <text class="sub" x="48" y="541">変わった所だけを描き、AccessKit に渡す</text>
+      <path class="arrow" d="M195 74 V94" marker-end="url(#ah)"/>
+      <path class="arrow" d="M195 154 V174" marker-end="url(#ah)"/>
+      <path class="arrow" d="M195 234 V254" marker-end="url(#ah)"/>
+      <path class="arrow" d="M195 314 V334" marker-end="url(#ah)"/>
+      <path class="arrow" d="M195 394 V414" marker-end="url(#ah)"/>
+      <path class="arrow" d="M195 474 V494" marker-end="url(#ah)"/>
+      <!-- 右の列: 残しておく物 -->
+      <rect class="box-soft" x="440" y="416" width="250" height="138" rx="10"/>
+      <text class="label" x="458" y="442">前のフレームの配置</text>
+      <text class="sub" x="458" y="466">部品の場所（当たり判定）</text>
+      <text class="sub" x="458" y="486">Tab で移る順</text>
+      <text class="sub" x="458" y="506">一覧の場所とスクロールの棒</text>
+      <text class="sub" x="458" y="526">引っ張り出せる部品・落とせる部品</text>
+      <path class="arrow" d="M362 525 H438" marker-end="url(#ah)"/>
+      <path class="loop" d="M565 414 V125 H364" marker-end="url(#lh)"/>
+      <text class="loop-text" x="575" y="270">次のフレームの</text>
+      <text class="loop-text" x="575" y="288">振り分けで使う</text>
+      <!-- 入力の無いフレーム -->
+      <text class="sub" x="30" y="586">入力の無いフレーム（窓の大きさが変わった、動く部品の次の絵）は 4 から始める</text>
+    </svg>
+    <figcaption>1 フレームの流れ。左の列を上から順に進む。7 で決まった配置は、次のフレームの 2 で使う。</figcaption>
+  </figure>
+
+  <h3>ビューを何回も呼ぶ理由</h3>
+  <p>入力の回（3）では、押したボタンの <code>clicked()</code> が true を返し、アプリはデータを変えます。ところが、その時点の画面の木は、変える前のデータで作りかけです。そこで、入力を渡さずにもう 1 回呼び（4）、変えた後のデータで木を作り直します。</p>
+  <p>回し直し（5）は、アプリが「描いた後で値を作り直す」書き方をした時のための回です。たとえば一覧の件数を見出しに出し、その後で絞り込みを作り直すと、見出しは 1 回古い数を出します。kargui は 1 つ前の回と木を比べ、違っていればもう 1 回呼びます。木が同じになれば、そこで止めます。毎回違う木を作るアプリでも止まるように、回し直しは最大 2 回にしています。</p>
+
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい書き方: <code>view</code> の中で重い処理をする</span>
+    <p>入力のあったフレームでは、<code>view</code> が最大 4 回呼ばれます。フォルダーの中身を読む・大きなファイルを開くといった処理を <code>view</code> に直接書くと、1 回の入力でその処理が 4 回走ります。読んだ結果をアプリのデータに覚えておき、変わった時だけ読み直してください。見本のファイルの閲覧（<code>examples/files</code>）は、読んだフォルダーの中身を <code>HashMap</code> に覚えています。</p>
+  </div>
+
+  <h2 id="hit">クリックは前のフレームの配置で決める</h2>
+  <p>マウスのボタンが押された時、kargui は「その位置にあった部品」を、前のフレームの配置から探します。今のフレームの配置はまだ作っていないうえに、利用者が見て押したのは前のフレームの画面だからです。</p>
+  <p>当たりの一覧は、描く処理（7）が部品を描きながら作ります。後から描いた物ほど上に重なるので、一覧の後ろから探せば、上に見えている部品が先に見つかります。メニューやダイアログのように重ねて出す物は最後に描くので、重なった下の部品にはクリックが届きません。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 当たりの一覧に載らない部品は、押しても気づかれない</span>
+    <p>ラベルや入れ物は押す対象ではないので、当たりの一覧に載りません。ドラッグ＆ドロップを足した時、ラベルの上から引っ張り始めると、窓がマウスの動きを kargui に渡していませんでした。窓は「押している部品がある時」だけ動きを渡していたからです。試験台は動きを直接送るので、この不具合は試験では出ませんでした。詳しくは<a href="05-drag-and-drop.html">第 5 章</a>に書きました。</p>
+  </div>
+
+  <h2 id="id">部品の名前はソースの位置から作る</h2>
+  <p>毎フレーム作り直す部品が、前のフレームのどの部品と同じなのかを見分けるために、kargui は部品ごとに名前（id）を付けます。名前は次の 4 つから作ります。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-id">
+    <table>
+      <caption id="t-id">部品の名前の材料</caption>
+      <thead><tr><th scope="col">材料</th><th scope="col">中身</th><th scope="col">これで見分けられる物</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">親の名前</th><td data-label="中身">中に入っている入れ物の名前</td><td data-label="見分けられる物">別の入れ物の中の、同じ行の部品</td></tr>
+        <tr><th scope="row">ソースの位置</th><td data-label="中身">部品を作る関数を呼んだファイル・行・列（<code>#[track_caller]</code>）</td><td data-label="見分けられる物">ソースの別の場所で作った部品</td></tr>
+        <tr><th scope="row">呼んだ回数</th><td data-label="中身">同じ位置を、このフレームで何回目に呼んだか</td><td data-label="見分けられる物">ループの中で作った部品</td></tr>
+        <tr><th scope="row"><code>keyed</code> の鍵</th><td data-label="中身">アプリが渡した値（項目の id など）</td><td data-label="見分けられる物">足す・消す・並べ替える一覧の項目</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>このおかげで、アプリは部品に名前を付けなくても書けます。入力欄の文字の位置や焦点は、名前が同じ限り次のフレームにも残ります。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい書き方: 消したり並べ替えたりする一覧を、回数だけで見分ける</span>
+    <p>ループの中の部品は「呼んだ回数」で見分けます。3 件の一覧から 1 件目を消すと、2 件目だった項目が 1 回目の名前を受け継ぎます。入力欄の文字の位置や焦点が、消した項目から隣の項目へ移って見えます。項目に id があるなら <code>ui.keyed(id, |ui| ..)</code> で囲むか、一覧なら <code>show_keyed</code> を使ってください。</p>
+  </div>
+
+  <h2 id="paint">変わった所だけを描く</h2>
+  <p>描く処理（7）は、画面に描く物（四角・文字・画像）の一覧を作ります。既定の CPU の道は、前のフレームの一覧と比べ、違いのある範囲だけを塗り直して窓に写します。スクロールでは、窓の中の絵をずらし、新しく見えた帯だけを描きます。</p>
+  <p>入力も動く部品も無い間は、フレームを作りません。窓は OS のメッセージを待って止まります。そのため、何も起きていない間の CPU は 0 です。動く部品（進み具合の帯など）やツールチップを待つ間だけ、決めた時刻にタイマーで起きます。</p>
+  <div class="table-wrap" tabindex="0" role="region" aria-labelledby="t-cost">
+    <table>
+      <caption id="t-cost">タスク帳（1 万件）の 1 フレームで動くもの</caption>
+      <thead><tr><th scope="col">場面</th><th scope="col" class="num">view を呼ぶ回数</th><th scope="col">描く範囲</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">何も起きていない</th><td class="num">0</td><td>描かない（CPU 0）</td></tr>
+        <tr><th scope="row">ポインターが部品に乗った</th><td class="num">1</td><td>色の変わった部品だけ</td></tr>
+        <tr><th scope="row">ボタンを押した</th><td class="num">2〜4</td><td>変わった行と数の表示</td></tr>
+        <tr><th scope="row">一覧をスクロールした</th><td class="num">2〜4</td><td>新しく見えた帯だけ</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="small">一覧は見えている行だけを作ります。1 万件でも、1 回の <code>view</code> で作る行は画面に入る数十行です。</p>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="./">← 目次</a>
+    <a href="02-widgets.html">第 2 章 0.1 から 0.2 へ →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>

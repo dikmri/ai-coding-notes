@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 3 章 ふつうのアプリで見つけたこと ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="部品がそろった後、メモ帳・家計簿・ファイルの閲覧の 3 本を kargui だけで書きました。書いて見つかった不足、起動が 14 ms 遅くなった理由、作者が本物の窓で見つけた不具合を、スクリーンショットと表で紹介します。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 3 章</p>
+  <h1>ふつうのアプリで見つけたこと</h1>
+  <p class="lede">部品の試験が全部通っても、アプリが書けるとは限りません。部品を組み合わせた時に初めて足りない物が見えるからです。そこで、0.2 の最後の確かめとして、メモ帳・家計簿・ファイルの閲覧の 3 本を kargui だけで書きました。この章では、書いて見つかった不足と、作者が本物の窓で見つけた不具合を紹介します。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>3 本のアプリが、それぞれ kargui のどの部品と仕組みを使っているか</li>
+      <li>アプリを書いて見つかった 6 つの不足と、その直し方</li>
+      <li>ファイルのダイアログを足しただけで、起動が 14 ms 遅くなった理由</li>
+      <li>作者が操作し、AI が記録を読んで直す、確かめ方の流れ</li>
+    </ul>
+  </section>
+
+  <h2 id="apps">3 本のアプリ</h2>
+  <!-- gen:apps -->
+<div class="pair">
+  <figure class="shot"><picture><source media="(prefers-color-scheme: dark)" srcset="img/apps/notepad-dark.webp"><img src="img/apps/notepad-light.webp" alt="メモ帳の見本。メニューバーと複数行の入力欄" width="641" height="511" loading="lazy" decoding="async"></picture><figcaption>メモ帳（<code>examples/notepad</code>）</figcaption></figure>
+  <figure class="shot"><picture><source media="(prefers-color-scheme: dark)" srcset="img/apps/files-dark.webp"><img src="img/apps/files-light.webp" alt="ファイルの閲覧の見本。左にフォルダーの木、右にファイルの表" width="821" height="551" loading="lazy" decoding="async"></picture><figcaption>ファイルの閲覧（<code>examples/files</code>）</figcaption></figure>
+</div>
+<figure class="shot"><picture><source media="(prefers-color-scheme: dark)" srcset="img/apps/expenses-dark.webp"><img src="img/apps/expenses-light.webp" alt="家計簿の見本" width="721" height="631" loading="lazy" decoding="async"></picture><figcaption>家計簿（<code>examples/expenses</code>）。棒グラフは自由に描く面で描いている。</figcaption></figure>
+<!-- /gen:apps -->
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-apps">
+    <table>
+      <caption id="t-apps">3 本のアプリが使っている物</caption>
+      <thead><tr><th scope="col">アプリ</th><th scope="col">使っている部品と仕組み</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">メモ帳<br><code>examples/notepad</code></th><td data-label="使っている物">メニューバーとショートカット、複数行の入力欄、ファイルを開く・保存するダイアログ、閉じる前の確認、窓のアイコンと最小の大きさ</td></tr>
+        <tr><th scope="row">家計簿<br><code>examples/expenses</code></th><td data-label="使っている物">格子に並べた入力欄、日付の選択、ドロップダウン、数の入力、タブ、並べ替えられる表と行の右クリック、ツールバー、自由に描く面の棒グラフ</td></tr>
+        <tr><th scope="row">ファイルの閲覧<br><code>examples/files</code></th><td data-label="使っている物">左右の仕切り、フォルダーの木、ファイルの表、別の窓のプロパティ</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>3 本とも、kargui の外の GUI の道具は使っていません。どれも 300〜400 行（試験を含む）で、試験台の試験が付いています。</p>
+
+  <h2 id="found">書いて見つかった不足</h2>
+  <p>部品を 1 つずつ試していた時には見えなかった不足が、6 つ見つかりました。どれも kargui の側で直しました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-found">
+    <table>
+      <caption id="t-found">アプリを書いて見つかった不足</caption>
+      <thead><tr><th scope="col">見つけたアプリ</th><th scope="col">困ったこと</th><th scope="col">直し方</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">メモ帳</th><td data-label="困ったこと">保存のダイアログを取り消したかどうかが分からず、「保存してから閉じる」の続きを捨てられない</td><td data-label="直し方"><code>ui.file_dialog_cancelled(キー)</code> を足した</td></tr>
+        <tr><th scope="row">家計簿</th><td data-label="困ったこと">表の行に右クリックのメニューを付けられない</td><td data-label="直し方"><code>TableRow::context_menu</code> を足した</td></tr>
+        <tr><th scope="row">家計簿</th><td data-label="困ったこと">タブの中の表の高さが 0 になり、何も見えない</td><td data-label="直し方">タブの中身が残りの高さを取るようにした</td></tr>
+        <tr><th scope="row">ファイルの閲覧</th><td data-label="困ったこと">木の鍵に、ファイルのパス（<code>PathBuf</code>）を使えない</td><td data-label="直し方">鍵に求める性質を <code>Copy</code> から <code>Clone</code> にゆるめた</td></tr>
+        <tr><th scope="row">ファイルの閲覧</th><td data-label="困ったこと">ファイルの更新日（1970 年からの秒）を日付にできない</td><td data-label="直し方"><code>Date::from_unix_days</code> を足した</td></tr>
+        <tr><th scope="row">3 本とも</th><td data-label="困ったこと">試験台が、同じ名前の部品のうち見えていない方を押す（開いたメニューの「削除」ではなく、後ろのボタンの「削除」）</td><td data-label="直し方">試験台が、利用者に見えている物（開いたメニューの中、上の物、ラベルより入力欄）を選ぶようにした</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="insight">
+    <span class="box-title">分かったこと: 最後の確かめは、部品の試験の代わりにならない</span>
+    <p>6 つとも、部品を 1 つずつ確かめる試験では見つかりませんでした。「保存してから閉じる」「表の行ごとに操作する」「ファイルの日付を出す」のように、アプリの流れの中で初めて要ると分かった物です。たとえばタブには、残りの高さを取る表を中に置いた時の試験がありませんでした。直す時に、その組み合わせの試験も足しています。</p>
+  </div>
+
+  <h2 id="startup">ダイアログを足したら、起動が遅くなった</h2>
+  <p>ファイルのダイアログを足した後、いつもの測定を走らせると、何もしないタスク帳の起動が遅くなっていました。ダイアログを出していないのに遅くなったので、原因はダイアログを出す処理そのものではありません。</p>
+  <!-- gen:shell32 -->
+<figure class="bars" id="c-shell32">
+    <figcaption><span class="bars-title">ファイルのダイアログを足した時の起動（ミリ秒）</span><span class="bars-hint">その時に測った中央値。タスク帳はダイアログを使わない</span></figcaption>
+    <div class="bar-rows">
+      <div class="bar-row" data-v="v010"><span class="bar-name">足す前</span><span class="bar-track"><span class="bar" style="--w: 75.0%"></span><span class="bar-val">42 ms</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">足した直後</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">56 ms（+14）</span></span></div>
+      <div class="bar-row" data-v="v020"><span class="bar-name">遅らせた後</span><span class="bar-track"><span class="bar" style="--w: 78.6%"></span><span class="bar-val">44 ms</span></span></div>
+    </div>
+  </figure>
+<!-- /gen:shell32 -->
+  <p>調べると、遅くなった理由は 2 つありました。</p>
+  <ol>
+    <li><strong>COM の初期化</strong>: ダイアログ（IFileOpenDialog）は COM の部品なので、窓のスレッドを COM の STA にする必要があります。これを起動の時に行っていました。</li>
+    <li><strong>shell32.dll の読み込み</strong>: 始めのフォルダーを渡す関数（SHCreateItemFromParsingName）は shell32.dll にあります。Rust の windows crate でふつうに呼ぶと、この DLL がプログラムの起動の時に読み込まれます。shell32.dll は大きく、読み込むだけで十数 ms かかります。</li>
+  </ol>
+  <p>どちらも、ダイアログを初めて出す時まで遅らせました。shell32.dll の関数は、使う時に <code>LoadLibraryW</code> と <code>GetProcAddress</code> で探して呼びます。これで起動は元の速さに戻りました。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい書き方: 起動の時に要らない DLL の関数を、ふつうに読み込む</span>
+    <p>めったに使わない機能のために大きな DLL（shell32.dll など）の関数をふつうに呼ぶと、その機能を使わない人の起動も遅くなります。部品や仕組みを足したら、組み立て直してから起動の時間とメモリを測ってください。kargui では、足すたびに同じ道具で測っています。</p>
+  </div>
+
+  <h2 id="hand">作者が本物の窓で見つけたこと</h2>
+  <p>本物のファイルのダイアログは前面に出て入力を取るので、自動の試験では開けません。そこで、作者がメモ帳を操作し、その記録を AI が読む形で確かめました。作者は「試した」と伝えるだけで、どこがおかしかったかは書きません。AI が記録から探します。</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 200" role="img" aria-labelledby="loop-title loop-desc">
+      <title id="loop-title">本物の窓での確かめ方</title>
+      <desc id="loop-desc">AI が記録の出る形にして手順を渡し、作者が操作し、AI が記録を読んで直し、また手順を渡す。</desc>
+      <defs>
+        <marker id="ah3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrow-head"/></marker>
+      </defs>
+      <rect class="box-soft" x="20" y="40" width="190" height="76" rx="10"/>
+      <text class="label" x="38" y="68">1. AI が手順を渡す</text>
+      <text class="sub" x="38" y="90">記録の置き場所と</text>
+      <text class="sub" x="38" y="106">番号つきの操作</text>
+      <rect class="box" x="265" y="40" width="190" height="76" rx="10"/>
+      <text class="label" x="283" y="68">2. 作者が操作する</text>
+      <text class="sub" x="283" y="90">終わったら</text>
+      <text class="sub" x="283" y="106">「試した」とだけ伝える</text>
+      <rect class="box" x="510" y="40" width="190" height="76" rx="10"/>
+      <text class="label" x="528" y="68">3. AI が記録を読む</text>
+      <text class="sub" x="528" y="90">異常を探して原因を</text>
+      <text class="sub" x="528" y="106">たどり、試験を書いて直す</text>
+      <path class="arrow" d="M212 78 H262" marker-end="url(#ah3)"/>
+      <path class="arrow" d="M457 78 H507" marker-end="url(#ah3)"/>
+      <path class="loop" d="M605 118 V160 H115 V120" marker-end="url(#lh3)"/>
+      <defs><marker id="lh3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="loop-head"/></marker></defs>
+      <text class="loop-text" x="250" y="182">直したら、また手順を渡す（作者が「問題ない」と言うまで）</text>
+    </svg>
+    <figcaption>本物の窓での確かめ方。記録は 1 行に「時刻・出来事・引数・結果」を書く。</figcaption>
+  </figure>
+  <p>記録から、ダイアログそのものは期待どおりに動いていると分かりました。そのうえで、2 つの問題が見つかりました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-hand">
+    <table>
+      <caption id="t-hand">記録から見つかった問題</caption>
+      <thead><tr><th scope="col">記録に出ていたこと</th><th scope="col">原因</th><th scope="col">直し方</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Ctrl+Q が 3 回押されて、何も起きていない</th><td data-label="原因">メモ帳の「終了」にショートカットが無かった（作者は Ctrl+Q で終わると思った）</td><td data-label="直し方">「終了」に Ctrl+Q を付けた。書きかけがあれば確認を出す流れは同じ</td></tr>
+        <tr><th scope="row">書きかけのまま閉じたのに、確認が出ずに閉じた（<code>allowed=true</code>）</th><td data-label="原因">確認の画面で「保存しない」を押すと、続きの操作の前に「変更あり」の印を消していた。続きの「開く」を取り消すと、書きかけが残るのに印だけが消えていた</td><td data-label="直し方">印を消すのは、新規や読み込みで実際に文字を置き換えた時だけにした</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい書き方: 「次に何かする」前に、状態を先に戻す</span>
+    <p>「保存しない」を押した時点で「変更なし」に戻すと、次の操作が取り消された場合に、書きかけが「変更なし」の扱いで残ります。状態を戻すのは、実際にデータを置き換えた所で行ってください。メモ帳は、新規と読み込みの処理がそれぞれ自分で印を消します。</p>
+  </div>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="02-widgets.html">← 第 2 章 0.1 から 0.2 へ</a>
+    <a href="04-release.html">第 4 章 CI を初めて回した日と 0.2.0 →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>
