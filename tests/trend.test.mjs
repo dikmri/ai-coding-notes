@@ -1474,3 +1474,125 @@ test('モデル検査: ランダムな実行は、同じ種なら同じ手順に
   // 元のチケット販売は、200 本のうちどこかで違反が見つかる
   assert.equal(simulate(SPECS.ticket, 'bug', 1, 200, SPECS.ticket.steps).kind, 'bad');
 });
+
+// パンに塗って具を載せる（Sandwich Simulator）
+const SANDWICH = 'tr-20261122-spread-stack';
+const SW_NAMES = ['KNIFE', 'breadPoly', 'makeGrid', 'stroke', 'takeFromPot', 'coverage', 'SHAPES', 'samplesOf', 'posed', 'convexHull', 'inHull', 'judge', 'settle', 'inPoly'];
+const swTotal = (G, K) => G.t.reduce((s, v) => s + v, 0) + K.load;
+
+test('塗る: 塗っても、空のナイフでならしても、パンとナイフの塗り物の合計は変わらない', () => {
+  const X = trendCore(SANDWICH, SW_NAMES);
+  const G = X.makeGrid(2, X.breadPoly(5)), K = { load: 0, r: 0, g: 0, b: 0 };
+  assert.equal(X.takeFromPot(K, [1, 0.8, 0.4]), X.KNIFE.full);
+  const before = swTotal(G, K);
+  X.stroke(G, K, 90, 80, 310, 84);
+  X.stroke(G, K, 310, 120, 90, 124);
+  X.stroke(G, K, 200, 50, 205, 250);
+  K.load = 0;   // ナイフを空にして（量を捨てたので、合計を取り直す）
+  const empty = swTotal(G, K);
+  for (let y = 70; y < 250; y += 15) X.stroke(G, K, 80, y, 320, y + 3);
+  assert.ok(Math.abs(swTotal(G, K) - empty) / empty < 1e-6);
+  assert.ok(before > empty);
+});
+
+test('塗る: 量が減るほど薄く塗り、止まっていると塗れない', () => {
+  const X = trendCore(SANDWICH, SW_NAMES);
+  const G = X.makeGrid(2, null), K = { load: 0, r: 0, g: 0, b: 0 };
+  X.takeFromPot(K, [1, 1, 1]);
+  assert.equal(X.stroke(G, K, 150, 150, 150, 150), 0);
+  assert.equal(G.t.reduce((s, v) => s + v, 0), 0);
+  const at = (x, y) => G.t[Math.floor((y - G.oy) / G.cell) * G.w + Math.floor((x - G.ox) / G.cell)];
+  let prev = K.load;
+  for (let x = 70; x < 330; x += 2) {
+    X.stroke(G, K, x, 150, x + 2, 150);
+    assert.ok(K.load <= prev + 1e-9);   // 何も無いパンの上では、ナイフの量は増えない
+    prev = K.load;
+  }
+  assert.ok(at(80, 150) > at(320, 150) + 0.1, `${at(80, 150)} > ${at(320, 150)}`);
+  assert.ok(at(320, 150) > 0);
+});
+
+test('塗る: 空のナイフで厚い所をなでると、塗り物が先へ伸びて山が低くなる。色も運ばれる', () => {
+  const X = trendCore(SANDWICH, SW_NAMES);
+  const G = X.makeGrid(2, null), K = { load: 0, r: 0, g: 0, b: 0 };
+  const idx = (x, y) => Math.floor((y - G.oy) / G.cell) * G.w + Math.floor((x - G.ox) / G.cell);
+  for (let x = 140; x < 160; x += 2) for (let y = 140; y < 160; y += 2) { const k = idx(x, y); G.t[k] = 3; G.r[k] = 0.7; G.g[k] = 0.1; G.b[k] = 0.1; }
+  const total = swTotal(G, K);
+  for (let x = 130; x < 250; x += 2) X.stroke(G, K, x, 150, x + 2, 150);
+  assert.ok(G.t[idx(150, 150)] < 3);
+  // 山（x が 140〜160）の外の、まだ何も無かった所まで伸びる
+  assert.ok(G.t[idx(175, 150)] > 0.05);
+  assert.ok(Math.abs(G.r[idx(175, 150)] - 0.7) < 1e-5);
+  assert.ok(Math.abs(swTotal(G, K) - total) / total < 1e-6);
+});
+
+test('塗る: 耳の外と、具に隠れたマスには塗れない。壺から取ると量に応じて色が混ざる', () => {
+  const X = trendCore(SANDWICH, SW_NAMES);
+  const G = X.makeGrid(2, X.breadPoly(5)), K = { load: 0, r: 0, g: 0, b: 0 };
+  for (let k = 0; k < G.cover.length; k += 7) G.cover[k] = 1;
+  X.takeFromPot(K, [1, 1, 1]);
+  for (let y = 40; y < 270; y += 8) X.stroke(G, K, 60, y, 340, y);
+  for (let k = 0; k < G.t.length; k++) if (!G.mask[k] || G.cover[k]) assert.equal(G.t[k], 0);
+  const K2 = { load: 3500, r: 1, g: 1, b: 1 };
+  assert.equal(X.takeFromPot(K2, [0, 0, 0], 7000), 3500);
+  assert.equal(K2.load, 7000);
+  assert.ok(Math.abs(K2.r - 0.5) < 1e-12);
+  assert.equal(X.takeFromPot(K2, [0, 0, 0], 7000), 0);
+});
+
+test('具: 凸包は外側の点だけを左回りに返し、内側の判定は辺からの距離を見る', () => {
+  const X = trendCore(SANDWICH, SW_NAMES);
+  const pts = [];
+  for (let x = 0; x <= 2; x++) for (let y = 0; y <= 2; y++) pts.push([x * 10, y * 10]);
+  const H = X.convexHull(pts);
+  assert.equal(H.length, 4);
+  // 中心 (10, 10) から 4 つの辺までは、どれも 10
+  assert.ok(X.inHull(H, 10, 10, 9.9));
+  assert.ok(!X.inHull(H, 10, 10, 10.1));
+  assert.ok(!X.inHull(H, 21, 10));
+  assert.ok(!X.inHull(X.convexHull([[0, 0], [5, 5], [10, 10]]), 5, 5));   // 一直線の点は面にならない
+});
+
+test('具: 重心の下に支えがあれば残り、無ければ支えと反対へ滑り、支えが 1 つも無ければ片付ける', () => {
+  const X = trendCore(SANDWICH, SW_NAMES);
+  const sq = X.SHAPES.cheese(), pts = X.samplesOf(sq, 3);
+  const r = (f) => X.judge(pts, pts.map(([x]) => f(x)));
+  assert.equal(r(() => true).kind, 'stay');
+  assert.equal(r(() => true).frac, 1);
+  assert.equal(r((x) => x < 6).kind, 'stay');
+  const s = r((x) => x < -3);
+  assert.equal(s.kind, 'slide');
+  assert.ok(s.dir[0] > 0.99);
+  assert.equal(r((x) => x < 0).kind, 'slide');   // ちょうど半分では、重心が支えの縁に乗るので残れない
+  assert.equal(r(() => false).kind, 'gone');
+  for (const [k, f] of Object.entries(X.SHAPES)) {
+    const P = f();
+    assert.ok(X.inPoly(P, 0, 0), k);
+    assert.ok(X.samplesOf(P, 3).length > P.length, k);
+  }
+});
+
+test('具: 下の具から順に判定し、支えていた具が落ちると上の具も落ちる', () => {
+  const X = trendCore(SANDWICH, SW_NAMES);
+  const sq = X.SHAPES.cheese(), L = { poly: sq, pts: X.samplesOf(sq, 3) };
+  const onBread = (x) => x < 100;   // x が 100 より左だけがパン
+  const A = X.posed(L, 90, 0, 0), B = X.posed(L, 105, 0, 0), Aout = X.posed(L, 135, 0, 0);
+  assert.deepEqual(X.settle([A, B], onBread).map((q) => q.kind), ['stay', 'stay']);
+  assert.deepEqual(X.settle([B], onBread).map((q) => q.kind), ['slide']);
+  assert.deepEqual(X.settle([Aout, B], onBread).map((q) => q.kind), ['gone', 'slide']);
+  // 回しても、置いた所と形は変わらない（重心は同じ）
+  const R = X.posed(L, 50, 60, 0.7);
+  const c = R.pts.reduce((s, p) => [s[0] + p[0] / R.pts.length, s[1] + p[1] / R.pts.length], [0, 0]);
+  assert.ok(Math.hypot(c[0] - 50, c[1] - 60) < 1e-9);
+});
+
+test('パン: 耳の内側の輪郭は外側の内側にあり、パン全体がマス目の範囲に入る', () => {
+  const X = trendCore(SANDWICH, SW_NAMES);
+  const outer = X.breadPoly(0), inner = X.breadPoly(9), G = X.makeGrid(2, X.breadPoly(5));
+  for (const [x, y] of inner) assert.ok(X.inPoly(outer, x, y));
+  assert.ok(X.inPoly(outer, 200, 150));
+  assert.ok(!X.inPoly(outer, 20, 20));
+  for (const [x, y] of outer) {
+    assert.ok(x > G.ox && x < G.ox + G.w * G.cell && y > G.oy && y < G.oy + G.h * G.cell);
+  }
+});

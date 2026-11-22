@@ -8668,3 +8668,999 @@ dekiru.add({
     }
   },
 });
+dekiru.add({
+  id: 'tr-20261122-spread-stack', c: 'trend', lv: 2, date: '2026-11-22',
+  t: 'パンにナイフで塗って具を載せる。ナイフの塗り物は塗るほど減り、重心の下に支えが無い具は滑り落ちる（Sandwich Simulator）',
+  y: 'ぱんにないふでぬってぐをのせるないふのぬりものはぬるほどへりじゅうしんのしたにささえがないぐはすべりおちるさんどいっちしみゅれーた',
+  tags: ['Sandwich Simulator', 'Canvas', 'Pointer Events', '凸包', '重心'],
+  d: '2026年11月22日、Hacker News に「Sandwich Simulator」（stulle.app。ドイツ語の名前は Stullensimulator）が載り、取得した時点で 231 点を集めていた。パンに塗り物を塗って具を載せ、ドイツの Stulle（具を載せたパン）を作る遊びである。壺を押すとナイフに塗り物が付き、パンの上をなでると塗れる。説明には、空になったらもう一度壺を押すこと、具は帯からパンへ引いて載せ、取っ手やマウスのホイールで回すこと、ぐらつく具は手を離すと滑り落ちることが書いてある。この見本は、その中心の 3 つの仕組みをブラウザだけで作り直す。1 つ目は塗り方である。パンを 2 単位四方のマスに分け、マスごとに塗り物の厚さと色を持つ。ナイフが通ると、刃の下のマスとナイフの間で塗り物をやり取りする。塗るほどナイフの量は減って薄くしか塗れなくなり、空のナイフでなでると厚い所がならされる。バターの上をジャムのナイフでなでると色が混ざる。2 つ目は具の移動と回転で、具は引いて動かし、取っ手・ホイール・ボタン・キーで回す。3 つ目は具が落ちる判定で、手を離したときに、具の下に支え（パンか、先に置いた具）がある所を調べ、具の重心が支えの範囲の外なら滑り落とす。支えていた具を持ち上げたり外したりすると、上の具も続けて落ちる。塗り物は 4 種類、具は 8 種類で、絵は canvas にその場で描いている。「見本を動かす」を押すと、バターを塗って具を載せ、最後のトマトがパンの縁から滑り落ちるまでを自動で見せる。再現していない所: 元の作品の写真のような絵と多くの具、写真を撮って番号と URL を付けて残す機能は無い。元の作品が具の落ち方をどう決めているかは公開されていないので、落ちる条件はこの見本で決めた。具の厚みは数えず、下に何かがあれば支えとみなす。具の上には塗れない。',
+  p: 'ナイフは、上に残っている量から「どのくらいの厚さで塗るか」を決める。量が多いほど厚く（最大 1.5）、空に近いほど薄く（0.25）なる。刃の下のマスがその厚さより薄ければ差の 22% をナイフから足し、厚ければ差の 12% をナイフへ取り込む。足した量と取り込んだ量はナイフの量から引き、ナイフの量へ足すので、パンとナイフの塗り物の合計は変わらない。この 1 つの決まりから、塗るほど薄くなる、空のナイフで厚い所がならされて先へ伸びる、別の塗り物のナイフが通ると色が混ざる、という動きが出る。やり取りの回数はナイフが進んだ道のりで決まるので、止まっている間は塗れない。具が落ちる判定では、具の中に 3 単位おきに点を打ち、下に支えのある点だけを囲む凸包（へこみの無い多角形）を作る。平らな板は、重心がこの凸包の内側にあれば傾かない。外にあれば、支えのある所の中心から重心の向きへ滑らせる。支えのある点が 1 つも無ければ、パンの外へ出したとみなして片付ける。下の具から順に判定するので、下の具が落ちると、その具に支えられていた上の具も同じ回で落ちる。',
+  refs: [
+    { title: 'Sandwich Simulator（Stullensimulator、stulle.app）', url: 'https://stulle.app/' },
+    { title: 'Hacker News: Sandwich Simulator（2026-11-22）', url: 'https://news.ycombinator.com/item?id=50594911' },
+    { title: 'Support polygon（Wikipedia）', url: 'https://en.wikipedia.org/wiki/Support_polygon' },
+  ],
+  html: `<div class="app">
+  <div class="bar">
+    <div class="grp" role="group" aria-labelledby="potL"><span class="lab" id="potL">塗り物（押すとナイフに付く）</span><span id="pots" class="row"></span></div>
+    <div class="grp" role="group" aria-labelledby="trayL"><span class="lab" id="trayL">具（パンへ引いて載せる。押すとパンの上に置く）</span><span id="tray" class="row"></span></div>
+  </div>
+  <div class="stage"><canvas id="cv" tabindex="0" aria-label="まな板の上のパン。なでると塗れる。具を選び、矢印キーで動かし、Q と E で回す" aria-describedby="help"></canvas></div>
+  <div class="foot">
+    <span class="row"><label for="loadM">ナイフの上</label><meter id="loadM" min="0" max="1" value="0"></meter><span id="loadT">空</span></span>
+    <span id="covT">塗れた所 0%</span>
+    <span class="row"><button type="button" id="rotL" aria-label="選んだ具を左へ回す">↺ 回す</button><button type="button" id="rotR" aria-label="選んだ具を右へ回す">↻ 回す</button><button type="button" id="delB">外す</button></span>
+    <span class="row"><button type="button" id="demoB">見本を動かす</button><button type="button" id="clearB">最初から</button></span>
+  </div>
+  <p id="msg" class="msg" role="status"></p>
+  <p id="help" class="small">ドラッグしなくても使えます。具のボタンを押すとパンの上の空いた所に置きます。パンの画面を選んでから、矢印キー（Shift で大きく）で動かし、Q と E で回し、N で次の具を選び、Delete で外します。具の上でホイールを回しても回せます。</p>
+</div>`,
+  css: `:root { color-scheme: light; --bg: #f4eee5; --fg: #2b241f; --mut: #6d6257; --line: #d8ccbd; --panel: #fffaf2; --acc: #b8532c; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    .app { box-sizing: border-box; min-block-size: 100vh; display: flex; flex-direction: column; gap: 6px; padding: 8px; }
+    .bar { display: flex; flex-direction: column; gap: 4px; }
+    .grp { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: center; }
+    .lab { font-size: 12px; color: var(--mut); }
+    .row { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+    button { font: inherit; font-size: 13px; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; min-block-size: 32px; padding: 2px 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+    button:disabled { opacity: .45; cursor: default; }
+    :focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+    .pot i { inline-size: 16px; block-size: 16px; border-radius: 50%; background: var(--c); box-shadow: inset 0 -2px 0 rgb(0 0 0 / .2); }
+    .top { cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; padding-inline-start: 4px; }
+    .top canvas { inline-size: 24px; block-size: 24px; }
+    .stage { flex: 1 1 auto; min-block-size: 230px; position: relative; }
+    #cv { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; display: block; border-radius: 10px; touch-action: none; -webkit-user-select: none; user-select: none; }
+    .foot { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 13px; }
+    meter { inline-size: 80px; }
+    #loadT, #covT { font-variant-numeric: tabular-nums; }
+    .msg { margin: 0; padding: 6px 8px; background: var(--panel); border-inline-start: 3px solid var(--acc); border-radius: 4px; font-size: 13px; min-block-size: 1.5em; }
+    .small { margin: 0; font-size: 12px; color: var(--mut); }
+    .thumb .bar, .thumb .foot, .thumb .msg, .thumb .small { display: none; }
+    .thumb .app { padding: 0; }
+    .thumb .stage { min-block-size: 0; }
+    .thumb #cv { border-radius: 0; }`,
+  core() {
+    // 画面の座標は横 400 × 縦 300。パン・具・ナイフはこの座標で持つ
+    const VW = 400, VH = 300;
+    // ナイフ: half は刃の長さの半分、thick は刃の太さの半分、step は道のりを刻む幅、
+    // rate は薄い所へ足す割合、up は厚い所から取り込む割合、full は壺から取る量、hMin と hMax は塗る厚さの下限と上限
+    const KNIFE = { half: 22, thick: 3.5, step: 1.5, rate: 0.22, up: 0.12, full: 7000, hMin: 0.25, hMax: 1.5 };
+
+    function bboxOf(P) {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const [x, y] of P) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      return [x0, y0, x1, y1];
+    }
+    // 点が多角形の内側にあるか（右へ伸ばした半直線が辺と交わる回数が奇数なら内側）
+    function inPoly(P, x, y) {
+      let ins = false;
+      for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+        const xi = P[i][0], yi = P[i][1], xj = P[j][0], yj = P[j][1];
+        if ((yi > y) !== (yj > y) && x < xj + (y - yj) * (xi - xj) / (yi - yj)) ins = !ins;
+      }
+      return ins;
+    }
+    // 3 次ベジェ曲線を n 個の点に分けて out へ足す
+    function bez(a, b, c, d, n, out) {
+      for (let i = 1; i <= n; i++) {
+        const t = i / n, u = 1 - t, k0 = u * u * u, k1 = 3 * u * u * t, k2 = 3 * u * t * t, k3 = t * t * t;
+        out.push([k0 * a[0] + k1 * b[0] + k2 * c[0] + k3 * d[0], k0 * a[1] + k1 * b[1] + k2 * c[1] + k3 * d[1]]);
+      }
+    }
+    // 食パン 1 枚の輪郭。inset を与えると、上下左右からその幅だけ縮めた輪郭（耳の内側）を返す
+    function breadPoly(inset = 0) {
+      const L = 88, R = 312, B = 262, T0 = 104, TP = 40, cx = 200;
+      const P = [[L, B - 10], [L, T0]];
+      bez([L, T0], [L - 24, T0 - 14], [L - 20, TP + 14], [L + 38, TP + 4], 14, P);
+      bez([L + 38, TP + 4], [cx - 30, TP - 6], [cx + 30, TP - 6], [R - 38, TP + 4], 14, P);
+      bez([R - 38, TP + 4], [R + 20, TP + 14], [R + 24, T0 - 14], [R, T0], 14, P);
+      P.push([R, B - 10]);
+      for (let i = 1; i <= 4; i++) { const a = i / 8 * Math.PI; P.push([R - 10 + 10 * Math.cos(a), B - 10 + 10 * Math.sin(a)]); }
+      P.push([L + 10, B]);
+      for (let i = 1; i < 4; i++) { const a = Math.PI / 2 + i / 8 * Math.PI; P.push([L + 10 + 10 * Math.cos(a), B - 10 + 10 * Math.sin(a)]); }
+      if (!inset) return P;
+      const [x0, y0, x1, y1] = bboxOf(P), mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+      const sx = (x1 - x0 - 2 * inset) / (x1 - x0), sy = (y1 - y0 - 2 * inset) / (y1 - y0);
+      return P.map(([x, y]) => [mx + (x - mx) * sx, my + (y - my) * sy]);
+    }
+    // パンを cell 四方のマスに分ける。マスごとに塗り物の厚さ t と色 r, g, b（0〜1）を持つ。
+    // mask は塗れるマス（poly の内側。poly が無ければ全部）、cover は具の下に隠れて刃が届かないマス
+    function makeGrid(cell, poly) {
+      const ox = 60, oy = 30, w = Math.ceil(280 / cell), h = Math.ceil(240 / cell), n = w * h;
+      const G = { cell, ox, oy, w, h, t: new Float32Array(n), r: new Float32Array(n), g: new Float32Array(n), b: new Float32Array(n), mask: new Uint8Array(n), cover: new Uint8Array(n) };
+      for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+        G.mask[j * w + i] = !poly || inPoly(poly, ox + (i + 0.5) * cell, oy + (j + 0.5) * cell) ? 1 : 0;
+      }
+      return G;
+    }
+    // ナイフ K（load は量、r, g, b は色）を (x0, y0) から (x1, y1) へ動かす。刃は動く向きに直角に当たる
+    // （ang を与えると、その向きへ動いているものとして刃を置く）。刃の下のマスごとに、ナイフが塗る厚さ h と比べ、
+    // 薄ければナイフから足し、厚ければナイフへ取り込む。返り値はパンへ移った正味の量（取り込みが多ければ負）
+    function stroke(G, K, x0, y0, x1, y1, P = KNIFE, ang) {
+      const len = Math.hypot(x1 - x0, y1 - y0);
+      if (len < 1e-6) return 0;
+      const a = ang ?? Math.atan2(y1 - y0, x1 - x0), nx = -Math.sin(a), ny = Math.cos(a);
+      const n = Math.max(1, Math.round(len / P.step)), reach = P.half + P.thick, th2 = P.thick * P.thick;
+      let net = 0;
+      for (let s = 1; s <= n; s++) {
+        const px = x0 + (x1 - x0) * s / n, py = y0 + (y1 - y0) * s / n;
+        const ax = px - nx * P.half, ay = py - ny * P.half;
+        const i0 = Math.max(0, Math.floor((px - reach - G.ox) / G.cell)), i1 = Math.min(G.w - 1, Math.floor((px + reach - G.ox) / G.cell));
+        const j0 = Math.max(0, Math.floor((py - reach - G.oy) / G.cell)), j1 = Math.min(G.h - 1, Math.floor((py + reach - G.oy) / G.cell));
+        for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+          const k = j * G.w + i;
+          if (!G.mask[k] || G.cover[k]) continue;
+          const cx = G.ox + (i + 0.5) * G.cell, cy = G.oy + (j + 0.5) * G.cell;
+          // マスの中心から刃（長さ 2*half の線分）までの距離が thick 以内のマスだけ
+          const u = Math.min(1, Math.max(0, ((cx - ax) * nx + (cy - ay) * ny) / (2 * P.half)));
+          const qx = ax + nx * 2 * P.half * u - cx, qy = ay + ny * 2 * P.half * u - cy;
+          if (qx * qx + qy * qy > th2) continue;
+          const h = P.hMin + (P.hMax - P.hMin) * Math.sqrt(Math.min(1, K.load / P.full));
+          const tk = G.t[k];
+          if (tk < h) {
+            const d = Math.min(P.rate * (h - tk), K.load);
+            if (d <= 0) continue;
+            const tot = tk + d;
+            G.r[k] = (G.r[k] * tk + K.r * d) / tot; G.g[k] = (G.g[k] * tk + K.g * d) / tot; G.b[k] = (G.b[k] * tk + K.b * d) / tot;
+            G.t[k] = tot; K.load -= d; net += d;
+          } else {
+            const d = P.up * (tk - h);
+            if (d <= 0) continue;
+            const tot = K.load + d;
+            K.r = (K.r * K.load + G.r[k] * d) / tot; K.g = (K.g * K.load + G.g[k] * d) / tot; K.b = (K.b * K.load + G.b[k] * d) / tot;
+            K.load = tot; G.t[k] = tk - d; net -= d;
+          }
+        }
+      }
+      return net;
+    }
+    // 壺から取る。ナイフの量を full まで足し、前の塗り物が残っていれば量に応じて色が混ざる。足した量を返す
+    function takeFromPot(K, rgb, full = KNIFE.full) {
+      const add = Math.max(0, full - K.load);
+      if (add <= 0) return 0;
+      const tot = K.load + add;
+      K.r = (K.r * K.load + rgb[0] * add) / tot; K.g = (K.g * K.load + rgb[1] * add) / tot; K.b = (K.b * K.load + rgb[2] * add) / tot;
+      K.load = tot;
+      return add;
+    }
+    // 塗れた割合（厚さ thr 以上のマス ÷ 塗れるマス）と、塗れた所の平均の厚さ
+    function coverage(G, thr = 0.12) {
+      let all = 0, on = 0, sum = 0;
+      for (let k = 0; k < G.t.length; k++) {
+        if (!G.mask[k]) continue;
+        all++;
+        if (G.t[k] >= thr) { on++; sum += G.t[k]; }
+      }
+      return { frac: all ? on / all : 0, mean: on ? sum / on : 0 };
+    }
+
+    // 具の形（中心が原点の多角形）
+    const ring = (rx, ry, n, f = () => 1) => Array.from({ length: n }, (_, i) => {
+      const a = i / n * Math.PI * 2, s = f(a);
+      return [rx * s * Math.cos(a), ry * s * Math.sin(a)];
+    });
+    const SHAPES = {
+      lettuce: () => ring(38, 35, 96, (a) => 1 + 0.1 * Math.sin(a * 11) + 0.05 * Math.sin(a * 4 + 1)),
+      ham: () => ring(33, 33, 32),
+      cheese: () => {
+        const P = [], h = 29, r = 4;
+        for (const [cx, cy, a0] of [[h - r, h - r, 0], [r - h, h - r, 0.5], [r - h, r - h, 1], [h - r, r - h, 1.5]]) {
+          for (let i = 0; i <= 3; i++) { const a = (a0 + i / 6) * Math.PI; P.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
+        }
+        return P;
+      },
+      tomato: () => ring(22, 22, 28),
+      cucumber: () => ring(14, 14, 20),
+      egg: () => ring(16, 20, 24),
+      berry: () => Array.from({ length: 28 }, (_, i) => {
+        const a = i / 28 * Math.PI * 2, c = Math.cos(a);
+        return [15 * Math.sin(a) * (0.62 + 0.38 * c), c > 0 ? -12 * c : -18 * c];
+      }),
+      banana: () => ring(12, 12, 18),
+    };
+    // 多角形の中に step おきに点を打つ（輪郭の頂点も入れる）
+    function samplesOf(P, step = 3) {
+      const [x0, y0, x1, y1] = bboxOf(P), out = P.map((p) => [p[0], p[1]]);
+      for (let y = Math.ceil(y0 / step) * step; y <= y1; y += step) {
+        for (let x = Math.ceil(x0 / step) * step; x <= x1; x += step) if (inPoly(P, x, y)) out.push([x, y]);
+      }
+      return out;
+    }
+    // 具を (x, y) へ置き、角度 a だけ回したときの輪郭・囲む箱・点
+    function posed(local, x, y, a) {
+      const c = Math.cos(a), s = Math.sin(a), tf = (p) => [x + p[0] * c - p[1] * s, y + p[0] * s + p[1] * c];
+      const poly = local.poly.map(tf);
+      return { poly, box: bboxOf(poly), pts: local.pts.map(tf) };
+    }
+    const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    // 点を全部囲む、へこみの無い多角形（凸包）。x の順に並べ、下側と上側を別々に作る（アンドリューの方法）
+    function convexHull(pts) {
+      const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      if (p.length < 3) return p;
+      const lo = [], hi = [];
+      for (const q of p) {
+        while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop();
+        lo.push(q);
+      }
+      for (let i = p.length - 1; i >= 0; i--) {
+        const q = p[i];
+        while (hi.length >= 2 && cross(hi[hi.length - 2], hi[hi.length - 1], q) <= 0) hi.pop();
+        hi.push(q);
+      }
+      lo.pop(); hi.pop();
+      return lo.concat(hi);
+    }
+    // 凸包 H の内側に、どの辺からも margin 以上離れて入っているか
+    function inHull(H, x, y, margin = 0) {
+      if (H.length < 3) return false;
+      for (let i = 0; i < H.length; i++) {
+        const a = H[i], b = H[(i + 1) % H.length], len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+        if (cross(a, b, [x, y]) / len < margin) return false;
+      }
+      return true;
+    }
+    const mean = (P) => { let x = 0, y = 0; for (const p of P) { x += p[0]; y += p[1]; } return [x / P.length, y / P.length]; };
+    // 具が載っていられるか。pts は具の中の点、ok[i] はその点の下に支えがあるか。
+    // 重心が「支えのある点の凸包」の内側なら stay、外なら slide（dir は滑る向き）、支えが 1 つも無ければ gone
+    function judge(pts, ok, margin = 1.5) {
+      const sup = pts.filter((_, i) => ok[i]);
+      const frac = sup.length / Math.max(1, pts.length);
+      if (!sup.length) return { kind: 'gone', frac: 0, dir: [0, 1] };
+      const c = mean(pts);
+      if (inHull(convexHull(sup), c[0], c[1], margin)) return { kind: 'stay', frac, dir: [0, 0] };
+      const s = mean(sup);
+      let dx = c[0] - s[0], dy = c[1] - s[1];
+      const l = Math.hypot(dx, dy);
+      if (l < 1e-9) { dx = 0; dy = 1; } else { dx /= l; dy /= l; }
+      return { kind: 'slide', frac, dir: [dx, dy] };
+    }
+    const inItem = (o, x, y) => x >= o.box[0] && x <= o.box[2] && y >= o.box[1] && y <= o.box[3] && inPoly(o.poly, x, y);
+    // 下の具から順に判定する。各具は { poly, box, pts }（世界の座標）。落ちると判定した具は、上の具を支えない
+    function settle(items, onBread, margin = 1.5) {
+      const down = [];
+      return items.map((it) => {
+        const ok = it.pts.map(([x, y]) => onBread(x, y) || down.some((o) => inItem(o, x, y)));
+        const r = judge(it.pts, ok, margin);
+        if (r.kind === 'stay') down.push(it);
+        return r;
+      });
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const thumb = !!window.THUMB;
+    if (thumb) document.documentElement.classList.add('thumb');
+    const calm = matchMedia('(prefers-reduced-motion: reduce)');
+    const cv = $('cv'), ctx = cv.getContext('2d');
+    const msgEl = $('msg'), loadM = $('loadM'), loadT = $('loadT'), covT = $('covT');
+    const rotL = $('rotL'), rotR = $('rotR'), delB = $('delB'), demoB = $('demoB'), clearB = $('clearB');
+    const POTS = [
+      { id: 'butter', name: 'バター', rgb: [0.97, 0.85, 0.47] },
+      { id: 'jam', name: 'いちごジャム', rgb: [0.70, 0.06, 0.15] },
+      { id: 'choco', name: 'チョコ', rgb: [0.34, 0.19, 0.11] },
+      { id: 'peanut', name: 'ピーナツ', rgb: [0.79, 0.53, 0.25] },
+    ];
+    const TOPS = [
+      { id: 'lettuce', name: 'レタス' }, { id: 'ham', name: 'ハム' }, { id: 'cheese', name: 'チーズ' }, { id: 'tomato', name: 'トマト' },
+      { id: 'cucumber', name: 'きゅうり' }, { id: 'egg', name: 'ゆで卵' }, { id: 'berry', name: 'いちご' }, { id: 'banana', name: 'バナナ' },
+    ];
+    const NAME = Object.fromEntries(TOPS.map((t) => [t.id, t.name]));
+    const OUTER = breadPoly(0), CRUMB = breadPoly(9), OB = bboxOf(OUTER);
+    const onBread = (x, y) => x >= OB[0] && x <= OB[2] && y >= OB[1] && y <= OB[3] && inPoly(OUTER, x, y);
+    const G = makeGrid(2, breadPoly(5));
+    const K = { load: 0, r: 0, g: 0, b: 0, name: '' };
+    const LOCAL = {};
+    for (const t of TOPS) {
+      const poly = SHAPES[t.id]();
+      LOCAL[t.id] = { poly, pts: samplesOf(poly, 3), rad: Math.max(...poly.map((p) => Math.hypot(p[0], p[1]))) };
+    }
+    let rs = 12345;   // 毎回同じ順に出る乱数
+    const rand = () => { rs = (rs * 16807) % 2147483647; return rs / 2147483647; };
+    // 塗り物の表面の小さなむら。マスごとの乱数を周りの 9 マスで平均して、粒が目立たないようにする
+    const noise = new Float32Array(G.t.length);
+    {
+      const raw = new Float32Array(G.t.length).map(() => rand() - 0.5);
+      for (let j = 0; j < G.h; j++) for (let i = 0; i < G.w; i++) {
+        let s = 0, c = 0;
+        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+          const y = j + dj, x = i + di;
+          if (x >= 0 && x < G.w && y >= 0 && y < G.h) { s += raw[y * G.w + x]; c++; }
+        }
+        noise[j * G.w + i] = s / c;
+      }
+    }
+    const PV_COL = { stay: '#2f9e5a', slide: '#e0702a', gone: '#8a8f99' };
+
+    let items = [];   // 下から上の順
+    let sel = null, mode = null, off = [0, 0], pressAt = [0, 0], last = null, hover = null, pv = null, knifeAng = 0.3;
+    let nd = null, dragEndAt = -1e9, seq = 0, wasLoaded = false, lastLoadTxt = '', lastCovTxt = '';
+    let W = 1, H = 1, dpr = 1, S = 1, OX = 0, OY = 0, breadImg = null, dirty = true, spreadDirty = true, lastT = 0;
+    let demoRun = null, demoKnife = null;
+    const spreadCv = document.createElement('canvas');
+    spreadCv.width = G.w; spreadCv.height = G.h;
+    const sctx = spreadCv.getContext('2d'), img = sctx.createImageData(G.w, G.h);
+    const say = (s) => { msgEl.textContent = s; };
+    const pct = (f) => Math.round(f * 100);
+    const clampTo = (v, a, b) => Math.min(b, Math.max(a, v));
+    const rgbOf = (r, g, b) => `rgb(${Math.round(r * 255)} ${Math.round(g * 255)} ${Math.round(b * 255)})`;
+
+    // ---- 具 ----
+    function pose(it) { Object.assign(it, posed(LOCAL[it.kind], it.x, it.y, it.a)); }
+    function makeItem(kind, x, y, a) {
+      const it = { kind, x, y, a, id: ++seq, lifted: false, fall: null, poly: null, box: null, pts: null };
+      pose(it);
+      return it;
+    }
+    const stack = () => items.filter((o) => !o.fall && !o.lifted);
+    function hitItem(x, y) {
+      for (let i = items.length - 1; i >= 0; i--) {
+        const o = items[i];
+        if (!o.fall && !o.lifted && inItem(o, x, y)) return o;
+      }
+      return null;
+    }
+    // 持っている具を、今の場所で離したらどうなるか
+    function preview(it) {
+      const st = stack().filter((o) => o !== it);
+      return judge(it.pts, it.pts.map(([x, y]) => onBread(x, y) || st.some((o) => inItem(o, x, y))));
+    }
+    // 載っている具を下から判定し直し、支えを失った具を落とす。具ごとの判定を Map で返す
+    function resettle() {
+      const st = stack(), res = settle(st, onBread), M = new Map();
+      st.forEach((o, i) => {
+        M.set(o, res[i]);
+        if (res[i].kind !== 'stay') startFall(o, res[i]);
+      });
+      updateCover();
+      dirty = true;
+      return M;
+    }
+    function startFall(o, r) {
+      o.fall = { kind: r.kind, dx: r.dir[0], dy: r.dir[1], v: 30, t: 0, spin: (rand() - 0.5) * 2 };
+      if (calm.matches && !thumb) o.fall.t = 5;   // 動きを減らす設定では、すぐ消す
+      if (sel === o) sel = null;
+    }
+    function stepFalls(dt) {
+      let any = false;
+      for (const o of items) {
+        const f = o.fall;
+        if (!f) continue;
+        any = true;
+        f.t += dt;
+        if (f.kind === 'slide') {
+          f.v += 320 * dt;
+          o.x += f.dx * f.v * dt;
+          o.y += f.dy * f.v * dt;
+          if (!onBread(o.x, o.y)) o.y += 200 * f.t * dt;   // 中心がパンの縁を越えたら、下へも落ちる
+          o.a += f.spin * dt;
+          pose(o);
+        }
+      }
+      if (!any) return;
+      items = items.filter((o) => !o.fall || o.fall.t < (o.fall.kind === 'slide' ? 1.1 : 0.35));
+      dirty = true;
+      updateSel();
+    }
+    // 具の下のマスには刃が届かない
+    function updateCover() {
+      G.cover.fill(0);
+      for (const o of stack()) {
+        const i0 = Math.max(0, Math.floor((o.box[0] - G.ox) / G.cell)), i1 = Math.min(G.w - 1, Math.floor((o.box[2] - G.ox) / G.cell));
+        const j0 = Math.max(0, Math.floor((o.box[1] - G.oy) / G.cell)), j1 = Math.min(G.h - 1, Math.floor((o.box[3] - G.oy) / G.cell));
+        for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+          const k = j * G.w + i;
+          if (!G.cover[k] && inPoly(o.poly, G.ox + (i + 0.5) * G.cell, G.oy + (j + 0.5) * G.cell)) G.cover[k] = 1;
+        }
+      }
+    }
+    const fellNames = (M, but) => [...M].filter(([o, r]) => o !== but && r.kind !== 'stay').map(([o]) => NAME[o.kind]);
+    function report(it, M, verb) {
+      const r = M.get(it), nm = NAME[it.kind], others = fellNames(M, it);
+      let s = '';
+      if (r && r.kind === 'stay') s = `${nm}を${verb}。` + (r.frac < 0.995 ? `下に支えがあるのは ${pct(r.frac)}% だが、重心は支えの上にある。` : '');
+      else if (r && r.kind === 'slide') s = `${nm}は重心の下に支えが無いので、滑り落ちた（支えがあったのは ${pct(r.frac)}%）。`;
+      else if (r) s = `${nm}はパンの外に出たので、片付けた。`;
+      if (others.length) s += `支えを失った${others.join('・')}も落ちた。`;
+      if (s) say(s);
+    }
+    let liftFell = [];   // 持ち上げたときに落ちた具の名前（離したときの知らせに足す）
+    function lift(o) {
+      items = items.filter((x) => x !== o);
+      items.push(o);
+      o.lifted = true;
+      liftFell = fellNames(resettle(), o);
+      if (liftFell.length) say(`${NAME[o.kind]}を持ち上げたので、その上の${liftFell.join('・')}が落ちた。`);
+    }
+    function drop(o, verb = '載せた') {
+      o.lifted = false;
+      report(o, resettle(), verb);
+      if (liftFell.length) say(msgEl.textContent + `持ち上げたときに、上の${liftFell.join('・')}が落ちた。`);
+      liftFell = [];
+      updateSel();
+    }
+    function autoPlace(kind) {
+      let it = null;
+      for (let i = 0; i < 40 && !it; i++) {
+        const c = makeItem(kind, 120 + rand() * 160, 85 + rand() * 150, (rand() - 0.5) * 1.2);
+        if (preview(c).kind === 'stay') it = c;
+      }
+      it = it || makeItem(kind, 200, 160, 0);
+      items.push(it);
+      sel = it;
+      drop(it, 'パンの上に置いた');
+    }
+    function turnSel(d) {
+      if (!sel || sel.fall) return;
+      stopDemo();
+      sel.a += d;
+      pose(sel);
+      report(sel, resettle(), '回した');
+      updateSel();
+    }
+    function removeSel() {
+      if (!sel) return;
+      const o = sel;
+      items = items.filter((x) => x !== o);
+      sel = null;
+      const fell = fellNames(resettle(), o);
+      say(`${NAME[o.kind]}を外した。` + (fell.length ? `支えを失った${fell.join('・')}も落ちた。` : ''));
+      updateSel();
+    }
+    function updateSel() {
+      const on = !!sel && !sel.fall;
+      rotL.disabled = rotR.disabled = delB.disabled = !on;
+    }
+    const handleDist = (o) => LOCAL[o.kind].rad + 14;
+    const handlePos = (o) => [o.x + Math.sin(o.a) * handleDist(o), o.y - Math.cos(o.a) * handleDist(o)];
+    const nearHandle = (o, p) => { const h = handlePos(o); return Math.hypot(p[0] - h[0], p[1] - h[1]) < Math.max(9, 18 / S); };
+
+    // ---- 塗り物とナイフ ----
+    function take(pt) {
+      const before = K.load;
+      takeFromPot(K, pt.rgb);
+      K.name = before > KNIFE.full * 0.05 && K.name !== pt.name ? '混ざった塗り物' : pt.name;
+      wasLoaded = true;
+      say(`ナイフに${pt.name}を取った。パンの上をなでると塗れる。`);
+      updateLoad();
+      dirty = true;
+    }
+    // 刃の向きを、動く向きへ少しずつ寄せる。刃は前へ動いても後ろへ動いても同じ線なので、180 度の差は無いものとする
+    function turnTo(cur, target) {
+      let d = target - cur;
+      d -= Math.round(d / Math.PI) * Math.PI;
+      return cur + d * 0.35;
+    }
+    function knifeTo(from, p) {
+      const dx = p[0] - from[0], dy = p[1] - from[1];
+      if (dx * dx + dy * dy < 0.36) return false;
+      knifeAng = turnTo(knifeAng, Math.atan2(dy, dx));
+      stroke(G, K, from[0], from[1], p[0], p[1], KNIFE, knifeAng);
+      spreadDirty = true;
+      return true;
+    }
+    function updateLoad() {
+      const f = Math.min(1, K.load / KNIFE.full);
+      loadM.value = f;
+      const empty = K.load < KNIFE.full * 0.005;
+      const lt = empty ? '空' : `${K.name} ${pct(f)}%`;
+      if (lt !== lastLoadTxt) loadT.textContent = lastLoadTxt = lt;
+      const ct = `塗れた所 ${pct(coverage(G).frac)}%`;
+      if (ct !== lastCovTxt) covT.textContent = lastCovTxt = ct;
+      if (empty && wasLoaded && !demoRun) say('ナイフの塗り物が無くなった。壺をもう一度押す。空のナイフでなでると、塗った所がならされる。');
+      if (empty) wasLoaded = false;
+    }
+
+    // ---- 描く ----
+    function polyPath(c, P) { c.beginPath(); P.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.closePath(); }
+    function disc(c, x, y, rx, ry = rx) { c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); }
+    function rrect(c, x, y, w, h, r) {
+      c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
+      c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
+    }
+    function capsule(c, x0, x1, r) { c.beginPath(); c.arc(x0, 0, r, Math.PI / 2, Math.PI * 1.5); c.arc(x1, 0, r, -Math.PI / 2, Math.PI / 2); c.closePath(); }
+    const scaled = (P, k) => P.map(([x, y]) => [x * k, y * k]);
+    const BASE = { lettuce: '#7fc55a', ham: '#e9959c', cheese: '#f3c443', tomato: '#d4302a', cucumber: '#2e7b33', egg: '#fbf9ef', berry: '#d62a3a', banana: '#f4eac2' };
+    const DETAIL = {
+      lettuce(c, P) {
+        polyPath(c, scaled(P, 0.82)); c.fillStyle = '#a6dc7b'; c.fill();
+        c.strokeStyle = '#e4f6c8'; c.lineWidth = 2; c.lineCap = 'round';
+        c.beginPath(); c.moveTo(-2, 28); c.quadraticCurveTo(2, 0, -2, -28);
+        for (const sg of [-1, 1]) for (const y of [-16, -4, 8, 20]) { c.moveTo(0, y); c.quadraticCurveTo(sg * 10, y - 4, sg * 22, y - 10); }
+        c.stroke();
+        polyPath(c, P); c.strokeStyle = '#4f9a3a'; c.lineWidth = 1.4; c.stroke();
+      },
+      ham(c) {
+        disc(c, 0, 0, 27); c.fillStyle = '#f4b3b7'; c.fill();
+        c.strokeStyle = 'rgb(255 236 236 / .7)'; c.lineWidth = 2;
+        c.beginPath(); c.arc(-6, -4, 14, 0.3, 2.2); c.moveTo(17, 6); c.arc(8, 6, 9, 0, 1.6); c.stroke();
+        disc(c, 0, 0, 31.5); c.strokeStyle = '#c86672'; c.lineWidth = 3; c.stroke();
+      },
+      cheese(c, P) {
+        c.fillStyle = '#d9a22a';
+        for (const [x, y, r] of [[-14, -12, 5], [10, -5, 6.5], [-6, 14, 4], [16, 16, 3.5], [-19, 8, 2.5], [4, -21, 2.5]]) { disc(c, x, y, r); c.fill(); }
+        polyPath(c, P); c.strokeStyle = '#d29b28'; c.lineWidth = 1.2; c.stroke();
+      },
+      tomato(c) {
+        disc(c, 0, 0, 18.5); c.fillStyle = '#ec5440'; c.fill();
+        for (let i = 0; i < 3; i++) {
+          const a = i * Math.PI * 2 / 3 - Math.PI / 2;
+          c.save(); c.translate(Math.cos(a) * 9.5, Math.sin(a) * 9.5); c.rotate(a);
+          disc(c, 0, 0, 5, 6.5); c.fillStyle = '#f6b26b'; c.fill();
+          c.fillStyle = '#fbe7b0';
+          for (const [sx, sy] of [[0, -3], [0, 3], [1.5, 0]]) { disc(c, sx, sy, 1.1, 1.6); c.fill(); }
+          c.restore();
+        }
+        disc(c, 0, 0, 4); c.fillStyle = '#f5c39d'; c.fill();
+      },
+      cucumber(c) {
+        disc(c, 0, 0, 12.4); c.fillStyle = '#d3eca8'; c.fill();
+        disc(c, 0, 0, 7.5); c.fillStyle = '#bde08e'; c.fill();
+        c.fillStyle = '#f1f7da';
+        for (let i = 0; i < 8; i++) {
+          const a = i * Math.PI / 4;
+          c.save(); c.translate(Math.cos(a) * 4.6, Math.sin(a) * 4.6); c.rotate(a); disc(c, 0, 0, 1.6, 0.9); c.fill(); c.restore();
+        }
+      },
+      egg(c, P) {
+        disc(c, 0, 1.5, 9, 10.5); c.fillStyle = '#f2ae22'; c.fill();
+        disc(c, -1, 0, 5, 5.5); c.fillStyle = '#f7c74e'; c.fill();
+        polyPath(c, P); c.strokeStyle = '#e2ddcc'; c.lineWidth = 0.8; c.stroke();
+      },
+      berry(c, P) {
+        polyPath(c, scaled(P, 0.74)); c.fillStyle = '#f39aa1'; c.fill();
+        c.strokeStyle = 'rgb(255 245 245 / .85)'; c.lineWidth = 1.2;
+        c.beginPath(); c.moveTo(0, -7); c.lineTo(0, 11);
+        c.moveTo(0, -4); c.quadraticCurveTo(-6, 0, -5, 7); c.moveTo(0, -4); c.quadraticCurveTo(6, 0, 5, 7); c.stroke();
+        c.fillStyle = '#f6dd7c';
+        P.forEach(([x, y], i) => { if (i % 3 === 0) { disc(c, x * 0.88, y * 0.88, 0.8); c.fill(); } });
+      },
+      banana(c, P) {
+        polyPath(c, P); c.strokeStyle = '#e2cd86'; c.lineWidth = 1.6; c.stroke();
+        c.strokeStyle = 'rgb(205 175 105 / .45)'; c.lineWidth = 0.8; c.beginPath();
+        for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; c.moveTo(Math.cos(a) * 3, Math.sin(a) * 3); c.lineTo(Math.cos(a) * 9, Math.sin(a) * 9); }
+        c.stroke();
+        c.fillStyle = '#6d4f27';
+        for (let i = 0; i < 3; i++) { const a = i * Math.PI * 2 / 3 + 0.5; disc(c, Math.cos(a) * 2.2, Math.sin(a) * 2.2, 0.9); c.fill(); }
+      },
+    };
+    // 具を中心が原点の座標で描く。shadow は [色, ぼかし, 横, 縦]（画面の画素）
+    function paintItem(c, kind, shadow) {
+      const P = LOCAL[kind].poly;
+      c.save();
+      if (shadow) { c.shadowColor = shadow[0]; c.shadowBlur = shadow[1]; c.shadowOffsetX = shadow[2]; c.shadowOffsetY = shadow[3]; }
+      polyPath(c, P);
+      c.fillStyle = BASE[kind];
+      c.fill();
+      c.restore();
+      c.save();
+      DETAIL[kind](c, P);
+      c.restore();
+    }
+    function drawItem(o) {
+      let alpha = 1, k = o.lifted ? 1.06 : 1;
+      const f = o.fall;
+      if (f && f.kind === 'slide') alpha = 1 - Math.max(0, f.t - 0.55) / 0.55;
+      else if (f) { alpha = 1 - f.t / 0.35; k = Math.max(0.05, 1 - f.t); }
+      if (alpha <= 0) return;
+      const sd = S * dpr;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(o.x, o.y); ctx.rotate(o.a); ctx.scale(k, k);
+      paintItem(ctx, o.kind, o.lifted ? ['rgb(40 20 0 / .35)', 10 * sd, 5 * sd, 8 * sd] : ['rgb(40 20 0 / .3)', 3 * sd, 1.2 * sd, 2 * sd]);
+      ctx.restore();
+    }
+    function drawSel(o, color, handle) {
+      const L = LOCAL[o.kind];
+      ctx.save();
+      ctx.translate(o.x, o.y); ctx.rotate(o.a);
+      if (o.lifted) ctx.scale(1.06, 1.06);
+      polyPath(ctx, L.poly);
+      ctx.setLineDash([4, 3]); ctx.lineWidth = 1.6; ctx.strokeStyle = color; ctx.stroke(); ctx.setLineDash([]);
+      if (handle) {
+        const d = handleDist(o), r = Math.max(5, 9 / S);
+        ctx.beginPath(); ctx.moveTo(0, -L.rad); ctx.lineTo(0, -d + r); ctx.lineWidth = 1.4; ctx.stroke();
+        disc(ctx, 0, -d, r); ctx.fillStyle = '#fff'; ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, -d, r * 0.55, -2.6, 0.9); ctx.stroke();
+      }
+      ctx.restore();
+    }
+    // ナイフ。ang は動く向きで、刃はそれに直角。柄は右下へ出す
+    function drawKnife(x, y, ang) {
+      let ax = -Math.sin(ang), ay = Math.cos(ang);
+      if (ax + ay < 0) { ax = -ax; ay = -ay; }
+      const sd = S * dpr, hf = KNIFE.half;
+      ctx.save();
+      ctx.translate(x, y); ctx.rotate(Math.atan2(ay, ax));
+      ctx.shadowColor = 'rgb(0 0 0 / .3)'; ctx.shadowBlur = 6 * sd; ctx.shadowOffsetX = 3 * sd; ctx.shadowOffsetY = 6 * sd;
+      capsule(ctx, -hf + 4, hf, 4.6);
+      const gr = ctx.createLinearGradient(0, -4.6, 0, 4.6);
+      gr.addColorStop(0, '#f1f4f7'); gr.addColorStop(1, '#aeb7c0');
+      ctx.fillStyle = gr; ctx.fill();
+      capsule(ctx, hf + 8, hf + 46, 5.6); ctx.fillStyle = '#35393f'; ctx.fill();
+      ctx.shadowColor = 'transparent';
+      ctx.fillStyle = '#c6ccd2'; ctx.fillRect(hf, -3.2, 8, 6.4);
+      ctx.fillStyle = '#9aa1a8';
+      for (const xx of [hf + 20, hf + 34]) { disc(ctx, xx, 0, 1.3); ctx.fill(); }
+      capsule(ctx, -hf + 4, hf, 4.6); ctx.strokeStyle = '#8c959e'; ctx.lineWidth = 0.8; ctx.stroke();
+      if (K.load > 1) {
+        const s = Math.sqrt(Math.min(1.3, K.load / KNIFE.full));
+        disc(ctx, -3, 0, 4 + 15 * s, 1.4 + 3 * s); ctx.fillStyle = rgbOf(K.r, K.g, K.b); ctx.fill();
+        disc(ctx, -6, -1, 2 + 6 * s, 0.6 + 0.8 * s); ctx.fillStyle = 'rgb(255 255 255 / .35)'; ctx.fill();
+      }
+      ctx.restore();
+    }
+    function renderBread() {
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.ceil(VW * S * dpr)); c.height = Math.max(1, Math.ceil(VH * S * dpr));
+      const b = c.getContext('2d'), sd = S * dpr;
+      let s0 = 99;
+      const r0 = () => { s0 = (s0 * 16807) % 2147483647; return s0 / 2147483647; };
+      b.setTransform(sd, 0, 0, sd, 0, 0);
+      // まな板
+      b.save();
+      b.shadowColor = 'rgb(0 0 0 / .35)'; b.shadowBlur = 14 * sd; b.shadowOffsetY = 6 * sd;
+      rrect(b, 14, 10, 372, 282, 22);
+      const wood = b.createLinearGradient(0, 10, 0, 292);
+      wood.addColorStop(0, '#d9ab72'); wood.addColorStop(1, '#c48f55');
+      b.fillStyle = wood; b.fill();
+      b.restore();
+      b.save();
+      rrect(b, 14, 10, 372, 282, 22); b.clip();
+      b.strokeStyle = 'rgb(120 70 30 / .13)'; b.lineWidth = 1.2;
+      for (let i = 0; i < 26; i++) {
+        const y0 = 14 + i * 11 + r0() * 4;
+        b.beginPath();
+        for (let x = 10; x <= 390; x += 10) {
+          const y = y0 + Math.sin(x / 47 + i) * 2.5 + Math.sin(x / 13 + i * 3) * 0.6;
+          if (x === 10) b.moveTo(x, y); else b.lineTo(x, y);
+        }
+        b.stroke();
+      }
+      b.restore();
+      // パンの耳と影
+      b.save();
+      b.shadowColor = 'rgb(70 35 0 / .35)'; b.shadowBlur = 8 * sd; b.shadowOffsetX = 2 * sd; b.shadowOffsetY = 5 * sd;
+      polyPath(b, OUTER);
+      const crust = b.createLinearGradient(0, 40, 0, 262);
+      crust.addColorStop(0, '#b4682c'); crust.addColorStop(1, '#a05827');
+      b.fillStyle = crust; b.fill();
+      b.restore();
+      // 白い所と気泡の粒
+      polyPath(b, CRUMB);
+      const crumb = b.createRadialGradient(200, 150, 20, 200, 150, 150);
+      crumb.addColorStop(0, '#f8e8c6'); crumb.addColorStop(1, '#eccf98');
+      b.fillStyle = crumb; b.fill();
+      b.save();
+      polyPath(b, CRUMB); b.clip();
+      const CB = bboxOf(CRUMB);
+      for (let i = 0; i < 1400; i++) {
+        const x = CB[0] + r0() * (CB[2] - CB[0]), y = CB[1] + r0() * (CB[3] - CB[1]);
+        b.fillStyle = r0() < 0.55 ? 'rgb(170 120 60 / .16)' : 'rgb(255 252 240 / .5)';
+        disc(b, x, y, 0.5 + r0() * 1.3, 0.4 + r0() * 0.9); b.fill();
+      }
+      b.restore();
+      polyPath(b, CRUMB); b.strokeStyle = 'rgb(150 90 40 / .35)'; b.lineWidth = 1.2; b.stroke();
+      breadImg = c;
+    }
+    // 塗り物のマスを 1 マス 1 画素の絵にする。光は左上から当て、左上へ向いた斜面を明るくする
+    function paintSpread() {
+      const d = img.data, w = G.w, h = G.h, T = G.t;
+      for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+        const k = j * w + i, q = k * 4, t = T[k];
+        if (t < 0.02) { d[q + 3] = 0; continue; }
+        const gx = (i < w - 1 ? T[k + 1] : t) - (i > 0 ? T[k - 1] : t);
+        const gy = (j < h - 1 ? T[k + w] : t) - (j > 0 ? T[k - w] : t);
+        const sh = clampTo(1 + (gx + gy) * 0.22 + noise[k] * 0.3 * Math.min(1, t), 0.6, 1.4);
+        const sp = Math.max(0, sh - 1.12) * 1.6;
+        d[q] = (G.r[k] * sh + sp) * 255;
+        d[q + 1] = (G.g[k] * sh + sp) * 255;
+        d[q + 2] = (G.b[k] * sh + sp) * 255;
+        d[q + 3] = Math.min(1, t / 0.6) * 245;
+      }
+      sctx.putImageData(img, 0, 0);
+    }
+    const onBoard = (p) => p[0] > 14 && p[0] < 386 && p[1] > 10 && p[1] < 292;
+    const wantKnife = (p) => onBoard(p) && !hitItem(p[0], p[1]) && !(sel && !sel.fall && nearHandle(sel, p));
+    function draw() {
+      dirty = false;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = '#4a3528';
+      ctx.fillRect(0, 0, cv.width, cv.height);
+      if (!breadImg) renderBread();
+      ctx.drawImage(breadImg, OX * dpr, OY * dpr);
+      ctx.setTransform(S * dpr, 0, 0, S * dpr, OX * dpr, OY * dpr);
+      if (spreadDirty) { spreadDirty = false; paintSpread(); updateLoad(); }
+      ctx.save();
+      polyPath(ctx, OUTER); ctx.clip();
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(spreadCv, G.ox, G.oy, G.w * G.cell, G.h * G.cell);
+      ctx.restore();
+      for (const o of items) if (!o.lifted) drawItem(o);
+      for (const o of items) if (o.lifted) drawItem(o);
+      if (sel && !sel.fall) drawSel(sel, pv ? PV_COL[pv.kind] : '#2563c9', !sel.lifted && mode !== 'new' && !demoRun);
+      const kp = demoKnife || (hover && (mode === 'spread' || (!mode && wantKnife(hover))) ? hover : null);
+      if (kp) drawKnife(kp[0], kp[1], knifeAng);
+    }
+
+    // ---- 大きさと座標 ----
+    function resize() {
+      const r = cv.getBoundingClientRect();
+      dpr = Math.min(2, window.devicePixelRatio || 1);
+      W = Math.max(1, r.width); H = Math.max(1, r.height);
+      cv.width = Math.max(1, Math.round(W * dpr)); cv.height = Math.max(1, Math.round(H * dpr));
+      S = Math.max(0.05, Math.min(W / VW, H / VH));
+      OX = (W - VW * S) / 2; OY = (H - VH * S) / 2;
+      breadImg = null;
+      dirty = true;
+    }
+    const toW = (e) => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left - OX) / S, (e.clientY - r.top - OY) / S]; };
+
+    // ---- パンの画面の操作 ----
+    cv.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      stopDemo();
+      const p = toW(e);
+      hover = p;
+      cv.setPointerCapture(e.pointerId);
+      if (sel && !sel.fall && nearHandle(sel, p)) mode = 'rotate';
+      else {
+        const o = hitItem(p[0], p[1]);
+        if (o) { sel = o; mode = 'press'; off = [p[0] - o.x, p[1] - o.y]; pressAt = [e.clientX, e.clientY]; }
+        else { sel = null; mode = 'spread'; last = p; }
+      }
+      updateSel();
+      dirty = true;
+    });
+    cv.addEventListener('pointermove', (e) => {
+      const p = toW(e);
+      hover = p;
+      dirty = true;
+      if (!cv.hasPointerCapture(e.pointerId)) {
+        cv.style.cursor = sel && !sel.fall && nearHandle(sel, p) ? 'grab' : hitItem(p[0], p[1]) ? 'grab' : onBoard(p) ? 'none' : 'default';
+        return;
+      }
+      if (mode === 'press' && sel && Math.hypot(e.clientX - pressAt[0], e.clientY - pressAt[1]) > 4) {
+        mode = 'move';
+        cv.style.cursor = 'grabbing';
+        lift(sel);
+      }
+      if (mode === 'move' && sel) {
+        sel.x = clampTo(p[0] - off[0], 0, VW); sel.y = clampTo(p[1] - off[1], 0, VH);
+        pose(sel);
+        pv = preview(sel);
+      } else if (mode === 'rotate' && sel) {
+        sel.a = Math.atan2(p[1] - sel.y, p[0] - sel.x) + Math.PI / 2;
+        pose(sel);
+      } else if (mode === 'spread' && last) {
+        if (knifeTo(last, p)) last = p;
+      }
+    });
+    cv.addEventListener('lostpointercapture', (e) => {
+      if (mode === 'move' && sel) drop(sel, '動かした');
+      else if (mode === 'rotate' && sel) { report(sel, resettle(), '回した'); updateSel(); }
+      if (e.pointerType !== 'mouse') hover = null;
+      mode = null; last = null; pv = null; dirty = true;
+    });
+    cv.addEventListener('pointerleave', () => { if (!mode) { hover = null; dirty = true; } });
+    cv.addEventListener('wheel', (e) => {
+      const p = toW(e), o = hitItem(p[0], p[1]);
+      if (!o) return;
+      e.preventDefault();
+      sel = o;
+      turnSel(Math.sign(e.deltaY) * Math.PI / 18);
+    }, { passive: false });
+    cv.addEventListener('keydown', (e) => {
+      const st = stack();
+      if (!st.length) return;
+      if (!sel || sel.fall || !st.includes(sel)) sel = st[st.length - 1];
+      const o = sel, d = e.shiftKey ? 16 : 4;
+      let verb = '動かした';
+      switch (e.key) {
+        case 'ArrowLeft': o.x -= d; break;
+        case 'ArrowRight': o.x += d; break;
+        case 'ArrowUp': o.y -= d; break;
+        case 'ArrowDown': o.y += d; break;
+        case 'q': case 'Q': o.a -= Math.PI / 12; verb = '回した'; break;
+        case 'e': case 'E': o.a += Math.PI / 12; verb = '回した'; break;
+        case 'n': case 'N':
+          e.preventDefault();
+          sel = st[(st.indexOf(o) + 1) % st.length];
+          say(`${NAME[sel.kind]}を選んだ。`);
+          updateSel(); dirty = true;
+          return;
+        case 'Delete': case 'Backspace': e.preventDefault(); removeSel(); return;
+        default: return;
+      }
+      e.preventDefault();
+      stopDemo();
+      o.x = clampTo(o.x, 0, VW); o.y = clampTo(o.y, 0, VH);
+      pose(o);
+      report(o, resettle(), verb);
+      updateSel();
+    });
+    rotL.addEventListener('click', () => turnSel(-Math.PI / 12));
+    rotR.addEventListener('click', () => turnSel(Math.PI / 12));
+    delB.addEventListener('click', () => { stopDemo(); removeSel(); });
+
+    // ---- 壺と具のボタン ----
+    for (const pt of POTS) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'pot';
+      const sw = document.createElement('i');
+      sw.style.setProperty('--c', rgbOf(...pt.rgb));
+      b.append(sw, pt.name);
+      b.addEventListener('click', () => { stopDemo(); take(pt); });
+      $('pots').append(b);
+    }
+    for (const t of TOPS) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'top';
+      const ic = document.createElement('canvas');
+      ic.width = ic.height = 48;
+      const ix = ic.getContext('2d'), k = 22 / LOCAL[t.id].rad;
+      ix.setTransform(k, 0, 0, k, 24, 24);
+      paintItem(ix, t.id);
+      b.append(ic, t.name);
+      b.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        stopDemo();
+        nd = { btn: b, sx: e.clientX, sy: e.clientY, cx: e.clientX, cy: e.clientY, up: false, item: null };
+        b.setPointerCapture(e.pointerId);
+      });
+      b.addEventListener('pointermove', (e) => {
+        if (!nd || nd.btn !== b || !b.hasPointerCapture(e.pointerId)) return;
+        nd.cx = e.clientX; nd.cy = e.clientY;
+        const p = toW(e);
+        if (!nd.item) {
+          if (Math.hypot(e.clientX - nd.sx, e.clientY - nd.sy) <= 4) return;
+          nd.item = makeItem(t.id, p[0], p[1], (rand() - 0.5) * 0.8);
+          nd.item.lifted = true;
+          items.push(nd.item);
+          sel = nd.item; mode = 'new';
+          updateSel();
+        }
+        nd.item.x = p[0]; nd.item.y = p[1];
+        pose(nd.item);
+        pv = preview(nd.item);
+        dirty = true;
+      });
+      b.addEventListener('pointerup', () => {
+        if (!nd || nd.btn !== b) return;
+        nd.up = true;
+        if (nd.item) dragEndAt = performance.now();
+      });
+      b.addEventListener('lostpointercapture', () => {
+        if (!nd || nd.btn !== b) return;
+        const d = nd;
+        nd = null; mode = null; pv = null; dirty = true;
+        if (!d.item) return;   // 動かさずに離したときは click で置く
+        dragEndAt = performance.now();
+        const r = cv.getBoundingClientRect();
+        if (d.up && d.cx >= r.left && d.cx <= r.right && d.cy >= r.top && d.cy <= r.bottom) drop(d.item);
+        else {
+          items = items.filter((o) => o !== d.item);
+          sel = null;
+          say(`${t.name}を戻した。`);
+          updateSel();
+        }
+      });
+      b.addEventListener('click', () => {
+        if (performance.now() - dragEndAt < 500) return;
+        stopDemo();
+        autoPlace(t.id);
+      });
+      $('tray').append(b);
+    }
+
+    // ---- 見本の自動の動き ----
+    function clearAll() {
+      items = []; sel = null; mode = null; pv = null;
+      for (const a of [G.t, G.r, G.g, G.b, G.cover]) a.fill(0);
+      K.load = 0; K.name = ''; wasLoaded = false;
+      spreadDirty = dirty = true;
+      updateSel();
+    }
+    function along(P, u) {   // 折れ線の上で、全体の長さに対して u の位置
+      const L = [];
+      let tot = 0;
+      for (let i = 1; i < P.length; i++) { const l = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]); L.push(l); tot += l; }
+      let d = u * tot;
+      for (let i = 0; i < L.length; i++) {
+        if (d <= L[i] || i === L.length - 1) {
+          const f = Math.min(1, d / L[i]);
+          return [P[i][0] + (P[i + 1][0] - P[i][0]) * f, P[i][1] + (P[i + 1][1] - P[i][1]) * f];
+        }
+        d -= L[i];
+      }
+      return P[P.length - 1];
+    }
+    const ease = (u) => u * u * (3 - 2 * u);
+    const once = (d, fn) => { let done = false; return { d, f() { if (!done) { done = true; fn(); } } }; };
+    function knifePath(P, d) {
+      let prev = null;
+      return { d, f(u) {
+        const p = along(P, u);
+        if (!prev || knifeTo(prev, p)) prev = p;
+        demoKnife = u < 1 ? p : null;
+      } };
+    }
+    function bringIn(kind, x, y, a) {
+      let it = null;
+      return { d: 0.6, f(u) {
+        if (!it) { it = makeItem(kind, x - 40, VH + 30, a - 0.6); it.lifted = true; items.push(it); }
+        const e = ease(u);
+        it.x = x - 40 + 40 * e; it.y = VH + 30 + (y - VH - 30) * e; it.a = a - 0.6 + 0.6 * e;
+        pose(it);
+        if (u >= 1) drop(it);
+      } };
+    }
+    function demoSteps() {
+      return [
+        once(0.3, () => { clearAll(); take(POTS[0]); }),
+        knifePath([[100, 84], [300, 88], [300, 122], [100, 126], [100, 162], [300, 166], [300, 204], [100, 208], [100, 244], [300, 247]], 3.6),
+        once(0.25, () => take(POTS[1])),
+        knifePath([[110, 70], [170, 74], [170, 96], [110, 98]], 0.8),
+        bringIn('lettuce', 165, 140, 0.2),
+        bringIn('ham', 238, 150, 0),
+        bringIn('cheese', 192, 192, 0.35),
+        bringIn('tomato', 168, 122, 0),
+        bringIn('egg', 242, 207, 0),
+        bringIn('cucumber', 248, 108, 0),
+        bringIn('tomato', 322, 178, 0),
+        once(1.8, () => {}),
+      ];
+    }
+    function startDemo() {
+      demoRun = { steps: demoSteps(), i: 0, t0: performance.now() };
+      demoB.textContent = '見本を止める';
+    }
+    function stopDemo() {
+      if (!demoRun) return;
+      demoRun = null; demoKnife = null;
+      demoB.textContent = '見本を動かす';
+      for (const o of items.filter((x) => x.lifted)) drop(o);
+      dirty = true;
+    }
+    function runDemo(now) {
+      const R = demoRun;
+      if (!R) return;
+      while (R.i < R.steps.length) {
+        const st = R.steps[R.i], u = Math.min(1, (now - R.t0) / (st.d * 1000));
+        st.f(u);
+        if (u < 1) break;
+        R.i++;
+        R.t0 += st.d * 1000;
+      }
+      dirty = true;
+      if (R.i < R.steps.length) return;
+      if (thumb) { startDemo(); return; }
+      demoRun = null; demoKnife = null;
+      demoB.textContent = '見本を動かす';
+      say('見本はここまで。最後のトマトは、重心がパンの縁より外にあったので滑り落ちた。自分でも塗って、具を載せてみてください。');
+    }
+    demoB.addEventListener('click', () => {
+      if (demoRun) { stopDemo(); say('見本を止めた。'); return; }
+      startDemo();
+      say('見本を動かしている。バターを塗り、ジャムを少し重ね、具を順に載せる。');
+    });
+    clearB.addEventListener('click', () => { stopDemo(); clearAll(); updateLoad(); say('最初からにした。'); });
+
+    function frame(now) {
+      requestAnimationFrame(frame);
+      const dt = Math.min(0.05, Math.max(0, (now - lastT) / 1000));
+      lastT = now;
+      runDemo(now);
+      stepFalls(dt);
+      if (dirty || spreadDirty) draw();
+    }
+    new ResizeObserver(resize).observe(cv);
+    resize();
+    updateSel();
+    updateLoad();
+    say('壺（バターなど）を押すとナイフに塗り物が付きます。パンの上をなでると塗れます。具は上の帯からパンへ引いて載せます。');
+    if (thumb) startDemo();
+    requestAnimationFrame(frame);
+  },
+});
