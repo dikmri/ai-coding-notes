@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 9 章 書式付きの文字 ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="0.2 の後の 5 つ目として、太字・斜体・色・コード・リンクを 1 つの段落に混ぜる書式付きの文字を足しました。範囲を表示だけにした理由、1 つの段落として並べて部分ごとに色を付ける仕組み、作る途中で直した 3 つのこと（見えないコードの背景、行末の空白の下線、Linux で落ちた試験）を紹介します。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 9 章</p>
+  <h1>書式付きの文字</h1>
+  <p class="lede">0.2 の後の 5 つ目として、書式付きの文字を足しました。1 つの文の中で、太字・斜体・色・コード・リンクを混ぜられます。この章では、範囲を表示だけにした理由と、1 つの段落として並べて部分ごとに色を付ける仕組みを書きます。最後に、作る途中で直した 3 つのことと、作者の手の確かめの結果を書きます。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>書式付きの文字の範囲を、表示だけにした理由</li>
+      <li>文字の形ごとに「どの文字の形か」を持たせて、部分ごとに色を付ける方法</li>
+      <li>文の中のリンクを、読み上げソフトと試験台から押せる部品にする方法</li>
+      <li>白の上で見えなかったコードの背景と、行末の空白に引いていた下線</li>
+      <li>Linux の書体で落ちた、書体の幅に頼った試験</li>
+    </ul>
+  </section>
+
+  <h2 id="api">書き方</h2>
+  <p><code>ui.rich_text(|t| …)</code> の中で、部分を順に足します。<code>t.text("…")</code> の後に付けた書式は、その部分だけに効きます。<code>t.link("…")</code> はリンクで、押されたかをその場で返します。</p>
+  <pre><code>ui.rich_text(|t| {
+    t.text("保存すると ");
+    t.text("元に戻せません").bold();
+    t.text("。すぐに ");
+    t.text("Ctrl+Z").code();
+    t.text(" を押すか、");
+    if t.link("バックアップの仕組み").clicked() {
+        show_help = true;
+    }
+    t.text(" を読んでください。");
+});</code></pre>
+  <!-- gen:sample -->
+<figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/rich/sample-dark.webp"><img src="img/rich/sample-light.webp" alt="2 行の段落。「元に戻せません」は太字、「Ctrl+Z」は等幅で薄い背景、「バックアップの仕組み」は主の色に下線のリンク、「1,980」は取り消し線、「1,280」は赤い太字、「（税込み、日曜まで）」は小さい弱い字で「日曜まで」は斜体" width="940" height="114" loading="lazy" decoding="async"></picture><figcaption>上のコードに値段の行を足した段落（試験台で 2 倍で撮った）。部分ごとに太字・コード・リンク・取り消し線・色・小さい斜体が付いている。</figcaption></figure>
+<!-- /gen:sample -->
+  <p>部分の書式は、ラベルと同じ名前にそろえました（<code>.bold()</code>・<code>.strike()</code>・<code>.weak()</code>・<code>.small()</code>・<code>.size()</code>・<code>.font()</code>・<code>.monospace()</code>）。書式付きの文字だけにあるのは、<code>.italic()</code>・<code>.underline()</code>・<code>.color()</code>・<code>.code()</code> の 4 つです。段落は幅に合わせて折り返します。</p>
+
+  <h2 id="scope">範囲を表示だけにした理由</h2>
+  <p>計画書の「書式付きの文字」には、中身の決まりがありませんでした。最初の調べ（13 のフレームワーク）では、文の中のリンクは 7 割前後が持つ 2 群、書式付きの文字の編集は 6 以下しか持たない 3 群でした。そこで、今回は表示だけにしました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-scope">
+    <table>
+      <caption id="t-scope">表示だけにするか、編集まで作るか</caption>
+      <thead><tr><th scope="col">考えたこと</th><th scope="col">表示だけ（選んだ）</th><th scope="col">編集まで</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">ふつうのアプリで要る場面</th><td data-label="表示だけ（選んだ）">多い（説明文・注意書き・リンク付きの案内・記録の色分け）</td><td data-label="編集まで">少ない（メールやメモを書くアプリ）</td></tr>
+        <tr><th scope="row">ほかの部品の土台になるか</th><td data-label="表示だけ（選んだ）">なる（Markdown の表示・ヘルプの画面）</td><td data-label="編集まで">表示の部品の上に作る形になる</td></tr>
+        <tr><th scope="row">手間</th><td data-label="表示だけ（選んだ）">中くらい</td><td data-label="編集まで">大きい（選択・取り消し・日本語入力・書式の切り替えを全部作り直す）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="inside">1 つの段落として並べる仕組み</h2>
+  <p>部分ごとに文字を並べて横につなぐと、日本語の折り返しがうまくいきません。部分の途中で行を変えられないからです。そこで、部分をつないだ 1 つの文字列を、範囲ごとの書式を付けて 1 回で並べます。並べるのは文字の道（Windows は DirectWrite、ほかの OS は parley）です。</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 300" role="img" aria-labelledby="ri-title ri-desc">
+      <title id="ri-title">書式付きの文字を並べて描く流れ</title>
+      <desc id="ri-desc">部分をつないだ 1 つの文字列と、範囲ごとの書式を文字の道に渡す。並べた形は、どの文字の形か（UTF-16 の位置）を持つ。描く時に、その位置から部分を引いて色を決める。部分は子の部品にもなり、読み上げ・試験台・リンクの当たりに使う。子の四角は、並べた結果から決める。</desc>
+      <defs>
+        <marker id="ah9" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrow-head"/></marker>
+      </defs>
+      <rect class="box-soft" x="10" y="20" width="200" height="90" rx="10"/>
+      <text class="label" x="26" y="48">部分（t.text・t.link）</text>
+      <text class="sub" x="26" y="70">つないだ文字列と</text>
+      <text class="sub" x="26" y="88">範囲ごとの書式</text>
+      <rect class="box" x="260" y="20" width="200" height="90" rx="10"/>
+      <text class="label" x="276" y="48">文字の道</text>
+      <text class="sub" x="276" y="70">範囲ごとに太字・大きさ</text>
+      <text class="sub" x="276" y="88">書体・斜体を付けて 1 回で並べる</text>
+      <rect class="box" x="510" y="20" width="200" height="90" rx="10"/>
+      <text class="label" x="526" y="48">形（Placed）</text>
+      <text class="sub" x="526" y="70">pos でどの文字の形か</text>
+      <text class="sub" x="526" y="88">分かる → 部分の色で描く</text>
+      <rect class="box-soft" x="10" y="190" width="200" height="90" rx="10"/>
+      <text class="label" x="26" y="218">子の部品（RichSpan）</text>
+      <text class="sub" x="26" y="240">部分ごとに 1 つ</text>
+      <text class="sub" x="26" y="258">四角は並べた後に決める</text>
+      <rect class="box" x="260" y="190" width="450" height="90" rx="10"/>
+      <text class="label" x="276" y="218">読み上げ・試験台・リンクの当たり</text>
+      <text class="sub" x="276" y="240">段落の中の文字（Label）とリンク（Link）</text>
+      <text class="sub" x="276" y="258">h.click("ヘルプ")・Tab と Enter・行ごとの四角</text>
+      <path class="arrow" d="M212 65 H257" marker-end="url(#ah9)"/>
+      <path class="arrow" d="M462 65 H507" marker-end="url(#ah9)"/>
+      <path class="arrow" d="M110 112 V187" marker-end="url(#ah9)"/>
+      <path class="arrow" d="M212 235 H257" marker-end="url(#ah9)"/>
+      <path class="arrow" d="M360 112 C 360 150, 300 150, 300 187" marker-end="url(#ah9)"/>
+    </svg>
+    <figcaption>並べるのは 1 回だけ。色・下線・コードの背景は、並べ方を変えないので描く時に付ける。</figcaption>
+  </figure>
+  <p>今まで、並べた文字の形は位置と形の番号だけを持っていました。描く時は、ラベル全体を 1 色で塗れば済んだからです。書式付きの文字では、形ごとに「どの文字の形か」（UTF-16 の位置）を持たせ、そこから部分を引いて色を決めます。位置の取り方は、2 つの文字の道で違います。</p>
+  <ul>
+    <li>DirectWrite は、並べた形を受け取る係に、文字と形の対応表（clusterMap）を渡します。表の中で最初に出てくる文字を、その形の位置にします。</li>
+    <li>parley は、行の中の並びを文字のまとまり（クラスター）に分けて持っています。まとまりを見た目の順にたどり、まとまりの頭の位置を中の形に付けます。</li>
+  </ul>
+  <p>下線と取り消し線は、行のベースラインから測って引きます。行の情報にベースラインの位置を足しました。斜体は、日本語の書体のように斜体を持たない書体では形を傾けて作ります。DirectWrite は自分で傾けます。parley の道は、傾ける角度（synthesis の skew）を受け取り、形を作る時に swash の変換で傾けます。これらを足しても、手引きに載せている 33 種類の部品の写真（明暗で 66 枚）は 1 画素も変わりませんでした。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 描く物と、押せる物・読み上げる物を分ける</span>
+    <p>段落は 1 つの部品として描きますが、読み上げソフトと試験台は部分ごとに知る必要があります。部分を子の部品にもして、描くのは親、名前と四角は子、と役目を分けました。レイアウトの仕組みは葉の部品の子を置かないので、子の四角は並べた後に、最初の行の区間から決めます。</p>
+  </div>
+
+  <h2 id="links">リンク</h2>
+  <p>文の中のリンクは、Tab で焦点が止まり、Enter で押せます。2 行にまたがるリンクは、行ごとに当たりの四角を足すので、どちらの行を押しても同じリンクです。焦点の枠も行ごとに描きます。</p>
+  <!-- gen:wrapped -->
+<figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/rich/wrapped-dark.webp"><img src="img/rich/wrapped-light.webp" alt="「詳しくは」の後のリンクが 2 行にまたがり、1 行目と 2 行目のそれぞれに焦点の枠が出ている" width="600" height="126" loading="lazy" decoding="async"></picture><figcaption>2 行にまたがるリンクに Tab で焦点を当てた所。枠は行ごとに描く（幅 300 の窓、試験台で 2 倍で撮った）。</figcaption></figure>
+<!-- /gen:wrapped -->
+  <p>リンクの上では、ポインターを手の形にしました。WinUI のリンクと同じです。前からある <code>ui.link</code> も、今まではずっと矢印のままだったので、同じく手の形にしました。押した時は、記録に <code>rich.link text=…</code> を書きます。</p>
+
+  <h2 id="fixes">作る途中で直した 3 つのこと</h2>
+
+  <h3>1. コードの背景が、白の上で見えなかった</h3>
+  <p>最初は、コードの背景にテーマのボタンの色を使いました。写真を撮って画素を読むと、白い背景との差が 9 以下で、ほとんど見えませんでした。ボタンの面には合う薄さでも、文字の下に敷く印には薄すぎたのです。背景は、文字の色を薄く重ねる形に変えました（明るい表示で 8%、暗い表示で 12%）。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-code">
+    <table>
+      <caption id="t-code">コードの背景の色（RGB）</caption>
+      <thead><tr><th scope="col">表示</th><th scope="col">段落の背景</th><th scope="col">直す前（テーマのボタンの色）</th><th scope="col">直した後（文字の色を重ねる）</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">明るい</th><td data-label="段落の背景">255, 255, 255</td><td data-label="直す前（テーマのボタンの色）">246, 248, 250（差 5〜9）</td><td data-label="直した後（文字の色を重ねる）">237, 238, 238（差 17〜18）</td></tr>
+        <tr><th scope="row">暗い</th><td data-label="段落の背景">22, 25, 29</td><td data-label="直す前（テーマのボタンの色）">33, 38, 45（差 11〜16）</td><td data-label="直した後（文字の色を重ねる）">47, 50, 54（差 25）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>2. 行末にぶら下がる空白にも、下線を引いていた</h3>
+  <p>リンク「how backups work」が「how」の後で折り返すと、1 行目の下線が「how」の後ろの空白の下まで伸びていました。折り返した行の終わりの空白は、見た目では行の外にあります。ブラウザもこの空白には下線を引きません。範囲が行の終わりで終わる時だけ、終わりの空白を区間から外しました。行の途中の空白（リンクの中の語と語の間）は、今までどおり下線を引きます。</p>
+  <!-- gen:underline -->
+<figure class="shot flat"><picture><img src="img/rich/underline-before-light.webp" alt="直す前。1 行目の終わりのリンク「how」の下線が、後ろの空白の下まで伸びている" width="320" height="88" loading="lazy" decoding="async"></picture><figcaption>直す前。1 行目の「how」の下線が、行末の空白の下まで伸びている（英語の写真の右上を 2 倍に拡大）。</figcaption></figure>
+  <figure class="shot flat"><picture><img src="img/rich/underline-after-light.webp" alt="直した後。1 行目のリンク「how」の下線は、how の右端で止まっている" width="320" height="88" loading="lazy" decoding="async"></picture><figcaption>直した後。下線は「how」の右端で止まる。</figcaption></figure>
+<!-- /gen:underline -->
+
+  <h3>3. Linux で、試験が 1 つ落ちた</h3>
+  <p>WSL の Ubuntu で試験を走らせると、「2 行に折り返したリンクの 2 行目を押す」試験が落ちました。試験の前提は「リンクは 1 行目の途中から始まる」です。ところが Linux では、リンクが 2 行目の頭から始まっていました。</p>
+  <p>原因は書体の幅です。Linux の日本語の書体（Noto Sans CJK）は、Windows の Yu Gothic UI より字が広く出ます。そのため、リンクの前の「保存すると 元に戻せません。詳しくは 」で、1 行目がちょうどいっぱいになりました。リンクの中の折り返しは Linux でも起きていて、書式付きの文字の作りに問題はありませんでした。試験の文を、短い「詳しくは 」の後に 30 字のリンクを置く形に変えました。これなら、どの書体でもリンクは 1 行目の途中から始まり、次の行へ折り返します。</p>
+  <p>このとき、Linux の試験の出力に「ICU4X data error: No segmentation model for complex script: Chinese/Japanese」という知らせが 12 回出ました。日本語の区切りの辞書が無い時に、辞書を使わない区切り方に戻ったという知らせで、失敗ではありません。WSL では試験の文を変えた後に出なくなりましたが、Linux の検証機（Debian 13）では、書式付きの文字を足す前の版でも出ています。出るかどうかは文と環境で変わるので、次の段階（Linux の窓）で調べます。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい試験: 文字の幅で決まる位置を前提にする</span>
+    <p>どこで行が変わるかは、書体の字の幅で決まります。書体は OS ごとに違うので、「この語は 1 行目の途中にある」という前提は、別の OS で崩れます。折り返しを試す時は、どの書体でも同じ結果になる文（短い前置きと、必ず折り返す長さの部分）を選んでください。第 7 章と第 8 章に続き、書体の違いで CI や別の OS の試験が落ちたのはこれで 3 回目です。</p>
+  </div>
+
+  <h2 id="check">作者の手の確かめ</h2>
+  <p>設定の見本に、書式の見本の 1 行と、統計の説明の段落（送る中身の例を出し入れするリンク）を足しました。作者が試した記録を読むと、どの操作も期待どおりでした。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-check">
+    <table>
+      <caption id="t-check">作者の確かめの記録</caption>
+      <thead><tr><th scope="col">操作</th><th scope="col">記録で確かめたこと</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">リンクを押す（14 回）</th><td data-label="記録で確かめたこと">押すたびに <code>rich.link</code> と見本の記録が 1 行ずつ出て、例が出る・消えるを交互に繰り返した。ビューを何回回しても 1 回</td></tr>
+        <tr><th scope="row">2 行にまたがったリンク</th><td data-label="記録で確かめたこと">押した位置は 2 行分の高さ（y 421〜464）と、狭めた窓の左端（x 47〜67）。どれも同じリンクに当たった</td></tr>
+        <tr><th scope="row">Tab と Enter</th><td data-label="記録で確かめたこと">チェックの後の Tab でリンクに焦点が移り、Enter 2 回で例が出て、消えた</td></tr>
+        <tr><th scope="row">色・テーマ・書体を変える</th><td data-label="記録で確かめたこと">強調の色を #D93025 に、テーマを 3 回、書体を 3 回変えた。間違いや警告の記録は 0 行</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="weight">軽さ</h2>
+  <p>作者の確かめの間の描画は 488 フレームで、中央が 3.4 ms、9 割が 4.3 ms 以内でした。8 ms を超えたのは 3 フレームで、起動・色の選択を閉じた時・書体を初めて読んだ時です。どれも書式付きの文字より前からある処理です。書式付きの文字を使わないアプリでは、起動の時に何も並べません。<!-- gen:exe -->
+タスク帳の実行ファイルは 1,391,616 バイト（1.39 MB）で、前の版（7492df6）の 1,372,160 バイトより 19,456 バイト増えました。どちらも同じ手順で release で組み立てて測りました。
+<!-- /gen:exe --></p>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="08-pickers.html">← 第 8 章 色と時刻の選択</a>
+    <a href="./">目次 →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>
