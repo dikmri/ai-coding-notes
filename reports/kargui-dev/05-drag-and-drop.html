@@ -30,7 +30,7 @@
 <article>
   <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 5 章</p>
   <h1>ドラッグ＆ドロップ</h1>
-  <p class="lede">0.2 の後の 1 つ目として、窓の中のドラッグ＆ドロップを足しました。一覧の並べ替え・タブの入れ替え・ドッキングなど、後で作る物の土台になるからです。この章では、書き方の決め方、押してから落とすまでの状態、本物の窓で見つかった不具合を順に書きます。途中で、並べ方の決まり（<code>Size::Fill</code>）も直しました。</p>
+  <p class="lede">0.2 の後の 1 つ目として、窓の中のドラッグ＆ドロップと、エクスプローラーからファイルを落とす仕組みを足しました。一覧の並べ替え・タブの入れ替え・ドッキングなど、後で作る物の土台になるからです。この章では、書き方の決め方、押してから落とすまでの状態、本物の窓で見つかった不具合を順に書きます。途中で、並べ方の決まり（<code>Size::Fill</code>）も直しました。</p>
 
   <section class="learn" aria-labelledby="h-learn">
     <h2 id="h-learn">この章で分かること</h2>
@@ -38,7 +38,8 @@
       <li>荷物の型で「どこに落とせるか」を決める書き方</li>
       <li>クリックと引っ張りを見分ける決まり（Windows と同じ 4 ピクセル）</li>
       <li>押す・動かす・離すが 1 回にまとめて届いても落とせる作り</li>
-      <li>本物の窓で見つかった不具合 3 つと、並べ方の決まりの直し</li>
+      <li>エクスプローラーから落としたファイルが届くまでと、使わないアプリを遅くしない作り</li>
+      <li>本物の窓で見つかった不具合 4 つと、並べ方の決まりの直し</li>
     </ul>
   </section>
 
@@ -124,6 +125,70 @@ if let Some(Card(k)) = done_column.dropped::&lt;Card&gt;() {
   <div class="pitfall">
     <span class="box-title">やめた方がいい作り方: 引っ張る操作だけを用意する</span>
     <p>引っ張る操作は、手が思うように動かない人には難しく、キーボードや読み上げソフトではできません。WCAG 2.2 の 2.5.7 も、引っ張らずにできる別のやり方を求めています。見本のカードの板は、どのカードにも「移す」メニュー（ほかの列へ・上へ・下へ）を置いています。</p>
+  </div>
+
+  <h2 id="files">エクスプローラーからファイルを落とす</h2>
+  <p>ほかのアプリからファイルを落とす時も、書き方は同じです。受け取る部品に <code>.dropped::&lt;Vec&lt;PathBuf&gt;&gt;()</code> を付けると、落とされたファイルのパスが届きます。窓の中で <code>Vec&lt;PathBuf&gt;</code> を運ぶ引っ張りも、同じ部品が受け取ります。見本のメモ帳は、メニューバーの下のどこに落としてもファイルを開き、書きかけがあれば先に確認します。</p>
+<pre><code>let mut body = ui.column(|ui| {
+    // 入力欄と、名前・文字数の行
+});
+if let Some(paths) = body.dropped::&lt;Vec&lt;PathBuf&gt;&gt;() {
+    // 書きかけを確かめてから開く
+}</code></pre>
+  <p>中では、Windows の OLE の仕組みを使っています。ファイルを引っ張っている間、マウスをつかんでいるのはエクスプローラーです。kargui の窓には、OS から「入った・動いた・出た・落とした」の 4 つの知らせが届きます。</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 250" role="img" aria-labelledby="ole-title ole-desc">
+      <title id="ole-title">エクスプローラーからファイルが届くまで</title>
+      <desc id="ole-desc">エクスプローラーがマウスをつかんで引っ張る。OS の OLE が kargui の受け取る係に知らせを渡す。受け取る係は、受け取れるかを前のフレームの配置からその場で答え、知らせを kargui の入力に変える。ビューで dropped が Vec PathBuf を返す。</desc>
+      <defs>
+        <marker id="ah6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrow-head"/></marker>
+        <marker id="lh6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="loop-head"/></marker>
+      </defs>
+      <rect class="box-soft" x="10" y="30" width="150" height="70" rx="10"/>
+      <text class="label" x="26" y="58">エクスプローラー</text>
+      <text class="sub" x="26" y="80">マウスをつかんで引っ張る</text>
+      <rect class="box" x="190" y="30" width="170" height="70" rx="10"/>
+      <text class="label" x="206" y="58">OS（OLE）</text>
+      <text class="sub" x="206" y="80">入った・動いた・出た・落とした</text>
+      <rect class="box" x="395" y="30" width="150" height="70" rx="10"/>
+      <text class="label" x="411" y="58">受け取る係</text>
+      <text class="sub" x="411" y="80">IDropTarget</text>
+      <rect class="box" x="575" y="30" width="135" height="70" rx="10"/>
+      <text class="label" x="590" y="58">kargui の入力</text>
+      <text class="sub" x="590" y="80">→ ビューの dropped()</text>
+      <path class="arrow" d="M162 65 H187" marker-end="url(#ah6)"/>
+      <path class="arrow" d="M362 65 H392" marker-end="url(#ah6)"/>
+      <path class="arrow" d="M547 65 H572" marker-end="url(#ah6)"/>
+      <rect class="box-soft" x="395" y="150" width="315" height="70" rx="10"/>
+      <text class="label" x="411" y="178">受け取れるか（コピー・禁止の形）</text>
+      <text class="sub" x="411" y="200">前のフレームの配置から、その場で OS に答える</text>
+      <path class="loop" d="M470 102 V148" marker-end="url(#lh6)"/>
+      <path class="loop" d="M300 185 H392" marker-start="url(#lh6)"/>
+      <text class="loop-text" x="130" y="182">ポインターの形として</text>
+      <text class="loop-text" x="130" y="200">エクスプローラーへ返す</text>
+    </svg>
+    <figcaption>エクスプローラーからファイルが届くまで。受け取れるかは、次のフレームを待たずに前のフレームの配置から答える。</figcaption>
+  </figure>
+  <h3>使わないアプリを遅くしない</h3>
+  <p>OS に「この窓にはファイルを落とせる」と届け出るには、OLE の準備（<code>OleInitialize</code>）と届け出（<code>RegisterDragDrop</code>）が要ります。パスを読む関数（<code>DragQueryFileW</code>）は、第 3 章で起動を遅くした shell32.dll の中にあります。そこで、<code>Vec&lt;PathBuf&gt;</code> を受け取る部品が初めて現れた時だけ届け出て、shell32.dll はファイルが届いた時に探して呼ぶようにしました。ファイルを受け取らないタスク帳の起動は、直す前と同じ 52.5 ms（往復の順で各 10 回の中央値）でした。</p>
+
+  <h3>届く順番で、落とせたり落とせなかったりした</h3>
+  <p>作者がメモ帳で試すと、1 回目に落としたファイルが開かず、2 回目は開きました。記録には、落とす直前に「つかみが外れたので取り消す」という行が出ていました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-race">
+    <table>
+      <caption id="t-race">記録に出ていた順番</caption>
+      <thead><tr><th scope="col">回</th><th scope="col">先に届いた知らせ</th><th scope="col">後に届いた知らせ</th><th scope="col">結果</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">1 回目</th><td data-label="先">ボタンの離れたマウスの動き（取り消し）</td><td data-label="後">OS の「落とした」</td><td data-label="結果">開かない（取り消した後だった）</td></tr>
+        <tr><th scope="row">2 回目</th><td data-label="先">OS の「落とした」</td><td data-label="後">ボタンの離れたマウスの動き</td><td data-label="結果">開く</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>窓の中の引っ張りのために、「引っ張っている途中なのにボタンが離れていたら、つかみが外れたとみなして取り消す」処理を入れていました。ほかのアプリからの引っ張りで、マウスをつかんでいるのはエクスプローラーです。kargui の窓の上でボタンを離すと、kargui にもボタンの離れたマウスの動きが届きます。この処理が、ほかのアプリからの引っ張りまで取り消していました。</p>
+  <p>窓のマウスの処理は、窓の中の引っ張りだけを扱うようにし、ほかのアプリからの引っ張りは OS の「落とした」「出た」でだけ終えるようにしました。直した後は、作者が 4 回落として 4 回とも開きました。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい作り方: マウスをつかんでいるのが誰かを確かめずに、「ボタンが離れた」を判断する</span>
+    <p>自分の窓がマウスをつかんでいる時と、ほかのアプリがつかんでいる時とでは、届く知らせの順番の約束が違います。後者では、自分の窓にはボタンの離れた動きが「落とした」より先に届くことがあります。どちらの引っ張りかを状態に持ち（kargui では <code>external</code>）、それぞれの終わり方を分けてください。</p>
   </div>
 
   <h2 id="fill">ついでに直した並べ方の決まり</h2>
