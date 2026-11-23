@@ -41,7 +41,7 @@
 .dev figure { margin: 1.8rem 0; }
 .dev figcaption { margin-top: 0.6rem; color: var(--ink-2); font-size: 0.875rem; line-height: 1.7; }
 .dev .small { color: var(--ink-2); font-size: 0.875rem; }
-.dev code { font-family: var(--mono); font-size: 0.875em; }
+.dev code { font-family: var(--mono); font-size: 0.875em; overflow-wrap: break-word; }
 .dev pre {
   max-inline-size: 44rem; overflow-x: auto; padding: 0.9rem 1rem; border: 1px solid var(--rule); border-radius: var(--r);
   background: var(--card); font: 0.8125rem/1.6 var(--mono);

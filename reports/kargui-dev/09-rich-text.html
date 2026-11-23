@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>第 9 章 書式付きの文字 ― kargui 開発レポート ― AI コーディングノート</title>
-<meta name="description" content="0.2 の後の 5 つ目として、太字・斜体・色・コード・リンクを 1 つの段落に混ぜる書式付きの文字を足しました。範囲を表示だけにした理由、1 つの段落として並べて部分ごとに色を付ける仕組み、作る途中で直した 3 つのこと（見えないコードの背景、行末の空白の下線、Linux で落ちた試験）を紹介します。">
+<meta name="description" content="0.2 の後の 5 つ目として、太字・斜体・色・コード・リンクを 1 つの段落に混ぜる書式付きの文字を足しました。範囲を表示だけにした理由、1 つの段落として並べて部分ごとに色を付ける仕組み、作る途中で直した 3 つのこと（見えないコードの背景、行末の空白の下線、Linux で落ちた試験）と、CI で見つかった写真の違いを紹介します。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="../../css/site.css">
 <link rel="stylesheet" href="dev.css">
@@ -30,7 +30,7 @@
 <article>
   <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 9 章</p>
   <h1>書式付きの文字</h1>
-  <p class="lede">0.2 の後の 5 つ目として、書式付きの文字を足しました。1 つの文の中で、太字・斜体・色・コード・リンクを混ぜられます。この章では、範囲を表示だけにした理由と、1 つの段落として並べて部分ごとに色を付ける仕組みを書きます。最後に、作る途中で直した 3 つのことと、作者の手の確かめの結果を書きます。</p>
+  <p class="lede">0.2 の後の 5 つ目として、書式付きの文字を足しました。1 つの文の中で、太字・斜体・色・コード・リンクを混ぜられます。この章では、範囲を表示だけにした理由と、1 つの段落として並べて部分ごとに色を付ける仕組みを書きます。最後に、作る途中で直した 3 つのこと、作者の手の確かめの結果、CI で見つかった写真の違いを書きます。</p>
 
   <section class="learn" aria-labelledby="h-learn">
     <h2 id="h-learn">この章で分かること</h2>
@@ -40,6 +40,7 @@
       <li>文の中のリンクを、読み上げソフトと試験台から押せる部品にする方法</li>
       <li>白の上で見えなかったコードの背景と、行末の空白に引いていた下線</li>
       <li>Linux の書体で落ちた、書体の幅に頼った試験</li>
+      <li>CI の Windows で、コードの背景の端だけ写真が違った理由と、写真の比べ方の直し</li>
     </ul>
   </section>
 
@@ -59,7 +60,7 @@
   <!-- gen:sample -->
 <figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/rich/sample-dark.webp"><img src="img/rich/sample-light.webp" alt="2 行の段落。「元に戻せません」は太字、「Ctrl+Z」は等幅で薄い背景、「バックアップの仕組み」は主の色に下線のリンク、「1,980」は取り消し線、「1,280」は赤い太字、「（税込み、日曜まで）」は小さい弱い字で「日曜まで」は斜体" width="940" height="114" loading="lazy" decoding="async"></picture><figcaption>上のコードに値段の行を足した段落（試験台で 2 倍で撮った）。部分ごとに太字・コード・リンク・取り消し線・色・小さい斜体が付いている。</figcaption></figure>
 <!-- /gen:sample -->
-  <p>部分の書式は、ラベルと同じ名前にそろえました（<code>.bold()</code>・<code>.strike()</code>・<code>.weak()</code>・<code>.small()</code>・<code>.size()</code>・<code>.font()</code>・<code>.monospace()</code>）。書式付きの文字だけにあるのは、<code>.italic()</code>・<code>.underline()</code>・<code>.color()</code>・<code>.code()</code> の 4 つです。段落は幅に合わせて折り返します。</p>
+  <p>部分の書式は、ラベルと同じ名前にそろえました（<code>.bold()</code>・<wbr><code>.strike()</code>・<wbr><code>.weak()</code>・<wbr><code>.small()</code>・<wbr><code>.size()</code>・<wbr><code>.font()</code>・<wbr><code>.monospace()</code>）。書式付きの文字だけにあるのは、<code>.italic()</code>・<wbr><code>.underline()</code>・<wbr><code>.color()</code>・<wbr><code>.code()</code> の 4 つです。段落は幅に合わせて折り返します。</p>
 
   <h2 id="scope">範囲を表示だけにした理由</h2>
   <p>計画書の「書式付きの文字」には、中身の決まりがありませんでした。最初の調べ（13 のフレームワーク）では、文の中のリンクは 7 割前後が持つ 2 群、書式付きの文字の編集は 6 以下しか持たない 3 群でした。そこで、今回は表示だけにしました。</p>
@@ -174,6 +175,24 @@
         <tr><th scope="row">色・テーマ・書体を変える</th><td data-label="記録で確かめたこと">強調の色を #D93025 に、テーマを 3 回、書体を 3 回変えた。間違いや警告の記録は 0 行</td></tr>
       </tbody>
     </table>
+  </div>
+
+  <h2 id="ci">CI で見つかったこと: コードの背景の端が動いた</h2>
+  <p>書式付きの文字の記録（4614a01）を GitHub に送ると、CI の Windows で文書の確かめ（Documentation checks）が落ちました。macOS と Linux は通りました。落ちたのは、書式付きの文字の写真（明・暗の 2 枚）の比べです。第 8 章で直した比べ方では、CI の時だけ、文字の形の中の違いを書体の違いとして通します。今回は、違う画素 1172 個のうち 28 個が文字の形の外でした。</p>
+  <p>比べる処理は、違う場所も出します（第 8 章で足した機能です）。違う範囲は、1 行目の「Ctrl+Z」から行の終わりまで（x 224〜423）でした。文字の形の外の 28 個は、x 270〜277 に集まっていました。手元の写真では、「Ctrl+Z」のコードの背景は x 225〜272 にあります。違ったのは、この背景の右の端でした。</p>
+  <p>「Ctrl+Z」は <code>.code()</code> で書いたので、等幅の書体で並びます。第 8 章の番号の欄と同じく、CI の Windows には BIZ UD ゴシックが無いので、Consolas で並びます。Consolas の方が字が広いので、背景が右へ長くなりました。後ろの文字も右へずれますが、こちらは文字の形の中なので通ります。背景は文字の形ではないので、通す範囲から外れていました。</p>
+  <p>直し方は、CI で通す範囲に、書式付きの文字の段落の四角を足すことにしました（836276b）。段落の中では、書体が変わると、後ろの文字と一緒に下線・取り消し線・コードの背景も動くからです。段落の外（ほかの部品・枠・配置）の違いは、今までどおり CI でも 1 画素で落とします。手元の比べは、今までどおり完全に一致する時だけ通ります。CI と同じ条件（等幅の候補から BIZ UD ゴシックを外す）で、次の 4 つを確かめました。</p>
+  <ul>
+    <li>CI と同じ扱い・変更なし: 色の選択と書式付きの文字の 4 枚とも「文字の範囲だけ違う」と出て通る</li>
+    <li>CI と同じ扱い・段落の中で、文字の形の外の 1 画素を変える: 通る</li>
+    <li>CI と同じ扱い・段落の外の 1 画素を変える: 落ちる</li>
+    <li>手元の扱い・同じ書体の条件: 落ちる</li>
+  </ul>
+  <p>この直しで、CI は段落の中の色の間違いを見つけられなくなります。ただ、写真を作った作者の PC では完全な一致を求めるので、段落の中の間違いはそこで見つかります。</p>
+  <p>836276b は、次の段階（第 10 章の Linux の窓）の最初の記録（ab184a2）と一緒に GitHub に入りました。その CI は 3 つの OS とも通りました。CI の Windows の出力では、書式付きの文字の 2 枚は「文字の範囲だけ違う」と出ました。違う画素は同じ 1172 個で、文字の範囲の外は 0 個です。書体の違いで CI や別の OS の試験が落ちたのは、これで 4 回目です。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 書体の違いで動くのは、文字の形だけではない</span>
+    <p>第 8 章の直しは、書体が変わると字の形が変わる、という場合だけを考えていました。実際には字の幅も変わるので、幅に合わせて描く物（コードの背景・下線）と、後ろの文字の位置も動きます。違いを許す範囲は、書体で一緒に動く物をまとめて含む単位（今回は段落）で決めてください。</p>
   </div>
 
   <h2 id="weight">軽さ</h2>
