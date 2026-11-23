@@ -142,7 +142,7 @@ const CHAPTERS = [
   { href: "07-fonts.html", no: "第 7 章", title: "書体", text: "Font の 3 つの形と書体の探し方、入力欄の書体が 1 フレーム遅れて伝わる理由、作者の記録から見つけた行の間の不具合。", thumb: "fonts/lines" },
   { href: "08-pickers.html", no: "第 8 章", title: "色と時刻の選択", text: "時刻をます目にした理由、濃淡の面を絵で描く方法、作者の記録から見つけた打つ途中の番号と、引っ張っても選べない入力欄。", thumb: "pickers/time" },
   { href: "09-rich-text.html", no: "第 9 章", title: "書式付きの文字", text: "範囲を表示だけにした理由、1 つの段落として並べて部分ごとに色を付ける仕組み、見えないコードの背景と Linux で落ちた試験。", thumb: "rich/sample" },
-  { href: "10-linux.html", no: "第 10 章", title: "Linux の窓（Wayland）", text: "検証用の Linux の PC と AI が画面を操作する道具、境目のファイル 1 つで窓を開く作り、タッチパッドの取りこぼし、後から足したクリップボードと日本語入力。", thumb: "linux/settings" },
+  { href: "10-linux.html", no: "第 10 章", title: "Linux の窓（Wayland と X11）", text: "検証用の Linux の PC と AI が画面を操作する道具、境目のファイル 1 つで窓を開く作り、タッチパッドの取りこぼし、後から足したクリップボード・日本語入力・読み上げ・ファイルのダイアログ・複数の窓・GNOME の題の帯・X11 の窓。", thumb: "linux/settings" },
 ];
 
 function chapters() {
@@ -238,8 +238,9 @@ ${figure("apps/expenses", "家計簿の見本", "家計簿（<code>examples/expe
   "10-linux.html": {
     deps: () =>
       bars("c-deps", "Wayland の窓に要る依存の数", "少ないほど軽い。Linux で cargo tree で数えた", [
-        { name: "smithay-client-toolkit を使う形", v: "old", value: 57, label: "57 個（開発用の部品が要る）" },
-        { name: "今回の形（低い層を直接）", v: "new", value: 32, label: "32 個（kargui に増えたのは 13 個）" },
+        // 値の文字は短くする（幅 320 の画面で棒の外へはみ出した。括弧の中身は、すぐ上の本文と見出しにある）
+        { name: "smithay-client-toolkit を使う形", v: "old", value: 57, label: "57 個" },
+        { name: "今回の形（低い層を直接）", v: "new", value: 32, label: "32 個" },
       ]),
     settings: () =>
       figure(
@@ -273,11 +274,77 @@ ${figure("apps/expenses", "家計簿の見本", "家計簿（<code>examples/expe
         "上は「明日は」を変換している所、下は → で「東京に」へ移った所。太い下線が今変換している文節で、先頭の「東京」は確定済みの文字。上では「東京に行く」が 1 本の細い下線になる。",
         { flat: true },
       ),
+    portal: () => `${figure(
+      "linux/portal-save",
+      "GTK の名前を付けて保存のダイアログ。名前の欄に tokyo memo.txt、場所は tmp の kargui-dialog で、saved copy.txt と tokyo memo.txt が並び、右下の種類はテキスト",
+      "メモ帳の見本で /tmp/kargui-dialog のファイルを開いた後の「名前を付けて保存」。ポータルのダイアログが、開いたファイルのフォルダから始まる（名前と種類は、メモ帳が頼んだ物）。",
+      { flat: true },
+    )}
+  ${figure(
+    "linux/os-dark",
+    "暗い表示の設定の見本。テーマはシステムが選ばれ、名前・メール・書体・文字の大きさなどが並ぶ",
+    "OS を暗い方の設定（color-scheme が prefer-dark）にして開いた設定の見本。テーマの「システム」は、ポータルから読んだ OS の設定に従う。",
+    { flat: true },
+  )}`,
+    second: () =>
+      figure(
+        "linux/second-window",
+        "ファイルの閲覧の見本の上に、AGENTS.md のプロパティの窓が重なっている。名前・大きさ・更新日・場所と、閉じるボタンが並ぶ",
+        "ファイルの閲覧の見本で、ファイルの行を右クリックして「プロパティ」を選んだ所。2 つ目の窓が主の窓の上に開く（作業場 9 の、窓を浮かせる規則の上）。",
+        { flat: true },
+      ),
+    drop: () =>
+      figure(
+        "linux/drop-files",
+        "左に GTK の窓（ここからファイルを引っ張る、の文字）、右に kargui のメモ帳。メモ帳の本文の欄が青い枠で囲まれている",
+        "左の GTK の窓からファイルを引っ張って、右のメモ帳の上へ動かしている所。受け取れる本文の欄を、主の色の枠で囲む（Windows と同じ見せ方）。",
+        { flat: true },
+      ),
     workspace: () =>
       figure(
         "linux/ime-workspace",
         "メモ欄に soraumi そら うみ と書かれ、うみにだけ下線が付き、その下に海の候補が出ている",
         "「そら」と打った途中で別の作業場へ移り、戻ってから「うみ」と打った所。「そら」は確定して残り、「うみ」は新しい変換になる（先頭の soraumi は、前の試しで入った文字）。",
+        { flat: true },
+      ),
+    csd: () => `${figure(
+      "linux/gnome-title-bar",
+      "GNOME の上のファイルの閲覧の見本。一番上の帯の真ん中に題、右端に最小化・最大化・閉じるのボタンが並び、窓の縁に細い線がある",
+      "GNOME で開いたファイルの閲覧の見本。題の帯は kargui が描いている（ボタンの並びは、GNOME の設定を最小化・最大化・閉じるの 3 つにした時の物）。",
+      { flat: true },
+    )}
+  ${figure(
+    "linux/gnome-second-window",
+    "暗い表示のファイルの閲覧の見本の上に、LICENSE のプロパティの窓が重なっている。どちらの窓にも題の帯があり、プロパティの窓の縁に細い線がある",
+    "暗い表示で、プロパティの窓を開いた所。2 つ目の窓にも題の帯を描く。前面に無い主の窓は、題を薄くする。縁の線は、重なった窓の境を見せるために引いた。",
+    { flat: true },
+  )}`,
+    menu: () =>
+      figure(
+        "linux/gnome-window-menu",
+        "最大化したメモ帳の題の帯の下に、スクリーンショットを撮る・隠す・元に戻す・移動などが並んだ暗いメニューが開いている",
+        "題の帯を右クリックすると、GNOME の窓のメニューが押した位置に出る（メニューは GNOME が描く）。最大化しているので「元に戻す」がある。",
+        { flat: true },
+      ),
+    x11ime: () =>
+      figure(
+        "linux/x11-ime",
+        "X11 のメモ帳の本文に、太い下線の TOKYO があり、その真下に 1. 東京、2. TOKYO［アルファベット］などが並ぶ候補の窓が開いている",
+        "X11 の窓（Hyprland の XWayland）で「とうきょう」を変換した所。fcitx5 の D-Bus から届いた変換中の文字を kargui が描き、文字を打つ位置を知らせたので、候補の窓が真下に出る。",
+        { flat: true },
+      ),
+    x11dialog: () =>
+      figure(
+        "linux/x11-dialog",
+        "X11 のメモ帳の上に、メモを開くの GTK のダイアログが重なっている。最近開いたファイルに tokyo memo.txt などが並ぶ",
+        "X11 の窓から「開く」を選んだ所。ポータルに親の窓（x11:番号）を渡すので、ダイアログはメモ帳に結び付いて開く。",
+        { flat: true },
+      ),
+    dialog: () =>
+      figure(
+        "linux/gnome-dialog",
+        "メモ帳の本文が暗くなり、真ん中にこのアプリについてのダイアログが出ている。一番上の題の帯は暗くならず、ボタンも見える",
+        "メモ帳で「このアプリについて」を出した所。暗くするのは帯の下だけにしたので、ダイアログを出したままでも帯で窓を動かし、閉じられる。",
         { flat: true },
       ),
   },

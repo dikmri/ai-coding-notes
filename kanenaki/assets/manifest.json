@@ -1,0 +1,2099 @@
+{
+ "version": 1,
+ "tile": 16,
+ "art": {
+  "adventurer": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/adventurer_idle.png",
+     "w": 12,
+     "h": 26,
+     "count": 20
+    },
+    "walk1": {
+     "file": "assets/adventurer_walk1.png",
+     "w": 12,
+     "h": 26,
+     "count": 20
+    },
+    "walk2": {
+     "file": "assets/adventurer_walk2.png",
+     "w": 12,
+     "h": 26,
+     "count": 20
+    },
+    "attack": {
+     "file": "assets/adventurer_attack.png",
+     "w": 12,
+     "h": 26,
+     "count": 20
+    },
+    "cast": {
+     "file": "assets/adventurer_cast.png",
+     "w": 12,
+     "h": 26,
+     "count": 20
+    }
+   },
+   "anchor": [
+    6,
+    13
+   ],
+   "shadow": [
+    5,
+    5
+   ]
+  },
+  "barrel": {
+   "kind": "prop",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/barrel_idle.png",
+     "w": 10,
+     "h": 10,
+     "count": 14
+    }
+   },
+   "anchor": [
+    5,
+    5
+   ],
+   "shadow": [
+    5,
+    5
+   ]
+  },
+  "bell_ghoul": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/bell_ghoul_idle.png",
+     "w": 8,
+     "h": 18,
+     "count": 21
+    },
+    "walk1": {
+     "file": "assets/bell_ghoul_walk1.png",
+     "w": 8,
+     "h": 18,
+     "count": 21
+    },
+    "walk2": {
+     "file": "assets/bell_ghoul_walk2.png",
+     "w": 8,
+     "h": 18,
+     "count": 21
+    },
+    "attack": {
+     "file": "assets/bell_ghoul_attack.png",
+     "w": 8,
+     "h": 18,
+     "count": 21
+    }
+   },
+   "anchor": [
+    4,
+    9
+   ],
+   "shadow": [
+    4,
+    4
+   ]
+  },
+  "bell_shard": {
+   "kind": "prop",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/bell_shard_idle.png",
+     "w": 8,
+     "h": 4,
+     "count": 4
+    }
+   },
+   "anchor": [
+    4,
+    2
+   ],
+   "shadow": [
+    4,
+    2
+   ]
+  },
+  "bell_warden": {
+   "kind": "actor",
+   "footprint": [
+    2,
+    2
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/bell_warden_idle.png",
+     "w": 34,
+     "h": 54,
+     "count": 46
+    },
+    "walk1": {
+     "file": "assets/bell_warden_walk1.png",
+     "w": 34,
+     "h": 54,
+     "count": 46
+    },
+    "walk2": {
+     "file": "assets/bell_warden_walk2.png",
+     "w": 34,
+     "h": 54,
+     "count": 46
+    },
+    "attack": {
+     "file": "assets/bell_warden_attack.png",
+     "w": 34,
+     "h": 54,
+     "count": 46
+    }
+   },
+   "anchor": [
+    17,
+    27
+   ],
+   "shadow": [
+    13,
+    13
+   ]
+  },
+  "belltower_ruin": {
+   "kind": "prop",
+   "footprint": [
+    4,
+    4
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/belltower_ruin_idle.png",
+     "w": 46,
+     "h": 58,
+     "count": 63
+    }
+   },
+   "anchor": [
+    23,
+    29
+   ],
+   "shadow": [
+    21,
+    24
+   ]
+  },
+  "bog_wight": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/bog_wight_idle.png",
+     "w": 16,
+     "h": 22,
+     "count": 18
+    },
+    "walk1": {
+     "file": "assets/bog_wight_walk1.png",
+     "w": 16,
+     "h": 22,
+     "count": 18
+    },
+    "walk2": {
+     "file": "assets/bog_wight_walk2.png",
+     "w": 16,
+     "h": 22,
+     "count": 18
+    },
+    "attack": {
+     "file": "assets/bog_wight_attack.png",
+     "w": 16,
+     "h": 22,
+     "count": 18
+    }
+   },
+   "anchor": [
+    8,
+    11
+   ],
+   "shadow": [
+    5,
+    5
+   ]
+  },
+  "bone_soldier": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/bone_soldier_idle.png",
+     "w": 12,
+     "h": 24,
+     "count": 18
+    },
+    "walk1": {
+     "file": "assets/bone_soldier_walk1.png",
+     "w": 12,
+     "h": 24,
+     "count": 18
+    },
+    "walk2": {
+     "file": "assets/bone_soldier_walk2.png",
+     "w": 12,
+     "h": 24,
+     "count": 18
+    },
+    "attack": {
+     "file": "assets/bone_soldier_attack.png",
+     "w": 12,
+     "h": 24,
+     "count": 18
+    }
+   },
+   "anchor": [
+    6,
+    12
+   ],
+   "shadow": [
+    5,
+    5
+   ]
+  },
+  "brazier": {
+   "kind": "prop",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/brazier_idle.png",
+     "w": 10,
+     "h": 12,
+     "count": 12
+    }
+   },
+   "anchor": [
+    5,
+    6
+   ],
+   "shadow": [
+    5,
+    5
+   ]
+  },
+  "bronze_sentinel": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/bronze_sentinel_idle.png",
+     "w": 22,
+     "h": 30,
+     "count": 24
+    },
+    "walk1": {
+     "file": "assets/bronze_sentinel_walk1.png",
+     "w": 22,
+     "h": 30,
+     "count": 24
+    },
+    "walk2": {
+     "file": "assets/bronze_sentinel_walk2.png",
+     "w": 22,
+     "h": 30,
+     "count": 24
+    },
+    "attack": {
+     "file": "assets/bronze_sentinel_attack.png",
+     "w": 22,
+     "h": 30,
+     "count": 24
+    }
+   },
+   "anchor": [
+    11,
+    15
+   ],
+   "shadow": [
+    5,
+    5
+   ]
+  },
+  "carrion_crow": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/carrion_crow_idle.png",
+     "w": 22,
+     "h": 22,
+     "count": 16
+    },
+    "walk1": {
+     "file": "assets/carrion_crow_walk1.png",
+     "w": 22,
+     "h": 22,
+     "count": 16
+    },
+    "walk2": {
+     "file": "assets/carrion_crow_walk2.png",
+     "w": 22,
+     "h": 22,
+     "count": 16
+    },
+    "attack": {
+     "file": "assets/carrion_crow_attack.png",
+     "w": 22,
+     "h": 22,
+     "count": 16
+    }
+   },
+   "anchor": [
+    11,
+    11
+   ],
+   "shadow": [
+    8,
+    8
+   ],
+   "fly": 8
+  },
+  "chest": {
+   "kind": "prop",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/chest_idle.png",
+     "w": 12,
+     "h": 8,
+     "count": 10
+    }
+   },
+   "anchor": [
+    6,
+    4
+   ],
+   "shadow": [
+    6,
+    4
+   ]
+  },
+  "cobble": {
+   "kind": "tile",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/cobble.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  },
+  "crate": {
+   "kind": "prop",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/crate_idle.png",
+     "w": 12,
+     "h": 12,
+     "count": 12
+    }
+   },
+   "anchor": [
+    6,
+    6
+   ],
+   "shadow": [
+    6,
+    6
+   ]
+  },
+  "cursed_acolyte": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/cursed_acolyte_idle.png",
+     "w": 12,
+     "h": 24,
+     "count": 23
+    },
+    "walk1": {
+     "file": "assets/cursed_acolyte_walk1.png",
+     "w": 12,
+     "h": 24,
+     "count": 23
+    },
+    "walk2": {
+     "file": "assets/cursed_acolyte_walk2.png",
+     "w": 12,
+     "h": 24,
+     "count": 23
+    },
+    "attack": {
+     "file": "assets/cursed_acolyte_attack.png",
+     "w": 12,
+     "h": 24,
+     "count": 23
+    }
+   },
+   "anchor": [
+    6,
+    12
+   ],
+   "shadow": [
+    3,
+    3
+   ]
+  },
+  "dirt": {
+   "kind": "tile",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/dirt.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  },
+  "door": {
+   "kind": "prop",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/door_idle.png",
+     "w": 16,
+     "h": 16,
+     "count": 22
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ],
+   "shadow": [
+    8,
+    8
+   ]
+  },
+  "dungeon_floor": {
+   "kind": "tile",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/dungeon_floor.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  },
+  "dungeon_rubble": {
+   "kind": "tile",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/dungeon_rubble.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  },
+  "fence": {
+   "kind": "prop",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/fence_idle.png",
+     "w": 16,
+     "h": 4,
+     "count": 12
+    }
+   },
+   "anchor": [
+    8,
+    2
+   ],
+   "shadow": [
+    8,
+    2
+   ]
+  },
+  "grass": {
+   "kind": "tile",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/grass.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  },
+  "grave": {
+   "kind": "prop",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/grave_idle.png",
+     "w": 10,
+     "h": 14,
+     "count": 12
+    }
+   },
+   "anchor": [
+    5,
+    7
+   ],
+   "shadow": [
+    5,
+    6
+   ]
+  },
+  "house_a": {
+   "kind": "prop",
+   "footprint": [
+    3,
+    3
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/house_a_idle.png",
+     "w": 44,
+     "h": 40,
+     "count": 40
+    }
+   },
+   "anchor": [
+    22,
+    20
+   ],
+   "shadow": [
+    22,
+    20
+   ]
+  },
+  "house_b": {
+   "kind": "prop",
+   "footprint": [
+    4,
+    3
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/house_b_idle.png",
+     "w": 62,
+     "h": 44,
+     "count": 37
+    }
+   },
+   "anchor": [
+    31,
+    22
+   ],
+   "shadow": [
+    31,
+    22
+   ]
+  },
+  "house_c": {
+   "kind": "prop",
+   "footprint": [
+    3,
+    4
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/house_c_idle.png",
+     "w": 46,
+     "h": 60,
+     "count": 28
+    }
+   },
+   "anchor": [
+    23,
+    30
+   ],
+   "shadow": [
+    23,
+    30
+   ]
+  },
+  "leech_swarm": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/leech_swarm_idle.png",
+     "w": 14,
+     "h": 14,
+     "count": 7
+    },
+    "walk1": {
+     "file": "assets/leech_swarm_walk1.png",
+     "w": 14,
+     "h": 14,
+     "count": 7
+    },
+    "walk2": {
+     "file": "assets/leech_swarm_walk2.png",
+     "w": 14,
+     "h": 14,
+     "count": 7
+    },
+    "attack": {
+     "file": "assets/leech_swarm_attack.png",
+     "w": 14,
+     "h": 14,
+     "count": 7
+    }
+   },
+   "anchor": [
+    7,
+    7
+   ],
+   "shadow": [
+    6,
+    6
+   ]
+  },
+  "minion_skeleton": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/minion_skeleton_idle.png",
+     "w": 10,
+     "h": 26,
+     "count": 18
+    },
+    "walk1": {
+     "file": "assets/minion_skeleton_walk1.png",
+     "w": 10,
+     "h": 26,
+     "count": 18
+    },
+    "walk2": {
+     "file": "assets/minion_skeleton_walk2.png",
+     "w": 10,
+     "h": 26,
+     "count": 18
+    },
+    "attack": {
+     "file": "assets/minion_skeleton_attack.png",
+     "w": 10,
+     "h": 26,
+     "count": 18
+    }
+   },
+   "anchor": [
+    5,
+    13
+   ],
+   "shadow": [
+    4,
+    4
+   ]
+  },
+  "minion_skeleton_archer": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/minion_skeleton_archer_idle.png",
+     "w": 8,
+     "h": 18,
+     "count": 18
+    },
+    "walk1": {
+     "file": "assets/minion_skeleton_archer_walk1.png",
+     "w": 8,
+     "h": 18,
+     "count": 18
+    },
+    "walk2": {
+     "file": "assets/minion_skeleton_archer_walk2.png",
+     "w": 8,
+     "h": 18,
+     "count": 18
+    },
+    "attack": {
+     "file": "assets/minion_skeleton_archer_attack.png",
+     "w": 8,
+     "h": 18,
+     "count": 18
+    }
+   },
+   "anchor": [
+    4,
+    9
+   ],
+   "shadow": [
+    4,
+    4
+   ]
+  },
+  "mist_witch": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/mist_witch_idle.png",
+     "w": 18,
+     "h": 30,
+     "count": 26
+    },
+    "walk1": {
+     "file": "assets/mist_witch_walk1.png",
+     "w": 18,
+     "h": 30,
+     "count": 26
+    },
+    "walk2": {
+     "file": "assets/mist_witch_walk2.png",
+     "w": 18,
+     "h": 30,
+     "count": 26
+    },
+    "attack": {
+     "file": "assets/mist_witch_attack.png",
+     "w": 18,
+     "h": 30,
+     "count": 26
+    }
+   },
+   "anchor": [
+    9,
+    15
+   ],
+   "shadow": [
+    5,
+    5
+   ]
+  },
+  "monk": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/monk_idle.png",
+     "w": 12,
+     "h": 16,
+     "count": 20
+    },
+    "walk1": {
+     "file": "assets/monk_walk1.png",
+     "w": 12,
+     "h": 16,
+     "count": 20
+    },
+    "walk2": {
+     "file": "assets/monk_walk2.png",
+     "w": 12,
+     "h": 16,
+     "count": 20
+    },
+    "attack": {
+     "file": "assets/monk_attack.png",
+     "w": 12,
+     "h": 16,
+     "count": 20
+    },
+    "cast": {
+     "file": "assets/monk_cast.png",
+     "w": 12,
+     "h": 16,
+     "count": 20
+    }
+   },
+   "anchor": [
+    6,
+    8
+   ],
+   "shadow": [
+    3,
+    3
+   ]
+  },
+  "mud_imp": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/mud_imp_idle.png",
+     "w": 14,
+     "h": 14,
+     "count": 18
+    },
+    "walk1": {
+     "file": "assets/mud_imp_walk1.png",
+     "w": 14,
+     "h": 14,
+     "count": 18
+    },
+    "walk2": {
+     "file": "assets/mud_imp_walk2.png",
+     "w": 14,
+     "h": 14,
+     "count": 18
+    },
+    "attack": {
+     "file": "assets/mud_imp_attack.png",
+     "w": 14,
+     "h": 14,
+     "count": 18
+    }
+   },
+   "anchor": [
+    7,
+    7
+   ],
+   "shadow": [
+    4,
+    4
+   ]
+  },
+  "mud_imp_slinger": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/mud_imp_slinger_idle.png",
+     "w": 12,
+     "h": 14,
+     "count": 17
+    },
+    "walk1": {
+     "file": "assets/mud_imp_slinger_walk1.png",
+     "w": 12,
+     "h": 14,
+     "count": 17
+    },
+    "walk2": {
+     "file": "assets/mud_imp_slinger_walk2.png",
+     "w": 12,
+     "h": 14,
+     "count": 17
+    },
+    "attack": {
+     "file": "assets/mud_imp_slinger_attack.png",
+     "w": 12,
+     "h": 14,
+     "count": 17
+    }
+   },
+   "anchor": [
+    6,
+    7
+   ],
+   "shadow": [
+    3,
+    3
+   ]
+  },
+  "necromancer": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/necromancer_idle.png",
+     "w": 12,
+     "h": 26,
+     "count": 22
+    },
+    "walk1": {
+     "file": "assets/necromancer_walk1.png",
+     "w": 12,
+     "h": 26,
+     "count": 22
+    },
+    "walk2": {
+     "file": "assets/necromancer_walk2.png",
+     "w": 12,
+     "h": 26,
+     "count": 22
+    },
+    "attack": {
+     "file": "assets/necromancer_attack.png",
+     "w": 12,
+     "h": 26,
+     "count": 22
+    },
+    "cast": {
+     "file": "assets/necromancer_cast.png",
+     "w": 12,
+     "h": 26,
+     "count": 22
+    }
+   },
+   "anchor": [
+    6,
+    13
+   ],
+   "shadow": [
+    3,
+    3
+   ]
+  },
+  "npc_apothecary": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/npc_apothecary_idle.png",
+     "w": 10,
+     "h": 10,
+     "count": 22
+    }
+   },
+   "anchor": [
+    5,
+    5
+   ],
+   "shadow": [
+    5,
+    5
+   ]
+  },
+  "npc_bellkeeper": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/npc_bellkeeper_idle.png",
+     "w": 14,
+     "h": 10,
+     "count": 18
+    }
+   },
+   "anchor": [
+    7,
+    5
+   ],
+   "shadow": [
+    4,
+    4
+   ]
+  },
+  "npc_innkeeper": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/npc_innkeeper_idle.png",
+     "w": 10,
+     "h": 8,
+     "count": 20
+    }
+   },
+   "anchor": [
+    5,
+    4
+   ],
+   "shadow": [
+    4,
+    4
+   ]
+  },
+  "npc_master_monk": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/npc_master_monk_idle.png",
+     "w": 12,
+     "h": 8,
+     "count": 20
+    }
+   },
+   "anchor": [
+    6,
+    4
+   ],
+   "shadow": [
+    3,
+    3
+   ]
+  },
+  "npc_master_necromancer": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/npc_master_necromancer_idle.png",
+     "w": 12,
+     "h": 8,
+     "count": 22
+    }
+   },
+   "anchor": [
+    6,
+    4
+   ],
+   "shadow": [
+    3,
+    3
+   ]
+  },
+  "npc_master_priest": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/npc_master_priest_idle.png",
+     "w": 22,
+     "h": 8,
+     "count": 23
+    }
+   },
+   "anchor": [
+    11,
+    4
+   ],
+   "shadow": [
+    4,
+    4
+   ]
+  },
+  "npc_master_rogue": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/npc_master_rogue_idle.png",
+     "w": 10,
+     "h": 12,
+     "count": 18
+    }
+   },
+   "anchor": [
+    5,
+    6
+   ],
+   "shadow": [
+    4,
+    4
+   ]
+  },
+  "npc_master_swordsman": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/npc_master_swordsman_idle.png",
+     "w": 14,
+     "h": 22,
+     "count": 18
+    }
+   },
+   "anchor": [
+    7,
+    11
+   ],
+   "shadow": [
+    6,
+    6
+   ]
+  },
+  "npc_master_warrior": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/npc_master_warrior_idle.png",
+     "w": 18,
+     "h": 8,
+     "count": 20
+    }
+   },
+   "anchor": [
+    9,
+    4
+   ],
+   "shadow": [
+    4,
+    4
+   ]
+  },
+  "npc_smith": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/npc_smith_idle.png",
+     "w": 14,
+     "h": 10,
+     "count": 18
+    }
+   },
+   "anchor": [
+    7,
+    5
+   ],
+   "shadow": [
+    4,
+    4
+   ]
+  },
+  "npc_warp": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/npc_warp_idle.png",
+     "w": 12,
+     "h": 12,
+     "count": 18
+    }
+   },
+   "anchor": [
+    6,
+    6
+   ],
+   "shadow": [
+    5,
+    5
+   ]
+  },
+  "priest": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/priest_idle.png",
+     "w": 22,
+     "h": 28,
+     "count": 27
+    },
+    "walk1": {
+     "file": "assets/priest_walk1.png",
+     "w": 22,
+     "h": 28,
+     "count": 27
+    },
+    "walk2": {
+     "file": "assets/priest_walk2.png",
+     "w": 22,
+     "h": 28,
+     "count": 27
+    },
+    "attack": {
+     "file": "assets/priest_attack.png",
+     "w": 22,
+     "h": 28,
+     "count": 27
+    },
+    "cast": {
+     "file": "assets/priest_cast.png",
+     "w": 22,
+     "h": 28,
+     "count": 27
+    }
+   },
+   "anchor": [
+    11,
+    14
+   ],
+   "shadow": [
+    3,
+    3
+   ]
+  },
+  "road": {
+   "kind": "tile",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/road.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  },
+  "rock_a": {
+   "kind": "prop",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/rock_a_idle.png",
+     "w": 14,
+     "h": 12,
+     "count": 8
+    }
+   },
+   "anchor": [
+    7,
+    6
+   ],
+   "shadow": [
+    7,
+    6
+   ]
+  },
+  "rock_b": {
+   "kind": "prop",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/rock_b_idle.png",
+     "w": 14,
+     "h": 14,
+     "count": 7
+    }
+   },
+   "anchor": [
+    7,
+    7
+   ],
+   "shadow": [
+    6,
+    5
+   ]
+  },
+  "rogue": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/rogue_idle.png",
+     "w": 10,
+     "h": 22,
+     "count": 19
+    },
+    "walk1": {
+     "file": "assets/rogue_walk1.png",
+     "w": 10,
+     "h": 22,
+     "count": 19
+    },
+    "walk2": {
+     "file": "assets/rogue_walk2.png",
+     "w": 10,
+     "h": 22,
+     "count": 19
+    },
+    "attack": {
+     "file": "assets/rogue_attack.png",
+     "w": 10,
+     "h": 22,
+     "count": 19
+    },
+    "cast": {
+     "file": "assets/rogue_cast.png",
+     "w": 10,
+     "h": 22,
+     "count": 19
+    }
+   },
+   "anchor": [
+    5,
+    11
+   ],
+   "shadow": [
+    4,
+    4
+   ]
+  },
+  "stamp_angry": {
+   "kind": "stamp",
+   "name": "怒る",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/stamp_angry.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  },
+  "stamp_bell": {
+   "kind": "stamp",
+   "name": "鐘",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/stamp_bell.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  },
+  "stamp_bow": {
+   "kind": "stamp",
+   "name": "おじぎ",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/stamp_bow.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  },
+  "stamp_cheer": {
+   "kind": "stamp",
+   "name": "やった",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/stamp_cheer.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  },
+  "stamp_cry": {
+   "kind": "stamp",
+   "name": "泣く",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/stamp_cry.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  },
+  "stamp_ok": {
+   "kind": "stamp",
+   "name": "了解",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/stamp_ok.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  },
+  "stamp_question": {
+   "kind": "stamp",
+   "name": "はてな",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/stamp_question.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  },
+  "stamp_skull": {
+   "kind": "stamp",
+   "name": "どくろ",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/stamp_skull.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  },
+  "stamp_sleepy": {
+   "kind": "stamp",
+   "name": "ねむい",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/stamp_sleepy.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  },
+  "stamp_sorry": {
+   "kind": "stamp",
+   "name": "ごめん",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/stamp_sorry.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  },
+  "stamp_surprise": {
+   "kind": "stamp",
+   "name": "驚く",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/stamp_surprise.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  },
+  "stamp_thanks": {
+   "kind": "stamp",
+   "name": "ありがとう",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/stamp_thanks.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  },
+  "stamp_wave": {
+   "kind": "stamp",
+   "name": "手を振る",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/stamp_wave.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  },
+  "stray_dog": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/stray_dog_idle.png",
+     "w": 6,
+     "h": 28,
+     "count": 12
+    },
+    "walk1": {
+     "file": "assets/stray_dog_walk1.png",
+     "w": 6,
+     "h": 28,
+     "count": 12
+    },
+    "walk2": {
+     "file": "assets/stray_dog_walk2.png",
+     "w": 6,
+     "h": 28,
+     "count": 12
+    },
+    "attack": {
+     "file": "assets/stray_dog_attack.png",
+     "w": 6,
+     "h": 28,
+     "count": 12
+    }
+   },
+   "anchor": [
+    3,
+    14
+   ],
+   "shadow": [
+    3,
+    3
+   ]
+  },
+  "swamp": {
+   "kind": "tile",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/swamp.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  },
+  "swordsman": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/swordsman_idle.png",
+     "w": 14,
+     "h": 28,
+     "count": 24
+    },
+    "walk1": {
+     "file": "assets/swordsman_walk1.png",
+     "w": 14,
+     "h": 28,
+     "count": 24
+    },
+    "walk2": {
+     "file": "assets/swordsman_walk2.png",
+     "w": 14,
+     "h": 28,
+     "count": 24
+    },
+    "attack": {
+     "file": "assets/swordsman_attack.png",
+     "w": 14,
+     "h": 28,
+     "count": 24
+    },
+    "cast": {
+     "file": "assets/swordsman_cast.png",
+     "w": 14,
+     "h": 28,
+     "count": 24
+    }
+   },
+   "anchor": [
+    7,
+    14
+   ],
+   "shadow": [
+    6,
+    6
+   ]
+  },
+  "torch": {
+   "kind": "prop",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/torch_idle.png",
+     "w": 4,
+     "h": 4,
+     "count": 18
+    }
+   },
+   "anchor": [
+    2,
+    2
+   ],
+   "shadow": [
+    2,
+    2
+   ]
+  },
+  "tree_dead": {
+   "kind": "prop",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tree_dead_idle.png",
+     "w": 22,
+     "h": 16,
+     "count": 27
+    }
+   },
+   "anchor": [
+    11,
+    8
+   ],
+   "shadow": [
+    10,
+    6
+   ]
+  },
+  "tree_oak": {
+   "kind": "prop",
+   "footprint": [
+    2,
+    2
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tree_oak_idle.png",
+     "w": 24,
+     "h": 24,
+     "count": 36
+    }
+   },
+   "anchor": [
+    12,
+    12
+   ],
+   "shadow": [
+    12,
+    12
+   ]
+  },
+  "tree_pine": {
+   "kind": "prop",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tree_pine_idle.png",
+     "w": 18,
+     "h": 18,
+     "count": 38
+    }
+   },
+   "anchor": [
+    9,
+    9
+   ],
+   "shadow": [
+    9,
+    9
+   ]
+  },
+  "venom_toad": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/venom_toad_idle.png",
+     "w": 14,
+     "h": 22,
+     "count": 11
+    },
+    "walk1": {
+     "file": "assets/venom_toad_walk1.png",
+     "w": 14,
+     "h": 22,
+     "count": 11
+    },
+    "walk2": {
+     "file": "assets/venom_toad_walk2.png",
+     "w": 14,
+     "h": 22,
+     "count": 11
+    },
+    "attack": {
+     "file": "assets/venom_toad_attack.png",
+     "w": 14,
+     "h": 22,
+     "count": 11
+    }
+   },
+   "anchor": [
+    7,
+    11
+   ],
+   "shadow": [
+    5,
+    5
+   ]
+  },
+  "wall_dungeon": {
+   "kind": "prop",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/wall_dungeon_idle.png",
+     "w": 16,
+     "h": 16,
+     "count": 26
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ],
+   "shadow": [
+    8,
+    8
+   ]
+  },
+  "wall_town": {
+   "kind": "prop",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/wall_town_idle.png",
+     "w": 16,
+     "h": 16,
+     "count": 22
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ],
+   "shadow": [
+    8,
+    8
+   ]
+  },
+  "warp_pad": {
+   "kind": "prop",
+   "footprint": [
+    2,
+    2
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/warp_pad_idle.png",
+     "w": 24,
+     "h": 24,
+     "count": 7
+    }
+   },
+   "anchor": [
+    12,
+    12
+   ],
+   "shadow": [
+    12,
+    12
+   ]
+  },
+  "warrior": {
+   "kind": "actor",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/warrior_idle.png",
+     "w": 18,
+     "h": 28,
+     "count": 20
+    },
+    "walk1": {
+     "file": "assets/warrior_walk1.png",
+     "w": 18,
+     "h": 28,
+     "count": 20
+    },
+    "walk2": {
+     "file": "assets/warrior_walk2.png",
+     "w": 18,
+     "h": 28,
+     "count": 20
+    },
+    "attack": {
+     "file": "assets/warrior_attack.png",
+     "w": 18,
+     "h": 28,
+     "count": 20
+    },
+    "cast": {
+     "file": "assets/warrior_cast.png",
+     "w": 18,
+     "h": 28,
+     "count": 20
+    }
+   },
+   "anchor": [
+    9,
+    14
+   ],
+   "shadow": [
+    4,
+    4
+   ]
+  },
+  "water": {
+   "kind": "tile",
+   "footprint": [
+    1,
+    1
+   ],
+   "poses": {
+    "idle": {
+     "file": "assets/tiles/water.png",
+     "w": 16,
+     "h": 16,
+     "count": 1
+    }
+   },
+   "anchor": [
+    8,
+    8
+   ]
+  }
+ }
+}

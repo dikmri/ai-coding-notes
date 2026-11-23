@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>第 10 章 Linux の窓（Wayland） ― kargui 開発レポート ― AI コーディングノート</title>
-<meta name="description" content="0.2 の後の 6 つ目として、kargui が Linux（Wayland）で窓を開けるようにしました。検証用の Linux の PC と AI が画面を操作する道具、境目のファイルを 1 つ足すだけで窓を開く作り、作者の手の確かめの記録から見つけたタッチパッドの取りこぼしを紹介します。後半では、続けて足した OS のクリップボードと日本語入力を書きます。">
+<title>第 10 章 Linux の窓（Wayland と X11） ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="0.2 の後の 6 つ目として、kargui が Linux（Wayland）で窓を開けるようにしました。検証用の Linux の PC と AI が画面を操作する道具、境目のファイルを 1 つ足すだけで窓を開く作り、作者の手の確かめの記録から見つけたタッチパッドの取りこぼしを紹介します。後半では、続けて足した OS のクリップボード、日本語入力、読み上げ・ファイルのダイアログ・明暗の設定、複数の窓とほかのアプリから引っ張ってきたファイル、GNOME の題の帯、X11 の窓を書きます。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="../../css/site.css">
 <link rel="stylesheet" href="dev.css">
@@ -29,8 +29,8 @@
 <main id="main" class="dev">
 <article>
   <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 10 章</p>
-  <h1>Linux の窓（Wayland）</h1>
-  <p class="lede">0.2 の後の 6 つ目として、kargui が Linux で窓を開けるようにしました。今まで Linux では試験だけを走らせていて、<code>kargui::run</code> を呼ぶと「この OS では窓を開けない」というエラーを返していました。この章では、確かめるために用意した Linux の PC と、AI が画面を操作する道具を紹介します。続けて、OS の境目のファイルを 1 つ足すだけで窓を開く作りと、作者の手の確かめの記録から見つけた不具合を書きます。章の後半には、続けて足した OS のクリップボード（2 つ目の区切り）と日本語入力（3 つ目の区切り）を書きます。</p>
+  <h1>Linux の窓（Wayland と X11）</h1>
+  <p class="lede">0.2 の後の 6 つ目として、kargui が Linux で窓を開けるようにしました。今まで Linux では試験だけを走らせていて、<code>kargui::run</code> を呼ぶと「この OS では窓を開けない」というエラーを返していました。この章では、確かめるために用意した Linux の PC と、AI が画面を操作する道具を紹介します。続けて、OS の境目のファイルを 1 つ足すだけで窓を開く作りと、作者の手の確かめの記録から見つけた不具合を書きます。章の後半には、続けて足した OS のクリップボード（2 つ目の区切り）、日本語入力（3 つ目の区切り）、読み上げ・ファイルのダイアログ・OS の明暗の設定・複数の窓・引っ張ってきたファイル（4 つ目の区切り）、GNOME の題の帯（5 つ目の区切りの前半）、X11 の窓（後半）を書きます。</p>
 
   <section class="learn" aria-labelledby="h-learn">
     <h2 id="h-learn">この章で分かること</h2>
@@ -42,6 +42,11 @@
       <li>Hyprland の押し続けと、浮かせた窓の大きさの決まり</li>
       <li>2 つ目の区切りで足した OS のクリップボードと、自分の物を貼る時に合成を通さない理由</li>
       <li>3 つ目の区切りの日本語入力と、文節を 3 つにしか分けられない理由、作業場を移ると変換中の文字が消えた不具合</li>
+      <li>4 つ目の区切りの読み上げで、入力欄の中身を文字の並びにして渡す理由と、Hyprland では打った字が読まれない理由</li>
+      <li>ファイルのダイアログと OS の明暗の設定を、窓の処理を止めずにポータルへ頼む方法</li>
+      <li>2 つ目からの窓のために、窓ごとの物と座席の物を分けた作り直しと、引っ張ってきたファイルの受け取り方</li>
+      <li>GNOME では題の帯をアプリが描く理由と、帯の操作を合成に頼む作り、画面を撮って見つけた 2 つの問題</li>
+      <li>X11 の窓で、キー配列をサーバーから読む理由と、日本語入力を IME の D-Bus で受ける作り</li>
     </ul>
   </section>
 
@@ -112,8 +117,8 @@
 <figure class="bars" id="c-deps">
     <figcaption><span class="bars-title">Wayland の窓に要る依存の数</span><span class="bars-hint">少ないほど軽い。Linux で cargo tree で数えた</span></figcaption>
     <div class="bar-rows">
-      <div class="bar-row" data-v="old"><span class="bar-name">smithay-client-toolkit を使う形</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">57 個（開発用の部品が要る）</span></span></div>
-      <div class="bar-row" data-v="new"><span class="bar-name">今回の形（低い層を直接）</span><span class="bar-track"><span class="bar" style="--w: 56.1%"></span><span class="bar-val">32 個（kargui に増えたのは 13 個）</span></span></div>
+      <div class="bar-row" data-v="old"><span class="bar-name">smithay-client-toolkit を使う形</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">57 個</span></span></div>
+      <div class="bar-row" data-v="new"><span class="bar-name">今回の形（低い層を直接）</span><span class="bar-track"><span class="bar" style="--w: 56.1%"></span><span class="bar-val">32 個</span></span></div>
     </div>
   </figure>
 <!-- /gen:deps -->
@@ -215,8 +220,215 @@
     <p>決まりでは、text-input の焦点はキーボードの焦点に従います。Hyprland 0.55 では、作業場を移る時にキーボードの知らせだけが届きました。片方の知らせだけに頼ると、合成ごとの違いで打った文字が失われます。kargui は、キーボードと text-input のどちらが「離れた」と知らせても確定するので、どちらの合成でも文字が残ります。</p>
   </div>
 
+  <h2 id="a11y">4 つ目の区切り: 読み上げ・ファイルのダイアログ・明暗の設定</h2>
+  <p>4 つ目の区切りでは、D-Bus（Linux のアプリどうしが話す仕組み）を使う 3 つを足しました。読み上げは AT-SPI という決まりで読み上げソフト（Orca）と話し、ファイルのダイアログと OS の明暗の設定は xdg-desktop-portal（デスクトップの機能をアプリに貸す係）に頼みます。D-Bus の部品は、読み上げの橋渡し（accesskit_unix）が使う zbus を、ポータルにもそのまま使います。そのぶん依存は増え、Linux では 71 個が足されました。</p>
+
+  <h3>読み上げ: 頼みは別のスレッドから来る</h3>
+  <p>読み上げの木は、Windows と同じ物を毎フレーム渡し、前との違いは AccessKit が見つけます。Linux の版で違うのは、読み上げソフトからの頼み（「木をください」「このボタンを押して」）が、窓の処理とは別のスレッドから届く点です。画面の状態は窓の処理のスレッドにあるので、頼みを受けた係はその場で木を作りません。操作は列に積み、eventfd に書いて窓の処理を起こし、起きた後のフレームで木を渡します。</p>
+  <p>AI が確かめた時の、Orca の読み上げの記録（音は消し、Orca が話す文を記録に出させた）から抜き出します。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-orca">
+    <table>
+      <caption id="t-orca">設定の見本で、Orca が読んだ言葉</caption>
+      <thead><tr><th scope="col">した操作</th><th scope="col">Orca が読んだ言葉</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Orca を起動する</th><td data-label="Orca が読んだ言葉">設定（kargui）、ダーク not selected ラジオボタン</td></tr>
+        <tr><th scope="row">Tab で次の部品へ</th><td data-label="Orca が読んだ言葉">システム selected ラジオボタン</td></tr>
+        <tr><th scope="row">Tab でスライダーへ</th><td data-label="Orca が読んだ言葉">文字の大きさ スライダー 14 28 percent.</td></tr>
+        <tr><th scope="row">Tab で切り替えへ</th><td data-label="Orca が読んだ言葉">自動で保存する トグルボタン pressed</td></tr>
+        <tr><th scope="row">スライダーで →</th><td data-label="Orca が読んだ言葉">6</td></tr>
+        <tr><th scope="row">チェックボックスで Space を 2 回</th><td data-label="Orca が読んだ言葉">not checked、checked</td></tr>
+        <tr><th scope="row">名前の欄に焦点を移す</th><td data-label="Orca が読んだ言葉">表示する名前 エントリ</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>入力欄の中身は、文字の並びにしないと読めない</h3>
+  <p>最初に Orca で確かめると、名前の欄に焦点を移した時は「表示する名前 エントリ」と読むのに、打った中身はまったく読みませんでした。AccessKit の作りを読むと、入力欄に AT-SPI の「文字を読む窓口」（Text）を付けるのは、入力欄が文字の並び（TextRun という子の部品）を持つ時だけでした。kargui の入力欄は、中身を値（value）として渡すだけでした。Windows の読み上げ（UI Automation）は値を読む窓口で中身を読むので、今まで困っていなかったのです。</p>
+  <p>そこで、入力欄の中身を行ごとの文字の並びに分け、キャレットと選んだ範囲と一緒に渡すようにしました。1 字は書記素（結合文字や絵文字の並びを 1 つとする単位）で数え、単語の始まりは Ctrl+→ が止まる所と同じにしました。AccessKit は字の番号を 0〜255 で持つので、長い行は 255 字ごとに分けます。この木は両方の OS で共通なので、Windows でも入力欄に文字を読む窓口（TextPattern）が増え、今までの値の窓口も残ります。パスワードの欄は、今までどおり何も出しません。</p>
+
+  <h3>Hyprland では、打った字が読まれない</h3>
+  <p>文字の並びを渡すと、Orca は欄の中身を読めるようになりました。ただし、打った字とキャレットの移動は、まだ読みませんでした。Orca の記録を見ると、kargui の知らせ（字が入った・キャレットが動いた）は届いていて、Orca が「変わった理由が分からない」として捨てていました。Orca は、利用者がどのキーを押したかを見て、読むかどうかを決めます。Hyprland には、合成がキーを Orca に渡す新しい仕組み（GNOME の Mutter にある物）がありません。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-echo">
+    <table>
+      <caption id="t-echo">Hyprland の上で、入力欄に「ab cd」と打って ← を押した時</caption>
+      <thead><tr><th scope="col">入力欄</th><th scope="col">打った字</th><th scope="col">キャレットの移動</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">kargui</th><td data-label="打った字">読まない（知らせは届くが捨てる）</td><td data-label="キャレットの移動">読まない</td></tr>
+        <tr><th scope="row">GTK 3</th><td data-label="打った字">a、b、space、c、d と読む</td><td data-label="キャレットの移動">読まない</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>GTK 3 の入力欄で読まれるのは、GTK 3 が自分の受けたキーを AT-SPI の登録所へ送り直しているからです。これは古い道で、AccessKit は使っていません。新しい GNOME では合成がキーを Orca に渡すので、kargui でも読まれる見込みです。区切り 5 の GNOME の確かめで改めて見ます。</p>
+
+  <h3>ファイルのダイアログと明暗の設定</h3>
+  <p>ファイルのダイアログは、ポータルの FileChooser に「開く」か「保存する」を頼み、利用者が選び終えるのを別のスレッドで待ちます。窓の処理は止まらないので、ダイアログの間も窓は描き直せます。答えは <code>file:///tmp/%E6%9D%B1%E4%BA%AC.md</code> のような URI で届くので、<code>%XX</code> を元のバイトに戻して場所にします。Windows の「*.*」は全部のファイルに合いますが、GTK では点の無い名前に合わないので、拡張子「*」は「*」として渡します。</p>
+  <p>作者の手の確かめで、メモ帳で開いたファイルを「名前を付けて保存」すると、ファイルがホームに保存されていました。kargui はアプリがフォルダを決めていない時に何も渡さず、GTK のダイアログはその時ホームから始まるためです。Windows のダイアログは、アプリが最後に使ったフォルダから始まります。そこで、最後に選んだファイルのフォルダを覚えて渡すようにしました（Windows と違い、次の起動では覚えていません）。</p>
+  <!-- gen:portal -->
+<figure class="shot flat"><picture><img src="img/linux/portal-save-light.webp" alt="GTK の名前を付けて保存のダイアログ。名前の欄に tokyo memo.txt、場所は tmp の kargui-dialog で、saved copy.txt と tokyo memo.txt が並び、右下の種類はテキスト" width="900" height="576" loading="lazy" decoding="async"></picture><figcaption>メモ帳の見本で /tmp/kargui-dialog のファイルを開いた後の「名前を付けて保存」。ポータルのダイアログが、開いたファイルのフォルダから始まる（名前と種類は、メモ帳が頼んだ物）。</figcaption></figure>
+  <figure class="shot flat"><picture><img src="img/linux/os-dark-light.webp" alt="暗い表示の設定の見本。テーマはシステムが選ばれ、名前・メール・書体・文字の大きさなどが並ぶ" width="1200" height="645" loading="lazy" decoding="async"></picture><figcaption>OS を暗い方の設定（color-scheme が prefer-dark）にして開いた設定の見本。テーマの「システム」は、ポータルから読んだ OS の設定に従う。</figcaption></figure>
+<!-- /gen:portal -->
+  <p>明暗の設定は、窓を作る前に別のスレッドでポータルに聞き始め、最初の絵の前に答えを待ちます（待つのは 150 ms まで）。検証機では 3 ms ほどで答えが届き、窓を出すまでの時間（設定の見本で 49〜53 ms）は変わりませんでした。Windows と同じく、起動の後で OS の設定が変わっても追いません。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 確かめの道具が、合成を落とすこともある</span>
+    <p>確かめの途中で、Hyprland が 4 回落ちて起動し直しました。AI が仮のキーボード（wtype）でキーを送った直後に窓を押すと落ち、kargui の窓でも GTK の窓でも同じでした。キーを本物のキーボードと同じ道（ydotool）で送ると落ちません。kargui の不具合に見えても、同じ手順をほかのアプリで試すと、原因が確かめの道具の側にあると分かることがあります。</p>
+  </div>
+
+  <h2 id="windows">4 つ目の区切りの後半: 複数の窓と、引っ張ってきたファイル</h2>
+  <p>4 つ目の区切りは、D-Bus を使う 3 つと、それ以外の 2 つ（2 つ目からの窓、ほかのアプリから引っ張ってきたファイル）に分けて進めました。後半の 2 つも、作者の手の確かめの記録に異常はありませんでした。</p>
+
+  <h3>窓ごとの物と、座席の物を分けた</h3>
+  <p>最初の区切りの <code>wayland.rs</code> は、窓が 1 つの前提で、窓の面も倍率も絵も、マウスやキーボードの状態と一緒に 1 つの入れ物に入れていました。2 つ目からの窓を開けるように、これを 2 つに分けました。</p>
+  <ul>
+    <li><strong>窓ごとの物</strong>: 面・xdg の窓・倍率・絵の板・Runtime（その窓の部品の木）・読み上げの橋渡し・届いた入力の列。</li>
+    <li><strong>座席の物</strong>: アプリ・マウス・キーボード・日本語入力・クリップボード・引っ張り・ファイルのダイアログ。どれも、座席（マウスとキーボードのひとそろい）に 1 つずつしか無いからです。</li>
+  </ul>
+  <p>合成からの知らせのうち、面・xdg の窓・倍率・フレームの物には、作る時に窓の番号を添えておき、どの窓の物かを見分けます。マウス・キーボード・日本語入力・引っ張りの知らせは、入ってきた時（enter）の面で、今どの窓にいるかを決めます。窓の開け閉めは Windows と同じく、主の窓のフレームの後に、アプリが頼んだ窓と開いている窓をそろえます。ある窓に入力があれば、アプリを分け合っているので、ほかの窓も 1 回描き直します。</p>
+  <!-- gen:second -->
+<figure class="shot flat"><picture><img src="img/linux/second-window-light.webp" alt="ファイルの閲覧の見本の上に、AGENTS.md のプロパティの窓が重なっている。名前・大きさ・更新日・場所と、閉じるボタンが並ぶ" width="800" height="510" loading="lazy" decoding="async"></picture><figcaption>ファイルの閲覧の見本で、ファイルの行を右クリックして「プロパティ」を選んだ所。2 つ目の窓が主の窓の上に開く（作業場 9 の、窓を浮かせる規則の上）。</figcaption></figure>
+<!-- /gen:second -->
+  <p>Wayland では、アプリは窓の置き場所を決められず、前面に出すかどうかも合成が決めます。そのため、<code>Ui::window</code> に渡した置き場所と「前面に出す」は、Linux では使いません。作者が試した敷き詰めの作業場では、2 つ目の窓は主の窓の隣に半分の幅で並びました。</p>
+
+  <h3>引っ張ってきたファイルは、入った時に受け取る</h3>
+  <p>Windows は、ファイルが窓に入った時点で、ファイルの場所の一覧を渡してくれます。Wayland では、アプリが自分で「一覧をください」と頼み、口（pipe）から受け取ります。kargui の共通の部分は入った時に一覧を受け取る作りなので、Linux でも入った時（enter）に受け取り、Windows と同じ入力に直しました。検証機では、受け取りに 2〜11 ms かかりました。受け取りの部分は、クリップボードの貼り付けと同じ関数を使っています。</p>
+  <p>動かしている間は、下の部品がファイルを受け取れるかを、前のフレームの配置でその場で合成に答えます。合成はその答えで、落とせる所か落とせない所かをポインターの形で見せます。作者の 2 回目の試しでは、本文の欄とメニューの帯を行き来するたびに答えが切り替わり、メニューの帯で離すと何も開きませんでした。</p>
+  <!-- gen:drop -->
+<figure class="shot flat"><picture><img src="img/linux/drop-files-light.webp" alt="左に GTK の窓（ここからファイルを引っ張る、の文字）、右に kargui のメモ帳。メモ帳の本文の欄が青い枠で囲まれている" width="1200" height="645" loading="lazy" decoding="async"></picture><figcaption>左の GTK の窓からファイルを引っ張って、右のメモ帳の上へ動かしている所。受け取れる本文の欄を、主の色の枠で囲む（Windows と同じ見せ方）。</figcaption></figure>
+<!-- /gen:drop -->
+  <div class="insight">
+    <span class="box-title">分かったこと: 作り直した後は、前の区切りの機能も一通り試す</span>
+    <p>窓を分ける作り直しで、日本語入力・読み上げ・ダイアログ・引っ張りの知らせの行き先が、すべて変わりました。作り直した後に、AI の操作でこれらを一通り試し直しました。どれも動いたので、作者の手の確かめは新しい 2 つだけに絞れました。</p>
+  </div>
+
+  <h2 id="title-bar">5 つ目の区切りの前半: GNOME の題の帯</h2>
+  <p>5 つ目の区切りは、GNOME の題の帯と X11 の 2 つに分けて進めます。前半の題の帯は、作者の手の確かめの記録に異常がなく、GitHub へ送りました。</p>
+
+  <h3>GNOME では、題の帯をアプリが描く</h3>
+  <p>Wayland では、窓の題の帯（題と、閉じる・最大化などのボタン）を誰が描くかが、合成によって違います。合成は xdg-decoration という仕組みで、「題の帯は合成が描く」とアプリに伝えます。GNOME の合成（Mutter）はこの仕組みを持たないので、アプリが自分で描きます。GTK のアプリは、もともと自分で描いています。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-deco">
+    <table>
+      <caption id="t-deco">合成ごとの題の帯</caption>
+      <thead><tr><th scope="col">合成</th><th scope="col">xdg-decoration</th><th scope="col">題の帯を描くのは</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Hyprland</th><td data-label="xdg-decoration">ある（合成が受け持つと答える）</td><td data-label="題の帯を描くのは">誰も描かない（窓を敷き詰める作り）</td></tr>
+        <tr><th scope="row">KDE Plasma</th><td data-label="xdg-decoration">ある</td><td data-label="題の帯を描くのは">合成</td></tr>
+        <tr><th scope="row">GNOME</th><td data-label="xdg-decoration">無い</td><td data-label="題の帯を描くのは">アプリ</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>kargui は、合成が xdg-decoration を持たない時と、持っていてもアプリに描かせると答えた時に、題の帯を描きます。Hyprland では今までどおり合成に任せ、帯を描かないことも確かめました。</p>
+
+  <h3>GNOME の上でも、AI が画面を撮って押す</h3>
+  <p>検証機に GNOME を 2 つ目のログイン先として入れ、命令 1 つで Hyprland と切り替えられるようにしました。GNOME は、ほかのアプリが画面を撮ることを、利用者の許可なしには認めません。そこで、撮影の窓口（ポータルの Screenshot）の許可の記録に検証機の道具を登録し、確認の画面なしで撮れるようにしました。押す・打つ操作は、本物のマウスとキーボードと同じ道（ydotool）で送ります。位置を指定して動かすと、ポインターがいったん画面の左上の角を通ります。そのため GNOME の中だけ、左上の角で概観が開く動きを切り、マウスの加速も切りました。</p>
+
+  <h3>帯は、部品の木の一番上に足す</h3>
+  <p>題の帯は、kargui のほかの部品と同じ木の中に作りました。根の下に帯と本文を置き、アプリのビューは本文の中で作ります。アプリのコードは変えずに済み、帯のボタンには Tab で移れ、読み上げの木にも「題の帯」として出ます。アプリが頼んだ窓の大きさは、Windows と同じく中身の大きさとして扱い、帯の高さの 40 を足して窓を作ります。</p>
+  <p>題は窓の真ん中に置きます。左右のボタンを同じ幅の入れ物に入れ、その間に題を置きました。ボタンの並びは GNOME の設定（button-layout）に従います。既定は閉じるボタンだけで、設定を変えると最小化と最大化も出ます。この設定は、明暗の設定と同じく、起動の時にポータルから読みます。</p>
+  <!-- gen:csd -->
+<figure class="shot flat"><picture><img src="img/linux/gnome-title-bar-light.webp" alt="GNOME の上のファイルの閲覧の見本。一番上の帯の真ん中に題、右端に最小化・最大化・閉じるのボタンが並び、窓の縁に細い線がある" width="840" height="580" loading="lazy" decoding="async"></picture><figcaption>GNOME で開いたファイルの閲覧の見本。題の帯は kargui が描いている（ボタンの並びは、GNOME の設定を最小化・最大化・閉じるの 3 つにした時の物）。</figcaption></figure>
+  <figure class="shot flat"><picture><img src="img/linux/gnome-second-window-light.webp" alt="暗い表示のファイルの閲覧の見本の上に、LICENSE のプロパティの窓が重なっている。どちらの窓にも題の帯があり、プロパティの窓の縁に細い線がある" width="840" height="580" loading="lazy" decoding="async"></picture><figcaption>暗い表示で、プロパティの窓を開いた所。2 つ目の窓にも題の帯を描く。前面に無い主の窓は、題を薄くする。縁の線は、重なった窓の境を見せるために引いた。</figcaption></figure>
+<!-- /gen:csd -->
+
+  <h3>帯の操作は、合成に頼む</h3>
+  <p>Wayland では、アプリは画面の上の窓の位置を知らず、自分で窓を動かせません。帯の操作では、何をしたいかを合成に頼み、その先は合成が行います。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-csd-ops">
+    <table>
+      <caption id="t-csd-ops">題の帯の操作と、kargui が合成に頼む事</caption>
+      <thead><tr><th scope="col">操作</th><th scope="col">合成に頼む事</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">帯の何も無い所を押して動かす</th><td data-label="合成に頼む事">窓を動かす（押した時の番号を添える。離すまで合成が動かす）</td></tr>
+        <tr><th scope="row">帯を 2 回押す・□ のボタン</th><td data-label="合成に頼む事">最大化と元に戻すを切り替える</td></tr>
+        <tr><th scope="row">ー のボタン</th><td data-label="合成に頼む事">最小化する</td></tr>
+        <tr><th scope="row">× のボタン</th><td data-label="合成に頼む事">頼まない（合成の閉じるボタンと同じ扱いで、主の窓はアプリに聞く）</td></tr>
+        <tr><th scope="row">帯を右クリック</th><td data-label="合成に頼む事">GNOME の窓のメニューを出す</td></tr>
+        <tr><th scope="row">窓の縁と角を押して動かす</th><td data-label="合成に頼む事">大きさを変える（ポインターの形も変える）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <!-- gen:menu -->
+<figure class="shot flat"><picture><img src="img/linux/gnome-window-menu-light.webp" alt="最大化したメモ帳の題の帯の下に、スクリーンショットを撮る・隠す・元に戻す・移動などが並んだ暗いメニューが開いている" width="800" height="388" loading="lazy" decoding="async"></picture><figcaption>題の帯を右クリックすると、GNOME の窓のメニューが押した位置に出る（メニューは GNOME が描く）。最大化しているので「元に戻す」がある。</figcaption></figure>
+<!-- /gen:menu -->
+
+  <h3>見つけて直した 3 つ</h3>
+  <ol>
+    <li><strong>帯を押して動かしても、移動が届かなかった。</strong>kargui の窓の処理は、部品を押している間だけ、ポインターの移動を部品の木に渡していました。帯の何も無い所は部品ではないので、移動が届きません。作る途中にコードを読んで気づき、帯を押している間も渡すようにしました。</li>
+    <li><strong>重なった窓の境が見えなかった。</strong>GNOME は、アプリが帯を描く窓に影も縁も付けません。AI が暗い表示でプロパティの窓を開くと、主の窓との境目が分かりませんでした。浮いている窓には、縁に 1 画素の線を引くことにしました。最大化した窓と敷き詰めた窓には引きません。</li>
+    <li><strong>ダイアログを出すと、帯が押せなかった。</strong>窓の中のダイアログは、後ろを暗くして押せなくします。AI がメモ帳で試すと、この暗い覆いが帯まで覆っていて、閉じるボタンも窓の移動も効きませんでした。Windows では OS の題の帯は覆われないので、それにそろえ、暗くするのは帯の下だけにしました。ダイアログも、帯の下の真ん中に出します。</li>
+  </ol>
+  <!-- gen:dialog -->
+<figure class="shot flat"><picture><img src="img/linux/gnome-dialog-light.webp" alt="メモ帳の本文が暗くなり、真ん中にこのアプリについてのダイアログが出ている。一番上の題の帯は暗くならず、ボタンも見える" width="700" height="560" loading="lazy" decoding="async"></picture><figcaption>メモ帳で「このアプリについて」を出した所。暗くするのは帯の下だけにしたので、ダイアログを出したままでも帯で窓を動かし、閉じられる。</figcaption></figure>
+<!-- /gen:dialog -->
+
+  <h3>GNOME では、打った字が読まれる</h3>
+  <p>4 つ目の区切りでは、Hyprland の上で Orca が打った字を読みませんでした。GNOME の上で同じ手順を試すと、Orca は kargui で打った字とキャレットの移動を読みました。GNOME では合成がキーを Orca に渡すので、Orca は中身が変わった理由を知ることができます。kargui の側は何も変えていません。</p>
+
+  <h3>作者の手の確かめ</h3>
+  <p>作者には、GNOME の設定でボタンを 3 つにした状態で、ファイルの閲覧とメモ帳の見本を操作してもらいました。記録には、窓の移動 4 回、最大化の切り替え 4 回（2 回押しと □ で 2 回ずつ）、最小化とそこからの戻り、窓のメニュー、左の縁と左下の角での大きさの変更、プロパティの窓を閉じる、閉じる時の保存の確かめが残っていました。異常は無く、1 回で終わりました。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 画面を見ないと気づけない問題がある</span>
+    <p>縁の線とダイアログの覆いの 2 つは、試験がすべて通った後に、AI が GNOME の画面を撮って見つけました。どちらも、部品の並びや入力の扱いではなく、見え方と重なり方の問題です。GNOME の上で AI が撮って押せる場を先に作ったので、作者に渡す前に直せました。</p>
+  </div>
+
+  <h2 id="x11">5 つ目の区切りの後半: X11 の窓</h2>
+  <p>Linux の画面の仕組みには、新しい Wayland と、長く使われてきた X11 があります。Wayland の合成の上でも、古いアプリは XWayland（Wayland の上で動く X サーバー）を通して X11 の窓を開きます。X11 だけの画面（古い配布物や、リモートで使う画面）もまだあります。そこで kargui も X11 の窓を開けるようにしました。作者の手の確かめの記録に異常はなく、GitHub へ送りました。</p>
+
+  <h3>どちらを使うかは、合成の口で決める</h3>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-backend">
+    <table>
+      <caption id="t-backend">kargui が窓を開く仕組みの決め方（上から順に見る）</caption>
+      <thead><tr><th scope="col">条件</th><th scope="col">使う物</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">KARGUI_BACKEND が x11 か wayland</th><td data-label="使う物">その仕組み（確かめる時に使う）</td></tr>
+        <tr><th scope="row">Wayland の合成の口（WAYLAND_DISPLAY のファイル）がある</th><td data-label="使う物">Wayland</td></tr>
+        <tr><th scope="row">DISPLAY がある</th><td data-label="使う物">X11</td></tr>
+        <tr><th scope="row">どちらも無い</th><td data-label="使う物">Wayland（つなげない理由をエラーで返す）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>名前だけでなく口のファイルがあるかを見るのは、SSH の先などで WAYLAND_DISPLAY の名前だけが残っていることがあるからです。X11 の窓の処理は <code>x11.rs</code> にまとめ、キー配列・読み上げの係・ポータルのスレッドなど Wayland と分け合う物は <code>linux.rs</code> に移しました。X サーバーとは x11rb で話し、libxcb は動く時に読みます。Wayland と同じく、組み立てに開発用の部品は要りません。増えた依存は 5 個です。</p>
+
+  <h3>キー配列は、名前からではなくサーバーから読む</h3>
+  <p>X11 のアプリがキー配列を作る方法は 2 つあります。ルート窓に書かれた配列の名前（「jp」など）から作る方法と、X サーバーが持つ配列そのものを読む方法です。XWayland のキー配列は Wayland の合成から渡されるので、名前と中身が合わないことがあります。kargui は libxkbcommon-x11 でサーバーの配列をそのまま読み、修飾キーの状態は XKB の知らせ（StateNotify）で受け取ります。押し続けはサーバーが繰り返しますが、そのままだと「離した」と「押した」の知らせが交互に届くので、離した知らせを挟まない設定（DetectableAutoRepeat）にしました。</p>
+
+  <h3>絵は共有メモリで出し、読み終わりを待つ</h3>
+  <p>絵は Wayland と同じ CPU の描き方で作り、MIT-SHM（X サーバーと分け合うメモリ）に写して、変わった所だけを窓に出します。X サーバーが読み終える前に次の絵を写すと、描きかけの絵が見えることがあります。そこで、サーバーの「読み終えた」の知らせ（ShmCompletion）が来るまで、次の絵を写しません。MIT-SHM が無い時は、絵を X の接続で送ります（PutImage）。倍率は X のリソースの Xft.dpi から決め、144 なら 1.5 倍で描くことを確かめました。</p>
+
+  <h3>日本語入力は、IME の D-Bus に直接頼む</h3>
+  <p>X11 で日本語入力をつなぐ方法には、X11 の仕組みの XIM と、IME（fcitx5 や IBus）が持つ D-Bus の窓口があります。次の表の軸で比べて、D-Bus を選びました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-xim">
+    <table>
+      <caption id="t-xim">X11 の日本語入力のつなぎ方</caption>
+      <thead><tr><th scope="col">軸</th><th scope="col">XIM</th><th scope="col">IME の D-Bus</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">増える依存</th><td data-label="XIM">10 個ほど（組み立ての時のコードを作る道具も）</td><td data-label="IME の D-Bus">0 個（読み上げとポータルの zbus を使う）</td></tr>
+        <tr><th scope="row">対応する IME</th><td data-label="XIM">1 つの作りで fcitx5 も IBus も</td><td data-label="IME の D-Bus">IME ごとに作る（今は fcitx5）</td></tr>
+        <tr><th scope="row">使っている部品</th><td data-label="XIM">winit など</td><td data-label="IME の D-Bus">GTK・Qt・SDL</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>D-Bus の道では、キーをまず IME に渡し（ProcessKeyEvent）、IME が使わなかったキーだけをアプリに渡します。D-Bus の答えを待つ間も窓の処理を止めないように、頼みは 1 本のスレッドが順に送り、変換中の文字や確定の文字の知らせは別のスレッドが受けます。答えを待っているキーは順に並べておき、答えが来た順にアプリへ渡すので、速く打ってもキーの順番は入れ替わりません。変換中の文字は書式付きの区切りで届くので、強調の付いた区切りを今変換している文節にしました。</p>
+  <!-- gen:x11ime -->
+<figure class="shot flat"><picture><img src="img/linux/x11-ime-light.webp" alt="X11 のメモ帳の本文に、太い下線の TOKYO があり、その真下に 1. 東京、2. TOKYO［アルファベット］などが並ぶ候補の窓が開いている" width="900" height="552" loading="lazy" decoding="async"></picture><figcaption>X11 の窓（Hyprland の XWayland）で「とうきょう」を変換した所。fcitx5 の D-Bus から届いた変換中の文字を kargui が描き、文字を打つ位置を知らせたので、候補の窓が真下に出る。</figcaption></figure>
+<!-- /gen:x11ime -->
+  <p>変換中に入力欄の外を押した時は、Windows と同じく kargui が変換中の文字を確定し、IME には変換を捨てるように頼みます（Reset）。頼まないと、IME が同じ文字をもう一度確定して、文字が 2 回入ります。窓の焦点が離れた時は IME に任せ、IME が確定します。</p>
+
+  <h3>ダイアログと、落とされたファイル</h3>
+  <p>X11 では窓の番号を外に渡せるので、ファイルのダイアログをポータルに頼む時に親の窓（「x11:番号」）を渡すようにしました。ダイアログはメモ帳に結び付いて開きます。2 つ目の窓には、置く場所とアイコンも渡せます。ほかのアプリから落とされたファイルは XDND という決まりで受け取ります。最初に窓の上で動いた時にファイルの場所の一覧を受け取り（検証機で 2〜3 ms）、Wayland と同じ入力にしました。</p>
+  <!-- gen:x11dialog -->
+<figure class="shot flat"><picture><img src="img/linux/x11-dialog-light.webp" alt="X11 のメモ帳の上に、メモを開くの GTK のダイアログが重なっている。最近開いたファイルに tokyo memo.txt などが並ぶ" width="1200" height="645" loading="lazy" decoding="async"></picture><figcaption>X11 の窓から「開く」を選んだ所。ポータルに親の窓（x11:番号）を渡すので、ダイアログはメモ帳に結び付いて開く。</figcaption></figure>
+<!-- /gen:x11dialog -->
+
+  <h3>AI の操作が、XWayland に届かなかった</h3>
+  <p>AI の確かめでは、押したはずの所と違う所が押されたことになりました。調べると、確かめの道具はポインターを Hyprland の命令で動かしていて、XWayland にはその動きが届いていませんでした。そのため X11 の窓には、1 つ前の位置で押した知らせが届きます。押したボタンを離した知らせも、次にポインターが動くまで届きませんでした。道具の側で、動かした後に本物と同じ道で 1 画素動かして戻すようにすると、位置も離した知らせも届きました。本物のマウスでは起きないことです。</p>
+
+  <h3>作者の手の確かめ</h3>
+  <p>作者には Hyprland の XWayland の上で、メモ帳とファイルの閲覧の見本を X11 の窓として操作してもらいました。記録には、日本語の入力と変換と確定、変換中に欄の外を押した時の確定、英字・Shift・切り取りと写し、ファイルを落とす、プロパティの窓、ダイアログの取り消し、閉じる操作が残り、異常はありませんでした。ひとつ、作者の 1 回目の変換で「とうきょう」が「TOKYO」になりました。AI の確かめで「TOKYO」を選んで確定したので、IME が覚えていたためです。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 確かめの操作は、利用者の環境に跡を残す</span>
+    <p>IME は選ばれた候補を覚えるので、AI が確かめで選んだ候補が、作者の次の変換の 1 番目になりました。確かめのために変えた設定（ボタンの並びなど）は戻せますが、IME の学習のように、気づかないうちに残る跡もあります。確かめの手順は、利用者の環境に何を残すかまで考えて決める必要があります。</p>
+  </div>
+
   <h2 id="next">次の区切り</h2>
-  <p>次は、D-Bus を使う 3 つ（読み上げ・ファイルのダイアログ・OS の明暗の設定）です。その後に、2 つ目からの窓、GNOME の題の帯、X11 の順に足します。利用者の多い GNOME でも、窓ができたところで一度確かめます。中ボタンで貼る Linux のもう 1 つのクリップボード（選んだだけで写る仕組み）と、日本語入力の再変換も、後の候補です。</p>
+  <p>Linux の窓の計画は、ここで一通り終わりました。次は、狭い窓で表の列がずれる不具合を直し（名前の列が中身より狭くなると、名前の長い行だけ後ろの列が右へずれる。X11 とは関係ない）、IBus（Ubuntu の既定の IME）を足します。本物の Xorg の画面での確かめ、題の帯の影と丸い角、帯を 2 回押した時の動きを GNOME の設定に合わせること、中ボタンで貼る Linux のもう 1 つのクリップボード、日本語入力の再変換、OS の明暗が変わった時に追うこと、窓の題を後から変えることも、後の候補です。</p>
 
   <nav class="chapter-nav" aria-label="章の移動">
     <a href="09-rich-text.html">← 第 9 章 書式付きの文字</a>
