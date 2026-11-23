@@ -77,7 +77,7 @@ body { font-size: 0.9375rem; }
 <article>
   <p class="kicker">実験レポート ・ 2026 年 11 月 21 日</p>
   <h1>回せるドット絵のスキル <span class="nw">sprite-stacking</span> で、ゲームの絵を 54 種類作った</h1>
-  <p class="lede">X で、AI エージェントに「何でも回る 3D のドット絵にする」スキルが公開されました。上・横・前・後ろの 4 方向の絵から立体を割り出し、薄い板を重ねて描く手法です。このスキルを使って、作っている 1 人用のハクスラ『鐘なき王国』の絵を、人物・魔物・建物・床まで全部作りました。下の見本は、その絵をこのページの中で重ねて描いたものです。引きずると回ります。</p>
+  <p class="lede">X で、AI エージェントに「何でも回る 3D のドット絵にする」スキルが公開されました。上・横・前・後ろの 4 方向の絵から立体を割り出し、薄い板を重ねて描く手法です。このスキルを使って、1 人用のハクスラ<a href="../../kanenaki/">『鐘なき王国』</a>の絵を、人物・魔物・建物・床まで全部作りました。下の見本は、その絵をこのページの中で重ねて描いたものです。引きずると回ります。</p>
 
   <section id="spin" class="spin" aria-labelledby="spin-h">
     <h2 id="spin-h" class="visually-hidden">その場で回す見本</h2>
@@ -327,7 +327,7 @@ cp -r sprite-stacking/skills/sprite-stacking ~/.claude/skills/</code></pre>
   <ul>
     <li><a href="demo/stack.js">demo/stack.js</a>: 重ねて描く処理（このページの見本と同じ）。<a href="demo/demo.js">demo/demo.js</a> が見本の操作。</li>
     <li><a href="https://github.com/dikmri/ai-coding-notes/tree/main/reports/sprite-stacking/src">src/（GitHub）</a>: 作る係が書いた絵の台本（Python 10 本、3,112 行）。<code>vox.py</code> と <code>shapes.py</code> が立体の模型、<code>classes.py</code>・<code>monsters.py</code>・<code>npcs.py</code>・<code>props.py</code>・<code>tiles.py</code> が各絵、<code>build.py</code> が 4 方向の絵を描いてスキルの台本で切り分け、模型と比べて直す。台本の中の手元のフォルダの場所は、自分の環境に合わせて書き換えてください。</li>
-    <li>この絵を使う 1 人用のハクスラ『鐘なき王国』は、いま作っています。公開したら、ここにリンクを足します。</li>
+    <li><a href="../../kanenaki/">『鐘なき王国』</a>: この絵を使う 1 人用のハクスラです。ブラウザでそのまま遊べます。コードは <a href="https://github.com/dikmri/ai-coding-notes/tree/main/kanenaki">kanenaki/（GitHub）</a>、絵の台本はその中の <code>art/</code> です。</li>
   </ul>
 
   <p class="foot"><a href="../">実験レポートの一覧へ戻る</a> ・ <a href="../../">図鑑の表紙へ戻る</a></p>
