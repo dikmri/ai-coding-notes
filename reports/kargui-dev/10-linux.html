@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>第 10 章 Linux の窓（Wayland） ― kargui 開発レポート ― AI コーディングノート</title>
-<meta name="description" content="0.2 の後の 6 つ目として、kargui が Linux（Wayland）で窓を開けるようにしました。検証用の Linux の PC と AI が画面を操作する道具、境目のファイルを 1 つ足すだけで窓を開く作り、作者の手の確かめの記録から見つけたタッチパッドの取りこぼしを紹介します。後半では、続けて足した OS のクリップボードと日本語入力を書きます。">
+<meta name="description" content="0.2 の後の 6 つ目として、kargui が Linux（Wayland）で窓を開けるようにしました。検証用の Linux の PC と AI が画面を操作する道具、境目のファイルを 1 つ足すだけで窓を開く作り、作者の手の確かめの記録から見つけたタッチパッドの取りこぼしを紹介します。後半では、続けて足した OS のクリップボード、日本語入力、読み上げ・ファイルのダイアログ・明暗の設定を書きます。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="../../css/site.css">
 <link rel="stylesheet" href="dev.css">
@@ -30,7 +30,7 @@
 <article>
   <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 10 章</p>
   <h1>Linux の窓（Wayland）</h1>
-  <p class="lede">0.2 の後の 6 つ目として、kargui が Linux で窓を開けるようにしました。今まで Linux では試験だけを走らせていて、<code>kargui::run</code> を呼ぶと「この OS では窓を開けない」というエラーを返していました。この章では、確かめるために用意した Linux の PC と、AI が画面を操作する道具を紹介します。続けて、OS の境目のファイルを 1 つ足すだけで窓を開く作りと、作者の手の確かめの記録から見つけた不具合を書きます。章の後半には、続けて足した OS のクリップボード（2 つ目の区切り）と日本語入力（3 つ目の区切り）を書きます。</p>
+  <p class="lede">0.2 の後の 6 つ目として、kargui が Linux で窓を開けるようにしました。今まで Linux では試験だけを走らせていて、<code>kargui::run</code> を呼ぶと「この OS では窓を開けない」というエラーを返していました。この章では、確かめるために用意した Linux の PC と、AI が画面を操作する道具を紹介します。続けて、OS の境目のファイルを 1 つ足すだけで窓を開く作りと、作者の手の確かめの記録から見つけた不具合を書きます。章の後半には、続けて足した OS のクリップボード（2 つ目の区切り）、日本語入力（3 つ目の区切り）、読み上げ・ファイルのダイアログ・OS の明暗の設定（4 つ目の区切り）を書きます。</p>
 
   <section class="learn" aria-labelledby="h-learn">
     <h2 id="h-learn">この章で分かること</h2>
@@ -42,6 +42,8 @@
       <li>Hyprland の押し続けと、浮かせた窓の大きさの決まり</li>
       <li>2 つ目の区切りで足した OS のクリップボードと、自分の物を貼る時に合成を通さない理由</li>
       <li>3 つ目の区切りの日本語入力と、文節を 3 つにしか分けられない理由、作業場を移ると変換中の文字が消えた不具合</li>
+      <li>4 つ目の区切りの読み上げで、入力欄の中身を文字の並びにして渡す理由と、Hyprland では打った字が読まれない理由</li>
+      <li>ファイルのダイアログと OS の明暗の設定を、窓の処理を止めずにポータルへ頼む方法</li>
     </ul>
   </section>
 
@@ -215,8 +217,61 @@
     <p>決まりでは、text-input の焦点はキーボードの焦点に従います。Hyprland 0.55 では、作業場を移る時にキーボードの知らせだけが届きました。片方の知らせだけに頼ると、合成ごとの違いで打った文字が失われます。kargui は、キーボードと text-input のどちらが「離れた」と知らせても確定するので、どちらの合成でも文字が残ります。</p>
   </div>
 
+  <h2 id="a11y">4 つ目の区切り: 読み上げ・ファイルのダイアログ・明暗の設定</h2>
+  <p>4 つ目の区切りでは、D-Bus（Linux のアプリどうしが話す仕組み）を使う 3 つを足しました。読み上げは AT-SPI という決まりで読み上げソフト（Orca）と話し、ファイルのダイアログと OS の明暗の設定は xdg-desktop-portal（デスクトップの機能をアプリに貸す係）に頼みます。D-Bus の部品は、読み上げの橋渡し（accesskit_unix）が使う zbus を、ポータルにもそのまま使います。そのぶん依存は増え、Linux では 71 個が足されました。</p>
+
+  <h3>読み上げ: 頼みは別のスレッドから来る</h3>
+  <p>読み上げの木は、Windows と同じ物を毎フレーム渡し、前との違いは AccessKit が見つけます。Linux の版で違うのは、読み上げソフトからの頼み（「木をください」「このボタンを押して」）が、窓の処理とは別のスレッドから届く点です。画面の状態は窓の処理のスレッドにあるので、頼みを受けた係はその場で木を作りません。操作は列に積み、eventfd に書いて窓の処理を起こし、起きた後のフレームで木を渡します。</p>
+  <p>AI が確かめた時の、Orca の読み上げの記録（音は消し、Orca が話す文を記録に出させた）から抜き出します。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-orca">
+    <table>
+      <caption id="t-orca">設定の見本で、Orca が読んだ言葉</caption>
+      <thead><tr><th scope="col">した操作</th><th scope="col">Orca が読んだ言葉</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Orca を起動する</th><td data-label="Orca が読んだ言葉">設定（kargui）、ダーク not selected ラジオボタン</td></tr>
+        <tr><th scope="row">Tab で次の部品へ</th><td data-label="Orca が読んだ言葉">システム selected ラジオボタン</td></tr>
+        <tr><th scope="row">Tab でスライダーへ</th><td data-label="Orca が読んだ言葉">文字の大きさ スライダー 14 28 percent.</td></tr>
+        <tr><th scope="row">Tab で切り替えへ</th><td data-label="Orca が読んだ言葉">自動で保存する トグルボタン pressed</td></tr>
+        <tr><th scope="row">スライダーで →</th><td data-label="Orca が読んだ言葉">6</td></tr>
+        <tr><th scope="row">チェックボックスで Space を 2 回</th><td data-label="Orca が読んだ言葉">not checked、checked</td></tr>
+        <tr><th scope="row">名前の欄に焦点を移す</th><td data-label="Orca が読んだ言葉">表示する名前 エントリ</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>入力欄の中身は、文字の並びにしないと読めない</h3>
+  <p>最初に Orca で確かめると、名前の欄に焦点を移した時は「表示する名前 エントリ」と読むのに、打った中身はまったく読みませんでした。AccessKit の作りを読むと、入力欄に AT-SPI の「文字を読む窓口」（Text）を付けるのは、入力欄が文字の並び（TextRun という子の部品）を持つ時だけでした。kargui の入力欄は、中身を値（value）として渡すだけでした。Windows の読み上げ（UI Automation）は値を読む窓口で中身を読むので、今まで困っていなかったのです。</p>
+  <p>そこで、入力欄の中身を行ごとの文字の並びに分け、キャレットと選んだ範囲と一緒に渡すようにしました。1 字は書記素（結合文字や絵文字の並びを 1 つとする単位）で数え、単語の始まりは Ctrl+→ が止まる所と同じにしました。AccessKit は字の番号を 0〜255 で持つので、長い行は 255 字ごとに分けます。この木は両方の OS で共通なので、Windows でも入力欄に文字を読む窓口（TextPattern）が増え、今までの値の窓口も残ります。パスワードの欄は、今までどおり何も出しません。</p>
+
+  <h3>Hyprland では、打った字が読まれない</h3>
+  <p>文字の並びを渡すと、Orca は欄の中身を読めるようになりました。ただし、打った字とキャレットの移動は、まだ読みませんでした。Orca の記録を見ると、kargui の知らせ（字が入った・キャレットが動いた）は届いていて、Orca が「変わった理由が分からない」として捨てていました。Orca は、利用者がどのキーを押したかを見て、読むかどうかを決めます。Hyprland には、合成がキーを Orca に渡す新しい仕組み（GNOME の Mutter にある物）がありません。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-echo">
+    <table>
+      <caption id="t-echo">Hyprland の上で、入力欄に「ab cd」と打って ← を押した時</caption>
+      <thead><tr><th scope="col">入力欄</th><th scope="col">打った字</th><th scope="col">キャレットの移動</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">kargui</th><td data-label="打った字">読まない（知らせは届くが捨てる）</td><td data-label="キャレットの移動">読まない</td></tr>
+        <tr><th scope="row">GTK 3</th><td data-label="打った字">a、b、space、c、d と読む</td><td data-label="キャレットの移動">読まない</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>GTK 3 の入力欄で読まれるのは、GTK 3 が自分の受けたキーを AT-SPI の登録所へ送り直しているからです。これは古い道で、AccessKit は使っていません。新しい GNOME では合成がキーを Orca に渡すので、kargui でも読まれる見込みです。区切り 5 の GNOME の確かめで改めて見ます。</p>
+
+  <h3>ファイルのダイアログと明暗の設定</h3>
+  <p>ファイルのダイアログは、ポータルの FileChooser に「開く」か「保存する」を頼み、利用者が選び終えるのを別のスレッドで待ちます。窓の処理は止まらないので、ダイアログの間も窓は描き直せます。答えは <code>file:///tmp/%E6%9D%B1%E4%BA%AC.md</code> のような URI で届くので、<code>%XX</code> を元のバイトに戻して場所にします。Windows の「*.*」は全部のファイルに合いますが、GTK では点の無い名前に合わないので、拡張子「*」は「*」として渡します。</p>
+  <p>作者の手の確かめで、メモ帳で開いたファイルを「名前を付けて保存」すると、ファイルがホームに保存されていました。kargui はアプリがフォルダを決めていない時に何も渡さず、GTK のダイアログはその時ホームから始まるためです。Windows のダイアログは、アプリが最後に使ったフォルダから始まります。そこで、最後に選んだファイルのフォルダを覚えて渡すようにしました（Windows と違い、次の起動では覚えていません）。</p>
+  <!-- gen:portal -->
+<figure class="shot flat"><picture><img src="img/linux/portal-save-light.webp" alt="GTK の名前を付けて保存のダイアログ。名前の欄に tokyo memo.txt、場所は tmp の kargui-dialog で、saved copy.txt と tokyo memo.txt が並び、右下の種類はテキスト" width="900" height="576" loading="lazy" decoding="async"></picture><figcaption>メモ帳の見本で /tmp/kargui-dialog のファイルを開いた後の「名前を付けて保存」。ポータルのダイアログが、開いたファイルのフォルダから始まる（名前と種類は、メモ帳が頼んだ物）。</figcaption></figure>
+  <figure class="shot flat"><picture><img src="img/linux/os-dark-light.webp" alt="暗い表示の設定の見本。テーマはシステムが選ばれ、名前・メール・書体・文字の大きさなどが並ぶ" width="1200" height="645" loading="lazy" decoding="async"></picture><figcaption>OS を暗い方の設定（color-scheme が prefer-dark）にして開いた設定の見本。テーマの「システム」は、ポータルから読んだ OS の設定に従う。</figcaption></figure>
+<!-- /gen:portal -->
+  <p>明暗の設定は、窓を作る前に別のスレッドでポータルに聞き始め、最初の絵の前に答えを待ちます（待つのは 150 ms まで）。検証機では 3 ms ほどで答えが届き、窓を出すまでの時間（設定の見本で 49〜53 ms）は変わりませんでした。Windows と同じく、起動の後で OS の設定が変わっても追いません。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 確かめの道具が、合成を落とすこともある</span>
+    <p>確かめの途中で、Hyprland が 4 回落ちて起動し直しました。AI が仮のキーボード（wtype）でキーを送った直後に窓を押すと落ち、kargui の窓でも GTK の窓でも同じでした。キーを本物のキーボードと同じ道（ydotool）で送ると落ちません。kargui の不具合に見えても、同じ手順をほかのアプリで試すと、原因が確かめの道具の側にあると分かることがあります。</p>
+  </div>
+
   <h2 id="next">次の区切り</h2>
-  <p>次は、D-Bus を使う 3 つ（読み上げ・ファイルのダイアログ・OS の明暗の設定）です。その後に、2 つ目からの窓、GNOME の題の帯、X11 の順に足します。利用者の多い GNOME でも、窓ができたところで一度確かめます。中ボタンで貼る Linux のもう 1 つのクリップボード（選んだだけで写る仕組み）と、日本語入力の再変換も、後の候補です。</p>
+  <p>次は、2 つ目からの窓とドラッグ＆ドロップ（ほかのアプリからファイルを落とす）です。その後に、GNOME の題の帯と X11 を足し、利用者の多い GNOME で一度確かめます（打った字の読み上げも、そこで見ます）。中ボタンで貼る Linux のもう 1 つのクリップボード（選んだだけで写る仕組み）、日本語入力の再変換、OS の明暗が変わった時に追うことも、後の候補です。</p>
 
   <nav class="chapter-nav" aria-label="章の移動">
     <a href="09-rich-text.html">← 第 9 章 書式付きの文字</a>
