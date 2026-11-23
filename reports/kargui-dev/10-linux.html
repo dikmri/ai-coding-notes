@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>第 10 章 Linux の窓（Wayland） ― kargui 開発レポート ― AI コーディングノート</title>
-<meta name="description" content="0.2 の後の 6 つ目として、kargui が Linux（Wayland）で窓を開けるようにしました。検証用の Linux の PC と AI が画面を操作する道具、境目のファイルを 1 つ足すだけで窓を開く作り、作者の手の確かめの記録から見つけたタッチパッドの取りこぼしを紹介します。">
+<meta name="description" content="0.2 の後の 6 つ目として、kargui が Linux（Wayland）で窓を開けるようにしました。検証用の Linux の PC と AI が画面を操作する道具、境目のファイルを 1 つ足すだけで窓を開く作り、作者の手の確かめの記録から見つけたタッチパッドの取りこぼしを紹介します。後半では、続けて足した OS のクリップボードと日本語入力を書きます。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="../../css/site.css">
 <link rel="stylesheet" href="dev.css">
@@ -30,7 +30,7 @@
 <article>
   <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 10 章</p>
   <h1>Linux の窓（Wayland）</h1>
-  <p class="lede">0.2 の後の 6 つ目として、kargui が Linux で窓を開けるようにしました。今まで Linux では試験だけを走らせていて、<code>kargui::run</code> を呼ぶと「この OS では窓を開けない」というエラーを返していました。この章では、確かめるために用意した Linux の PC と、AI が画面を操作する道具を紹介します。続けて、OS の境目のファイルを 1 つ足すだけで窓を開く作りと、作者の手の確かめの記録から見つけた不具合を書きます。今回は最初の区切りで、日本語入力と OS のクリップボードはまだありません。</p>
+  <p class="lede">0.2 の後の 6 つ目として、kargui が Linux で窓を開けるようにしました。今まで Linux では試験だけを走らせていて、<code>kargui::run</code> を呼ぶと「この OS では窓を開けない」というエラーを返していました。この章では、確かめるために用意した Linux の PC と、AI が画面を操作する道具を紹介します。続けて、OS の境目のファイルを 1 つ足すだけで窓を開く作りと、作者の手の確かめの記録から見つけた不具合を書きます。章の後半には、続けて足した OS のクリップボード（2 つ目の区切り）と日本語入力（3 つ目の区切り）を書きます。</p>
 
   <section class="learn" aria-labelledby="h-learn">
     <h2 id="h-learn">この章で分かること</h2>
@@ -41,6 +41,7 @@
       <li>タッチパッドの送りを捨てていた不具合と、記録に書いていない操作は確かめられないこと</li>
       <li>Hyprland の押し続けと、浮かせた窓の大きさの決まり</li>
       <li>2 つ目の区切りで足した OS のクリップボードと、自分の物を貼る時に合成を通さない理由</li>
+      <li>3 つ目の区切りの日本語入力と、文節を 3 つにしか分けられない理由、作業場を移ると変換中の文字が消えた不具合</li>
     </ul>
   </section>
 
@@ -180,8 +181,42 @@
     <p>AI が最初に確かめに使った <code>wl-paste</code> は、焦点が無くても選択を読める特別な仕組み（data-control）を使います。端末のような普通のアプリは、焦点を持った時に合成から渡される選択を読むので、通る道が違います。クリップボードを確かめる時は、普通のアプリ（ここでは kitty）でも、写す・貼るの両方向を試してください。</p>
   </div>
 
+  <h2 id="ime">3 つ目の区切り: 日本語入力</h2>
+  <p>Linux の日本語入力では、IME（ここでは fcitx5 と Mozc）が合成（Hyprland）を通してアプリとやり取りします。やり取りの決まりは Wayland の text-input-v3 です。kargui は、入力欄に焦点がある間だけ「文字を受け付ける」と合成に知らせ、文字を打つ位置も伝えます。IME から届いた変換中の文字と確定した文字は、Windows と同じ 3 つの知らせ（変換中・確定・文節）に直して入力欄へ渡します。そのため、入力欄の部品は 1 行も変えていません。</p>
+  <ul>
+    <li><strong>入れる・切る</strong>: 焦点が入力欄に移った時に入れ、ボタンなどへ移った時に切ります。頼みは描く前に送り、絵と同じ commit で合成に届けます。</li>
+    <li><strong>候補の窓の位置</strong>: 文字を打つ位置を、倍率で割った論理の座標で知らせます。候補の窓は、変換中の文字の真下に出ます。</li>
+    <li><strong>古い知らせを捨てる</strong>: IME の知らせには、何回目の commit に答えたかの番号が付きます。入れ直す前の番号の知らせは前の欄あてなので、捨てます。</li>
+  </ul>
+  <!-- gen:ime -->
+<figure class="shot flat"><picture><img src="img/linux/ime-candidates-light.webp" alt="家計簿の見本のメモ欄に、下線付きのとうきょうが打ってあり、その真下に Tabキーで選択・東京・東京都・東京駅と並んだ候補の窓が開いている" width="500" height="320" loading="lazy" decoding="async"></picture><figcaption>家計簿の見本のメモ欄で「とうきょう」と打った所。変換中の文字に下線が付き、Mozc の候補の窓が文字の真下に出る（AI が本物のキーボードと同じ道で打った）。</figcaption></figure>
+<!-- /gen:ime -->
+
+  <h3>文節は 3 つにしか分けられない</h3>
+  <p>Windows の IME は、変換中の文字の文節の区切りを全部教えてくれます。text-input-v3 で届くのは、IME が強調する範囲だけです。Mozc は今変換している文節を強調するので、kargui はその範囲と前後の 3 つに分けて下線を引きます。「明日は東京に行く」で「東京に」を変換している時は、「明日は|東京に|行く」と正しく分かれます。「明日は」を変換している時は「明日は|東京に行く」の 2 つになり、後ろの 2 つの文節が 1 本の下線でつながります。</p>
+  <!-- gen:clauses -->
+<figure class="shot flat"><picture><img src="img/linux/ime-clauses-light.webp" alt="メモ欄が上下に 2 つ。どちらも東京明日は東京に行くと書かれている。上は明日はに太い下線、下は東京にに太い下線が付いている" width="470" height="164" loading="lazy" decoding="async"></picture><figcaption>上は「明日は」を変換している所、下は → で「東京に」へ移った所。太い下線が今変換している文節で、先頭の「東京」は確定済みの文字。上では「東京に行く」が 1 本の細い下線になる。</figcaption></figure>
+<!-- /gen:clauses -->
+
+  <h3>作業場を移ると、変換中の文字が消えた</h3>
+  <p>AI が確かめていると、変換の途中で別の作業場へ移って戻った時に、打った文字が消えました。記録を読むと、Hyprland はキーボードの焦点が離れた知らせを送っていましたが、text-input の「離れた」（leave）は送っていませんでした。text-input-v3 の決まりでは、text-input の焦点はキーボードの焦点に従うので、本来は両方が届きます。</p>
+  <p>fcitx5 は、キーボードの焦点が離れた時点で変換中の文字を捨てます。一方の kargui は leave を受け取らないので、捨てられた文字を変換中のまま見せ続けていました。戻って次の字を打つと IME が新しい変換を始め、前の文字は確定されずに消えました。</p>
+  <p>直し方は、キーボードの焦点が離れた時に、kargui が見せている変換中の文字を自分で確定することです。leave が届いた時も同じにしました。決まりは leave の時に変換中の文字を消すよう求めていますが、打った文字が消えないよう、Windows の IME と同じく確定する方を選びました。IME が後から同じ文字を確定してきても、入れ直す前の番号の知らせとして捨てるので、二重には入りません。</p>
+  <!-- gen:workspace -->
+<figure class="shot flat"><picture><img src="img/linux/ime-workspace-light.webp" alt="メモ欄に soraumi そら うみ と書かれ、うみにだけ下線が付き、その下に海の候補が出ている" width="470" height="160" loading="lazy" decoding="async"></picture><figcaption>「そら」と打った途中で別の作業場へ移り、戻ってから「うみ」と打った所。「そら」は確定して残り、「うみ」は新しい変換になる（先頭の soraumi は、前の試しで入った文字）。</figcaption></figure>
+<!-- /gen:workspace -->
+
+  <h3>作者の手の確かめ</h3>
+  <p>作者には、家計簿と設定の見本で、変換・文節の移動・カタカナと半角カタカナ・Tab で欄を移る・作業場の行き来を試してもらいました。記録には IME からのまとまった知らせ（done）が 103 回あり、捨てた物も食い違いもありませんでした。作業場を移った時は変換中の「あいうえ」を確定し、戻った時に IME を入れ直していました。</p>
+  <p>1 か所だけ、メモ欄を押しても IME が入らず、打った「te」が欄に入らない場面がありました。直前に分類の選択の一覧を開いていて、メモ欄を押した 1 回目は一覧を閉じるだけだったためです。一覧の外を押した時は閉じるだけで、押した先には届けません。これは Windows でも同じ kargui の決まりで、日本語入力の不具合ではありませんでした。</p>
+  <p>まだ無い物は 2 つです。確定した文字の前後を IME に教える仕組み（surrounding text）が無いので、確定した後の再変換はできません。パスワードの欄も、IME からは普通の欄と同じに見えます（Windows と同じ扱い）。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 決まりどおりの知らせが届かない合成もある</span>
+    <p>決まりでは、text-input の焦点はキーボードの焦点に従います。Hyprland 0.55 では、作業場を移る時にキーボードの知らせだけが届きました。片方の知らせだけに頼ると、合成ごとの違いで打った文字が失われます。kargui は、キーボードと text-input のどちらが「離れた」と知らせても確定するので、どちらの合成でも文字が残ります。</p>
+  </div>
+
   <h2 id="next">次の区切り</h2>
-  <p>次は日本語入力（text-input-v3 と fcitx5）です。その後に、読み上げ・ファイルのダイアログ・OS の明暗の設定（どれも D-Bus を使う）、2 つ目からの窓、GNOME の題の帯、X11 の順に足します。利用者の多い GNOME でも、窓ができたところで一度確かめます。中ボタンで貼る Linux のもう 1 つのクリップボード（選んだだけで写る仕組み）も、後の候補です。</p>
+  <p>次は、D-Bus を使う 3 つ（読み上げ・ファイルのダイアログ・OS の明暗の設定）です。その後に、2 つ目からの窓、GNOME の題の帯、X11 の順に足します。利用者の多い GNOME でも、窓ができたところで一度確かめます。中ボタンで貼る Linux のもう 1 つのクリップボード（選んだだけで写る仕組み）と、日本語入力の再変換も、後の候補です。</p>
 
   <nav class="chapter-nav" aria-label="章の移動">
     <a href="09-rich-text.html">← 第 9 章 書式付きの文字</a>
