@@ -142,6 +142,7 @@ const CHAPTERS = [
   { href: "07-fonts.html", no: "第 7 章", title: "書体", text: "Font の 3 つの形と書体の探し方、入力欄の書体が 1 フレーム遅れて伝わる理由、作者の記録から見つけた行の間の不具合。", thumb: "fonts/lines" },
   { href: "08-pickers.html", no: "第 8 章", title: "色と時刻の選択", text: "時刻をます目にした理由、濃淡の面を絵で描く方法、作者の記録から見つけた打つ途中の番号と、引っ張っても選べない入力欄。", thumb: "pickers/time" },
   { href: "09-rich-text.html", no: "第 9 章", title: "書式付きの文字", text: "範囲を表示だけにした理由、1 つの段落として並べて部分ごとに色を付ける仕組み、見えないコードの背景と Linux で落ちた試験。", thumb: "rich/sample" },
+  { href: "10-linux.html", no: "第 10 章", title: "Linux の窓（Wayland）", text: "検証用の Linux の PC と AI が画面を操作する道具、境目のファイル 1 つで窓を開く作り、作者の記録から見つけたタッチパッドの取りこぼし。", thumb: "linux/settings" },
 ];
 
 function chapters() {
@@ -233,6 +234,29 @@ ${figure("apps/expenses", "家計簿の見本", "家計簿（<code>examples/expe
     underline: () => `${figure("rich/underline-before", "直す前。1 行目の終わりのリンク「how」の下線が、後ろの空白の下まで伸びている", "直す前。1 行目の「how」の下線が、行末の空白の下まで伸びている（英語の写真の右上を 2 倍に拡大）。", { flat: true })}
   ${figure("rich/underline-after", "直した後。1 行目のリンク「how」の下線は、how の右端で止まっている", "直した後。下線は「how」の右端で止まる。", { flat: true })}`,
     exe: () => EXE,
+  },
+  "10-linux.html": {
+    deps: () =>
+      bars("c-deps", "Wayland の窓に要る依存の数", "少ないほど軽い。Linux で cargo tree で数えた", [
+        { name: "smithay-client-toolkit を使う形", v: "old", value: 57, label: "57 個（開発用の部品が要る）" },
+        { name: "今回の形（低い層を直接）", v: "new", value: 32, label: "32 個（kargui に増えたのは 13 個）" },
+      ]),
+    settings: () =>
+      figure(
+        "linux/settings",
+        "Linux の Hyprland の上の、kargui の設定の見本の窓。名前の欄に kargui テストと打ってあり、テーマ・書体・文字の大きさ・強調の色などが並ぶ",
+        "Linux の検証機（Hyprland、1.5 倍）で開いた設定の見本。物理ピクセル 1890×1005 で描いている（画面を撮って窓の部分を切り出した。暗い表示の時は、見本のテーマをダークにした写真）。",
+        { flat: true },
+      ),
+    split: () =>
+      figure(
+        "linux/split",
+        "左に端末、右に kargui の設定の見本が並び、見本は半分の幅に縮んで中身が並び直している",
+        "隣に端末を開くと、Hyprland が画面を 2 つに分け、kargui の窓は論理 624×670 に狭まる。中身は Windows と同じく並び直す。",
+        { flat: true },
+      ),
+    popups: () => `${figure("linux/picker", "強調の色の欄の上に、彩度と明るさの面・色相の帯・番号の欄・16 色の見本が開いている", "色の選択。下に入りきらないので、欄の上に開く。", { flat: true })}
+  ${figure("linux/menu", "家計簿の表の 2026-11-12 の行が選ばれ、その上に削除と書かれたメニューが開いている", "家計簿の見本の行を右クリックした所。行に付けたメニューが、押した位置に開く。", { flat: true })}`,
   },
   "07-fonts.html": {
     fonts: () => figure("fonts/lines", "複数行の入力欄が 3 つ並ぶ。左から UI の書体、等幅、BIZ UDP ゴシック。どれも同じ行の間で並んでいる", "同じ文を 3 つの書体で出した複数行の入力欄。左から UI の書体（Yu Gothic UI）、<code>.monospace()</code>（BIZ UD ゴシック）、<code>.font(Font::family(\"BIZ UDPGothic\"))</code>。試験台で撮った。", { flat: true }),
