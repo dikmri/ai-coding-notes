@@ -401,8 +401,9 @@ export function makeScenes(G) {
       drawText(ctx, '今夜の晩ごはん', 8, 146, { size: 10, color: '#a9a1bb' });
       drawText(ctx, this.meal.name, 8, 158, { size: 12, color: '#ffd84a', bold: true });
       drawText(ctx, `「${this.meal.line}」`, 8, 174, { size: 12, color: '#ffffff' });
-      drawText(ctx, `${P.machine.name}  ${comma(st.spinsTotal)} 回転・大当り ${st.hitsTotal} 回・最高 ${st.maxChain} 連`, 8, 190, { size: 10, color: '#a9a1bb' });
-      drawText(ctx, `今日の回り 千円で約 ${P.rpk} 回（ボーダー ${P.machine.border}）`, 8, 202, { size: 10, color: '#7e7593' });
+      // 左の列は幅 208（x 8〜216）。台の名前まで並べると右のグラフの下にもぐるので、名前はグラフの見出しへ回す
+      drawText(ctx, `${comma(st.spinsTotal)} 回転・大当り ${st.hitsTotal} 回・最高 ${st.maxChain} 連`, 8, 190, { size: 10, color: '#a9a1bb' });
+      drawText(ctx, `今日の回り 千円で約 ${P.rpk} 回・ボーダー ${P.machine.border}`, 8, 202, { size: 10, color: '#7e7593' });
       // 右: 収支
       drawText(ctx, '本日の収支', 226, 10, { size: 12, color: '#d6d0e0' });
       drawText(ctx, `${signed(this.yen)} 円`, 378, 28, { size: 20, color: this.yen >= 0 ? '#ffd84a' : '#63c6ff', align: 'right', bold: true, outline: '#0b0a12' });
@@ -410,7 +411,7 @@ export function makeScenes(G) {
       drawText(ctx, '投資', 226, 74, { size: 10, color: '#7e7593' }); drawText(ctx, `${comma(st.invest)} 円`, 378, 74, { size: 10, color: '#ffffff', align: 'right' });
       drawText(ctx, '持ち玉の換金', 226, 88, { size: 10, color: '#7e7593' }); drawText(ctx, `${comma(st.mochi * YEN_PER_BALL)} 円`, 378, 88, { size: 10, color: '#ffffff', align: 'right' });
       drawText(ctx, '最高', 226, 102, { size: 10, color: '#7e7593' }); drawText(ctx, `${signed(st.maxSa)} / 最低 ${signed(st.minSa)}`, 378, 102, { size: 10, color: '#ffffff', align: 'right' });
-      drawText(ctx, '今日のグラフ', 226, 118, { size: 10, color: '#d6d0e0' });
+      drawText(ctx, P.machine.name, 226, 118, { size: 10, color: '#d6d0e0' }); // グラフの見出しは台の名前
       drawMini(ctx, P.graph, 226, 132, 152, 66, G.clock);
     },
   };
