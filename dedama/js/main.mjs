@@ -174,11 +174,13 @@ document.addEventListener('visibilitychange', () => {
 // ---- 毎コマ ----
 let last = 0;
 function loop(ts) {
-  const dt = last ? Math.min(0.1, (ts - last) / 1000) : 0;
+  // 出玉の計算には 1 秒まで渡す（重い PC でも 12 時間が 3 分で終わるように）。光る効果の動きは 0.1 秒で打ち切る
+  const raw = last ? Math.min(1, (ts - last) / 1000) : 0;
+  const dt = Math.min(0.1, raw);
   last = ts;
   G.clock += dt;
   try {
-    G.scene.update(dt);
+    G.scene.update(dt, raw);
     G.fx.update(dt);
     ctx.save();
     if (G.shakeT > 0) { G.shakeT -= dt; ctx.translate(Math.round((Math.random() - 0.5) * 2 * G.shakeAmp), Math.round((Math.random() - 0.5) * 2 * G.shakeAmp)); }

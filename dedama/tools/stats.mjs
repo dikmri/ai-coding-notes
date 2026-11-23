@@ -44,7 +44,19 @@ for (const m of MACHINES) {
   console.log(`  12 時間 × ${DAYS} 日: 平均 ${row.day.meanBalls} 玉（${row.day.meanYen} 円）、下位 10% ${row.day.p10}、中央 ${row.day.median}、上位 10% ${row.day.p90}、勝ち ${(row.day.win * 100).toFixed(1)}%、万発 ${(row.day.wan * 100).toFixed(1)}%、逆万発 ${(row.day.gyaku * 100).toFixed(1)}%`);
 }
 if (outIdx > 0) writeFileSync(process.argv[outIdx + 1], JSON.stringify({ days: DAYS, machines: out }, null, 2));
-// 理論の継続（比べ用）
-console.log('\n理論の継続: 商店街 時短', cont(319.7, 100).toFixed(4), '/ ハムスター ST', cont(7.9, 8).toFixed(4), '時短', cont(99.9, 42).toFixed(4),
-  '/ 夜行列車 ST', cont(79.9, 120).toFixed(4), '時短', cont(199.8, 100).toFixed(4), '/ カニ ST', cont(99.4, 163).toFixed(4),
-  '/ 大仏 RUSH', (1 - (1 - 1 / 7.4 - 1 / 319.7) ** 11).toFixed(4), '/ 花火 時短', cont(399.6, 100).toFixed(4));
+// 理論の継続（台の設定から計算する。ST・時短は 1 − (1 − 1/確率)^回数、RUSH は小当たりと 1 種を足した確率）
+const nx = (m) => [...m.heso, ...m.den].map((r) => r[2]);
+for (const m of MACHINES) {
+  const parts = [];
+  const seen = new Set();
+  for (let n of nx(m)) for (; n; n = n.then) {
+    const key = n.mode + n.spins;
+    if (seen.has(key) || n.mode === 'normal') continue;
+    seen.add(key);
+    if (n.mode === 'kakuhen') parts.push('確変 1（次回まで）');
+    else if (n.mode === 'st') parts.push(`ST ${n.spins} 回 ${cont(m.high, n.spins).toFixed(4)}`);
+    else if (n.mode === 'jitan') parts.push(`時短 ${n.spins} 回 ${cont(m.normal, n.spins).toFixed(4)}`);
+    else if (n.mode === 'rush') parts.push(`RUSH ${n.spins} 回 ${(1 - (1 - 1 / m.koatari - 1 / m.normal) ** n.spins).toFixed(4)}`);
+  }
+  console.log(`理論の継続 ${m.name}: ${parts.join('、')}`);
+}

@@ -191,14 +191,14 @@ export function makeScenes(G) {
       this.say(`${clockText(0)} ${P.machine.name} で打ち始め。今日の回りは千円で約 ${P.rpk} 回`, '#ffffff');
     },
     say(text, color = '#ffffff') { this.msg.unshift({ text, color, at: G.clock }); this.msg.length = Math.min(this.msg.length, 3); },
-    update(dt) {
+    update(dt, raw = dt) {
       const P = G.play, s = P.session;
       this.t += dt;
       if (this.closing) {
         this.closing += dt;
         if (this.closing > 3.2) G.go('exit');
       } else if (!G.paused) {
-        const gameDt = Math.min(dt, 0.25) * BASE_SPEED * (G.speedOverride ?? SPEEDS[G.speedIndex]);
+        const gameDt = raw * BASE_SPEED * (G.speedOverride ?? SPEEDS[G.speedIndex]);
         s.advanceTo(s.state.t + gameDt);
         this.handleEvents();
         if (s.done) this.close();
