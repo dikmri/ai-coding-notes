@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>第 10 章 Linux の窓（Wayland） ― kargui 開発レポート ― AI コーディングノート</title>
-<meta name="description" content="0.2 の後の 6 つ目として、kargui が Linux（Wayland）で窓を開けるようにしました。検証用の Linux の PC と AI が画面を操作する道具、境目のファイルを 1 つ足すだけで窓を開く作り、作者の手の確かめの記録から見つけたタッチパッドの取りこぼしを紹介します。後半では、続けて足した OS のクリップボード、日本語入力、読み上げ・ファイルのダイアログ・明暗の設定、複数の窓とほかのアプリから引っ張ってきたファイルを書きます。">
+<meta name="description" content="0.2 の後の 6 つ目として、kargui が Linux（Wayland）で窓を開けるようにしました。検証用の Linux の PC と AI が画面を操作する道具、境目のファイルを 1 つ足すだけで窓を開く作り、作者の手の確かめの記録から見つけたタッチパッドの取りこぼしを紹介します。後半では、続けて足した OS のクリップボード、日本語入力、読み上げ・ファイルのダイアログ・明暗の設定、複数の窓とほかのアプリから引っ張ってきたファイル、GNOME の題の帯を書きます。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="../../css/site.css">
 <link rel="stylesheet" href="dev.css">
@@ -30,7 +30,7 @@
 <article>
   <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 10 章</p>
   <h1>Linux の窓（Wayland）</h1>
-  <p class="lede">0.2 の後の 6 つ目として、kargui が Linux で窓を開けるようにしました。今まで Linux では試験だけを走らせていて、<code>kargui::run</code> を呼ぶと「この OS では窓を開けない」というエラーを返していました。この章では、確かめるために用意した Linux の PC と、AI が画面を操作する道具を紹介します。続けて、OS の境目のファイルを 1 つ足すだけで窓を開く作りと、作者の手の確かめの記録から見つけた不具合を書きます。章の後半には、続けて足した OS のクリップボード（2 つ目の区切り）、日本語入力（3 つ目の区切り）、読み上げ・ファイルのダイアログ・OS の明暗の設定・複数の窓・引っ張ってきたファイル（4 つ目の区切り）を書きます。</p>
+  <p class="lede">0.2 の後の 6 つ目として、kargui が Linux で窓を開けるようにしました。今まで Linux では試験だけを走らせていて、<code>kargui::run</code> を呼ぶと「この OS では窓を開けない」というエラーを返していました。この章では、確かめるために用意した Linux の PC と、AI が画面を操作する道具を紹介します。続けて、OS の境目のファイルを 1 つ足すだけで窓を開く作りと、作者の手の確かめの記録から見つけた不具合を書きます。章の後半には、続けて足した OS のクリップボード（2 つ目の区切り）、日本語入力（3 つ目の区切り）、読み上げ・ファイルのダイアログ・OS の明暗の設定・複数の窓・引っ張ってきたファイル（4 つ目の区切り）、GNOME の題の帯（5 つ目の区切りの前半）を書きます。</p>
 
   <section class="learn" aria-labelledby="h-learn">
     <h2 id="h-learn">この章で分かること</h2>
@@ -45,6 +45,7 @@
       <li>4 つ目の区切りの読み上げで、入力欄の中身を文字の並びにして渡す理由と、Hyprland では打った字が読まれない理由</li>
       <li>ファイルのダイアログと OS の明暗の設定を、窓の処理を止めずにポータルへ頼む方法</li>
       <li>2 つ目からの窓のために、窓ごとの物と座席の物を分けた作り直しと、引っ張ってきたファイルの受け取り方</li>
+      <li>GNOME では題の帯をアプリが描く理由と、帯の操作を合成に頼む作り、画面を撮って見つけた 2 つの問題</li>
     </ul>
   </section>
 
@@ -297,8 +298,77 @@
     <p>窓を分ける作り直しで、日本語入力・読み上げ・ダイアログ・引っ張りの知らせの行き先が、すべて変わりました。作り直した後に、AI の操作でこれらを一通り試し直しました。どれも動いたので、作者の手の確かめは新しい 2 つだけに絞れました。</p>
   </div>
 
+  <h2 id="title-bar">5 つ目の区切りの前半: GNOME の題の帯</h2>
+  <p>5 つ目の区切りは、GNOME の題の帯と X11 の 2 つに分けて進めます。前半の題の帯は、作者の手の確かめの記録に異常がなく、GitHub へ送りました。</p>
+
+  <h3>GNOME では、題の帯をアプリが描く</h3>
+  <p>Wayland では、窓の題の帯（題と、閉じる・最大化などのボタン）を誰が描くかが、合成によって違います。合成は xdg-decoration という仕組みで、「題の帯は合成が描く」とアプリに伝えます。GNOME の合成（Mutter）はこの仕組みを持たないので、アプリが自分で描きます。GTK のアプリは、もともと自分で描いています。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-deco">
+    <table>
+      <caption id="t-deco">合成ごとの題の帯</caption>
+      <thead><tr><th scope="col">合成</th><th scope="col">xdg-decoration</th><th scope="col">題の帯を描くのは</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Hyprland</th><td data-label="xdg-decoration">ある（合成が受け持つと答える）</td><td data-label="題の帯を描くのは">誰も描かない（窓を敷き詰める作り）</td></tr>
+        <tr><th scope="row">KDE Plasma</th><td data-label="xdg-decoration">ある</td><td data-label="題の帯を描くのは">合成</td></tr>
+        <tr><th scope="row">GNOME</th><td data-label="xdg-decoration">無い</td><td data-label="題の帯を描くのは">アプリ</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>kargui は、合成が xdg-decoration を持たない時と、持っていてもアプリに描かせると答えた時に、題の帯を描きます。Hyprland では今までどおり合成に任せ、帯を描かないことも確かめました。</p>
+
+  <h3>GNOME の上でも、AI が画面を撮って押す</h3>
+  <p>検証機に GNOME を 2 つ目のログイン先として入れ、命令 1 つで Hyprland と切り替えられるようにしました。GNOME は、ほかのアプリが画面を撮ることを、利用者の許可なしには認めません。そこで、撮影の窓口（ポータルの Screenshot）の許可の記録に検証機の道具を登録し、確認の画面なしで撮れるようにしました。押す・打つ操作は、本物のマウスとキーボードと同じ道（ydotool）で送ります。位置を指定して動かすと、ポインターがいったん画面の左上の角を通ります。そのため GNOME の中だけ、左上の角で概観が開く動きを切り、マウスの加速も切りました。</p>
+
+  <h3>帯は、部品の木の一番上に足す</h3>
+  <p>題の帯は、kargui のほかの部品と同じ木の中に作りました。根の下に帯と本文を置き、アプリのビューは本文の中で作ります。アプリのコードは変えずに済み、帯のボタンには Tab で移れ、読み上げの木にも「題の帯」として出ます。アプリが頼んだ窓の大きさは、Windows と同じく中身の大きさとして扱い、帯の高さの 40 を足して窓を作ります。</p>
+  <p>題は窓の真ん中に置きます。左右のボタンを同じ幅の入れ物に入れ、その間に題を置きました。ボタンの並びは GNOME の設定（button-layout）に従います。既定は閉じるボタンだけで、設定を変えると最小化と最大化も出ます。この設定は、明暗の設定と同じく、起動の時にポータルから読みます。</p>
+  <!-- gen:csd -->
+<figure class="shot flat"><picture><img src="img/linux/gnome-title-bar-light.webp" alt="GNOME の上のファイルの閲覧の見本。一番上の帯の真ん中に題、右端に最小化・最大化・閉じるのボタンが並び、窓の縁に細い線がある" width="840" height="580" loading="lazy" decoding="async"></picture><figcaption>GNOME で開いたファイルの閲覧の見本。題の帯は kargui が描いている（ボタンの並びは、GNOME の設定を最小化・最大化・閉じるの 3 つにした時の物）。</figcaption></figure>
+  <figure class="shot flat"><picture><img src="img/linux/gnome-second-window-light.webp" alt="暗い表示のファイルの閲覧の見本の上に、LICENSE のプロパティの窓が重なっている。どちらの窓にも題の帯があり、プロパティの窓の縁に細い線がある" width="840" height="580" loading="lazy" decoding="async"></picture><figcaption>暗い表示で、プロパティの窓を開いた所。2 つ目の窓にも題の帯を描く。前面に無い主の窓は、題を薄くする。縁の線は、重なった窓の境を見せるために引いた。</figcaption></figure>
+<!-- /gen:csd -->
+
+  <h3>帯の操作は、合成に頼む</h3>
+  <p>Wayland では、アプリは画面の上の窓の位置を知らず、自分で窓を動かせません。帯の操作では、何をしたいかを合成に頼み、その先は合成が行います。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-csd-ops">
+    <table>
+      <caption id="t-csd-ops">題の帯の操作と、kargui が合成に頼む事</caption>
+      <thead><tr><th scope="col">操作</th><th scope="col">合成に頼む事</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">帯の何も無い所を押して動かす</th><td data-label="合成に頼む事">窓を動かす（押した時の番号を添える。離すまで合成が動かす）</td></tr>
+        <tr><th scope="row">帯を 2 回押す・□ のボタン</th><td data-label="合成に頼む事">最大化と元に戻すを切り替える</td></tr>
+        <tr><th scope="row">ー のボタン</th><td data-label="合成に頼む事">最小化する</td></tr>
+        <tr><th scope="row">× のボタン</th><td data-label="合成に頼む事">頼まない（合成の閉じるボタンと同じ扱いで、主の窓はアプリに聞く）</td></tr>
+        <tr><th scope="row">帯を右クリック</th><td data-label="合成に頼む事">GNOME の窓のメニューを出す</td></tr>
+        <tr><th scope="row">窓の縁と角を押して動かす</th><td data-label="合成に頼む事">大きさを変える（ポインターの形も変える）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <!-- gen:menu -->
+<figure class="shot flat"><picture><img src="img/linux/gnome-window-menu-light.webp" alt="最大化したメモ帳の題の帯の下に、スクリーンショットを撮る・隠す・元に戻す・移動などが並んだ暗いメニューが開いている" width="800" height="388" loading="lazy" decoding="async"></picture><figcaption>題の帯を右クリックすると、GNOME の窓のメニューが押した位置に出る（メニューは GNOME が描く）。最大化しているので「元に戻す」がある。</figcaption></figure>
+<!-- /gen:menu -->
+
+  <h3>見つけて直した 3 つ</h3>
+  <ol>
+    <li><strong>帯を押して動かしても、移動が届かなかった。</strong>kargui の窓の処理は、部品を押している間だけ、ポインターの移動を部品の木に渡していました。帯の何も無い所は部品ではないので、移動が届きません。作る途中にコードを読んで気づき、帯を押している間も渡すようにしました。</li>
+    <li><strong>重なった窓の境が見えなかった。</strong>GNOME は、アプリが帯を描く窓に影も縁も付けません。AI が暗い表示でプロパティの窓を開くと、主の窓との境目が分かりませんでした。浮いている窓には、縁に 1 画素の線を引くことにしました。最大化した窓と敷き詰めた窓には引きません。</li>
+    <li><strong>ダイアログを出すと、帯が押せなかった。</strong>窓の中のダイアログは、後ろを暗くして押せなくします。AI がメモ帳で試すと、この暗い覆いが帯まで覆っていて、閉じるボタンも窓の移動も効きませんでした。Windows では OS の題の帯は覆われないので、それにそろえ、暗くするのは帯の下だけにしました。ダイアログも、帯の下の真ん中に出します。</li>
+  </ol>
+  <!-- gen:dialog -->
+<figure class="shot flat"><picture><img src="img/linux/gnome-dialog-light.webp" alt="メモ帳の本文が暗くなり、真ん中にこのアプリについてのダイアログが出ている。一番上の題の帯は暗くならず、ボタンも見える" width="700" height="560" loading="lazy" decoding="async"></picture><figcaption>メモ帳で「このアプリについて」を出した所。暗くするのは帯の下だけにしたので、ダイアログを出したままでも帯で窓を動かし、閉じられる。</figcaption></figure>
+<!-- /gen:dialog -->
+
+  <h3>GNOME では、打った字が読まれる</h3>
+  <p>4 つ目の区切りでは、Hyprland の上で Orca が打った字を読みませんでした。GNOME の上で同じ手順を試すと、Orca は kargui で打った字とキャレットの移動を読みました。GNOME では合成がキーを Orca に渡すので、Orca は中身が変わった理由を知ることができます。kargui の側は何も変えていません。</p>
+
+  <h3>作者の手の確かめ</h3>
+  <p>作者には、GNOME の設定でボタンを 3 つにした状態で、ファイルの閲覧とメモ帳の見本を操作してもらいました。記録には、窓の移動 4 回、最大化の切り替え 4 回（2 回押しと □ で 2 回ずつ）、最小化とそこからの戻り、窓のメニュー、左の縁と左下の角での大きさの変更、プロパティの窓を閉じる、閉じる時の保存の確かめが残っていました。異常は無く、1 回で終わりました。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 画面を見ないと気づけない問題がある</span>
+    <p>縁の線とダイアログの覆いの 2 つは、試験がすべて通った後に、AI が GNOME の画面を撮って見つけました。どちらも、部品の並びや入力の扱いではなく、見え方と重なり方の問題です。GNOME の上で AI が撮って押せる場を先に作ったので、作者に渡す前に直せました。</p>
+  </div>
+
   <h2 id="next">次の区切り</h2>
-  <p>次は 5 つ目の区切りで、GNOME の題の帯（GNOME は合成が題の帯を描かないので、アプリが描く）と X11 を足し、利用者の多い GNOME で一度確かめます（打った字の読み上げも、そこで見ます）。中ボタンで貼る Linux のもう 1 つのクリップボード（選んだだけで写る仕組み）、日本語入力の再変換、OS の明暗が変わった時に追うこと、窓の題を後から変えることも、後の候補です。</p>
+  <p>次は 5 つ目の区切りの後半で、X11 の窓を足します。題の帯の影と丸い角（透ける絵と、窓の外の余白が要る）、帯を 2 回押した時の動きを GNOME の設定に合わせること、中ボタンで貼る Linux のもう 1 つのクリップボード（選んだだけで写る仕組み）、日本語入力の再変換、OS の明暗が変わった時に追うこと、窓の題を後から変えることも、後の候補です。</p>
 
   <nav class="chapter-nav" aria-label="章の移動">
     <a href="09-rich-text.html">← 第 9 章 書式付きの文字</a>
