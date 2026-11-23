@@ -142,7 +142,7 @@ const CHAPTERS = [
   { href: "07-fonts.html", no: "第 7 章", title: "書体", text: "Font の 3 つの形と書体の探し方、入力欄の書体が 1 フレーム遅れて伝わる理由、作者の記録から見つけた行の間の不具合。", thumb: "fonts/lines" },
   { href: "08-pickers.html", no: "第 8 章", title: "色と時刻の選択", text: "時刻をます目にした理由、濃淡の面を絵で描く方法、作者の記録から見つけた打つ途中の番号と、引っ張っても選べない入力欄。", thumb: "pickers/time" },
   { href: "09-rich-text.html", no: "第 9 章", title: "書式付きの文字", text: "範囲を表示だけにした理由、1 つの段落として並べて部分ごとに色を付ける仕組み、見えないコードの背景と Linux で落ちた試験。", thumb: "rich/sample" },
-  { href: "10-linux.html", no: "第 10 章", title: "Linux の窓（Wayland）", text: "検証用の Linux の PC と AI が画面を操作する道具、境目のファイル 1 つで窓を開く作り、タッチパッドの取りこぼし、後から足したクリップボード・日本語入力・読み上げ・ファイルのダイアログ・複数の窓。", thumb: "linux/settings" },
+  { href: "10-linux.html", no: "第 10 章", title: "Linux の窓（Wayland と X11）", text: "検証用の Linux の PC と AI が画面を操作する道具、境目のファイル 1 つで窓を開く作り、タッチパッドの取りこぼし、後から足したクリップボード・日本語入力・読み上げ・ファイルのダイアログ・複数の窓・GNOME の題の帯・X11 の窓。", thumb: "linux/settings" },
 ];
 
 function chapters() {
@@ -324,6 +324,20 @@ ${figure("apps/expenses", "家計簿の見本", "家計簿（<code>examples/expe
         "linux/gnome-window-menu",
         "最大化したメモ帳の題の帯の下に、スクリーンショットを撮る・隠す・元に戻す・移動などが並んだ暗いメニューが開いている",
         "題の帯を右クリックすると、GNOME の窓のメニューが押した位置に出る（メニューは GNOME が描く）。最大化しているので「元に戻す」がある。",
+        { flat: true },
+      ),
+    x11ime: () =>
+      figure(
+        "linux/x11-ime",
+        "X11 のメモ帳の本文に、太い下線の TOKYO があり、その真下に 1. 東京、2. TOKYO［アルファベット］などが並ぶ候補の窓が開いている",
+        "X11 の窓（Hyprland の XWayland）で「とうきょう」を変換した所。fcitx5 の D-Bus から届いた変換中の文字を kargui が描き、文字を打つ位置を知らせたので、候補の窓が真下に出る。",
+        { flat: true },
+      ),
+    x11dialog: () =>
+      figure(
+        "linux/x11-dialog",
+        "X11 のメモ帳の上に、メモを開くの GTK のダイアログが重なっている。最近開いたファイルに tokyo memo.txt などが並ぶ",
+        "X11 の窓から「開く」を選んだ所。ポータルに親の窓（x11:番号）を渡すので、ダイアログはメモ帳に結び付いて開く。",
         { flat: true },
       ),
     dialog: () =>

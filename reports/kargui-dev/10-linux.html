@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>第 10 章 Linux の窓（Wayland） ― kargui 開発レポート ― AI コーディングノート</title>
-<meta name="description" content="0.2 の後の 6 つ目として、kargui が Linux（Wayland）で窓を開けるようにしました。検証用の Linux の PC と AI が画面を操作する道具、境目のファイルを 1 つ足すだけで窓を開く作り、作者の手の確かめの記録から見つけたタッチパッドの取りこぼしを紹介します。後半では、続けて足した OS のクリップボード、日本語入力、読み上げ・ファイルのダイアログ・明暗の設定、複数の窓とほかのアプリから引っ張ってきたファイル、GNOME の題の帯を書きます。">
+<title>第 10 章 Linux の窓（Wayland と X11） ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="0.2 の後の 6 つ目として、kargui が Linux（Wayland）で窓を開けるようにしました。検証用の Linux の PC と AI が画面を操作する道具、境目のファイルを 1 つ足すだけで窓を開く作り、作者の手の確かめの記録から見つけたタッチパッドの取りこぼしを紹介します。後半では、続けて足した OS のクリップボード、日本語入力、読み上げ・ファイルのダイアログ・明暗の設定、複数の窓とほかのアプリから引っ張ってきたファイル、GNOME の題の帯、X11 の窓を書きます。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="../../css/site.css">
 <link rel="stylesheet" href="dev.css">
@@ -29,8 +29,8 @@
 <main id="main" class="dev">
 <article>
   <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 10 章</p>
-  <h1>Linux の窓（Wayland）</h1>
-  <p class="lede">0.2 の後の 6 つ目として、kargui が Linux で窓を開けるようにしました。今まで Linux では試験だけを走らせていて、<code>kargui::run</code> を呼ぶと「この OS では窓を開けない」というエラーを返していました。この章では、確かめるために用意した Linux の PC と、AI が画面を操作する道具を紹介します。続けて、OS の境目のファイルを 1 つ足すだけで窓を開く作りと、作者の手の確かめの記録から見つけた不具合を書きます。章の後半には、続けて足した OS のクリップボード（2 つ目の区切り）、日本語入力（3 つ目の区切り）、読み上げ・ファイルのダイアログ・OS の明暗の設定・複数の窓・引っ張ってきたファイル（4 つ目の区切り）、GNOME の題の帯（5 つ目の区切りの前半）を書きます。</p>
+  <h1>Linux の窓（Wayland と X11）</h1>
+  <p class="lede">0.2 の後の 6 つ目として、kargui が Linux で窓を開けるようにしました。今まで Linux では試験だけを走らせていて、<code>kargui::run</code> を呼ぶと「この OS では窓を開けない」というエラーを返していました。この章では、確かめるために用意した Linux の PC と、AI が画面を操作する道具を紹介します。続けて、OS の境目のファイルを 1 つ足すだけで窓を開く作りと、作者の手の確かめの記録から見つけた不具合を書きます。章の後半には、続けて足した OS のクリップボード（2 つ目の区切り）、日本語入力（3 つ目の区切り）、読み上げ・ファイルのダイアログ・OS の明暗の設定・複数の窓・引っ張ってきたファイル（4 つ目の区切り）、GNOME の題の帯（5 つ目の区切りの前半）、X11 の窓（後半）を書きます。</p>
 
   <section class="learn" aria-labelledby="h-learn">
     <h2 id="h-learn">この章で分かること</h2>
@@ -46,6 +46,7 @@
       <li>ファイルのダイアログと OS の明暗の設定を、窓の処理を止めずにポータルへ頼む方法</li>
       <li>2 つ目からの窓のために、窓ごとの物と座席の物を分けた作り直しと、引っ張ってきたファイルの受け取り方</li>
       <li>GNOME では題の帯をアプリが描く理由と、帯の操作を合成に頼む作り、画面を撮って見つけた 2 つの問題</li>
+      <li>X11 の窓で、キー配列をサーバーから読む理由と、日本語入力を IME の D-Bus で受ける作り</li>
     </ul>
   </section>
 
@@ -367,8 +368,67 @@
     <p>縁の線とダイアログの覆いの 2 つは、試験がすべて通った後に、AI が GNOME の画面を撮って見つけました。どちらも、部品の並びや入力の扱いではなく、見え方と重なり方の問題です。GNOME の上で AI が撮って押せる場を先に作ったので、作者に渡す前に直せました。</p>
   </div>
 
+  <h2 id="x11">5 つ目の区切りの後半: X11 の窓</h2>
+  <p>Linux の画面の仕組みには、新しい Wayland と、長く使われてきた X11 があります。Wayland の合成の上でも、古いアプリは XWayland（Wayland の上で動く X サーバー）を通して X11 の窓を開きます。X11 だけの画面（古い配布物や、リモートで使う画面）もまだあります。そこで kargui も X11 の窓を開けるようにしました。作者の手の確かめの記録に異常はなく、GitHub へ送りました。</p>
+
+  <h3>どちらを使うかは、合成の口で決める</h3>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-backend">
+    <table>
+      <caption id="t-backend">kargui が窓を開く仕組みの決め方（上から順に見る）</caption>
+      <thead><tr><th scope="col">条件</th><th scope="col">使う物</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">KARGUI_BACKEND が x11 か wayland</th><td data-label="使う物">その仕組み（確かめる時に使う）</td></tr>
+        <tr><th scope="row">Wayland の合成の口（WAYLAND_DISPLAY のファイル）がある</th><td data-label="使う物">Wayland</td></tr>
+        <tr><th scope="row">DISPLAY がある</th><td data-label="使う物">X11</td></tr>
+        <tr><th scope="row">どちらも無い</th><td data-label="使う物">Wayland（つなげない理由をエラーで返す）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>名前だけでなく口のファイルがあるかを見るのは、SSH の先などで WAYLAND_DISPLAY の名前だけが残っていることがあるからです。X11 の窓の処理は <code>x11.rs</code> にまとめ、キー配列・読み上げの係・ポータルのスレッドなど Wayland と分け合う物は <code>linux.rs</code> に移しました。X サーバーとは x11rb で話し、libxcb は動く時に読みます。Wayland と同じく、組み立てに開発用の部品は要りません。増えた依存は 5 個です。</p>
+
+  <h3>キー配列は、名前からではなくサーバーから読む</h3>
+  <p>X11 のアプリがキー配列を作る方法は 2 つあります。ルート窓に書かれた配列の名前（「jp」など）から作る方法と、X サーバーが持つ配列そのものを読む方法です。XWayland のキー配列は Wayland の合成から渡されるので、名前と中身が合わないことがあります。kargui は libxkbcommon-x11 でサーバーの配列をそのまま読み、修飾キーの状態は XKB の知らせ（StateNotify）で受け取ります。押し続けはサーバーが繰り返しますが、そのままだと「離した」と「押した」の知らせが交互に届くので、離した知らせを挟まない設定（DetectableAutoRepeat）にしました。</p>
+
+  <h3>絵は共有メモリで出し、読み終わりを待つ</h3>
+  <p>絵は Wayland と同じ CPU の描き方で作り、MIT-SHM（X サーバーと分け合うメモリ）に写して、変わった所だけを窓に出します。X サーバーが読み終える前に次の絵を写すと、描きかけの絵が見えることがあります。そこで、サーバーの「読み終えた」の知らせ（ShmCompletion）が来るまで、次の絵を写しません。MIT-SHM が無い時は、絵を X の接続で送ります（PutImage）。倍率は X のリソースの Xft.dpi から決め、144 なら 1.5 倍で描くことを確かめました。</p>
+
+  <h3>日本語入力は、IME の D-Bus に直接頼む</h3>
+  <p>X11 で日本語入力をつなぐ方法には、X11 の仕組みの XIM と、IME（fcitx5 や IBus）が持つ D-Bus の窓口があります。次の表の軸で比べて、D-Bus を選びました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-xim">
+    <table>
+      <caption id="t-xim">X11 の日本語入力のつなぎ方</caption>
+      <thead><tr><th scope="col">軸</th><th scope="col">XIM</th><th scope="col">IME の D-Bus</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">増える依存</th><td data-label="XIM">10 個ほど（組み立ての時のコードを作る道具も）</td><td data-label="IME の D-Bus">0 個（読み上げとポータルの zbus を使う）</td></tr>
+        <tr><th scope="row">対応する IME</th><td data-label="XIM">1 つの作りで fcitx5 も IBus も</td><td data-label="IME の D-Bus">IME ごとに作る（今は fcitx5）</td></tr>
+        <tr><th scope="row">使っている部品</th><td data-label="XIM">winit など</td><td data-label="IME の D-Bus">GTK・Qt・SDL</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>D-Bus の道では、キーをまず IME に渡し（ProcessKeyEvent）、IME が使わなかったキーだけをアプリに渡します。D-Bus の答えを待つ間も窓の処理を止めないように、頼みは 1 本のスレッドが順に送り、変換中の文字や確定の文字の知らせは別のスレッドが受けます。答えを待っているキーは順に並べておき、答えが来た順にアプリへ渡すので、速く打ってもキーの順番は入れ替わりません。変換中の文字は書式付きの区切りで届くので、強調の付いた区切りを今変換している文節にしました。</p>
+  <!-- gen:x11ime -->
+<figure class="shot flat"><picture><img src="img/linux/x11-ime-light.webp" alt="X11 のメモ帳の本文に、太い下線の TOKYO があり、その真下に 1. 東京、2. TOKYO［アルファベット］などが並ぶ候補の窓が開いている" width="900" height="552" loading="lazy" decoding="async"></picture><figcaption>X11 の窓（Hyprland の XWayland）で「とうきょう」を変換した所。fcitx5 の D-Bus から届いた変換中の文字を kargui が描き、文字を打つ位置を知らせたので、候補の窓が真下に出る。</figcaption></figure>
+<!-- /gen:x11ime -->
+  <p>変換中に入力欄の外を押した時は、Windows と同じく kargui が変換中の文字を確定し、IME には変換を捨てるように頼みます（Reset）。頼まないと、IME が同じ文字をもう一度確定して、文字が 2 回入ります。窓の焦点が離れた時は IME に任せ、IME が確定します。</p>
+
+  <h3>ダイアログと、落とされたファイル</h3>
+  <p>X11 では窓の番号を外に渡せるので、ファイルのダイアログをポータルに頼む時に親の窓（「x11:番号」）を渡すようにしました。ダイアログはメモ帳に結び付いて開きます。2 つ目の窓には、置く場所とアイコンも渡せます。ほかのアプリから落とされたファイルは XDND という決まりで受け取ります。最初に窓の上で動いた時にファイルの場所の一覧を受け取り（検証機で 2〜3 ms）、Wayland と同じ入力にしました。</p>
+  <!-- gen:x11dialog -->
+<figure class="shot flat"><picture><img src="img/linux/x11-dialog-light.webp" alt="X11 のメモ帳の上に、メモを開くの GTK のダイアログが重なっている。最近開いたファイルに tokyo memo.txt などが並ぶ" width="1200" height="645" loading="lazy" decoding="async"></picture><figcaption>X11 の窓から「開く」を選んだ所。ポータルに親の窓（x11:番号）を渡すので、ダイアログはメモ帳に結び付いて開く。</figcaption></figure>
+<!-- /gen:x11dialog -->
+
+  <h3>AI の操作が、XWayland に届かなかった</h3>
+  <p>AI の確かめでは、押したはずの所と違う所が押されたことになりました。調べると、確かめの道具はポインターを Hyprland の命令で動かしていて、XWayland にはその動きが届いていませんでした。そのため X11 の窓には、1 つ前の位置で押した知らせが届きます。押したボタンを離した知らせも、次にポインターが動くまで届きませんでした。道具の側で、動かした後に本物と同じ道で 1 画素動かして戻すようにすると、位置も離した知らせも届きました。本物のマウスでは起きないことです。</p>
+
+  <h3>作者の手の確かめ</h3>
+  <p>作者には Hyprland の XWayland の上で、メモ帳とファイルの閲覧の見本を X11 の窓として操作してもらいました。記録には、日本語の入力と変換と確定、変換中に欄の外を押した時の確定、英字・Shift・切り取りと写し、ファイルを落とす、プロパティの窓、ダイアログの取り消し、閉じる操作が残り、異常はありませんでした。ひとつ、作者の 1 回目の変換で「とうきょう」が「TOKYO」になりました。AI の確かめで「TOKYO」を選んで確定したので、IME が覚えていたためです。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 確かめの操作は、利用者の環境に跡を残す</span>
+    <p>IME は選ばれた候補を覚えるので、AI が確かめで選んだ候補が、作者の次の変換の 1 番目になりました。確かめのために変えた設定（ボタンの並びなど）は戻せますが、IME の学習のように、気づかないうちに残る跡もあります。確かめの手順は、利用者の環境に何を残すかまで考えて決める必要があります。</p>
+  </div>
+
   <h2 id="next">次の区切り</h2>
-  <p>次は 5 つ目の区切りの後半で、X11 の窓を足します。題の帯の影と丸い角（透ける絵と、窓の外の余白が要る）、帯を 2 回押した時の動きを GNOME の設定に合わせること、中ボタンで貼る Linux のもう 1 つのクリップボード（選んだだけで写る仕組み）、日本語入力の再変換、OS の明暗が変わった時に追うこと、窓の題を後から変えることも、後の候補です。</p>
+  <p>Linux の窓の計画は、ここで一通り終わりました。次は、狭い窓で表の列がずれる不具合を直し（名前の列が中身より狭くなると、名前の長い行だけ後ろの列が右へずれる。X11 とは関係ない）、IBus（Ubuntu の既定の IME）を足します。本物の Xorg の画面での確かめ、題の帯の影と丸い角、帯を 2 回押した時の動きを GNOME の設定に合わせること、中ボタンで貼る Linux のもう 1 つのクリップボード、日本語入力の再変換、OS の明暗が変わった時に追うこと、窓の題を後から変えることも、後の候補です。</p>
 
   <nav class="chapter-nav" aria-label="章の移動">
     <a href="09-rich-text.html">← 第 9 章 書式付きの文字</a>
