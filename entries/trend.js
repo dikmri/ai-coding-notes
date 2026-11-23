@@ -10223,3 +10223,473 @@ dekiru.add({
     }
   },
 });
+
+dekiru.add({
+  id: 'tr-20261123-ntp-offset', c: 'trend', lv: 2, date: '2026-11-23',
+  t: '行きと帰りの4つの時刻から時計のずれを計算し、くるった進み方まで直す（NTP の時刻合わせ）',
+  y: 'いきとかえりのよっつのじこくからとけいのずれをけいさんしくるったすすみかたまでなおす',
+  tags: ['NTP', 'NTP Pool', 'chrony', '時刻合わせ', 'Canvas'],
+  d: '2026年11月17日、Jeff Geerling さんが記事「I joined the NTP Pool, but not with my Stratum 1 Pi」を公開した。11月22日に Hacker News に投稿され、取得した時点で 134 点・42 件のコメントを集めていた。記事では、衛星（GNSS）の信号で時刻を合わせた Raspberry Pi（Stratum 1）から VPS の時刻サーバー（Stratum 2）へ時刻を渡し、世界中の機械が時刻を問い合わせる NTP Pool に加わった経緯、chrony の設定、サーバーが止まってから採点が戻るまでの様子を書いている。比べている Cloudflare の時刻サーバーの線がときどき段になって上下するのは、行きと帰りで通る経路が変わるためだろう、とも書いている。この見本では、NTP の問い合わせ1回で記録する4つの時刻から、相手とのずれ θ と往復の時間 δ を計算する様子を図にする。そして、くるった時計を2つのやり方で合わせて比べる。1つは毎回、測ったずれをそのまま足すやり方。もう1つは、直近 8 回のうち往復が一番短い回を選び、ずれを少しずつ直しながら進み方（周波数）も直すやり方（NTP 風）。2つの時計は同じ回線の待ち時間で問い合わせる。行きと帰りの時間に差をつけると、NTP 風のやり方でもその差の半分だけずれたまま落ち着き、測ったずれは 0 に見えることを確かめられる。再現できていない所: 回線と時刻サーバーは乱数で作った模擬で、本物の時刻サーバーには問い合わせない（ブラウザから NTP の UDP の通信は送れない）。直し方は ntpd や chrony の仕組みを大きく省いたもの。複数のサーバーから良いものを選ぶ処理、問い合わせの間隔を 64〜1024 秒で変える処理、chrony の回帰による推定、直す速さの上限などは入れていない。NTP Pool がサーバーを採点する仕組み、衛星の PPS 信号、ネットワークの部品が付ける時刻（ハードウェアのタイムスタンプ）も扱っていない。',
+  p: '自分が送った時刻 t1、相手が受け取った時刻 t2、相手が返した時刻 t3、自分が受け取った時刻 t4 の4つがあれば、往復の時間は δ = (t4 − t1) − (t3 − t2)、ずれは θ = ((t2 − t1) + (t3 − t4)) ÷ 2 で出る（RFC 5905 と同じ式）。θ が正しいのは行きと帰りの時間が同じときだけで、違うと「行き − 帰り」の半分だけ外れる。回線の混雑で待たされた回ほど外れが大きくなりやすいので、往復が短い回を選ぶと誤差が小さくなる（右下の図で、どの点も三角形の内側に入り、左の先ほど狭い）。時計の進み方がくるっていると、ずれだけ直しても次の問い合わせまでにまたずれる。そこで θ の一部で時計を動かし（比例）、θ に比例した量を進み方の直しへ足し続ける（積分）。同じ回の θ を2度使わないように、使った回の番号を覚えておく。',
+  refs: [
+    { title: 'I joined the NTP Pool, but not with my Stratum 1 Pi（Jeff Geerling、2026-11-17）', url: 'https://www.jeffgeerling.com/blog/2026/i-joined-the-ntp-pool/' },
+    { title: 'Hacker News: I joined the NTP Pool, but not with my Stratum 1 Pi（2026-11-22）', url: 'https://news.ycombinator.com/item?id=50600622' },
+    { title: 'RFC 5905: Network Time Protocol Version 4', url: 'https://www.rfc-editor.org/rfc/rfc5905' },
+    { title: 'NTP Pool Project', url: 'https://www.ntppool.org/' },
+  ],
+  html: `<div class="app">
+  <div class="bar">
+    <label class="ctl"><span class="nm">自分の時計のくるい <small id="dayO"></small></span><input type="range" id="ppm" min="-200" max="200" step="10" value="80"><output id="ppmO" for="ppm"></output></label>
+    <label class="ctl"><span class="nm">回線の混み具合（待たされる時間の平均）</span><input type="range" id="jit" min="0" max="40" step="1" value="12"><output id="jitO" for="jit"></output></label>
+    <label class="ctl"><span class="nm">行きと帰りの時間の差（行き − 帰り）</span><input type="range" id="asym" min="-20" max="20" step="1" value="0"><output id="asymO" for="asym"></output></label>
+    <div class="btns"><button type="button" id="route">経路を変える</button><button type="button" id="pause">止める</button><button type="button" id="reset">最初から</button></div>
+  </div>
+  <div class="stats">
+    <div class="stat"><span>測ったずれ θ（NTP 風の時計）</span><b id="thO">-</b><span>ms</span></div>
+    <div class="stat"><span>往復の時間 δ</span><b id="dlO">-</b><span>ms</span></div>
+    <div class="stat"><span>NTP 風の時計の本当のずれ</span><b id="eN" class="n">-</b><span id="rN">ms</span></div>
+    <div class="stat"><span>毎回そのまま合わせた時計の本当のずれ</span><b id="eS" class="r">-</b><span id="rS">ms</span></div>
+    <div class="stat"><span>NTP 風の時計の進み方の直し</span><b id="fO">-</b><span id="fSub">ppm</span></div>
+  </div>
+  <figure>
+    <canvas id="ex" role="img" aria-label="最新の問い合わせ。自分が t1 に送り、相手が t2 に受け取り、t3 に返し、自分が t4 に受け取る"></canvas>
+    <p class="fx">ずれ θ = ((t2 − t1) + (t3 − t4)) ÷ 2 = ((<span id="fa">-</span>) + (<span id="fb">-</span>)) ÷ 2 = <b id="fth">-</b> ms<br>往復 δ = (t4 − t1) − (t3 − t2) = <span id="fc">-</span> − <span id="fd">-</span> = <b id="fdl">-</b> ms</p>
+    <p class="small" id="truth"></p>
+    <p class="why" id="why"></p>
+  </figure>
+  <div class="lower">
+    <figure>
+      <canvas id="gr" role="img" aria-label="2つの時計の本当のずれの移り変わり"></canvas>
+      <figcaption><span class="key"></span>NTP 風（往復が一番短い回を選び、進み方も直す）　<span class="key raw"></span>毎回、測ったずれをそのまま足す　<span class="key dash"></span>行きと帰りの差 ÷ 2。縦は本当のずれ（ms）、横は時間（分）</figcaption>
+    </figure>
+    <figure class="wedge">
+      <canvas id="wd" role="img" aria-label="往復の時間と、測ったずれの誤差の散らばり"></canvas>
+      <figcaption>横は往復の時間 δ、縦は θ の誤差（ms）。点は直近 60 回（往復が特に長い 1 割は図の外）で、<span class="dot"></span>は NTP 風の時計が直すのに使った回。どの点も色の付いた三角形の中に入る</figcaption>
+    </figure>
+  </div>
+  <p class="small">2つの時計は同じ時刻サーバーに 16 秒ごとに問い合わせ、回線で待たされる時間も同じ乱数を使う。1 回の問い合わせを 0.45 秒で見せている。「本当のずれ」は模擬なので分かる値で、実際の時計からは見えない。</p>
+</div>`,
+  css: `:root { color-scheme: light; --bg: #f4f2ec; --fg: #23211d; --mut: #625d53; --line: #d6d0c3; --panel: #fffdf8; --ntp: #1d6a86; --raw: #c2492f; --srv: #2f7d4f; --soft: #dcebee; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    .app { box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; padding: 10px; max-inline-size: 980px; margin-inline: auto; }
+    .bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 6px 16px; align-items: end; }
+    .ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; min-inline-size: 0; }
+    .ctl .nm { flex: 1 0 100%; font-size: 12px; color: var(--mut); line-height: 1.35; }
+    .ctl small { font-size: 11.5px; }
+    .ctl input { flex: 1 1 100px; min-inline-size: 0; margin: 4px 0; }
+    .ctl output { flex: 0 0 auto; min-inline-size: 5.2em; text-align: end; font-size: 13px; font-variant-numeric: tabular-nums; }
+    input[type="range"]:focus-visible, button:focus-visible { outline: 2px solid var(--ntp); outline-offset: 2px; }
+    .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+    button { font: inherit; font-size: 13px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--fg); cursor: pointer; }
+    button:hover { border-color: var(--mut); }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 6px; }
+    .stat { min-inline-size: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; display: flex; flex-direction: column; }
+    .stat span { font-size: 11px; color: var(--mut); line-height: 1.35; }
+    .stat b { font-size: 21px; line-height: 1.25; font-variant-numeric: tabular-nums; }
+    .stat b.n { color: var(--ntp); }
+    .stat b.r { color: var(--raw); }
+    figure { margin: 0; min-inline-size: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
+    canvas { display: block; inline-size: 100%; }
+    #ex { block-size: 132px; }
+    #gr, #wd { block-size: 210px; }
+    .fx { margin: 4px 0 2px; font-size: 12.5px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .why { margin: 2px 0 0; font-size: 12.5px; min-block-size: 2.7em; }
+    .lower { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 8px; align-items: start; }
+    @media (max-width: 640px) { .lower { grid-template-columns: minmax(0, 1fr); } }
+    figcaption { font-size: 12px; color: var(--mut); line-height: 1.45; }
+    .key { display: inline-block; inline-size: 18px; block-size: 0; border-block-start: 3px solid var(--ntp); vertical-align: middle; margin-inline-end: 4px; }
+    .key.raw { border-block-start-color: var(--raw); }
+    .key.dash { border-block-start: 2px dashed var(--mut); }
+    .dot { display: inline-block; inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--ntp); vertical-align: middle; margin-inline: 2px; }
+    .small { font-size: 12px; color: var(--mut); margin: 0; }
+    .thumb .bar, .thumb .stats, .thumb .fx, .thumb .why, .thumb .small, .thumb figcaption, .thumb .wedge { display: none; }
+    .thumb .app { padding: 6px; gap: 6px; }
+    .thumb #ex { block-size: 96px; }
+    .thumb #gr { block-size: 108px; }`,
+  core() {
+    // 1回の問い合わせで記録する4つの時刻から、相手との時計のずれ θ と往復の時間 δ を出す（RFC 5905 と同じ式）
+    //   t1: 自分が送った時刻（自分の時計）  t2: 相手が受け取った時刻（相手の時計）
+    //   t3: 相手が返した時刻（相手の時計）  t4: 自分が受け取った時刻（自分の時計）
+    // θ は「相手の時計 − 自分の時計」。行きと帰りにかかる時間が同じときだけ正しい値になる
+    function offsetDelay(t1, t2, t3, t4) {
+      return { offset: ((t2 - t1) + (t3 - t4)) / 2, delay: (t4 - t1) - (t3 - t2) };
+    }
+
+    // 往復が一番短かった回の番号。同じ長さなら新しい方（無ければ -1）
+    function pickBest(samples) {
+      let b = -1;
+      for (let i = 0; i < samples.length; i++) if (b < 0 || samples[i].delay <= samples[b].delay) b = i;
+      return b;
+    }
+
+    // 種を決めると毎回同じ並びになる乱数（0 以上 1 未満）
+    function rng(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a = (a + 0x6d2b79f5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    // 回線の混雑で増える待ち時間（ms）。短いことが多く、ときどき長い（指数分布）
+    function queueDelay(mean, rnd) {
+      return mean > 0 ? -mean * Math.log(1 - rnd()) : 0;
+    }
+
+    // 1回分の回線の様子: 行きの時間 df、帰りの時間 db、相手の中での処理の時間 proc（ms）
+    // p.base は混雑が無いときの片道の時間、p.asym は「行き − 帰り」、p.jitter は待ち時間の平均
+    function netSample(p, rnd) {
+      return {
+        df: Math.max(0.2, p.base + p.asym / 2 + queueDelay(p.jitter, rnd)),
+        db: Math.max(0.2, p.base - p.asym / 2 + queueDelay(p.jitter, rnd)),
+        proc: 0.05 + rnd() * 0.25,
+      };
+    }
+
+    const FILTER = 8;     // 往復の長さを比べる回数（直近の何回か）
+    const KP = 0.4;       // 測ったずれのうち、1回で直す割合
+    const KI = 0.03;      // 進み方（周波数）を直す強さ
+    const STEP_MS = 128;  // 最初にこれより大きくずれていたら、少しずつではなく一度に合わせる
+
+    // 模擬の時計。e は「自分の時計 − 本当の時刻」（ms）、f は進み方の直し（ppm）
+    function makeSim(e0) {
+      return { t: 0, e: e0, f: 0, n: 0, used: -1, samples: [] };
+    }
+
+    // p.tau 秒待ってから1回問い合わせ、決めたやり方で自分の時計を直す。
+    // p.mode: 'step'（毎回そのまま足す）または 'ntp'（往復が一番短い回を選び、進み方も直す）
+    // p.ppm: 自分の時計の本当のくるい（100 万分の 1 単位）
+    function poll(s, p, net) {
+      const tau = p.tau;
+      s.t += tau;
+      s.e += (p.ppm + s.f) * 1e-3 * tau;              // 待っている間に、くるいと直しの差の分だけずれる
+      const before = s.e;
+      const T1 = s.t * 1000;                          // 送った瞬間の本当の時刻（ms）
+      const t1 = T1 + s.e;
+      const t2 = T1 + net.df;                         // 相手の時計は正しいとする
+      const t3 = t2 + net.proc;
+      const t4 = t3 + net.db + s.e;
+      const m = offsetDelay(t1, t2, t3, t4);
+      const sample = { id: s.n++, offset: m.offset, delay: m.delay };
+      s.samples.push(sample);
+      if (s.samples.length > FILTER) s.samples.shift();
+      const best = s.samples[pickBest(s.samples)];
+      let adj = 0, usedId = -1;
+      if (p.mode === 'step' || (sample.id === 0 && Math.abs(m.offset) > STEP_MS)) {
+        adj = sample.offset;
+        usedId = sample.id;
+      } else if (best.id !== s.used) {                // 同じ回の θ は2度使わない
+        adj = KP * best.offset;
+        s.f += (KI * best.offset / tau) * 1e3;        // ms/秒 を ppm に直して足す
+        usedId = best.id;
+      }
+      if (usedId >= 0) s.used = usedId;
+      if (adj) {
+        s.e += adj;
+        for (const x of s.samples) x.offset -= adj;   // 前の回の θ も、時計を動かした分だけ直しておく
+      }
+      return { id: sample.id, t1, t2, t3, t4, df: net.df, db: net.db, offset: m.offset, delay: m.delay,
+        err: m.offset + before, before, after: s.e, adj, usedId, bestId: best.id, bestDelay: best.delay };
+    }
+
+    // 二乗平均（ずれの大きさの目安）
+    function rms(list) {
+      let sum = 0;
+      for (const v of list) sum += v * v;
+      return list.length ? Math.sqrt(sum / list.length) : 0;
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const thumb = !!window.THUMB;
+    if (thumb) document.documentElement.classList.add('thumb');
+    const ex = $('ex'), gr = $('gr'), wd = $('wd');
+    const gx = ex.getContext('2d'), gg = gr.getContext('2d'), gw = wd.getContext('2d');
+    const css = getComputedStyle(document.documentElement);
+    const col = (n, alt) => css.getPropertyValue(n).trim() || alt;
+    const C = { fg: col('--fg', '#23211d'), mut: col('--mut', '#625d53'), line: col('--line', '#d6d0c3'), ntp: col('--ntp', '#1d6a86'), raw: col('--raw', '#c2492f'), srv: col('--srv', '#2f7d4f'), soft: col('--soft', '#dcebee') };
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const TAU = 16, BASE = 12, WINDOW = 120, WEDGE = 60, RECENT = 30, E0 = 25;
+    const PERIOD = 450, ANIM = 380;
+    const P = { ppm: 80, jitter: 12, asym: 0, base: BASE, tau: TAU };
+    const ppmI = $('ppm'), jitI = $('jit'), asymI = $('asym'), pauseB = $('pause');
+    let simN, simS, R, histN, histS, dots, lastN = null, lastS = null;
+    let running = true, acc = 0, prevT = 0, animAt = -1e9, dirty = true;
+
+    const sg = (v, d = 2) => {
+      const a = Math.abs(v).toFixed(d);
+      return (Number(a) === 0 ? '' : v < 0 ? '−' : '+') + a;
+    };
+    // 自分や相手の時計の読み（分:秒、0.1 ms まで）
+    function clock(ms) {
+      const u = Math.max(0, Math.round(ms * 10));
+      const m = Math.floor(u / 600000);
+      return String(m).padStart(2, '0') + ':' + ((u - m * 600000) / 10000).toFixed(4).padStart(7, '0');
+    }
+    function niceStep(m) {
+      for (const s of [0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500]) if (m / s <= 3) return s;
+      return 1000;
+    }
+
+    function reset() {
+      simN = makeSim(E0); simS = makeSim(E0); R = rng(20261123);
+      histN = [{ t: 0, before: E0, after: E0 }]; histS = [{ t: 0, before: E0, after: E0 }];
+      dots = []; lastN = lastS = null; acc = 0; dirty = true;
+    }
+
+    // 同じ回線の様子で、2つの時計が1回ずつ問い合わせる
+    function stepOnce() {
+      const net = netSample(P, R);
+      lastN = poll(simN, { ...P, mode: 'ntp' }, net);
+      lastS = poll(simS, { ...P, mode: 'step' }, net);
+      histN.push({ t: simN.t, before: lastN.before, after: lastN.after });
+      histS.push({ t: simS.t, before: lastS.before, after: lastS.after });
+      if (histN.length > WINDOW + 1) { histN.shift(); histS.shift(); }
+      dots.push({ id: lastN.id, delay: lastN.delay, err: lastN.err, asym: P.asym, used: false });
+      if (dots.length > WEDGE) dots.shift();
+      if (lastN.usedId >= 0) { const d = dots.find((x) => x.id === lastN.usedId); if (d) d.used = true; }
+      animAt = performance.now();
+      dirty = true;
+    }
+
+    function fit(cv, ctx) {
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const cw = Math.max(1, cv.clientWidth), ch = Math.max(1, cv.clientHeight);
+      const w = Math.max(1, Math.round(cw * dpr)), h = Math.max(1, Math.round(ch * dpr));
+      if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { w: cw, h: ch };
+    }
+    function seg(ctx, x1, y1, x2, y2) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
+    function arrow(ctx, x1, y1, x2, y2) {
+      seg(ctx, x1, y1, x2, y2);
+      const a = Math.atan2(y2 - y1, x2 - x1), k = 7;
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - k * Math.cos(a - 0.4), y2 - k * Math.sin(a - 0.4));
+      ctx.lineTo(x2 - k * Math.cos(a + 0.4), y2 - k * Math.sin(a + 0.4));
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // 上: 最新の問い合わせの4つの時刻
+    function drawEx(now) {
+      const { w, h } = fit(ex, gx);
+      gx.clearRect(0, 0, w, h);
+      const yS = 30, yC = h - 28, x0 = 6, x1 = w - 6;
+      const narrow = w < 380;
+      gx.font = (narrow ? '10.5px' : '11.5px') + ' system-ui, sans-serif';
+      gx.lineWidth = 2;
+      gx.strokeStyle = C.srv; seg(gx, x0, yS, x1, yS);
+      gx.strokeStyle = C.ntp; seg(gx, x0, yC, x1, yC);
+      gx.textBaseline = 'bottom'; gx.textAlign = 'left';
+      gx.fillStyle = C.srv; gx.fillText('相手（時刻サーバー）', x0, yS - 5);
+      gx.fillStyle = C.ntp; gx.fillText('自分（NTP 風の時計）', x0, yC - 5);
+      if (!lastN) return;
+      const o = lastN, total = o.df + (o.t3 - o.t2) + o.db;
+      const L = w * (narrow ? 0.34 : 0.3), Rr = w - (narrow ? 12 : 0.12 * w);
+      const X = (ms) => L + (ms / total) * (Rr - L);
+      const p1 = [X(0), yC], p2 = [X(o.df), yS], p3 = [X(o.df + (o.t3 - o.t2)), yS], p4 = [X(total), yC];
+      gx.strokeStyle = C.mut; gx.fillStyle = C.mut; gx.lineWidth = 1.5;
+      arrow(gx, p1[0], p1[1], p2[0], p2[1]);
+      arrow(gx, p3[0], p3[1], p4[0], p4[1]);
+      gx.fillStyle = C.fg;
+      for (const q of [p1, p2, p3, p4]) { gx.beginPath(); gx.arc(q[0], q[1], 3, 0, Math.PI * 2); gx.fill(); }
+      gx.textBaseline = 'bottom';
+      gx.textAlign = 'right'; gx.fillText('t2 ' + clock(o.t2), p2[0] - 4, yS - 5);
+      gx.textAlign = 'left'; gx.fillText('t3 ' + clock(o.t3), p3[0] + 4, yS - 5);
+      gx.textBaseline = 'top';
+      gx.textAlign = 'center'; gx.fillText('t1 ' + clock(o.t1), p1[0], yC + 5);
+      gx.textAlign = 'right'; gx.fillText('t4 ' + clock(o.t4), Math.min(w - 4, p4[0] + 40), yC + 5);
+      // 行き来する問い合わせの印
+      const u = (now - animAt) / ANIM;
+      if (!reduce && u >= 0 && u < 1) {
+        const ms = u * total;
+        let x, y;
+        if (ms < o.df) { const k = ms / o.df; x = p1[0] + (p2[0] - p1[0]) * k; y = p1[1] + (p2[1] - p1[1]) * k; }
+        else if (ms < o.df + (o.t3 - o.t2)) { x = p2[0]; y = yS; }
+        else { const k = (ms - o.df - (o.t3 - o.t2)) / o.db; x = p3[0] + (p4[0] - p3[0]) * k; y = p3[1] + (p4[1] - p3[1]) * k; }
+        gx.fillStyle = C.ntp; gx.beginPath(); gx.arc(x, y, 5, 0, Math.PI * 2); gx.fill();
+      }
+    }
+
+    // 左下: 2つの時計の本当のずれ
+    function drawGraph() {
+      const { w, h } = fit(gr, gg);
+      gg.clearRect(0, 0, w, h);
+      const padL = 46, padR = 8, padT = 8, padB = 20;
+      const pw = Math.max(1, w - padL - padR), ph = Math.max(1, h - padT - padB);
+      const span = WINDOW * TAU;
+      const tEnd = Math.max(span, histN[histN.length - 1].t), tStart = tEnd - span;
+      const X = (t) => padL + ((t - tStart) / span) * pw;
+      let m = Math.abs(P.asym / 2) + 0.25;
+      for (const H of [histN, histS]) for (let i = Math.max(0, H.length - 40); i < H.length; i++) m = Math.max(m, Math.abs(H[i].before), Math.abs(H[i].after));
+      const st = niceStep(m), n = Math.max(1, Math.ceil((m * 1.08) / st)), topV = n * st;
+      const Y = (v) => padT + ph / 2 - (v / topV) * (ph / 2);
+      gg.font = '10.5px system-ui, sans-serif';
+      gg.lineWidth = 1;
+      gg.textAlign = 'right'; gg.textBaseline = 'middle';
+      for (let k = -n; k <= n; k++) {
+        const v = k * st;
+        gg.strokeStyle = k === 0 ? C.mut : C.line;
+        seg(gg, padL, Y(v), padL + pw, Y(v));
+        gg.fillStyle = C.mut;
+        gg.fillText(sg(v, st < 1 ? 2 : 0), padL - 4, Y(v));
+      }
+      gg.textAlign = 'center'; gg.textBaseline = 'top';
+      for (let t = Math.ceil(tStart / 300) * 300; t <= tEnd; t += 300) {
+        if (t < 0) continue;
+        gg.fillText(Math.round(t / 60) + ' 分', X(t), padT + ph + 4);
+      }
+      gg.save();
+      gg.beginPath(); gg.rect(padL, padT, pw, ph); gg.clip();
+      if (P.asym) {
+        gg.setLineDash([5, 4]); gg.strokeStyle = C.mut;
+        seg(gg, padL, Y(P.asym / 2), padL + pw, Y(P.asym / 2));
+        gg.setLineDash([]);
+      }
+      for (const [H, c, lw] of [[histS, C.raw, 1.4], [histN, C.ntp, 2]]) {
+        gg.strokeStyle = c; gg.lineWidth = lw; gg.lineJoin = 'round';
+        gg.beginPath();
+        gg.moveTo(X(H[0].t), Y(H[0].after));
+        for (let i = 1; i < H.length; i++) { gg.lineTo(X(H[i].t), Y(H[i].before)); gg.lineTo(X(H[i].t), Y(H[i].after)); }
+        gg.stroke();
+      }
+      gg.restore();
+    }
+
+    // 右下: 往復の時間と θ の誤差。誤差は（行き − 帰り）÷ 2 なので、どの点も三角形の中に入る
+    function drawWedge() {
+      const { w, h } = fit(wd, gw);
+      gw.clearRect(0, 0, w, h);
+      const padL = 40, padR = 8, padT = 8, padB = 30;
+      const pw = Math.max(1, w - padL - padR), ph = Math.max(1, h - padT - padB);
+      const d0 = 2 * BASE, a = P.asym / 2;
+      // 横は往復の短い方から 9 割の回まで（まれに来るとても長い往復で、三角形の先がつぶれないように）
+      const ds = dots.map((d) => d.delay).sort((p, q) => p - q);
+      const d90 = ds.length ? ds[Math.floor((ds.length - 1) * 0.9)] : d0;
+      const xMin = d0 - 4, xMax = Math.max(d0 + 12, d90) + 4;
+      // 縦は三角形が右端でちょうど収まる高さ
+      const eMax = Math.abs(a) + (xMax - d0) / 2;
+      const st = niceStep(eMax), n = Math.max(1, Math.ceil((eMax * 1.05) / st)), topV = n * st;
+      const X = (d) => padL + ((d - xMin) / (xMax - xMin)) * pw;
+      const Y = (e) => padT + ph / 2 - (e / topV) * (ph / 2);
+      gw.font = '10.5px system-ui, sans-serif';
+      gw.lineWidth = 1;
+      gw.textAlign = 'right'; gw.textBaseline = 'middle';
+      for (let k = -n; k <= n; k++) {
+        gw.strokeStyle = k === 0 ? C.mut : C.line;
+        seg(gw, padL, Y(k * st), padL + pw, Y(k * st));
+        gw.fillStyle = C.mut;
+        gw.fillText(sg(k * st, st < 1 ? 2 : 0), padL - 4, Y(k * st));
+      }
+      const xs = niceStep((xMax - xMin) / 1.6);
+      gw.textAlign = 'center'; gw.textBaseline = 'top';
+      for (let d = Math.ceil(xMin / xs) * xs; d <= xMax; d += xs) gw.fillText(String(d), X(d), padT + ph + 3);
+      gw.textAlign = 'right';
+      gw.fillText('往復 δ（ms）', padL + pw, padT + ph + 16);
+      gw.save();
+      gw.beginPath(); gw.rect(padL, padT, pw, ph); gw.clip();
+      const r = xMax - d0;
+      gw.fillStyle = C.soft;
+      gw.beginPath(); gw.moveTo(X(d0), Y(a)); gw.lineTo(X(xMax), Y(a + r / 2)); gw.lineTo(X(xMax), Y(a - r / 2)); gw.closePath(); gw.fill();
+      for (const d of dots) {
+        gw.globalAlpha = d.asym === P.asym ? 1 : 0.3;
+        gw.fillStyle = d.used ? C.ntp : C.mut;
+        gw.beginPath(); gw.arc(X(d.delay), Y(d.err), d.used ? 3.6 : 2.4, 0, Math.PI * 2); gw.fill();
+      }
+      gw.globalAlpha = 1;
+      const last = dots[dots.length - 1];
+      if (last) { gw.strokeStyle = C.fg; gw.lineWidth = 1.5; gw.beginPath(); gw.arc(X(last.delay), Y(last.err), 6, 0, Math.PI * 2); gw.stroke(); }
+      gw.restore();
+    }
+
+    function showOutputs() {
+      $('ppmO').textContent = sg(P.ppm, 0) + ' ppm';
+      const day = P.ppm * 0.0864;
+      $('dayO').textContent = P.ppm === 0 ? '（くるいなし）' : '（1日に ' + Math.abs(day).toFixed(1) + ' 秒' + (day > 0 ? '進む）' : '遅れる）');
+      $('jitO').textContent = P.jitter + ' ms';
+      $('asymO').textContent = sg(P.asym, 0) + ' ms';
+    }
+
+    function updateText() {
+      if (!lastN) {
+        for (const id of ['thO', 'dlO', 'eN', 'eS', 'fO', 'fa', 'fb', 'fc', 'fd', 'fth', 'fdl']) $(id).textContent = '-';
+        $('rN').textContent = 'ms'; $('rS').textContent = 'ms';
+        $('fSub').textContent = 'ppm'; $('truth').textContent = ''; $('why').textContent = '';
+        return;
+      }
+      const o = lastN;
+      $('thO').textContent = sg(o.offset);
+      $('dlO').textContent = o.delay.toFixed(2);
+      $('eN').textContent = sg(o.after);
+      $('eS').textContent = sg(lastS.after);
+      const pick = (H) => H.slice(-RECENT).flatMap((x) => [x.before, x.after]);
+      const k = Math.min(RECENT, histN.length - 1);
+      $('rN').textContent = 'ms（直近 ' + k + ' 回の二乗平均 ' + rms(pick(histN)).toFixed(2) + '）';
+      $('rS').textContent = 'ms（直近 ' + k + ' 回の二乗平均 ' + rms(pick(histS)).toFixed(2) + '）';
+      $('fO').textContent = sg(simN.f, 1);
+      $('fSub').textContent = 'ppm（くるいは ' + sg(P.ppm, 0) + ' ppm）';
+      $('fa').textContent = sg(o.t2 - o.t1);
+      $('fb').textContent = sg(o.t3 - o.t4);
+      $('fth').textContent = sg(o.offset);
+      $('fc').textContent = (o.t4 - o.t1).toFixed(2);
+      $('fd').textContent = (o.t3 - o.t2).toFixed(2);
+      $('fdl').textContent = o.delay.toFixed(2);
+      $('truth').textContent = '本当の片道（模擬なので分かる）: 行き ' + o.df.toFixed(2) + ' ms、帰り ' + o.db.toFixed(2) + ' ms。θ の誤差は（行き − 帰り）÷ 2 = ' + sg(o.err) + ' ms。';
+      let why;
+      if (o.usedId === o.id) why = 'この回の往復は直近 8 回で一番短い。この回の θ の 4 割だけ時計を動かし、θ に比例した量を進み方の直しにも足した。';
+      else if (o.usedId >= 0) why = 'この回の往復は長いので使わない。直近 8 回で一番短い往復（' + o.bestDelay.toFixed(2) + ' ms、' + (o.id - o.usedId) + ' 回前）はまだ使っていないので、その θ で直した。';
+      else why = 'この回の往復は長いので使わない。直近 8 回で一番短い往復（' + o.bestDelay.toFixed(2) + ' ms、' + (o.id - o.bestId) + ' 回前）は前に使ったので、今回は時計を直さない。';
+      $('why').textContent = why;
+    }
+
+    function readInputs() {
+      P.ppm = Number(ppmI.value); P.jitter = Number(jitI.value); P.asym = Number(asymI.value);
+      showOutputs();
+      dirty = true;
+    }
+    for (const el of [ppmI, jitI, asymI]) el.addEventListener('input', readInputs);
+    $('route').addEventListener('click', () => {
+      let v;
+      do { v = Math.round((Math.random() * 2 - 1) * 16); } while (Math.abs(v - P.asym) < 6);
+      asymI.value = String(v);
+      readInputs();
+    });
+    pauseB.addEventListener('click', () => {
+      running = !running;
+      pauseB.textContent = running ? '止める' : '動かす';
+      prevT = 0; acc = 0;
+    });
+    $('reset').addEventListener('click', () => { reset(); });
+
+    function render(now) {
+      drawGraph(); drawWedge(); updateText(); drawEx(now);
+    }
+    function frame(now) {
+      const dt = prevT ? Math.min(1000, now - prevT) : 0;
+      prevT = now;
+      if (running) {
+        acc += dt;
+        let k = 0;
+        while (acc >= PERIOD && k < 3) { acc -= PERIOD; stepOnce(); k++; }
+        if (acc >= PERIOD) acc = 0;
+      }
+      if (dirty) { render(now); dirty = false; }
+      else if (now - animAt < ANIM + 60) drawEx(now);
+      requestAnimationFrame(frame);
+    }
+
+    reset();
+    showOutputs();
+    if (thumb) for (let i = 0; i < WINDOW; i++) stepOnce();
+    render(performance.now());
+    dirty = false;
+    if ('ResizeObserver' in window) new ResizeObserver(() => { dirty = true; }).observe(document.body);
+    requestAnimationFrame(frame);
+  },
+});

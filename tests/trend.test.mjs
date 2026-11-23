@@ -1695,3 +1695,103 @@ test('圧縮: 度数はどの文字も 1 以上で合計は上限以下。種類
   assert.deepEqual(Array.from(X.charsOf('a\r\nb\rc')), ['a', '\n', 'b', '\n', 'c']);
   assert.deepEqual(Array.from(X.charsOf('😀a')), ['😀', 'a']);
 });
+
+// ---- 時刻合わせ（NTP）: tr-20261123-ntp-offset ----
+const NTP = 'tr-20261123-ntp-offset';
+const NTP_NAMES = ['offsetDelay', 'pickBest', 'rng', 'netSample', 'makeSim', 'poll', 'rms', 'FILTER', 'KP', 'STEP_MS'];
+// 回線の様子を決めて1回ずつ問い合わせる
+function ntpRun(X, mode, p, n, e0 = 25, seed = 1) {
+  const s = X.makeSim(e0), r = X.rng(seed), out = [];
+  for (let i = 0; i < n; i++) out.push(X.poll(s, { ...p, mode }, X.netSample(p, r)));
+  return { s, out };
+}
+
+test('時刻合わせ: 行きと帰りが同じなら θ は本当のずれ。違うと（行き − 帰り）÷ 2 だけ外れる', () => {
+  const X = trendCore(NTP, NTP_NAMES);
+  // 自分の時計が 30 ms 進んでいる。行き 10 ms、相手の処理 1 ms、帰り 10 ms
+  const e = 30, T1 = 1000;
+  let m = X.offsetDelay(T1 + e, T1 + 10, T1 + 11, T1 + 21 + e);
+  assert.ok(near(m.offset, -30) && near(m.delay, 20));
+  // 行き 16 ms、帰り 4 ms（往復は同じ 20 ms）: θ は 6 ms 外れる
+  m = X.offsetDelay(T1 + e, T1 + 16, T1 + 17, T1 + 21 + e);
+  assert.ok(near(m.offset, -30 + 6) && near(m.delay, 20));
+});
+
+test('時刻合わせ: 往復が一番短い回を選び、同じ長さなら新しい方', () => {
+  const X = trendCore(NTP, NTP_NAMES);
+  assert.equal(X.pickBest([]), -1);
+  assert.equal(X.pickBest([{ delay: 30 }, { delay: 22 }, { delay: 40 }]), 1);
+  assert.equal(X.pickBest([{ delay: 22 }, { delay: 30 }, { delay: 22 }]), 2);
+});
+
+test('時刻合わせ: 回線の様子は種で決まり、混雑が無ければ片道は base ± 差 ÷ 2', () => {
+  const X = trendCore(NTP, NTP_NAMES);
+  const p = { base: 12, asym: 6, jitter: 10 };
+  const a = X.rng(5), b = X.rng(5);
+  for (let i = 0; i < 50; i++) {
+    const u = X.netSample(p, a), v = X.netSample(p, b);
+    assert.deepEqual({ ...u }, { ...v });
+    assert.ok(u.df >= 15 - 1e-9 && u.db >= 9 - 1e-9 && u.proc > 0 && u.proc < 0.31);
+  }
+  const q = X.netSample({ base: 12, asym: 6, jitter: 0 }, X.rng(1));
+  assert.ok(near(q.df, 15) && near(q.db, 9));
+});
+
+test('時刻合わせ: そのまま足すやり方では、直した後のずれが θ の誤差と同じになる', () => {
+  const X = trendCore(NTP, NTP_NAMES);
+  const { s, out } = ntpRun(X, 'step', { ppm: 80, jitter: 12, asym: 0, base: 12, tau: 16 }, 50);
+  for (const o of out) {
+    assert.ok(near(o.after, o.err, 1e-6));
+    assert.ok(near(o.err, (o.df - o.db) / 2, 1e-6));
+  }
+  assert.equal(s.f, 0);
+  // 混雑が無いと、待っている間のくるいの分（80 ppm × 16 秒 = 1.28 ms）だけ毎回ずれる
+  const q = ntpRun(X, 'step', { ppm: 80, jitter: 0, asym: 0, base: 12, tau: 16 }, 20).out;
+  for (const o of q.slice(1)) assert.ok(near(o.before, 1.28, 1e-6) && near(o.after, 0, 1e-6));
+});
+
+test('時刻合わせ: NTP 風は進み方のくるいを打ち消してずれを 0 に寄せる。行きと帰りに差があると、その半分で止まる', () => {
+  const X = trendCore(NTP, NTP_NAMES);
+  let r = ntpRun(X, 'ntp', { ppm: 100, jitter: 0, asym: 0, base: 12, tau: 16 }, 200);
+  assert.ok(Math.abs(r.s.e) < 0.01, `e = ${r.s.e}`);
+  assert.ok(Math.abs(r.s.f + 100) < 0.5, `f = ${r.s.f}`);
+  r = ntpRun(X, 'ntp', { ppm: -150, jitter: 0, asym: 10, base: 12, tau: 16 }, 200);
+  // 時計は 5 ms 進んだまま。それでも測ったずれは 0 に見える
+  assert.ok(Math.abs(r.s.e - 5) < 0.01, `e = ${r.s.e}`);
+  assert.ok(Math.abs(r.out[r.out.length - 1].offset) < 0.01);
+});
+
+test('時刻合わせ: 混雑があると、NTP 風の方がそのまま足すより本当のずれが小さい', () => {
+  const X = trendCore(NTP, NTP_NAMES);
+  for (const seed of [1, 2, 3]) {
+    const p = { ppm: 80, jitter: 12, asym: 0, base: 12, tau: 16 };
+    const n = ntpRun(X, 'ntp', p, 400, 25, seed).out.slice(100).map((o) => o.before);
+    const s = ntpRun(X, 'step', p, 400, 25, seed).out.slice(100).map((o) => o.before);
+    assert.ok(X.rms(n) * 2.5 < X.rms(s), `seed ${seed}: ${X.rms(n)} / ${X.rms(s)}`);
+  }
+  assert.equal(X.rms([]), 0);
+  assert.ok(near(X.rms([3, -4]), Math.sqrt(12.5)));
+});
+
+test('時刻合わせ: 同じ回の θ は2度使わず、最初に大きくずれていたら一度に合わせる', () => {
+  const X = trendCore(NTP, NTP_NAMES);
+  const p = { mode: 'ntp', ppm: 0, jitter: 0, asym: 0, base: 12, tau: 16 };
+  const s = X.makeSim(10);
+  const a = X.poll(s, p, { df: 12, db: 12, proc: 0.1 });
+  assert.equal(a.usedId, 0);
+  assert.ok(near(a.after, 10 - X.KP * 10));
+  // 次は往復が長い。一番短いのは使い済みの 0 番なので、時計は動かさない
+  // （進み方の直しは続くので、待っている間に f × 16 秒の分だけは動く）
+  const b = X.poll(s, p, { df: 30, db: 12, proc: 0.1 });
+  assert.equal(b.usedId, -1);
+  assert.equal(b.bestId, 0);
+  assert.equal(b.adj, 0);
+  assert.ok(near(b.after, b.before) && near(b.before, a.after + s.f * 1e-3 * 16));
+  // 8 回より前の回は比べる対象から外れる
+  for (let i = 0; i < X.FILTER; i++) X.poll(s, p, { df: 20, db: 20, proc: 0.1 });
+  assert.ok(s.samples.length === X.FILTER && s.samples.every((x) => x.id > 1));
+  // 最初の回で 500 ms ずれていたら一度に合わせる（誤差は（行き − 帰り）÷ 2）
+  const big = X.makeSim(500);
+  const c = X.poll(big, p, { df: 14, db: 10, proc: 0.1 });
+  assert.ok(near(c.after, 2) && Math.abs(c.offset) > X.STEP_MS);
+});
