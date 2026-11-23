@@ -991,3 +991,1014 @@ test('jj: 記事の流れで、税率を直すと上の変更が衝突し、squa
   J.TOUR.slice(0, u + 1).forEach((st) => J.act(S2, st));
   assert.equal(J.conflicts(S2.repo.changes[J.byDesc(S2.repo, '送料を足す')].tree), 1);
 });
+
+// 一般化リーマン予想の零点（ディリクレの L 関数）
+const GRH = 'tr-20261121-grh-zeros';
+function grh() {
+  return trendCore(GRH, ['makeFn', 'lfun', 'lgamma', 'hardyZ', 'refineZero', 'countZeros', 'mangoldt', 'constTerm', 'psiStep', 'psiWave']);
+}
+// Z(t) を刻み step で調べ、符号が変わる所の零点を返す
+function zerosUpTo(G, f, T, step = 0.1) {
+  const out = [];
+  let a = 0.05, za = G.hardyZ(a, f)[0];
+  for (let i = 1; a + step <= T; i++) {
+    const b = 0.05 + i * step, zb = G.hardyZ(b, f)[0];
+    if (za * zb < 0) out.push(G.refineZero(f, a, b, za, zb));
+    a = b; za = zb;
+  }
+  return out;
+}
+
+test('GRH: 指標の値と偶奇。対応しない法は例外', () => {
+  const G = grh();
+  assert.deepEqual(Array.from(G.makeFn(5).chi), [0, 1, -1, -1, 1]);
+  assert.deepEqual(Array.from(G.makeFn(4).chi), [0, 1, 0, -1]);
+  assert.deepEqual([1, 3, 4, 5, 7, 11, 13].map((q) => G.makeFn(q).kappa), [0, 1, 1, 0, 1, 1, 0]);
+  assert.throws(() => G.makeFn(6));
+  assert.throws(() => G.makeFn(9));
+});
+
+test('GRH: L 関数と log Γ の値が、知られている値と合う', () => {
+  const G = grh();
+  const z = G.makeFn(1), c4 = G.makeFn(4), c3 = G.makeFn(3);
+  assert.ok(near(G.lfun([0.5, 0], z)[0], -1.4603545088095868, 1e-10));
+  assert.ok(near(G.lfun([2, 0], z)[0], Math.PI ** 2 / 6, 1e-12));
+  assert.ok(near(G.lfun([0, 0], z)[0], -0.5, 1e-12));
+  assert.ok(near(G.lfun([0, 0], c4)[0], 0.5, 1e-12));
+  assert.ok(near(G.lfun([0, 0], c3)[0], 1 / 3, 1e-12));
+  assert.ok(near(G.lfun([1.5, 0], c4)[0], 0.8645026534612020, 1e-10));   // β(3/2)
+  const lg = G.lgamma([1, 1]);
+  assert.ok(near(lg[0], -0.6509231993018563, 1e-12) && near(lg[1], -0.3016403204675331, 1e-12));
+  assert.ok(near(G.lgamma([0.5, 0])[0], Math.log(Math.sqrt(Math.PI)), 1e-12));
+});
+
+test('GRH: Z(t) は実数で、零点が知られている値と 10 桁合う', () => {
+  const G = grh();
+  for (const q of [1, 3, 4, 5, 7, 11, 13]) {
+    const f = G.makeFn(q);
+    for (const t of [3.3, 17.7, 42.1, 99.9]) assert.ok(Math.abs(G.hardyZ(t, f)[1]) < 1e-8, `q=${q} t=${t}`);
+  }
+  const zeta = zerosUpTo(G, G.makeFn(1), 50);
+  const want = [14.134725141734693, 21.022039638771555, 25.010857580145688, 30.424876125859513, 32.935061587739189,
+    37.586178158825671, 40.918719012147495, 43.327073280914999, 48.005150881167159, 49.773832477672302];
+  assert.equal(zeta.length, want.length);
+  zeta.forEach((g, i) => assert.ok(near(g, want[i], 1e-8), `ζ ${i}: ${g}`));
+  const c4 = zerosUpTo(G, G.makeFn(4), 13.5);
+  [6.020948904697597, 10.243770304166555, 12.988098012312424].forEach((w, i) => assert.ok(near(c4[i], w, 1e-8), `χ4 ${i}: ${c4[i]}`));
+  assert.ok(near(zerosUpTo(G, G.makeFn(3), 9)[0], 8.039737155681468, 1e-8));
+});
+
+test('GRH: 偏角の原理の数は整数になり、臨界線の上の零点の数と同じ', () => {
+  const G = grh();
+  assert.ok(near(G.countZeros(G.makeFn(1), 50), 10, 1e-6));
+  assert.ok(near(G.countZeros(G.makeFn(4), 20), 5, 1e-6));
+  for (const q of [1, 5, 13]) {
+    const f = G.makeFn(q), n = G.countZeros(f, 60.3);
+    assert.ok(Math.abs(n - Math.round(n)) < 1e-6, `q=${q}: ${n}`);
+    assert.equal(zerosUpTo(G, f, 60.3).length, Math.round(n), `q=${q}`);
+  }
+});
+
+test('GRH: Λ(n)、明示公式の定数、零点の波の和が素数の階段に近づく', () => {
+  const G = grh();
+  const lam = G.mangoldt(100);
+  assert.ok(near(lam[8], Math.log(2)) && near(lam[9], Math.log(3)) && near(lam[97], Math.log(97)));
+  assert.equal(lam[6], 0);
+  assert.equal(lam[1], 0);
+  // L'/L(0, χ4) = −log 4 + 2 log(Γ(1/4) / Γ(3/4))
+  assert.ok(near(G.constTerm(G.makeFn(4)), -Math.log(4) + 2 * Math.log(3.6256099082219083 / 1.2254167024651776), 1e-7));
+  assert.ok(near(G.constTerm(G.makeFn(1)), Math.log(2 * Math.PI)));
+  for (const q of [1, 3, 5]) {
+    const f = G.makeFn(q), gam = zerosUpTo(G, f, 100), c0 = G.constTerm(f);
+    // 階段の段の真ん中では、零点を多く使った波の和が階段に近い。零点を使わないと遠い
+    let far = 0;
+    for (const x of [10.5, 20.5, 30.5]) {
+      const want = G.psiStep(x, f, lam);
+      assert.ok(Math.abs(G.psiWave(x, f, gam, gam.length, c0) - want) < 0.45, `q=${q} x=${x}`);
+      far = Math.max(far, Math.abs(G.psiWave(x, f, gam, 0, c0) - want));
+    }
+    assert.ok(far > 0.5, `q=${q}`);
+    // 広い範囲で平均すると、差はほぼ 0（定数の項が正しい）
+    let s = 0, n = 0;
+    for (let x = 3.01; x < 40; x += 0.037) { s += G.psiStep(x, f, lam) - G.psiWave(x, f, gam, gam.length, c0); n++; }
+    assert.ok(Math.abs(s / n) < 0.03, `q=${q} 平均 ${s / n}`);
+  }
+});
+
+// ---- skiplist と B+ 木（Valkey 9.2 の sorted set） ----
+const VALKEY = 'tr-20261121-skiplist-btree';
+const valkey = () => trendCore(VALKEY, ['rng', 'makeKeys', 'skipNew', 'skipInsert', 'skipRanks', 'skipSearch', 'skipHas', 'skipBytes',
+  'btNew', 'btInsert', 'btLevels', 'btSearch', 'btHas', 'btFill', 'btBytes', 'sampleAvg', 'fish']);
+function buildBoth(X, n, F, ord, seed) {
+  const r = X.rng(seed);
+  const keys = X.makeKeys(n, ord, r);
+  const sl = X.skipNew(), bt = X.btNew(F);
+  for (const k of keys) { X.skipInsert(sl, k, r); assert.equal(X.btInsert(bt, k), true); }
+  return { sl, bt, nodes: X.skipRanks(sl), levels: X.btLevels(bt) };
+}
+
+test('skiplist と B+ 木: どちらも全部の値を小さい順に持ち、全部を見つける', () => {
+  const X = valkey();
+  for (const [n, F, ord] of [[1, 4, 'seq'], [61, 4, 'rand'], [500, 8, 'seq'], [2000, 16, 'rand'], [3721, 61, 'rand'], [3721, 61, 'seq']]) {
+    const tag = `n=${n} F=${F} ${ord}`;
+    const { sl, bt, nodes, levels } = buildBoth(X, n, F, ord, n * 7 + F);
+    const want = Array.from({ length: n }, (_, i) => i);
+    assert.deepEqual(Array.from(nodes, (x) => x.key), want, tag);
+    assert.deepEqual(Array.from(nodes, (x) => x.rank), want, tag);
+    // 葉はすべて同じ深さにあり、並べると 0〜n−1 になる。どのノードも F を超えない
+    const leaves = levels[levels.length - 1];
+    assert.ok(leaves.every((x) => x.leaf), tag);
+    assert.ok(levels.slice(0, -1).every((row) => row.every((x) => !x.leaf)), tag);
+    assert.deepEqual(Array.from(leaves.flatMap((x) => x.keys)), want, tag);
+    for (const row of levels) {
+      for (const x of row) {
+        if (x.leaf) assert.ok(x.keys.length >= 1 && x.keys.length <= F, tag);
+        else {
+          assert.ok(x.kids.length >= 1 && x.kids.length <= F, tag);
+          assert.equal(x.keys.length, x.kids.length - 1, tag);
+          assert.equal(x.lo, x.kids[0].lo, tag);
+          assert.equal(x.hi, x.kids[x.kids.length - 1].hi, tag);
+        }
+      }
+    }
+    assert.equal(bt.n, n, tag);
+    assert.equal(bt.depth, levels.length, tag);
+    for (let k = 0; k < n; k++) {
+      const a = X.skipSearch(sl, k), b = X.btSearch(bt, k);
+      assert.ok(a.found && b.found && X.skipHas(sl, k) && X.btHas(bt, k), `${tag} k=${k}`);
+      assert.equal(b.reads, levels.length, tag);
+      assert.ok(a.reads >= 2 && a.reads <= a.cmps + 1, tag);
+    }
+    assert.equal(X.skipHas(sl, n), false, tag);
+    assert.equal(X.btHas(bt, -1), false, tag);
+    assert.equal(X.btSearch(bt, n + 5).found, false, tag);
+    assert.equal(X.btInsert(bt, 0), false, `${tag} 同じ値は入れない`);
+  }
+});
+
+test('B+ 木: 小さい順に入れると葉が満杯で並び、ばらばらだと 7 割ほど。メモリの見積もりも記事に近い', () => {
+  const X = valkey();
+  const seq = buildBoth(X, 3721, 61, 'seq', 1);
+  const leaves = seq.levels[seq.levels.length - 1];
+  assert.equal(leaves.length, 61);
+  assert.equal(seq.levels.length, 2);
+  assert.equal(X.btFill(seq.levels, 61), 1);
+  const rnd = buildBoth(X, 20000, 61, 'rand', 2);
+  const fill = X.btFill(rnd.levels, 61);
+  assert.ok(fill > 0.6 && fill < 0.8, `ばらばら ${fill}`);
+  // 並べるための分: skiplist は約 37 バイト、B+ 木は約 17 バイト（小さい順）と約 20 バイト（ばらばら）
+  const sb = X.skipBytes(rnd.nodes);
+  assert.ok(sb.avgLv > 1.28 && sb.avgLv < 1.39, `平均の段 ${sb.avgLv}`);
+  assert.ok(Math.abs(sb.bytes - (16 + 16 * sb.avgLv)) < 1e-9);
+  const bSeq = X.btBytes(seq.levels, 3721, 61), bRnd = X.btBytes(rnd.levels, 20000, 61);
+  assert.ok(bSeq > 16 && bSeq < 17.5, `小さい順 ${bSeq}`);
+  assert.ok(bRnd > bSeq + 2 && bRnd < bSeq + 6, `ばらばら ${bRnd}`);
+  assert.ok(sb.bytes - bRnd > 14, '差は 20 バイトほど');
+});
+
+test('B+ 木は skiplist より読む塊がずっと少なく、比べる回数の差は小さい', () => {
+  const X = valkey();
+  const { sl, bt } = buildBoth(X, 3721, 61, 'rand', 3);
+  const A = X.sampleAvg(sl, bt, 3721, 400, X.rng(99));
+  assert.ok(A.br >= 2 && A.br <= 3, `B+ 木 ${A.br}`);
+  assert.ok(A.sr > 12 && A.sr < 30, `skiplist ${A.sr}`);
+  assert.ok(A.sr / A.br > 4, '塊の数は 4 倍より大きく違う');
+  assert.ok(A.sc / A.bc < 2.5, `比べた回数 ${A.sc} と ${A.bc}`);
+});
+
+test('目当ての近くを広げる横軸: 両端は 0 と 1、目当ては元の位置、途中は単調に増える', () => {
+  const { fish } = valkey();
+  for (const [c, n] of [[0.5, 61], [30.5, 61], [60.5, 61], [12345.5, 100000], [0, 10], [10, 10]]) {
+    assert.ok(Math.abs(fish(0, c, n, 1) - 0) < 1e-12, `c=${c}`);
+    assert.ok(Math.abs(fish(n, c, n, 1) - 1) < 1e-12, `c=${c}`);
+    assert.ok(Math.abs(fish(c, c, n, 1) - c / n) < 1e-12, `c=${c}`);
+    let prev = -1;
+    for (let i = 0; i <= 400; i++) {
+      const v = fish(n * i / 400, c, n, 1);
+      assert.ok(Number.isFinite(v) && v >= prev - 1e-12, `c=${c} i=${i}`);
+      prev = v;
+    }
+  }
+  // 目当てのすぐ隣は、ふつうの横軸より大きく離れる
+  const n = 100000, c = 50000.5;
+  assert.ok(fish(c + 1, c, n, 1) - fish(c, c, n, 1) > 100 / n);
+  assert.equal(fish(5, 3, 0, 1), 0);
+});
+
+const INETS = 'tr-20261121-interaction-nets';
+
+test('interaction nets: 式を読んで値を出し、読めない式は断る', () => {
+  const { parseExpr, evalTree, showTree } = trendCore(INETS, ['parseExpr', 'evalTree', 'showTree']);
+  assert.equal(evalTree(parseExpr('2+3')), 5);
+  assert.equal(evalTree(parseExpr('2 × 3 + 4')), 10);
+  assert.equal(evalTree(parseExpr('(1+2)*(2+2)')), 12);
+  assert.equal(evalTree(parseExpr('２＋３')), 5);
+  assert.equal(showTree(parseExpr('(1+2)*(2+2)')), '(1 + 2) × (2 + 2)');
+  assert.equal(showTree(parseExpr('1+(2+3)')), '1 + (2 + 3)');
+  assert.equal(showTree(parseExpr('1+2+3')), '1 + 2 + 3');
+  for (const bad of ['', '2+', 'abc', '(1+2', '21', '9*9', '2**3', '1+2)']) assert.throws(() => parseExpr(bad), bad);
+});
+
+test('interaction nets: 小さな式の書き換えの回数', () => {
+  const { parseExpr, runAll } = trendCore(INETS, ['parseExpr', 'runAll']);
+  const n = (s) => runAll(parseExpr(s), 'fifo', {}).interactions;
+  assert.equal(n('0+3'), 1);   // ＋ と 0 だけ
+  assert.equal(n('1+1'), 2);   // ＋ と +1、＋ と 0
+  assert.equal(n('3+4'), 4);   // 1つ目の数の +1 の数と、最後の 0
+  assert.equal(n('0*5'), 7);   // × と 0、ε が +1 を5つと 0 を消す
+});
+
+test('interaction nets: どの順番で書き換えても、答えと書き換えの回数は同じ', () => {
+  const { parseExpr, evalTree, runAll } = trendCore(INETS, ['parseExpr', 'evalTree', 'runAll']);
+  for (const s of ['0+3', '1+1', '2*2', '0*5', '5*0', '2*3+3*2', '(1+2)*(2+2)', '3*3*3', '4*(0+1)*2', '(2*3)*(1+2)+3*3']) {
+    const t = parseExpr(s), want = evalTree(t);
+    const base = runAll(t, 'fifo', {});
+    assert.equal(base.value, want, s);
+    assert.equal(base.steps, base.interactions, s);
+    assert.equal(base.nodes, want + 2, s);   // 最後は 答・+1 の列・0 だけが残る
+    const par = runAll(t, 'par', {});
+    const tiles = [1, 2, 4, 16].map((k) => runAll(t, 'tiles', { k }));
+    const rands = [1, 2, 3].map((seed) => runAll(t, 'rand', { seed }));
+    for (const r of [par, ...tiles, ...rands]) {
+      assert.equal(r.value, want, s);
+      assert.equal(r.interactions, base.interactions, s);
+      assert.equal(r.nodes, want + 2, s);
+    }
+    assert.equal(tiles[0].steps, base.interactions, s);   // タイル 1 枚は1つずつと同じ
+    for (const r of tiles) assert.ok(r.steps >= par.steps && r.steps <= base.interactions, s);
+  }
+});
+
+test('interaction nets: 同時に書き換える組は節点を共有せず、答えは上から先に出てくる', () => {
+  const { parseExpr, makeRunner, decode } = trendCore(INETS, ['parseExpr', 'makeRunner', 'decode']);
+  const R = makeRunner(parseExpr('(2*3)*(1+2)+3*3'), 'par', {});
+  let most = 0;
+  while (!R.done()) {
+    const did = R.step(), seen = new Set();
+    for (const d of did) {
+      assert.ok(!seen.has(d.a) && !seen.has(d.b));
+      seen.add(d.a); seen.add(d.b);
+    }
+    most = Math.max(most, did.length);
+  }
+  assert.ok(most >= 3);
+  const Q = makeRunner(parseExpr('3+4'), 'fifo', {});
+  Q.step();
+  const p = decode(Q.net);
+  assert.equal(p.v, 1);
+  assert.equal(p.done, false);
+});
+
+test('interaction nets: タイルは隣からしか仕事をもらえない', () => {
+  const { parseExpr, makeRunner } = trendCore(INETS, ['parseExpr', 'makeRunner']);
+  const R = makeRunner(parseExpr('2*3+3*2+(1+1)*(2+2)'), 'tiles', { k: 16 });
+  assert.deepEqual(Array.from(R.nb(0)).sort((a, b) => a - b), [1, 4]);
+  assert.deepEqual(Array.from(R.nb(5)).sort((a, b) => a - b), [1, 4, 6, 9]);
+  assert.ok(R.pending() >= 3);
+  const first = R.step();
+  // 最初の仕事は全部タイル 0 にあるので、1手目に動けるのはタイル 0 とその隣の 1 と 4 だけ
+  assert.ok(first.length <= 3);
+  for (const d of first) assert.ok([0, 1, 4].includes(d.tile));
+  assert.equal(first.find((d) => d.tile === 0).how, 'own');
+  assert.equal(R.tiles.length, 16);
+});
+
+// ---- 量子化のビット配分（LookAtMyQuant） ----
+const MQ = 'tr-20261122-mixed-quant';
+const MQ_NAMES = ['rng', 'makeSpiral', 'initNet', 'cloneNet', 'makeActs', 'forward', 'makeTrainer', 'makePieces', 'pieceBits', 'quantize', 'applyPlan', 'planBits', 'fullBits', 'weightCount', 'compare', 'damageMeter', 'damageTable', 'allocate'];
+
+test('量子化: 0 ビットは全部 0、段の数は 2^b 以下、ビットを増やすと誤差は増えない', () => {
+  const { quantize, rng } = trendCore(MQ, MQ_NAMES);
+  const r = rng(5);
+  const vals = Float64Array.from({ length: 32 }, () => (r() - 0.5) * 3);
+  const z = quantize(vals, 0);
+  assert.ok(z.q.every((x) => x === 0));
+  assert.ok(near(z.mse, vals.reduce((s, x) => s + x * x, 0) / 32));
+  let prev = Infinity;
+  const amax = Math.max(...vals.map(Math.abs));
+  for (const b of [1, 2, 3, 4, 6, 8]) {
+    const { q, mse } = quantize(vals, b);
+    assert.ok(new Set(q).size <= 2 ** b, `${b} ビット`);
+    assert.ok(q.every((x) => Math.abs(x) <= amax + 1e-12), `${b} ビット`);
+    assert.ok(mse <= prev + 1e-15, `${b} ビット`);
+    prev = mse;
+  }
+  assert.ok(prev < 1e-4);
+  assert.equal(quantize(new Float64Array(4), 3).mse, 0);
+});
+
+test('量子化: 部品は 32 個ずつ 69 個で、どの重みもちょうど1回ずつ入る。大きさの数え方', () => {
+  const { initNet, makePieces, planBits, fullBits, weightCount, pieceBits } = trendCore(MQ, MQ_NAMES);
+  const net = initNet(1);
+  const pcs = makePieces(net);
+  assert.equal(pcs.length, 69);
+  assert.ok(pcs.every((p) => p.idx.length === 32));
+  net.forEach((L, l) => {
+    const seen = new Int32Array(L.W.length);
+    for (const p of pcs) if (p.layer === l) for (const i of p.idx) seen[i]++;
+    assert.ok(seen.every((c) => c === 1), `層 ${l}`);
+  });
+  assert.equal(weightCount(net), 2208);
+  assert.equal(fullBits(net), (2208 + 99) * 16);
+  assert.equal(pieceBits(32, 0), 0);
+  assert.equal(pieceBits(32, 3), 32 * 3 + 16);
+  for (const b of [1, 2, 3, 4]) assert.equal(planBits(net, pcs, pcs.map(() => b)), 2208 * (b + 0.5) + 99 * 16);
+});
+
+test('量子化: 配分の動的計画法は、総当たりと同じ最小の悪化を予算の中で見つける', () => {
+  const { allocate, rng } = trendCore(MQ, MQ_NAMES);
+  const r = rng(11);
+  const opts = [0, 1, 2, 4];
+  for (let trial = 0; trial < 30; trial++) {
+    const N = 4;
+    const table = Array.from({ length: N }, () => {
+      let d = 1 + r() * 3;
+      return Float64Array.from(opts, () => (d *= 0.2 + r() * 0.6));
+    });
+    const costs = table.map(() => opts.map((b) => (b ? 32 * b + 16 : 0)));
+    const allowed = opts.map((b) => trial % 3 !== 0 || b > 0);
+    const budget = Math.floor(r() * 600);
+    let best = Infinity;
+    const rec = (i, used, dmg) => {
+      if (used > budget) return;
+      if (i === N) { best = Math.min(best, dmg); return; }
+      opts.forEach((_, k) => { if (allowed[k]) rec(i + 1, used + costs[i][k], dmg + table[i][k]); });
+    };
+    rec(0, 0, 0);
+    const a = allocate(table, costs, budget, allowed);
+    if (best === Infinity) { assert.equal(a, null); continue; }
+    assert.ok(near(a.predicted, best), `試し ${trial}`);
+    let used = 0, dmg = 0;
+    a.choice.forEach((k, i) => { assert.ok(allowed[k]); used += costs[i][k]; dmg += table[i][k]; });
+    assert.ok(used <= budget);
+    assert.equal(used, a.bits);
+    assert.ok(near(dmg, a.predicted));
+  }
+  assert.equal(allocate([Float64Array.of(1)], [[16]], -5), null);
+  assert.throws(() => allocate([Float64Array.of(1)], [[10]], 100));
+});
+
+test('量子化: 悪化の測り方（後ろだけ計算し直す）は、部品を1つ量子化して全部流した KL と一致する', () => {
+  const { initNet, makeSpiral, makePieces, damageMeter, quantize, cloneNet, compare } = trendCore(MQ, MQ_NAMES);
+  const net = initNet(3);
+  const calib = makeSpiral(4, 10);
+  const pcs = makePieces(net);
+  const bits = [0, 1, 3];
+  const m = damageMeter(net, pcs, calib, bits);
+  for (const pi of [0, 1, 2, 40, 67, 68]) {
+    m.measure(pi);
+    const pc = pcs[pi];
+    bits.forEach((b, bi) => {
+      const vals = Float64Array.from(pc.idx, (i) => net[pc.layer].W[i]);
+      const qn = cloneNet(net);
+      const { q } = quantize(vals, b);
+      pc.idx.forEach((wi, k) => { qn[pc.layer].W[wi] = q[k]; });
+      assert.ok(near(m.table[pi][bi], compare(net, qn, calib).kl, 1e-9), `部品 ${pi}・${b} ビット`);
+    });
+  }
+});
+
+test('量子化: 学習すると見分けられるようになり、同じ大きさなら配分した方が元に近い', () => {
+  const { initNet, makeSpiral, makeTrainer, makePieces, damageTable, applyPlan, planBits, fullBits, weightCount, pieceBits, allocate, compare } = trendCore(MQ, MQ_NAMES);
+  const train = makeSpiral(1, 120), test = makeSpiral(1001, 120);
+  const net = initNet(1);
+  const tr = makeTrainer(net, train, 1);
+  const first = tr.step(50, 0.01);
+  while (tr.t < 1600) tr.step(50, tr.t < 1000 ? 0.01 : 0.003);
+  const last = tr.step(1, 0.003);
+  assert.ok(last < first);
+  assert.ok(compare(net, net, test).acc > 0.95);
+  const BITS = [0, 1, 2, 3, 4, 6, 8];
+  const pcs = makePieces(net);
+  const { table } = damageTable(net, pcs, train, BITS);
+  const costs = pcs.map((p) => BITS.map((b) => pieceBits(p.idx.length, b)));
+  const fixed = fullBits(net) - weightCount(net) * 16;
+  for (const b of [1, 2, 3]) {
+    const uplan = pcs.map(() => b);
+    const ubits = planBits(net, pcs, uplan);
+    const a = allocate(table, costs, ubits - fixed);
+    const plan = Array.from(a.choice, (k) => BITS[k]);
+    assert.ok(planBits(net, pcs, plan) <= ubits);
+    const u = compare(net, applyPlan(net, pcs, uplan), test);
+    const al = compare(net, applyPlan(net, pcs, plan), test);
+    assert.ok(al.kl < u.kl, `${b} ビット`);
+    assert.ok(al.acc >= u.acc, `${b} ビット`);
+  }
+});
+
+// ---- モデル検査（tr-20261122-model-check） ----
+const MC = 'tr-20261122-model-check';
+
+test('モデル検査: 直したチケット販売は、記事の TLC と同じ 29 通りの状態（作った状態 55）で、違反も行き詰まりもない', () => {
+  const { SPECS, explore } = trendCore(MC, ['SPECS', 'explore']);
+  const g = explore(SPECS.ticket, 'fix');
+  assert.equal(g.nodes.length, 29);
+  assert.equal(g.generated, 55);
+  assert.equal(g.bad.length, 0);
+  assert.equal(g.stuck.length, 0);
+  // 全員が終わった状態では、売れた枚数はちょうど 2 枚
+  for (const i of g.ends) assert.equal(g.nodes[i].sold, 2);
+});
+
+test('モデル検査: 元のチケット販売は、3 人が確認してから 3 人が確定する 6 手で 3 枚売れる', () => {
+  const { SPECS, explore, pathTo } = trendCore(MC, ['SPECS', 'explore', 'pathTo']);
+  const g = explore(SPECS.ticket, 'bug');
+  assert.ok(g.bad.length > 0);
+  const p = pathTo(g, g.bad[0]);
+  assert.equal(p.length - 1, 6);
+  const last = g.nodes[p[p.length - 1]];
+  assert.equal(last.sold, 3);
+  assert.equal(last.stock, -1);
+  // 幅優先なので、最初に見つけた違反がいちばん短い
+  for (const i of g.bad) assert.ok(g.depth[i] >= g.depth[g.bad[0]]);
+});
+
+test('モデル検査: 手順は最初の状態から 1 手ずつ、実際にある操作でつながる', () => {
+  const { SPECS, explore, pathTo } = trendCore(MC, ['SPECS', 'explore', 'pathTo']);
+  for (const [name, sp] of Object.entries(SPECS)) {
+    for (const v of sp.versions) {
+      const g = explore(sp, v.id);
+      const has = new Set(g.edges.map(([a, b]) => a + '>' + b));
+      for (let i = 0; i < g.nodes.length; i++) {
+        const p = pathTo(g, i);
+        assert.equal(p[0], 0, `${name}/${v.id}`);
+        assert.equal(p.length - 1, g.depth[i], `${name}/${v.id}`);
+        for (let k = 0; k + 1 < p.length; k++) assert.ok(has.has(p[k] + '>' + p[k + 1]), `${name}/${v.id}`);
+      }
+    }
+  }
+});
+
+test('モデル検査: 送金は、読んでから書くと合計が 100 円から変わり、1 回で足し引きすると変わらない', () => {
+  const { SPECS, explore } = trendCore(MC, ['SPECS', 'explore']);
+  const bug = explore(SPECS.bank, 'bug');
+  const sums = new Set(bug.bad.map((i) => bug.nodes[i].x + bug.nodes[i].y));
+  assert.ok(bug.bad.length > 0);
+  assert.ok(!sums.has(100));
+  assert.ok(sums.has(130) && sums.has(50));   // 増えることも、減ることもある
+  const fix = explore(SPECS.bank, 'fix');
+  assert.equal(fix.bad.length, 0);
+  assert.equal(fix.ends.length, 1);
+  const end = fix.nodes[fix.ends[0]];
+  assert.deepEqual([end.x, end.y], [20, 80]);
+});
+
+test('モデル検査: 部屋の札は、見てから立てると 2 人とも入れ、立ててから見ると行き詰まり、ピーターソンの方法はどちらも無い', () => {
+  const { SPECS, explore, pathTo } = trendCore(MC, ['SPECS', 'explore', 'pathTo']);
+  const look = explore(SPECS.room, 'look');
+  assert.ok(look.bad.length > 0);
+  assert.equal(look.stuck.length, 0);
+  assert.equal(pathTo(look, look.bad[0]).length - 1, 4);
+  const flag = explore(SPECS.room, 'flag');
+  assert.equal(flag.bad.length, 0);
+  assert.ok(flag.stuck.length > 0);
+  assert.equal(pathTo(flag, flag.stuck[0]).length - 1, 2);
+  const pet = explore(SPECS.room, 'peterson');
+  assert.equal(pet.bad.length, 0);
+  assert.equal(pet.stuck.length, 0);
+});
+
+test('モデル検査: ランダムな実行は、同じ種なら同じ手順になり、通った状態は全部を調べた状態に含まれる', () => {
+  const { SPECS, explore, simulate } = trendCore(MC, ['SPECS', 'explore', 'simulate']);
+  const sig = (r) => r.kind + '|' + r.t + '|' + r.trace.map((x) => x.act).join('/');
+  for (const [name, sp] of Object.entries(SPECS)) {
+    for (const v of sp.versions) {
+      const a = simulate(sp, v.id, 7, 50, sp.steps), b = simulate(sp, v.id, 7, 50, sp.steps);
+      assert.equal(sig(a), sig(b), `${name}/${v.id}`);
+      const g = explore(sp, v.id);
+      for (const k of a.seen) assert.ok(g.index.has(k), `${name}/${v.id}`);
+      // 違反の無い書き方では、ランダムでも違反は出ない
+      if (!g.bad.length && !g.stuck.length) assert.equal(a.kind, 'ok', `${name}/${v.id}`);
+    }
+  }
+  // 元のチケット販売は、200 本のうちどこかで違反が見つかる
+  assert.equal(simulate(SPECS.ticket, 'bug', 1, 200, SPECS.ticket.steps).kind, 'bad');
+});
+
+// パンに塗って具を載せる（Sandwich Simulator）
+const SANDWICH = 'tr-20261122-spread-stack';
+const SW_NAMES = ['KNIFE', 'breadPoly', 'makeGrid', 'stroke', 'takeFromPot', 'coverage', 'SHAPES', 'samplesOf', 'posed', 'convexHull', 'inHull', 'judge', 'settle', 'inPoly'];
+const swTotal = (G, K) => G.t.reduce((s, v) => s + v, 0) + K.load;
+
+test('塗る: 塗っても、空のナイフでならしても、パンとナイフの塗り物の合計は変わらない', () => {
+  const X = trendCore(SANDWICH, SW_NAMES);
+  const G = X.makeGrid(2, X.breadPoly(5)), K = { load: 0, r: 0, g: 0, b: 0 };
+  assert.equal(X.takeFromPot(K, [1, 0.8, 0.4]), X.KNIFE.full);
+  const before = swTotal(G, K);
+  X.stroke(G, K, 90, 80, 310, 84);
+  X.stroke(G, K, 310, 120, 90, 124);
+  X.stroke(G, K, 200, 50, 205, 250);
+  K.load = 0;   // ナイフを空にして（量を捨てたので、合計を取り直す）
+  const empty = swTotal(G, K);
+  for (let y = 70; y < 250; y += 15) X.stroke(G, K, 80, y, 320, y + 3);
+  assert.ok(Math.abs(swTotal(G, K) - empty) / empty < 1e-6);
+  assert.ok(before > empty);
+});
+
+test('塗る: 量が減るほど薄く塗り、止まっていると塗れない', () => {
+  const X = trendCore(SANDWICH, SW_NAMES);
+  const G = X.makeGrid(2, null), K = { load: 0, r: 0, g: 0, b: 0 };
+  X.takeFromPot(K, [1, 1, 1]);
+  assert.equal(X.stroke(G, K, 150, 150, 150, 150), 0);
+  assert.equal(G.t.reduce((s, v) => s + v, 0), 0);
+  const at = (x, y) => G.t[Math.floor((y - G.oy) / G.cell) * G.w + Math.floor((x - G.ox) / G.cell)];
+  let prev = K.load;
+  for (let x = 70; x < 330; x += 2) {
+    X.stroke(G, K, x, 150, x + 2, 150);
+    assert.ok(K.load <= prev + 1e-9);   // 何も無いパンの上では、ナイフの量は増えない
+    prev = K.load;
+  }
+  assert.ok(at(80, 150) > at(320, 150) + 0.1, `${at(80, 150)} > ${at(320, 150)}`);
+  assert.ok(at(320, 150) > 0);
+});
+
+test('塗る: 空のナイフで厚い所をなでると、塗り物が先へ伸びて山が低くなる。色も運ばれる', () => {
+  const X = trendCore(SANDWICH, SW_NAMES);
+  const G = X.makeGrid(2, null), K = { load: 0, r: 0, g: 0, b: 0 };
+  const idx = (x, y) => Math.floor((y - G.oy) / G.cell) * G.w + Math.floor((x - G.ox) / G.cell);
+  for (let x = 140; x < 160; x += 2) for (let y = 140; y < 160; y += 2) { const k = idx(x, y); G.t[k] = 3; G.r[k] = 0.7; G.g[k] = 0.1; G.b[k] = 0.1; }
+  const total = swTotal(G, K);
+  for (let x = 130; x < 250; x += 2) X.stroke(G, K, x, 150, x + 2, 150);
+  assert.ok(G.t[idx(150, 150)] < 3);
+  // 山（x が 140〜160）の外の、まだ何も無かった所まで伸びる
+  assert.ok(G.t[idx(175, 150)] > 0.05);
+  assert.ok(Math.abs(G.r[idx(175, 150)] - 0.7) < 1e-5);
+  assert.ok(Math.abs(swTotal(G, K) - total) / total < 1e-6);
+});
+
+test('塗る: 耳の外と、具に隠れたマスには塗れない。壺から取ると量に応じて色が混ざる', () => {
+  const X = trendCore(SANDWICH, SW_NAMES);
+  const G = X.makeGrid(2, X.breadPoly(5)), K = { load: 0, r: 0, g: 0, b: 0 };
+  for (let k = 0; k < G.cover.length; k += 7) G.cover[k] = 1;
+  X.takeFromPot(K, [1, 1, 1]);
+  for (let y = 40; y < 270; y += 8) X.stroke(G, K, 60, y, 340, y);
+  for (let k = 0; k < G.t.length; k++) if (!G.mask[k] || G.cover[k]) assert.equal(G.t[k], 0);
+  const K2 = { load: 3500, r: 1, g: 1, b: 1 };
+  assert.equal(X.takeFromPot(K2, [0, 0, 0], 7000), 3500);
+  assert.equal(K2.load, 7000);
+  assert.ok(Math.abs(K2.r - 0.5) < 1e-12);
+  assert.equal(X.takeFromPot(K2, [0, 0, 0], 7000), 0);
+});
+
+test('具: 凸包は外側の点だけを左回りに返し、内側の判定は辺からの距離を見る', () => {
+  const X = trendCore(SANDWICH, SW_NAMES);
+  const pts = [];
+  for (let x = 0; x <= 2; x++) for (let y = 0; y <= 2; y++) pts.push([x * 10, y * 10]);
+  const H = X.convexHull(pts);
+  assert.equal(H.length, 4);
+  // 中心 (10, 10) から 4 つの辺までは、どれも 10
+  assert.ok(X.inHull(H, 10, 10, 9.9));
+  assert.ok(!X.inHull(H, 10, 10, 10.1));
+  assert.ok(!X.inHull(H, 21, 10));
+  assert.ok(!X.inHull(X.convexHull([[0, 0], [5, 5], [10, 10]]), 5, 5));   // 一直線の点は面にならない
+});
+
+test('具: 重心の下に支えがあれば残り、無ければ支えと反対へ滑り、支えが 1 つも無ければ片付ける', () => {
+  const X = trendCore(SANDWICH, SW_NAMES);
+  const sq = X.SHAPES.cheese(), pts = X.samplesOf(sq, 3);
+  const r = (f) => X.judge(pts, pts.map(([x]) => f(x)));
+  assert.equal(r(() => true).kind, 'stay');
+  assert.equal(r(() => true).frac, 1);
+  assert.equal(r((x) => x < 6).kind, 'stay');
+  const s = r((x) => x < -3);
+  assert.equal(s.kind, 'slide');
+  assert.ok(s.dir[0] > 0.99);
+  assert.equal(r((x) => x < 0).kind, 'slide');   // ちょうど半分では、重心が支えの縁に乗るので残れない
+  assert.equal(r(() => false).kind, 'gone');
+  for (const [k, f] of Object.entries(X.SHAPES)) {
+    const P = f();
+    assert.ok(X.inPoly(P, 0, 0), k);
+    assert.ok(X.samplesOf(P, 3).length > P.length, k);
+  }
+});
+
+test('具: 下の具から順に判定し、支えていた具が落ちると上の具も落ちる', () => {
+  const X = trendCore(SANDWICH, SW_NAMES);
+  const sq = X.SHAPES.cheese(), L = { poly: sq, pts: X.samplesOf(sq, 3) };
+  const onBread = (x) => x < 100;   // x が 100 より左だけがパン
+  const A = X.posed(L, 90, 0, 0), B = X.posed(L, 105, 0, 0), Aout = X.posed(L, 135, 0, 0);
+  assert.deepEqual(X.settle([A, B], onBread).map((q) => q.kind), ['stay', 'stay']);
+  assert.deepEqual(X.settle([B], onBread).map((q) => q.kind), ['slide']);
+  assert.deepEqual(X.settle([Aout, B], onBread).map((q) => q.kind), ['gone', 'slide']);
+  // 回しても、置いた所と形は変わらない（重心は同じ）
+  const R = X.posed(L, 50, 60, 0.7);
+  const c = R.pts.reduce((s, p) => [s[0] + p[0] / R.pts.length, s[1] + p[1] / R.pts.length], [0, 0]);
+  assert.ok(Math.hypot(c[0] - 50, c[1] - 60) < 1e-9);
+});
+
+test('パン: 耳の内側の輪郭は外側の内側にあり、パン全体がマス目の範囲に入る', () => {
+  const X = trendCore(SANDWICH, SW_NAMES);
+  const outer = X.breadPoly(0), inner = X.breadPoly(9), G = X.makeGrid(2, X.breadPoly(5));
+  for (const [x, y] of inner) assert.ok(X.inPoly(outer, x, y));
+  assert.ok(X.inPoly(outer, 200, 150));
+  assert.ok(!X.inPoly(outer, 20, 20));
+  for (const [x, y] of outer) {
+    assert.ok(x > G.ox && x < G.ox + G.w * G.cell && y > G.oy && y < G.oy + G.h * G.cell);
+  }
+});
+
+// 次の文字を当てる力と圧縮（Perplexity and Intelligence）
+const PERP = 'tr-20261123-perplexity-compress';
+const PP_NAMES = ['MAX_ORDER', 'charsOf', 'train', 'alphabetOf', 'usedOrder', 'prob', 'dist', 'evaluate', 'lossCurve', 'topK', 'cumFreq', 'encode', 'decode', 'randomLetters'];
+const PP_JA = '朝は晴れ。気温は八度で、少し寒い。昼から雲が出て、夕方に小雨が降った。駅まで歩いて、パンを買って帰った。\n朝はくもり。気温は十度で、風が強い。昼は晴れて、少し暖かくなった。駅まで自転車で行って、本を借りて帰った。\n朝は雨。気温は九度で、とても寒い。昼も雨が続いて、夕方にやんだ。家で本を読んで、夜にパンを焼いた。';
+const PP_JA_TEST = '朝はくもり。気温は九度で、少し寒い。昼から雨が降って、夕方にやんだ。駅まで歩いて、本を借りて帰った。';
+
+test('当てる: 手で計算した Witten–Bell の確率と一致する', () => {
+  const X = trendCore(PERP, PP_NAMES);
+  const m = X.train(X.charsOf('abab'), 2);
+  // 0 文字の文脈: a が 2 回・b が 2 回・種類は 2 → (2 + 2 × 1/2) ÷ (4 + 2) = 1/2
+  assert.ok(near(X.prob(m, ['a'], 0, 0, 'a', 2), 0.5));
+  // 「a」の後: b が 2 回・種類は 1 → b は (2 + 1 × 1/2) ÷ 3、a は (0 + 1 × 1/2) ÷ 3
+  assert.ok(near(X.prob(m, ['a', 'x'], 1, 1, 'b', 2), 2.5 / 3));
+  assert.ok(near(X.prob(m, ['a', 'x'], 1, 1, 'a', 2), 0.5 / 3));
+  // 学習が空なら、一覧の文字は全部同じ確率
+  const empty = X.train([], 3);
+  assert.ok(near(X.prob(empty, ['x', 'y'], 2, 3, 'q', 5), 1 / 5));
+  assert.equal(X.usedOrder(empty, ['x'], 1, 3), -1);
+});
+
+test('当てる: 全部の文字の確率は合計 1 で、1 文字ずつ求めた確率と同じ', () => {
+  const X = trendCore(PERP, PP_NAMES);
+  const tr = X.charsOf(PP_JA), te = X.charsOf(PP_JA_TEST);
+  const m = X.train(tr, X.MAX_ORDER), A = X.alphabetOf(tr, te);
+  for (const order of [0, 1, 3, 6]) {
+    for (const i of [0, 1, 5, 20, te.length - 1]) {
+      const p = X.dist(m, te, i, order, A);
+      assert.ok(near(p.reduce((s, v) => s + v, 0), 1, 1e-9), `order ${order} i ${i}`);
+      for (const j of [0, 7, A.length - 1]) assert.ok(near(p[j], X.prob(m, te, i, order, A[j], A.length), 1e-12));
+    }
+  }
+  // 上位の予想は確率の高い順
+  const top = X.topK(X.dist(m, te, 3, 2, A), A, 5);
+  for (let k = 1; k < top.length; k++) assert.ok(top[k - 1].p >= top[k].p);
+});
+
+test('当てる: 文脈を長くすると学習に使った文の損失は下がり続け、使わなかった文との差が開く', () => {
+  const X = trendCore(PERP, PP_NAMES);
+  const tr = X.charsOf(PP_JA), te = X.charsOf(PP_JA_TEST);
+  const m = X.train(tr, X.MAX_ORDER), K = X.alphabetOf(tr, te).length;
+  const a = X.lossCurve(m, tr, K, X.MAX_ORDER), b = X.lossCurve(m, te, K, X.MAX_ORDER);
+  for (let k = 1; k < a.length; k++) assert.ok(a[k] <= a[k - 1] + 1e-12, `学習用 ${k}`);
+  assert.ok(b[2] < b[0]);
+  assert.ok(a[6] < b[6]);
+  // パープレキシティは e の損失乗、ビットは損失 ÷ ln 2
+  const ev = X.evaluate(m, te, 2, K);
+  assert.ok(near(ev.ppl, Math.exp(ev.loss)) && near(ev.bpc, ev.loss / Math.LN2));
+  assert.ok(near(ev.totalBits, ev.bits.reduce((s, v) => s + v, 0), 1e-6));
+});
+
+test('圧縮: 算術符号は元に戻せて、大きさは損失から計算した値に近い', () => {
+  const X = trendCore(PERP, PP_NAMES);
+  const L = 'abcdefghijklmnopqrstuvwxyz';
+  const cases = [
+    [X.charsOf(PP_JA), X.charsOf(PP_JA_TEST)],
+    [X.charsOf('the cat sat on the mat. the dog sat on the log. '), X.charsOf('the cat sat on the log. the dog sat.')],
+    [X.charsOf(X.randomLetters(7, 600, L)), X.charsOf(X.randomLetters(11, 200, L))],
+    [[], X.charsOf('xyz')],
+    [X.charsOf('abc'), []],
+  ];
+  for (const [tr, te] of cases) {
+    const m = X.train(tr, X.MAX_ORDER), A = X.alphabetOf(tr, te);
+    for (let order = 0; order <= X.MAX_ORDER; order++) {
+      const enc = X.encode(m, te, order, A);
+      assert.equal(X.decode(m, enc.bytes, order, A).join(''), te.join(''), `order ${order}`);
+      assert.equal(enc.bytes.length, Math.ceil(enc.bits / 8));
+      const ideal = X.evaluate(m, te, order, Math.max(1, A.length)).totalBits;
+      // 32 ビットの文字数・終わりの 2 ビットと、度数に直したときのずれ（1 文字あたり 0.1 ビットまで）
+      assert.ok(enc.bits - 32 <= ideal + 0.1 * te.length + 4, `order ${order}: ${enc.bits - 32} > ${ideal}`);
+      assert.ok(enc.bits - 32 >= ideal - 1, `order ${order}`);
+    }
+  }
+});
+
+test('圧縮: でたらめな英字は当てようがなく、約 26 個から選ぶのと同じ。文脈を長くするとかえって悪くなる', () => {
+  const X = trendCore(PERP, PP_NAMES);
+  const L = 'abcdefghijklmnopqrstuvwxyz';
+  assert.equal(X.randomLetters(3, 50, L), X.randomLetters(3, 50, L));
+  assert.notEqual(X.randomLetters(3, 50, L), X.randomLetters(4, 50, L));
+  assert.match(X.randomLetters(3, 500, L), /^[a-z]{500}$/);
+  const tr = X.charsOf(X.randomLetters(7, 1200, L)), te = X.charsOf(X.randomLetters(11, 300, L));
+  const m = X.train(tr, X.MAX_ORDER), K = X.alphabetOf(tr, te).length;
+  const e0 = X.evaluate(m, te, 0, K), e3 = X.evaluate(m, te, 3, K);
+  assert.ok(e0.ppl > 20 && e0.ppl < 32, `order 0: ${e0.ppl}`);
+  // 1 回しか出なかった文脈に引っぱられる（学習用の文を覚えただけで、当てる力は上がらない）
+  assert.ok(e3.loss > e0.loss, `order 3: ${e3.ppl}`);
+});
+
+test('圧縮: 度数はどの文字も 1 以上で合計は上限以下。種類が多すぎると止める', () => {
+  const X = trendCore(PERP, PP_NAMES);
+  const p = new Float64Array([0.999999, 0.000001, 0]);
+  const cum = X.cumFreq(p, 65536);
+  for (let j = 0; j < 3; j++) assert.ok(cum[j + 1] - cum[j] >= 1);
+  assert.ok(cum[3] <= 65536);
+  assert.throws(() => X.cumFreq(new Float64Array(40000).fill(1 / 40000), 65536));
+  assert.deepEqual(Array.from(X.charsOf('a\r\nb\rc')), ['a', '\n', 'b', '\n', 'c']);
+  assert.deepEqual(Array.from(X.charsOf('😀a')), ['😀', 'a']);
+});
+
+// ---- 時刻合わせ（NTP）: tr-20261123-ntp-offset ----
+const NTP = 'tr-20261123-ntp-offset';
+const NTP_NAMES = ['offsetDelay', 'pickBest', 'rng', 'netSample', 'makeSim', 'poll', 'rms', 'FILTER', 'KP', 'STEP_MS'];
+// 回線の様子を決めて1回ずつ問い合わせる
+function ntpRun(X, mode, p, n, e0 = 25, seed = 1) {
+  const s = X.makeSim(e0), r = X.rng(seed), out = [];
+  for (let i = 0; i < n; i++) out.push(X.poll(s, { ...p, mode }, X.netSample(p, r)));
+  return { s, out };
+}
+
+test('時刻合わせ: 行きと帰りが同じなら θ は本当のずれ。違うと（行き − 帰り）÷ 2 だけ外れる', () => {
+  const X = trendCore(NTP, NTP_NAMES);
+  // 自分の時計が 30 ms 進んでいる。行き 10 ms、相手の処理 1 ms、帰り 10 ms
+  const e = 30, T1 = 1000;
+  let m = X.offsetDelay(T1 + e, T1 + 10, T1 + 11, T1 + 21 + e);
+  assert.ok(near(m.offset, -30) && near(m.delay, 20));
+  // 行き 16 ms、帰り 4 ms（往復は同じ 20 ms）: θ は 6 ms 外れる
+  m = X.offsetDelay(T1 + e, T1 + 16, T1 + 17, T1 + 21 + e);
+  assert.ok(near(m.offset, -30 + 6) && near(m.delay, 20));
+});
+
+test('時刻合わせ: 往復が一番短い回を選び、同じ長さなら新しい方', () => {
+  const X = trendCore(NTP, NTP_NAMES);
+  assert.equal(X.pickBest([]), -1);
+  assert.equal(X.pickBest([{ delay: 30 }, { delay: 22 }, { delay: 40 }]), 1);
+  assert.equal(X.pickBest([{ delay: 22 }, { delay: 30 }, { delay: 22 }]), 2);
+});
+
+test('時刻合わせ: 回線の様子は種で決まり、混雑が無ければ片道は base ± 差 ÷ 2', () => {
+  const X = trendCore(NTP, NTP_NAMES);
+  const p = { base: 12, asym: 6, jitter: 10 };
+  const a = X.rng(5), b = X.rng(5);
+  for (let i = 0; i < 50; i++) {
+    const u = X.netSample(p, a), v = X.netSample(p, b);
+    assert.deepEqual({ ...u }, { ...v });
+    assert.ok(u.df >= 15 - 1e-9 && u.db >= 9 - 1e-9 && u.proc > 0 && u.proc < 0.31);
+  }
+  const q = X.netSample({ base: 12, asym: 6, jitter: 0 }, X.rng(1));
+  assert.ok(near(q.df, 15) && near(q.db, 9));
+});
+
+test('時刻合わせ: そのまま足すやり方では、直した後のずれが θ の誤差と同じになる', () => {
+  const X = trendCore(NTP, NTP_NAMES);
+  const { s, out } = ntpRun(X, 'step', { ppm: 80, jitter: 12, asym: 0, base: 12, tau: 16 }, 50);
+  for (const o of out) {
+    assert.ok(near(o.after, o.err, 1e-6));
+    assert.ok(near(o.err, (o.df - o.db) / 2, 1e-6));
+  }
+  assert.equal(s.f, 0);
+  // 混雑が無いと、待っている間のくるいの分（80 ppm × 16 秒 = 1.28 ms）だけ毎回ずれる
+  const q = ntpRun(X, 'step', { ppm: 80, jitter: 0, asym: 0, base: 12, tau: 16 }, 20).out;
+  for (const o of q.slice(1)) assert.ok(near(o.before, 1.28, 1e-6) && near(o.after, 0, 1e-6));
+});
+
+test('時刻合わせ: NTP 風は進み方のくるいを打ち消してずれを 0 に寄せる。行きと帰りに差があると、その半分で止まる', () => {
+  const X = trendCore(NTP, NTP_NAMES);
+  let r = ntpRun(X, 'ntp', { ppm: 100, jitter: 0, asym: 0, base: 12, tau: 16 }, 200);
+  assert.ok(Math.abs(r.s.e) < 0.01, `e = ${r.s.e}`);
+  assert.ok(Math.abs(r.s.f + 100) < 0.5, `f = ${r.s.f}`);
+  r = ntpRun(X, 'ntp', { ppm: -150, jitter: 0, asym: 10, base: 12, tau: 16 }, 200);
+  // 時計は 5 ms 進んだまま。それでも測ったずれは 0 に見える
+  assert.ok(Math.abs(r.s.e - 5) < 0.01, `e = ${r.s.e}`);
+  assert.ok(Math.abs(r.out[r.out.length - 1].offset) < 0.01);
+});
+
+test('時刻合わせ: 混雑があると、NTP 風の方がそのまま足すより本当のずれが小さい', () => {
+  const X = trendCore(NTP, NTP_NAMES);
+  for (const seed of [1, 2, 3]) {
+    const p = { ppm: 80, jitter: 12, asym: 0, base: 12, tau: 16 };
+    const n = ntpRun(X, 'ntp', p, 400, 25, seed).out.slice(100).map((o) => o.before);
+    const s = ntpRun(X, 'step', p, 400, 25, seed).out.slice(100).map((o) => o.before);
+    assert.ok(X.rms(n) * 2.5 < X.rms(s), `seed ${seed}: ${X.rms(n)} / ${X.rms(s)}`);
+  }
+  assert.equal(X.rms([]), 0);
+  assert.ok(near(X.rms([3, -4]), Math.sqrt(12.5)));
+});
+
+test('時刻合わせ: 同じ回の θ は2度使わず、最初に大きくずれていたら一度に合わせる', () => {
+  const X = trendCore(NTP, NTP_NAMES);
+  const p = { mode: 'ntp', ppm: 0, jitter: 0, asym: 0, base: 12, tau: 16 };
+  const s = X.makeSim(10);
+  const a = X.poll(s, p, { df: 12, db: 12, proc: 0.1 });
+  assert.equal(a.usedId, 0);
+  assert.ok(near(a.after, 10 - X.KP * 10));
+  // 次は往復が長い。一番短いのは使い済みの 0 番なので、時計は動かさない
+  // （進み方の直しは続くので、待っている間に f × 16 秒の分だけは動く）
+  const b = X.poll(s, p, { df: 30, db: 12, proc: 0.1 });
+  assert.equal(b.usedId, -1);
+  assert.equal(b.bestId, 0);
+  assert.equal(b.adj, 0);
+  assert.ok(near(b.after, b.before) && near(b.before, a.after + s.f * 1e-3 * 16));
+  // 8 回より前の回は比べる対象から外れる
+  for (let i = 0; i < X.FILTER; i++) X.poll(s, p, { df: 20, db: 20, proc: 0.1 });
+  assert.ok(s.samples.length === X.FILTER && s.samples.every((x) => x.id > 1));
+  // 最初の回で 500 ms ずれていたら一度に合わせる（誤差は（行き − 帰り）÷ 2）
+  const big = X.makeSim(500);
+  const c = X.poll(big, p, { df: 14, db: 10, proc: 0.1 });
+  assert.ok(near(c.after, 2) && Math.abs(c.offset) > X.STEP_MS);
+});
+
+// ---- 小さな街（Small SF）: tr-20261123-mini-city ----
+const CITY = 'tr-20261123-mini-city';
+const CITY_NAMES = ['signalAt', 'canStop', 'idm', 'demand', 'dayOfYear', 'solarHour', 'sunPosition', 'sunVector', 'lightState', 'project', 'rayOrigin', 'streetDist', 'makeWorld', 'buildTown', 'castRay', 'shadowAt', 'makeTraffic', 'posOnLink', 'addCar', 'stepTraffic', 'CYCLE', 'SIG', 'GROUND', 'CELL', 'GN', 'IDM', 'SF'];
+// 建物が1つだけの街
+function oneBox(X, x0, x1, y0, y1, h) {
+  const H = new Float32Array(X.GN * X.GN).fill(X.GROUND), M = new Int32Array(X.GN * X.GN);
+  for (let y = y0 / X.CELL; y < y1 / X.CELL; y++) for (let x = x0 / X.CELL; x < x1 / X.CELL; x++) { H[y * X.GN + x] = h; M[y * X.GN + x] = 1; }
+  return X.makeWorld(H, M, [null, { id: 1, h }], []);
+}
+
+test('小さな街: 信号は2つの向きが同時に青や黄にならず、黄色のあとに全方向が赤の間がある', () => {
+  const X = trendCore(CITY, CITY_NAMES);
+  assert.equal(X.CYCLE, 25);
+  let allRed = 0, prev = null;
+  const changes = [];
+  for (let i = 0; i < 2500; i++) {
+    const t = i * 0.01, s = X.signalAt(t, 0);
+    assert.ok(s.ns === 'r' || s.ew === 'r', 't=' + t);
+    if (s.ns === 'r' && s.ew === 'r') allRed++;
+    const k = s.ns + s.ew;
+    if (k !== prev) { changes.push(k); prev = k; }
+  }
+  assert.deepEqual(changes, ['gr', 'yr', 'rr', 'rg', 'ry', 'rr']);
+  assert.ok(near(allRed * 0.01, 2 * X.SIG.red, 0.02));
+  // ずらし off を足すと同じ順で時間がずれる。負の時刻でも同じ
+  assert.deepEqual({ ...X.signalAt(3, 10) }, { ...X.signalAt(13, 0) });
+  assert.deepEqual({ ...X.signalAt(-1, 0) }, { ...X.signalAt(24, 0) });
+});
+
+test('小さな街: 止まれるかの判定と、IDM の加速', () => {
+  const X = trendCore(CITY, CITY_NAMES);
+  // 速さ 2、減速 2 なら止まるのに 1 要る
+  assert.equal(X.canStop(2, 1, 2), true);
+  assert.equal(X.canStop(2, 0.99, 2), false);
+  const P = X.IDM;
+  assert.ok(X.idm(0, P.v0, Infinity, 0, P) > 0);                   // 前が空いていれば発進する
+  assert.ok(near(X.idm(P.v0, P.v0, Infinity, 0, P), 0));             // 望む速さなら加速しない
+  assert.ok(X.idm(2, P.v0, 0.5, 2, P) < -P.b);                       // 止まった車がすぐ前なら強く減速する
+  assert.ok(near(X.idm(0, P.v0, P.s0, 0, P), 0));                    // 間隔 s0 で止まったまま
+  assert.ok(X.idm(0, P.v0, P.s0 * 0.9, 0, P) < 0);
+});
+
+test('小さな街: 車の量は朝 8 時と夕方 5 時半に多く、夜中に一番少ない', () => {
+  const X = trendCore(CITY, CITY_NAMES);
+  const v = (h) => X.demand(h);
+  assert.ok(v(8) > v(6) && v(8) > v(11));
+  assert.ok(v(17.5) > v(15) && v(17.5) > v(20));
+  assert.ok(v(17.5) > v(8));
+  let lo = 1, at = 0;
+  for (let h = 0; h < 24; h += 0.25) if (v(h) < lo) { lo = v(h); at = h; }
+  assert.ok(at >= 2 && at <= 5, '一番少ないのは ' + at + ' 時');
+  assert.ok(near(v(25), v(1)) && near(v(-1), v(23)));
+  for (let h = 0; h < 24; h += 0.5) assert.ok(v(h) > 0 && v(h) <= 1);
+});
+
+test('小さな街: 太陽の位置（夏至の正午と、サンフランシスコの 11 月 23 日）', () => {
+  const X = trendCore(CITY, CITY_NAMES);
+  assert.equal(X.dayOfYear(2026, 1, 1), 1);
+  assert.equal(X.dayOfYear(2026, 11, 23), 327);
+  assert.equal(X.dayOfYear(2024, 3, 1), 61);
+  // 夏至（172 日目）の太陽の正午: 高さは 90 − 緯度 + 23.44、方角は真南
+  const s = X.sunPosition(172, 12, 37.77);
+  assert.ok(near(s.alt, 90 - 37.77 + 23.44, 0.05), String(s.alt));
+  assert.ok(near(s.az, 180, 0.01));
+  // 午前は東寄り、午後は西寄り、真夜中は地平線の下
+  assert.ok(X.sunPosition(172, 9, 37.77).az < 180 && X.sunPosition(172, 15, 37.77).az > 180);
+  assert.ok(X.sunPosition(172, 0, 37.77).alt < 0);
+  // サンフランシスコの 11 月 23 日、時計の 12 時（UTC 20 時）: 太陽はほぼ南で、高さは約 31 度
+  const doy = 327, sh = X.solarHour(20, X.SF.lon, doy);
+  assert.ok(near(sh, 12.05, 0.05), String(sh));
+  const n = X.sunPosition(doy, sh, X.SF.lat);
+  assert.ok(n.alt > 30 && n.alt < 33 && Math.abs(n.az - 180) < 3, JSON.stringify(n));
+  // 7 時（UTC 15 時）はまだ低く、17 時（翌日の UTC 1 時）は沈んでいる
+  assert.ok(X.sunPosition(doy, X.solarHour(15, X.SF.lon, doy), X.SF.lat).alt < 3);
+  assert.ok(X.sunPosition(doy, X.solarHour(25, X.SF.lon, doy), X.SF.lat).alt < 0);
+  // 太陽の方向は単位ベクトル。光の状態は、夜は夜の度合い 1、昼は 0
+  const L = Array.from(X.sunVector(30, 135));
+  assert.ok(near(Math.hypot(...L), 1) && L[0] > 0 && L[1] < 0 && near(L[2], 0.5));
+  assert.equal(X.lightState(-20, 0).night, 1);
+  assert.equal(X.lightState(-20, 0).up, false);
+  assert.equal(X.lightState(40, 180).night, 0);
+  assert.equal(X.lightState(40, 180).up, true);
+});
+
+test('小さな街: 視線は手前の地面にそのまま当たり、建物の奥の地面は建物に隠れる', () => {
+  const X = trendCore(CITY, CITY_NAMES);
+  const W = oneBox(X, 20, 22, 20, 22, 5);
+  const hit = {};
+  // 建物の手前（南西）の地面
+  let p = X.project(19, 19, X.GROUND);
+  X.castRay(W, p.sx, p.sy, hit);
+  assert.equal(hit.kind, 0);
+  assert.equal(hit.n, 0);
+  assert.ok(near(hit.x, 19, 1e-6) && near(hit.y, 19, 1e-6) && near(hit.h, X.GROUND, 1e-6));
+  // 建物の奥（北東）の地面: 先に建物に当たる
+  p = X.project(23, 23, X.GROUND);
+  X.castRay(W, p.sx, p.sy, hit);
+  assert.equal(W.M[hit.id], 1);
+  // 地面までの距離より当たった物の方が近い。だからそこに置いた車は隠れる
+  const o = Array.from(X.rayOrigin(p.sx, p.sy, W.top));
+  assert.ok(hit.t < (o[2] - X.GROUND) * Math.SQRT2 - 0.5);
+  // 西向きの壁の真ん中
+  p = X.project(20, 21.2, 2);
+  X.castRay(W, p.sx, p.sy, hit);
+  assert.equal(hit.n, 1);
+  assert.ok(near(hit.x, 20, 1e-6) && near(hit.y, 21.2, 1e-6) && near(hit.h, 2, 1e-6));
+  // 陸の外は海（高さ 0）
+  p = X.project(-3, 10, 0);
+  X.castRay(W, p.sx, p.sy, hit);
+  assert.equal(hit.kind, 3);
+  assert.ok(near(hit.h, 0, 1e-6));
+});
+
+test('小さな街: 建物の影は太陽と反対の側にでき、太陽が高いと短くなる', () => {
+  const X = trendCore(CITY, CITY_NAMES);
+  const W = oneBox(X, 20, 22, 20, 22, 5);
+  const g = X.GROUND + 0.01;
+  const east = Array.from(X.sunVector(20, 90));   // 東の低い太陽
+  assert.equal(X.shadowAt(W, 18.5, 21, g, east), true);    // 建物の西
+  assert.equal(X.shadowAt(W, 23.5, 21, g, east), false);   // 建物の東
+  assert.equal(X.shadowAt(W, 18.5, 25, g, east), false);   // 建物から外れた所
+  // 高さ 4.7 の建物の影の長さは 4.7 ÷ tan(太陽の高さ)。20 度なら約 12.9、60 度なら約 2.7
+  assert.equal(X.shadowAt(W, 10, 21, g, east), true);
+  const high = Array.from(X.sunVector(60, 90));
+  assert.equal(X.shadowAt(W, 18, 21, g, high), true);
+  assert.equal(X.shadowAt(W, 16.5, 21, g, high), false);
+  // 屋根の上は影にならない
+  assert.equal(X.shadowAt(W, 21, 21, 5.01, east), false);
+});
+
+test('小さな街: 通りと歩道には建物が無く、建物は街区の中だけに建つ', () => {
+  const X = trendCore(CITY, CITY_NAMES);
+  const W = X.buildTown(20261123);
+  let n = 0;
+  for (let iy = 0; iy < X.GN; iy++) for (let ix = 0; ix < X.GN; ix++) {
+    const x = (ix + 0.5) * X.CELL, y = (iy + 0.5) * X.CELL, i = iy * X.GN + ix;
+    if (X.streetDist(x) < 1.5 || X.streetDist(y) < 1.5) { assert.ok(near(W.H[i], X.GROUND, 1e-6)); assert.equal(W.M[i], 0); }
+    if (W.M[i] > 0) { n++; assert.ok(W.H[i] > X.GROUND + 1); }
+  }
+  assert.ok(n > 1000, String(n));
+  assert.ok(W.buildings.length > 30 && W.maxH > 6 && W.top > W.maxH, String(W.maxH));
+  // 木の幹は車道に立てない
+  for (const t of W.trees) assert.ok(!(X.streetDist(t.x) < 1 || X.streetDist(t.y) < 1), t.x + ',' + t.y);
+  // 同じ種なら同じ街になる
+  assert.deepEqual(Array.from(X.buildTown(20261123).H), Array.from(W.H));
+});
+
+test('小さな街: 道はとぎれずにつながり、交差点ではまっすぐと右折に分かれる', () => {
+  const X = trendCore(CITY, CITY_NAMES);
+  const sim = X.makeTraffic(1);
+  const roads = sim.links.filter((L) => L.kind === 'road'), moves = sim.links.filter((L) => L.kind === 'move');
+  assert.equal(roads.length, 4 * 5 * 6);
+  assert.equal(moves.length, 25 * 4 * 2);
+  assert.equal(sim.entries.length, 20);
+  const a = {}, b = {};
+  for (const L of sim.links) {
+    for (const nid of L.next) {
+      const N = sim.links[nid];
+      X.posOnLink(L, L.len, a);
+      X.posOnLink(N, 0, b);
+      assert.ok(near(a.x, b.x, 1e-6) && near(a.y, b.y, 1e-6), L.id + '→' + nid);
+      assert.ok(Math.abs(Math.sin(a.th - b.th)) < 1e-6 && Math.cos(a.th - b.th) > 0);
+    }
+    if (L.kind === 'road' && !L.exit) assert.equal(L.next.length, 2);
+    if (L.kind === 'move') assert.equal(L.merge.length, 1);
+  }
+  // 右折は右へ: 東へ向かう車は南へ曲がる
+  const east = roads.find((L) => L.dx === 1 && L.node === 12);
+  const turn = sim.links[east.next[1]];
+  assert.ok(turn.turn);
+  X.posOnLink(turn, turn.len, b);
+  assert.ok(near(Math.cos(b.th), 0, 1e-6) && Math.sin(b.th) < 0);
+});
+
+test('小さな街: 赤信号では止まる線の手前で止まり、青になったら交差点へ入る', () => {
+  const X = trendCore(CITY, CITY_NAMES);
+  const sim = X.makeTraffic(2);
+  sim.max = 0;
+  const node = 12, L = sim.links.find((q) => q.kind === 'road' && q.dx === 1 && q.node === node);
+  sim.nodes[node].off = 0;   // 0〜12.5 秒は南北の番で、東西は赤
+  const c = X.addCar(sim, L.id, 0, 2.4, 'car');
+  for (let i = 0; i < 30 * 10; i++) X.stepTraffic(sim, 1 / 30, 12);
+  assert.equal(c.link, L.id);
+  assert.ok(c.s > L.len - 0.4 && c.s < L.len && c.v < 0.05, JSON.stringify({ s: c.s, len: L.len, v: c.v }));
+  for (let i = 0; i < 30 * 6; i++) X.stepTraffic(sim, 1 / 30, 12);
+  assert.notEqual(c.link, L.id);
+  assert.equal(sim.redRuns, 0);
+});
+
+test('小さな街: 夕方の混む時刻に 2 分動かしても、同じ道の車は重ならず、赤で交差点へ入る車もいない', () => {
+  const X = trendCore(CITY, CITY_NAMES);
+  const sim = X.makeTraffic(5);
+  sim.max = 120;
+  let most = 0;
+  for (let i = 0; i < 30 * 120; i++) {
+    X.stepTraffic(sim, 1 / 30, 17.5);
+    for (const L of sim.links) for (let k = 1; k < L.cars.length; k++) {
+      const p = L.cars[k - 1], q = L.cars[k];
+      assert.ok(q.s - p.s - (p.len + q.len) / 2 > -0.02, 'link ' + L.id + ' t=' + sim.t.toFixed(2));
+    }
+    most = Math.max(most, sim.cars.length);
+  }
+  assert.ok(most > 80, String(most));
+  assert.equal(sim.redRuns, 0);
+  for (const c of sim.cars) assert.ok(c.v >= 0 && c.v < X.IDM.v0 * 1.2);
+});

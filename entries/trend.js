@@ -5204,3 +5204,6425 @@ dekiru.add({
     setAuto(!!window.THUMB || !calm.matches);
   },
 });
+
+dekiru.add({
+  id: 'tr-20261121-grh-zeros', c: 'trend', lv: 3, date: '2026-11-21',
+  t: '一般化リーマン予想の零点を、ブラウザで探して数える（ディリクレの L 関数）',
+  y: 'いっぱんかりーまんよそうのれいてんをぶらうざでさがしてかぞえる',
+  tags: ['一般化リーマン予想', 'ディリクレの L 関数', 'オイラー・マクローリンの和公式', '明示公式', 'Canvas'],
+  d: '2026年11月20日、一般化リーマン予想（GRH）を証明したという発表が2つ続いた。Anthropic の数学者 Levent Alpöge さんは、Claude と一緒に作ったという Lean の証明を公開した。Scott Aaronson さんのブログによると、その長さは約1740万行である。Hacker News では 2100 点を超え、コメントは 1400 件を超えた。同じ日に、Stanford の Ravi Vakil さんが、Alessandro Masullo さんの証明の原稿を公開した。こちらは AI を使っていない人の手による証明で、Brian Conrad さんが数か月かけて確かめている。どちらも、専門家の確認はまだ終わっていない。GRH は「ディリクレの L 関数の、自明でない零点は、すべて実部が 1/2 の直線（臨界線）の上にある」という予想である。この見本は、リーマンのゼータ関数と、法 3・4・5・7・11・13 の実数の値をとる指標の L 関数を、一から計算する。臨界線の上で実数になる Z(t) の符号が変わる所から、零点を探して数える。偏角の原理で求めた「臨界帯の中にある零点の数」と比べ、同じなら、その高さまでの零点はすべて臨界線の上にある。上の色の図では、すべての色が集まる点が零点で、それが σ = 1/2 の線の上に並ぶ。後半は、見つけた零点を波として足し合わせ、素数の階段 ψ(x, χ) を組み立てる（明示公式）。浮動小数点の数値計算なので、厳密な証明ではない。複素数の値をとる指標、t が 100 より上の零点、発表された証明の中身は扱っていない。',
+  p: 'L(s, χ) = q^(−s) Σ χ(a) ζ(s, a/q) と書き直し、フルヴィッツのゼータ ζ(s, a) をオイラー・マクローリンの和公式で計算する。最初の N 項の和に、積分の項とベルヌーイ数の補正 10 項を足すと、級数が収束しない σ ≦ 1 の所でも値が出る。関数等式から、θ(t) = arg Γ((1/2 + κ + it)/2) + (t/2) log(q/π) を使った Z(t) = e^(iθ(t)) L(1/2 + it, χ) は実数になる（κ は χ(−1) = −1 なら 1、それ以外は 0）。Z(t) の符号が変わる所に零点があり、はさみうち法で 10 桁まで詰める。帯の中の零点の数は N(T) = (θ(T) + arg L(1/2 + iT)) / π（ζ では + 1）で、arg は 2 + iT から 1/2 + iT へ少しずつたどって求める。明示公式 ψ(x, χ) = −Σ x^ρ/ρ + 定数 + 自明な零点の項 では、零点 ρ = 1/2 + iγ の1つ1つが、大きさ 2√x/|ρ| で、log x について周期 2π/γ の波になる。零点が臨界線より右にあると、その波は √x より速く大きくなる。GRH が素数の数え方の誤差を決めるのは、このためである。',
+  refs: [
+    { title: 'Hacker News: Levent Alpöge claims proof of the Generalized Riemann Hypothesis', url: 'https://news.ycombinator.com/item?id=50574968' },
+    { title: 'Levent Alpöge の覚え書き（remark.pdf、Lean の証明へのリンク付き）', url: 'https://alpo.ge/remark.pdf' },
+    { title: 'Hurried Announcement: Alessandro Masullo GRH（Ravi Vakil）', url: 'https://math216.wordpress.com/2026/11/20/hurried-announcement-alessandro-masullo-grh/' },
+    { title: 'Unforced Euler singularity, unforced Navier-Stokes singularity, and the Generalized Riemann Hypothesis（Terence Tao）', url: 'https://terrytao.wordpress.com/2026/11/20/unforced-euler-singularity-unforced-navier-stokes-singularity-and-the-generalized-riemann-hypothesis/' },
+    { title: 'The stochastic parrots have apparently proved the Riemann Hypothesis（Scott Aaronson）', url: 'https://scottaaronson.blog/?p=10344' },
+  ],
+  html: `<div class="wrap">
+  <div class="ctl">
+    <label>関数
+      <select id="fn">
+        <option value="1">ζ(s)　リーマンのゼータ関数</option>
+        <option value="3">L(s, χ)　法 3</option>
+        <option value="4" selected>L(s, χ)　法 4</option>
+        <option value="5">L(s, χ)　法 5</option>
+        <option value="7">L(s, χ)　法 7</option>
+        <option value="11">L(s, χ)　法 11</option>
+        <option value="13">L(s, χ)　法 13</option>
+      </select>
+    </label>
+    <label>調べる高さ T
+      <input type="range" id="T" min="20" max="100" step="10" value="50">
+      <output id="Tv" for="T">50</output>
+    </label>
+  </div>
+  <p id="chi" class="mut small"></p>
+  <section>
+    <div class="hd">臨界帯 <span class="mut">横が t（0〜T）、縦が σ。色は L(σ + it) の向き（偏角）で、すべての色が集まる点が零点</span></div>
+    <canvas id="strip" role="img" aria-label="臨界帯の色の図"></canvas>
+    <div class="hd">σ = 1/2 での Z(t) <span class="mut">0 を横切る所が零点（桃色の点）</span></div>
+    <canvas id="zt" role="img" aria-label="Z(t) のグラフ"></canvas>
+  </section>
+  <div class="res">
+    <dl id="st" class="st"></dl>
+    <p id="msg" class="msg" role="status"></p>
+  </div>
+  <section class="part2">
+    <div class="hd">零点の波で素数の階段を組み立てる <span class="mut">明示公式 ψ(x, χ) = −Σ x^ρ/ρ + 定数 + …</span></div>
+    <div class="ctl">
+      <label>使う零点 <input type="range" id="K" min="0" max="0" value="0"> <output id="Kv" for="K">0</output> 組</label>
+      <label>x の範囲
+        <select id="X">
+          <option value="30">2〜30</option>
+          <option value="60" selected>2〜60</option>
+          <option value="100">2〜100</option>
+        </select>
+      </label>
+      <label class="sw"><input type="checkbox" switch id="auto"> 零点を1組ずつ足していく</label>
+    </div>
+    <canvas id="psi" role="img" aria-label="素数の階段と、零点の波の和のグラフ"></canvas>
+    <p class="legend mut small"><span><i class="s"></i>素数の階段 ψ(x, χ) = Σ χ(n) Λ(n)</span><span><i class="w"></i>零点 1/2 ± iγ の波の和</span></p>
+    <p id="race" class="small"></p>
+  </section>
+</div>`,
+  css: `:root { color-scheme: dark; --bg: #10131a; --fg: #e4e8f0; --mut: #9aa3b6; --line: #2b3346; --zline: #7fd4ff; --dot: #ff8fb3; --step: #ffc562; --wave: #7fd4ff; --panel: #161a23; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 system-ui, sans-serif; }
+    .wrap { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .ctl { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+    .ctl label { display: inline-flex; align-items: center; gap: 6px; }
+    select { font: inherit; min-block-size: 28px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 6px; background: #1e2433; color: var(--fg); }
+    input[type="range"] { accent-color: var(--zline); inline-size: 140px; margin: 0; }
+    output { display: inline-block; min-inline-size: 2em; font-variant-numeric: tabular-nums; }
+    :focus-visible { outline: 2px solid #ffd27a; outline-offset: 2px; }
+    .hd { font-weight: 600; }
+    .hd .mut { font-weight: 400; font-size: 12px; }
+    .mut { color: var(--mut); }
+    .small { font-size: 12px; margin: 0; }
+    section { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    canvas { display: block; inline-size: 100%; }
+    #strip { block-size: 110px; }
+    #zt { block-size: 140px; }
+    #psi { block-size: 200px; }
+    .res { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    @media (min-width: 640px) { .res { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+    .st { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; margin: 0; font-size: 13px; }
+    .st dt { color: var(--mut); }
+    .st dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .msg { margin: 0; padding: 6px 8px; border-inline-start: 3px solid var(--dot); background: var(--panel); border-radius: 4px; font-size: 13px; }
+    .part2 { border-block-start: 1px solid var(--line); padding-block-start: 8px; gap: 6px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+    .legend i { display: inline-block; inline-size: 16px; block-size: 3px; vertical-align: middle; margin-inline-end: 6px; border-radius: 2px; }
+    .legend .s { background: var(--step); }
+    .legend .w { background: var(--wave); }
+    input[type="checkbox"][switch] { accent-color: var(--dot); margin: 0; cursor: pointer; }
+    .thumb .wrap { padding: 6px; gap: 4px; }
+    .thumb .ctl, .thumb #chi, .thumb .res, .thumb .legend, .thumb #race, .thumb .hd { display: none; }
+    .thumb #strip { block-size: 24vh; }
+    .thumb #zt { block-size: 21vh; }
+    .thumb #psi { block-size: 44vh; }
+    .thumb .part2 { padding-block-start: 4px; }`,
+  core() {
+    // ディリクレの L 関数を、オイラー・マクローリンの和公式で一から計算する。複素数は [実部, 虚部] の配列で表す
+    const cmul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
+    const cdiv = (a, b) => { const d = b[0] * b[0] + b[1] * b[1]; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
+    const clog = (a) => [Math.log(Math.hypot(a[0], a[1])), Math.atan2(a[1], a[0])];
+    // 正の実数 x について x^(−s)
+    function powNeg(x, s) {
+      const L = Math.log(x), r = Math.exp(-s[0] * L);
+      return [r * Math.cos(s[1] * L), -r * Math.sin(s[1] * L)];
+    }
+
+    const MODS = [1, 3, 4, 5, 7, 11, 13];
+    // B2, B4, …, B20 と (2k)!
+    const BERN = [1 / 6, -1 / 30, 1 / 42, -1 / 30, 5 / 66, -691 / 2730, 7 / 6, -3617 / 510, 43867 / 798, -174611 / 330];
+    const FACT2K = [2, 24, 720, 40320, 3628800, 479001600, 87178291200, 20922789888000, 6402373705728000, 2432902008176640000];
+
+    function powMod(b, e, m) {
+      let r = 1;
+      b %= m;
+      while (e > 0) { if (e & 1) r = (r * b) % m; b = (b * b) % m; e >>= 1; }
+      return r;
+    }
+
+    // 法 q の、実数の値をとる原始的な指標 χ。q = 1 はリーマンのゼータ関数（どの n でも 1）
+    function makeFn(q) {
+      let chi;
+      if (q === 1) chi = [1];
+      else if (q === 4) chi = [0, 1, 0, -1];
+      else if (q > 2 && MODS.includes(q)) {
+        chi = new Array(q).fill(0);
+        for (let a = 1; a < q; a++) chi[a] = powMod(a, (q - 1) / 2, q) === 1 ? 1 : -1;   // ルジャンドル記号
+      } else throw new Error('この法には対応していません: ' + q);
+      const kappa = chi[q - 1] === -1 ? 1 : 0;   // χ(−1) = −1 なら奇の指標
+      return { q, chi, kappa };
+    }
+    const chiOf = (f, n) => f.chi[n % f.q];
+
+    // 足す項の数。|s + 2k| / (2π(N + a)) が 1/2 以下になるように選ぶ
+    const nTerms = (s) => Math.max(6, Math.ceil((Math.hypot(s[0], s[1]) + 20) / Math.PI));
+
+    // フルヴィッツのゼータ ζ(s, a) = Σ (n + a)^(−s) を、N 項の和 + 積分の項 + ベルヌーイ数の補正 10 項で求める
+    function hurwitz(s, a, N) {
+      let re = 0, im = 0;
+      for (let n = 0; n < N; n++) { const p = powNeg(n + a, s); re += p[0]; im += p[1]; }
+      const x = N + a, xs = powNeg(x, s);
+      const integral = cdiv([x * xs[0], x * xs[1]], [s[0] - 1, s[1]]);
+      re += integral[0] + xs[0] / 2; im += integral[1] + xs[1] / 2;
+      let rise = [s[0], s[1]];           // s(s+1)…(s+2k−2)
+      let pw = [xs[0] / x, xs[1] / x];   // x^(−s−2k+1)
+      for (let k = 1; k <= 10; k++) {
+        const c = BERN[k - 1] / FACT2K[k - 1], term = cmul(rise, pw);
+        re += c * term[0]; im += c * term[1];
+        rise = cmul(cmul(rise, [s[0] + 2 * k - 1, s[1]]), [s[0] + 2 * k, s[1]]);
+        pw = [pw[0] / (x * x), pw[1] / (x * x)];
+      }
+      return [re, im];
+    }
+
+    // L(s, χ) = q^(−s) Σ χ(a) ζ(s, a/q)
+    function lfun(s, f) {
+      const N = nTerms(s);
+      if (f.q === 1) return hurwitz(s, 1, N);
+      let re = 0, im = 0;
+      for (let a = 1; a < f.q; a++) {
+        if (!f.chi[a]) continue;
+        const h = hurwitz(s, a / f.q, N);
+        re += f.chi[a] * h[0]; im += f.chi[a] * h[1];
+      }
+      return cmul([re, im], powNeg(f.q, s));
+    }
+
+    // log Γ(z)（実部が正の z）。10 以上へずらしてスターリングの級数を使うので、虚部は t についてつながる
+    function lgamma(z) {
+      let re = z[0], sr = 0, si = 0;
+      const im = z[1];
+      while (re < 10) { const l = clog([re, im]); sr += l[0]; si += l[1]; re += 1; }
+      const w = [re, im], r = cmul([re - 0.5, im], clog(w));
+      r[0] += -re + 0.5 * Math.log(2 * Math.PI); r[1] -= im;
+      const inv = cdiv([1, 0], w), inv2 = cmul(inv, inv);
+      let p = inv;
+      for (let k = 1; k <= 7; k++) {
+        const c = BERN[k - 1] / (2 * k * (2 * k - 1));
+        r[0] += c * p[0]; r[1] += c * p[1];
+        p = cmul(p, inv2);
+      }
+      return [r[0] - sr, r[1] - si];
+    }
+
+    // θ(t) = arg Γ((1/2 + κ + it)/2) + (t/2) log(q/π)
+    const theta = (t, f) => lgamma([(0.5 + f.kappa) / 2, t / 2])[1] + (t / 2) * Math.log(f.q / Math.PI);
+
+    // Z(t) = e^(iθ(t)) L(1/2 + it, χ) は関数等式から実数になる。2つ目の値は計算で残った虚部（誤差の目安）
+    function hardyZ(t, f) {
+      const L = lfun([0.5, t], f), th = theta(t, f), c = Math.cos(th), sn = Math.sin(th);
+      return [L[0] * c - L[1] * sn, L[0] * sn + L[1] * c];
+    }
+
+    // 符号が変わる区間 [a, b] の中の零点を、はさみうち法（イリノイ法）で詰める
+    function refineZero(f, a, b, za, zb) {
+      if (za === undefined) za = hardyZ(a, f)[0];
+      if (zb === undefined) zb = hardyZ(b, f)[0];
+      if (za * zb > 0) throw new Error('符号が変わっていません');
+      // 直線で結んで 0 になる点 m へ b を動かす。動かなかった側の値は半分にして、片側だけが動き続けるのを防ぐ
+      for (let i = 0; i < 100 && Math.abs(b - a) > 1e-12; i++) {
+        let m = b - zb * (b - a) / (zb - za);
+        if (!(m > Math.min(a, b) && m < Math.max(a, b))) m = (a + b) / 2;
+        const zm = hardyZ(m, f)[0];
+        if (zm === 0) return m;
+        if (zm * zb < 0) { a = b; za = zb; } else za /= 2;
+        b = m; zb = zm;
+      }
+      return b;
+    }
+
+    // 偏角の原理で、臨界帯の 0 < Im s < T にある零点の数を求める（N(T) = (θ(T) + arg L(1/2 + iT)) / π、ζ では + 1）
+    // arg L は 2 + iT（実部が正なので主値でよい）から 1/2 + iT まで、向きの変わり方が小さくなる刻みでたどる
+    function countZeros(f, T) {
+      let sig = 2, v = lfun([sig, T], f), arg = Math.atan2(v[1], v[0]), h = 0.05;
+      while (sig > 0.5) {
+        const next = Math.max(0.5, sig - h), w = lfun([next, T], f);
+        let d = Math.atan2(w[1], w[0]) - Math.atan2(v[1], v[0]);
+        d -= 2 * Math.PI * Math.round(d / (2 * Math.PI));
+        if (Math.abs(d) > 0.3 && h > 1e-5) { h /= 2; continue; }
+        arg += d; v = w; sig = next;
+        if (Math.abs(d) < 0.1) h = Math.min(0.05, h * 1.5);
+      }
+      return (theta(T, f) + arg) / Math.PI + (f.q === 1 ? 1 : 0);
+    }
+
+    // フォン・マンゴルトの関数 Λ(n)（n が素数 p の累乗なら log p、それ以外は 0）を n ≤ M まで並べる
+    function mangoldt(M) {
+      const lam = new Float64Array(M + 1), comp = new Uint8Array(M + 1);
+      for (let p = 2; p <= M; p++) {
+        if (comp[p]) continue;
+        for (let m = p * p; m <= M; m += p) comp[m] = 1;
+        for (let pk = p; pk <= M; pk *= p) lam[pk] = Math.log(p);
+      }
+      return lam;
+    }
+
+    // 明示公式の定数の項。ζ は log 2π、奇の指標は L'/L(0, χ)、偶の指標は L'/L(s, χ) − 1/s の s → 0 の値
+    function constTerm(f) {
+      if (f.q === 1) return Math.log(2 * Math.PI);
+      const h = 0.01, L = (x) => lfun([x, 0], f)[0];
+      const p2 = L(2 * h), p1 = L(h), z0 = L(0), m1 = L(-h), m2 = L(-2 * h);
+      const d1 = (-p2 + 8 * p1 - 8 * m1 + m2) / (12 * h);
+      if (f.kappa === 1) return d1 / z0;
+      const d2 = (-p2 + 16 * p1 - 30 * z0 + 16 * m1 - m2) / (12 * h * h);
+      return d2 / (2 * d1);
+    }
+
+    // ψ(x, χ) = Σ_{n ≤ x} χ(n) Λ(n)（素数の階段）
+    function psiStep(x, f, lam) {
+      let s = 0;
+      for (let n = 2; n <= x && n < lam.length; n++) if (lam[n]) s += chiOf(f, n) * lam[n];
+      return s;
+    }
+
+    // 明示公式で、零点 1/2 ± iγ（γ は gammas の先頭 K 個）から ψ(x, χ) を組み立てる
+    function psiWave(x, f, gammas, K, c0) {
+      const lx = Math.log(x), sx = Math.sqrt(x);
+      let wave = 0;
+      for (let k = 0; k < K && k < gammas.length; k++) {
+        const g = gammas[k];
+        wave += 2 * sx * (0.5 * Math.cos(g * lx) + g * Math.sin(g * lx)) / (0.25 + g * g);   // 2 Re(x^ρ / ρ)
+      }
+      if (f.q === 1) return x - wave - c0 - 0.5 * Math.log(1 - 1 / (x * x));
+      if (f.kappa === 1) return -wave - c0 + 0.5 * Math.log((x + 1) / (x - 1));
+      return -wave - lx - c0 - 0.5 * Math.log(1 - 1 / (x * x));
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    if (window.THUMB) document.documentElement.classList.add('thumb');
+    const calm = matchMedia('(prefers-reduced-motion: reduce)');
+    const fnSel = $('fn'), tIn = $('T'), tOut = $('Tv'), kIn = $('K'), kOut = $('Kv'), xSel = $('X'), autoSw = $('auto');
+    const stripCv = $('strip'), ztCv = $('zt'), psiCv = $('psi');
+    const stEl = $('st'), msgEl = $('msg'), chiEl = $('chi'), raceEl = $('race');
+    const PAD_L = 34, PAD_R = 10, SIG_HI = 1.25, SIG_LO = -0.25;
+    const lam = mangoldt(1000);
+    const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888';
+    const COL = { mut: cssVar('--mut'), line: cssVar('--line'), z: cssVar('--zline'), dot: cssVar('--dot'), step: cssVar('--step'), wave: cssVar('--wave') };
+    const FONT = '11px system-ui, sans-serif';
+    // 長い計算の途中で、ときどきブラウザへ順番を返す（scheduler.yield が無いブラウザでは setTimeout）
+    const pause = () => (globalThis.scheduler && typeof scheduler.yield === 'function') ? scheduler.yield() : new Promise((r) => setTimeout(r, 0));
+    let run = 0, cur = null, autoTimer = 0, autoK = 0;
+
+    function say(text) { msgEl.textContent = text; }
+
+    // canvas の大きさを表示の大きさに合わせる。幅や高さが 0 のときも 1 にする
+    function fit(cv) {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const w = Math.max(1, cv.clientWidth), h = Math.max(1, cv.clientHeight);
+      const W = Math.max(1, Math.round(w * dpr)), H = Math.max(1, Math.round(h * dpr));
+      if (cv.width !== W) cv.width = W;
+      if (cv.height !== H) cv.height = H;
+      const g = cv.getContext('2d');
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, w, h);
+      return { g, w, h };
+    }
+
+    // 色相（0〜1）・彩度・明るさから RGB（0〜255）を作る
+    function hsl(hu, sa, li) {
+      const a = sa * Math.min(li, 1 - li);
+      const ch = (n) => { const k = (n + hu * 12) % 12; return 255 * (li - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))); };
+      return [ch(0), ch(8), ch(4)];
+    }
+    // L の値の向きを色相に、大きさを明るさにする。0 に近いほど暗い
+    function phaseColor(re, im) {
+      const mag = Math.hypot(re, im);
+      return hsl(Math.atan2(im, re) / (2 * Math.PI) + 0.5, 0.85, 0.1 + 0.55 * (1 - 1 / (1 + Math.pow(mag, 0.6))));
+    }
+
+    function drawStrip() {
+      const { g, w, h } = fit(stripCv);
+      if (!cur) return;
+      const T = cur.T, pw = Math.max(1, w - PAD_L - PAD_R), y0 = 4, ph = Math.max(1, h - 8);
+      const sy = (s) => y0 + (SIG_HI - s) / (SIG_HI - SIG_LO) * ph;
+      g.fillStyle = '#0a0c11';
+      g.fillRect(PAD_L, y0, pw, ph);
+      if (cur.filled > 0) {
+        cur.offCtx.putImageData(cur.img, 0, 0);
+        g.imageSmoothingEnabled = true;
+        g.imageSmoothingQuality = 'high';
+        g.drawImage(cur.off, 0, 0, cur.filled, cur.rows, PAD_L, y0, pw * cur.filled / cur.cols, ph);
+      }
+      // 臨界帯の端（σ = 0 と 1）と、臨界線（σ = 1/2）
+      g.lineWidth = 1;
+      g.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+      for (const s of [0, 1]) { g.beginPath(); g.moveTo(PAD_L, sy(s)); g.lineTo(PAD_L + pw, sy(s)); g.stroke(); }
+      g.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+      g.setLineDash([4, 3]);
+      g.beginPath(); g.moveTo(PAD_L, sy(0.5)); g.lineTo(PAD_L + pw, sy(0.5)); g.stroke();
+      g.setLineDash([]);
+      g.fillStyle = COL.mut; g.font = FONT; g.textAlign = 'right'; g.textBaseline = 'middle';
+      g.fillText('1', PAD_L - 5, sy(1)); g.fillText('σ=½', PAD_L - 3, sy(0.5)); g.fillText('0', PAD_L - 5, sy(0));
+      g.strokeStyle = '#fff'; g.lineWidth = 1.5;
+      for (const z of cur.zeros) {
+        if (z > T) continue;
+        g.beginPath(); g.arc(PAD_L + z / T * pw, sy(0.5), 3.2, 0, 2 * Math.PI); g.stroke();
+      }
+    }
+
+    function drawZ() {
+      const { g, w, h } = fit(ztCv);
+      if (!cur) return;
+      const T = cur.T, pw = Math.max(1, w - PAD_L - PAD_R), y0 = 6, ph = Math.max(1, h - 24);
+      let zmax = 1;
+      for (const p of cur.samples) if (p[0] <= T) zmax = Math.max(zmax, Math.abs(p[1]));
+      const lim = zmax * 1.08;
+      const X = (t) => PAD_L + t / T * pw, Y = (z) => y0 + ph / 2 - z / lim * ph / 2;
+      g.strokeStyle = COL.line; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(PAD_L, Y(0)); g.lineTo(PAD_L + pw, Y(0)); g.stroke();
+      g.fillStyle = COL.mut; g.font = FONT; g.textAlign = 'center'; g.textBaseline = 'top';
+      const tick = T <= 30 ? 5 : 10;
+      for (let t = 0; t <= T + 1e-9; t += tick) {
+        g.beginPath(); g.moveTo(X(t), y0 + ph); g.lineTo(X(t), y0 + ph + 3); g.stroke();
+        g.fillText(t === 0 ? 't = 0' : String(t), X(t) + (t === 0 ? 10 : 0), y0 + ph + 5);
+      }
+      g.textAlign = 'right'; g.textBaseline = 'middle';
+      g.fillText('0', PAD_L - 5, Y(0));
+      g.fillText('+' + zmax.toFixed(1), PAD_L - 3, Y(zmax));
+      g.fillText('−' + zmax.toFixed(1), PAD_L - 3, Y(-zmax));
+      g.strokeStyle = COL.z; g.lineWidth = 1.5;
+      g.beginPath();
+      let first = true;
+      for (const p of cur.samples) {
+        if (p[0] > T) break;
+        if (first) { g.moveTo(X(p[0]), Y(p[1])); first = false; } else g.lineTo(X(p[0]), Y(p[1]));
+      }
+      g.stroke();
+      g.fillStyle = COL.dot;
+      for (const z of cur.zeros) {
+        if (z > T) continue;
+        g.beginPath(); g.arc(X(z), Y(0), 3, 0, 2 * Math.PI); g.fill();
+      }
+    }
+
+    function drawPsi() {
+      const { g, w, h } = fit(psiCv);
+      kOut.textContent = kIn.value;
+      if (!cur || cur.c0 === null) {
+        g.fillStyle = COL.mut; g.font = '12px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText('零点を探しています…', w / 2, h / 2);
+        return;
+      }
+      const f = cur.f, XM = +xSel.value, K = +kIn.value, gam = cur.zeros.filter((z) => z <= cur.T);
+      const x0 = 2, y0 = 8, ph = Math.max(1, h - 28), pw = Math.max(1, w - PAD_L - PAD_R);
+      const steps = [];
+      let acc = 0, lo = 0, hi = 0, plus = 0, minus = 0, primes = 0;
+      for (let n = 2; n <= XM; n++) {
+        if (lam[n]) {
+          acc += chiOf(f, n) * lam[n];
+          if (Math.abs(lam[n] - Math.log(n)) < 1e-12) {   // n が素数
+            primes++;
+            if (chiOf(f, n) > 0) plus++; else if (chiOf(f, n) < 0) minus++;
+          }
+        }
+        steps.push([n, acc]);
+        lo = Math.min(lo, acc); hi = Math.max(hi, acc);
+      }
+      const span = Math.max(2, hi - lo);
+      lo -= span * 0.25; hi += span * 0.25;
+      const X = (x) => PAD_L + (x - x0) / (XM - x0) * pw;
+      const Y = (v) => y0 + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * ph;
+      g.strokeStyle = COL.line; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(PAD_L, Y(0)); g.lineTo(PAD_L + pw, Y(0)); g.stroke();
+      g.fillStyle = COL.mut; g.font = FONT; g.textAlign = 'center'; g.textBaseline = 'top';
+      const tick = XM <= 30 ? 5 : 10;
+      for (let x = tick; x <= XM; x += tick) {
+        g.beginPath(); g.moveTo(X(x), y0 + ph); g.lineTo(X(x), y0 + ph + 3); g.stroke();
+        g.fillText(String(x), X(x), y0 + ph + 5);
+      }
+      g.fillText('x', X(x0) + 4, y0 + ph + 5);
+      g.textAlign = 'right'; g.textBaseline = 'middle';
+      g.fillText('0', PAD_L - 5, Y(0));
+      // 素数の階段
+      g.strokeStyle = COL.step; g.lineWidth = 2;
+      g.beginPath();
+      steps.forEach(([n, v], i) => {
+        if (i === 0) g.moveTo(X(n), Y(v)); else g.lineTo(X(n), Y(v));
+        g.lineTo(X(Math.min(XM, n + 1)), Y(v));
+      });
+      g.stroke();
+      // 零点の波の和
+      const M = Math.max(60, Math.round(pw * 1.5));
+      g.strokeStyle = COL.wave; g.lineWidth = 1.5;
+      g.beginPath();
+      for (let i = 0; i <= M; i++) {
+        const x = x0 + (XM - x0) * i / M, y = Y(psiWave(x, f, gam, K, cur.c0));
+        if (i === 0) g.moveTo(X(x), y); else g.lineTo(X(x), y);
+      }
+      g.stroke();
+      const used = K > 0 ? `使っている零点は 1/2 ± iγ の ${K} 組（γ は ${gam[K - 1].toFixed(2)} まで）。` : '零点を 1 組も使っていないので、波の和は定数と自明な零点の項だけになる。';
+      let race;
+      if (f.q === 1) race = `x ≤ ${XM} の素数は ${primes} 個。ψ(x) は、素数の累乗 pᵏ ごとに log p ずつ上がる階段で、x に近づいていく（素数定理）。x からのずれを零点の波が表す。`;
+      else if (f.q === 4) race = `x ≤ ${XM} の素数のうち、4 で割って 1 余るもの（χ = +1）は ${plus} 個、3 余るもの（χ = −1）は ${minus} 個。階段は +1 の素数とその累乗で上がり、−1 の側で下がる。`;
+      else race = `x ≤ ${XM} の素数のうち、χ = +1 のもの（法 ${f.q} の平方剰余）は ${plus} 個、χ = −1 のものは ${minus} 個（${f.q} 自身は 0）。階段は +1 の側で上がり、−1 の側で下がる。`;
+      raceEl.textContent = race + used;
+      psiCv.setAttribute('aria-label', `素数の階段と、零点 ${K} 組の波の和のグラフ（x は 2 から ${XM}）`);
+    }
+
+    function drawAll() { drawStrip(); drawZ(); drawPsi(); }
+
+    function describeChi(f) {
+      let text;
+      if (f.q === 1) text = 'ζ(s) = 1 + 1/2ˢ + 1/3ˢ + …。どの n でも χ(n) = 1 とした場合にあたる。リーマン予想は、この関数の零点についての予想。';
+      else if (f.q === 4) text = 'L(s, χ) = 1 − 1/3ˢ + 1/5ˢ − 1/7ˢ + …。χ(n) は、n を 4 で割った余りが 1 なら +1、3 なら −1、偶数なら 0。';
+      else {
+        const res = [];
+        for (let a = 1; a < f.q; a++) if (f.chi[a] === 1) res.push(a);
+        text = `χ(n) は、n を ${f.q} で割った余りが ${res.join('・')}（ある数の 2 乗を ${f.q} で割った余りになる数）なら +1、それ以外なら −1、${f.q} の倍数なら 0（ルジャンドル記号）。`;
+      }
+      chiEl.textContent = text;
+    }
+
+    function renderStats() {
+      const st = cur, rows = [];
+      const nLine = st.lineN !== null ? st.lineN : st.zeros.filter((z) => z < st.T).length;
+      rows.push(['臨界線の上で見つけた零点', `${nLine} 個${st.count === null ? '（探しています）' : ''}`]);
+      rows.push(['帯の中の零点（偏角の原理）', st.count === null ? '—' : `N(${+st.Tc.toFixed(2)}) = ${st.count.toFixed(4)}`]);
+      rows.push(['一番低い零点', st.zeros.length ? `1/2 + ${st.zeros[0].toFixed(10)} i` : '—']);
+      rows.push(['計算の誤差の目安', st.maxIm ? `Z(t) に残った虚部の最大 ${st.maxIm.toExponential(1)}` : '—']);
+      rows.push(['かかった時間', st.msZero ? `零点 ${Math.round(st.msZero).toLocaleString('ja-JP')} ms、色の図 ${st.msAll ? Math.round(st.msAll - st.msZero).toLocaleString('ja-JP') + ' ms' : '（描いています）'}` : '—']);
+      stEl.replaceChildren(...rows.flatMap(([k, v]) => {
+        const dt = document.createElement('dt'), dd = document.createElement('dd');
+        dt.textContent = k; dd.textContent = v;
+        return [dt, dd];
+      }));
+    }
+
+    function verdict() {
+      const st = cur, N = Math.round(st.count), name = st.f.q === 1 ? 'リーマン予想' : '一般化リーマン予想';
+      const Tc = +st.Tc.toFixed(2);
+      if (Math.abs(st.count - N) > 0.05) say(`偏角の原理で数えた値が整数から離れた（${st.count.toFixed(3)}）。計算の誤差が大きい。`);
+      else if (st.lineN === N) say(`0 < t < ${Tc} の帯の中にある零点は ${N} 個で、${N} 個とも臨界線 σ = 1/2 の上で見つかった。この高さまでは${name}のとおりになっている。浮動小数点の計算なので、厳密な確かめではない。`);
+      else if (st.lineN < N) say(`帯の中の零点は ${N} 個なのに、臨界線の上では ${st.lineN} 個しか見つからなかった。刻みが粗くて、近い 2 つの零点を見落とした可能性がある。`);
+      else say(`臨界線の上で ${st.lineN} 個見つかり、帯の中の数 ${N} 個より多い。計算の誤差が大きい。`);
+      stripCv.setAttribute('aria-label', `臨界帯の色の図。零点 ${st.lineN} 個が σ = 1/2 の線の上に並ぶ`);
+      ztCv.setAttribute('aria-label', `Z(t) のグラフ（t は 0 から ${st.T}）。0 を横切る所が ${st.lineN} か所ある`);
+    }
+
+    // Z(t) を刻み step で並べ、符号が変わる所で零点を詰める。設定が変わったら false を返して止める
+    async function scan(st, my, step) {
+      const f = st.f, n = Math.ceil((st.T + 0.6) / step), samples = [], zeros = [];
+      let prev = null, deadline = performance.now() + 40;
+      for (let i = 0; i <= n; i++) {
+        const t = 0.05 + i * step, z = hardyZ(t, f);
+        st.maxIm = Math.max(st.maxIm, Math.abs(z[1]));
+        samples.push([t, z[0]]);
+        if (prev && prev[1] * z[0] < 0) zeros.push(refineZero(f, prev[0], t, prev[1], z[0]));
+        prev = [t, z[0]];
+        if (performance.now() >= deadline) {
+          st.samples = samples; st.zeros = zeros.slice();
+          drawZ(); drawStrip(); renderStats();
+          await pause();
+          if (my !== run) return false;
+          deadline = performance.now() + 40;
+        }
+      }
+      st.samples = samples; st.zeros = zeros;
+      return true;
+    }
+
+    async function compute() {
+      const my = ++run;
+      const f = makeFn(+fnSel.value), T = +tIn.value;
+      const cols = Math.max(8, Math.round(T * (window.THUMB ? 1.6 : 2.4))), rows = window.THUMB ? 14 : 28;
+      const off = document.createElement('canvas');
+      off.width = cols; off.height = rows;
+      const offCtx = off.getContext('2d');
+      cur = { f, T, samples: [], zeros: [], maxIm: 0, count: null, lineN: null, Tc: T, c0: null, off, offCtx, img: offCtx.createImageData(cols, rows), cols, rows, filled: 0, msZero: 0, msAll: 0 };
+      const st = cur, t0 = performance.now();
+      describeChi(f);
+      kIn.max = '0'; kIn.value = '0'; autoK = 0;
+      say('臨界線 σ = 1/2 の上で Z(t) を計算しています…');
+      renderStats(); drawAll();
+      if (!(await scan(st, my, 0.1))) return;
+      // 偏角の原理で帯の中の零点を数える。T のすぐ近くに零点があるときは、T を少し上へずらして数える
+      let Tc = T;
+      while (Tc < T + 0.5 && st.zeros.some((z) => Math.abs(z - Tc) < 0.05)) Tc += 0.07;
+      st.Tc = Tc;
+      st.count = countZeros(f, Tc);
+      st.lineN = st.zeros.filter((z) => z < Tc).length;
+      if (st.lineN < Math.round(st.count)) {
+        say('数が合わないので、刻みを 0.02 にして探し直しています…');
+        if (!(await scan(st, my, 0.02))) return;
+        st.lineN = st.zeros.filter((z) => z < Tc).length;
+      }
+      if (my !== run) return;
+      st.c0 = constTerm(f);
+      const nz = st.zeros.filter((z) => z <= T).length;
+      kIn.max = String(nz);
+      kIn.value = String(autoSw.checked ? 0 : nz);
+      st.msZero = performance.now() - t0;
+      renderStats(); verdict(); drawAll();
+      // 臨界帯の色の図を、列ごとに描き足す
+      const data = st.img.data;
+      let deadline = performance.now() + 40;
+      for (let i = 0; i < cols; i++) {
+        const t = (i + 0.5) * T / cols;
+        for (let j = 0; j < rows; j++) {
+          const v = lfun([SIG_HI - (j + 0.5) * (SIG_HI - SIG_LO) / rows, t], f), c = phaseColor(v[0], v[1]), k = (j * cols + i) * 4;
+          data[k] = c[0]; data[k + 1] = c[1]; data[k + 2] = c[2]; data[k + 3] = 255;
+        }
+        st.filled = i + 1;
+        if (performance.now() >= deadline) {
+          drawStrip();
+          await pause();
+          if (my !== run) return;
+          deadline = performance.now() + 40;
+        }
+      }
+      st.msAll = performance.now() - t0;
+      renderStats(); drawStrip();
+    }
+
+    function stepAuto() {
+      if (!cur || cur.c0 === null) return;
+      const max = +kIn.max;
+      autoK = autoK >= max + 8 ? 0 : autoK + 1;   // 全部を足したら少し止まってから、0 組に戻る
+      kIn.value = String(Math.min(autoK, max));
+      drawPsi();
+    }
+    function setAuto(on) {
+      autoSw.checked = on;
+      clearInterval(autoTimer);
+      autoTimer = 0;
+      if (on) {
+        autoK = +kIn.value >= +kIn.max ? 0 : +kIn.value;
+        autoTimer = setInterval(stepAuto, window.THUMB ? 160 : 240);
+      }
+    }
+
+    fnSel.addEventListener('change', compute);
+    tIn.addEventListener('input', () => { tOut.textContent = tIn.value; });
+    tIn.addEventListener('change', compute);
+    kIn.addEventListener('input', () => { setAuto(false); drawPsi(); });
+    xSel.addEventListener('change', drawPsi);
+    autoSw.addEventListener('change', () => setAuto(autoSw.checked));
+    new ResizeObserver(() => drawAll()).observe(document.querySelector('.wrap'));
+
+    if (window.THUMB) tIn.value = '40';
+    tOut.textContent = tIn.value;
+    setAuto(!!window.THUMB || !calm.matches);
+    compute();
+  },
+});
+
+dekiru.add({
+  id: 'tr-20261121-skiplist-btree', c: 'trend', lv: 2, date: '2026-11-21',
+  t: '同じ集合を skiplist と B+ 木で作り、探すときに読むメモリの塊を数える（Valkey 9.2）',
+  y: 'おなじしゅうごうをすきっぷりすととびーぷらすぎでつくりさがすときによむめもりのかたまりをかぞえる',
+  tags: ['Valkey', 'skiplist', 'B+ 木', 'キャッシュ', 'Canvas'],
+  d: '2026年11月16日、Redis から分かれたデータベース Valkey のブログに、Rain Valentine さんと Dragos Andriciuc さんの記事が載った。9.2 から、並べ替え済みの集合（sorted set）の作り方を変えたという内容である。これまでの skiplist をやめ、枝が 61 本の B+ 木「fbtree」にした（PR #4206）。記事によると、1件あたりの余分なメモリは 50.3 バイトから、小さい順に入れた場合は 28.5 バイト（43% 減）、ばらばらに入れた場合は 32.0 バイトになった。300 万件の集合で、点数を書き換える ZADD は 105%、ZREM は 76% 速くなった。Hacker News でも 11月21日に上位に載っている。skiplist は1件ごとに別々のメモリの塊を作り、印（ポインタ）でつなぐ。探すときは、1つの塊を読むまで次の塊の場所が分からない。だから、キャッシュに無い塊を読む待ち時間が何度も続く。B+ 木は 61 件を1つの塊にまとめて並べるので、読む塊の数が少ない。この見本は、同じ集合を skiplist（Valkey と同じく、1段上がる確率は 1/4）と B+ 木の両方で作る。そして、1つの値を探すときにたどる道を描き、読んだ塊の数と比べた回数を数える。横軸は、目当ての値の近くを広げて描いている。下のボタンを押すと、この端末の JavaScript で、実際に探す時間も測れる。本物の fbtree は、葉に値（点数と名前をまとめたもの）への印を置き、内側のノードでは目印の先頭 4 バイト（特徴）を SIMD でまとめて比べる。この見本の B+ 木は、点数をノードの中にそのまま並べる簡単な形にした。メモリの数字は記事の形に合わせた大まかな見積もりで、ハッシュ表、メモリ管理の切り上げ、名前の文字列は含めない。消す処理、範囲の取り出し、名前から点数を引くためのハッシュ表は作っていない。',
+  p: 'skiplist で値を探すときは、いちばん上の段から右へ進み、行き過ぎる手前で1段下りる。1段で右へ進む回数は多くても平均 3 回（1/p − 1）で、行き過ぎた塊も1つ読む。だから、比べる回数は段の数（log₄ n）の 3〜4 倍になる。3721 件なら段は約 6 で、読む塊は約 20 個になる。B+ 木は、根から葉まで、1段につき1つの塊しか読まない。読む塊の数は木の高さ（log₆₁ n ほど）で、3721 件なら 2〜3 個になる。その代わり、1つの塊の中で2分探索をするので、比べる回数の差は、読む塊の数の差ほど大きくない（3721 件では、19 回ほどと 12 回ほど）。比べるのは CPU の中の計算で、キャッシュに無い塊をメモリから読む待ち時間よりずっと短い。だから、読む塊の数が速さを決める。小さい順に入れるときは、満杯の右端の葉を半分に分けず、新しい1件だけを新しい葉へ移す。こうすると葉が満杯のまま並び、メモリの無駄が減る（記事の 28.5 バイトと 32.0 バイトの差に当たる）。1件あたりのメモリの見積もりは、skiplist が「戻る印 8 + 段ごとに（次の印 8 + 飛ぶ件数 8）+ 点数 8」バイトである。B+ 木は、葉の大きさ（16 + 8 × 枝の数）と内側のノードの大きさ（16 + 20 × 枝の数）を足して件数で割り、点数の 8 バイトを足した。',
+  refs: [
+    { title: 'From Skiplists to B+ Trees: Making Valkey Sorted Sets More Memory Efficient（Valkey ブログ、2026-11-16）', url: 'https://valkey.io/blog/from-skiplist-to-b+tree/' },
+    { title: 'Hacker News: Valkey kills the skiplist, cuts sorted set overhead by up to 43%', url: 'https://news.ycombinator.com/item?id=50534387' },
+    { title: 'valkey-io/valkey PR #4206: ZSET B+ Tree PR 3: Replace skiplist with FB+ Tree implementation', url: 'https://github.com/valkey-io/valkey/pull/4206' },
+  ],
+  html: `<div class="wrap">
+  <div class="ctl">
+    <label>件数
+      <select id="n">
+        <option value="61">61</option>
+        <option value="3721" selected>3721（61 × 61）</option>
+        <option value="20000">2 万</option>
+        <option value="100000">10 万</option>
+      </select>
+    </label>
+    <label>B+ 木の枝の数
+      <select id="F">
+        <option value="4">4</option>
+        <option value="8">8</option>
+        <option value="16">16</option>
+        <option value="61" selected>61（fbtree と同じ）</option>
+      </select>
+    </label>
+    <label>入れる順
+      <select id="ord">
+        <option value="rand" selected>ばらばらに</option>
+        <option value="seq">小さい順に</option>
+      </select>
+    </label>
+  </div>
+  <div class="ctl">
+    <button type="button" id="go">別の値を探す</button>
+    <label class="sw"><input type="checkbox" switch id="auto"> 自動で探し続ける</label>
+    <label class="sw"><input type="checkbox" switch id="fish" checked> 目当ての近くを広げて描く</label>
+  </div>
+  <section>
+    <div class="hd"><span class="nm">skiplist</span> <span class="mut">Valkey 9.1 まで。1件ごとに別の塊で、高さは 1/4 の確率で1段ずつ増える</span> <span class="cnt">読んだ塊 <b id="sr">0</b> 個・比べた <b id="sc">0</b> 回</span></div>
+    <canvas id="cs" role="img" aria-label="skiplist の段と、探した道の図"></canvas>
+    <div class="hd"><span class="nm">B+ 木</span> <span class="mut">Valkey 9.2 の fbtree を簡単にしたもの。色の濃さはノードの詰まり具合</span> <span class="cnt">読んだ塊 <b id="br">0</b> 個・比べた <b id="bc">0</b> 回</span></div>
+    <canvas id="cb" role="img" aria-label="B+ 木の段と、探した道の図"></canvas>
+    <p class="legend mut small"><span><i class="lp"></i>進んだ道</span><span><i class="lm"></i>読んだが行き過ぎだった塊</span><span><i class="lh"></i>見つけた値</span><span><i class="lt"></i>目当ての値の位置</span></p>
+  </section>
+  <p id="msg" class="msg" role="status"></p>
+  <div class="res">
+    <dl id="st" class="st"></dl>
+    <div class="mem">
+      <div class="hd">1件あたりの、並べるためのメモリ <span class="mut">見積もり</span></div>
+      <div class="bar"><span>skiplist</span><span class="trk"><i id="ms"></i></span><output id="msv">0</output></div>
+      <div class="bar"><span>B+ 木</span><span class="trk"><i id="mb" class="b"></i></span><output id="mbv">0</output></div>
+      <p class="small mut">記事の実測（ハッシュ表なども含む）: skiplist 50.3 バイト → fbtree 28.5 バイト（小さい順に入れた場合）・32.0 バイト（ばらばらに入れた場合）</p>
+    </div>
+  </div>
+  <section class="bench">
+    <div class="hd">この端末で速さを比べる <span class="mut">20 万件をばらばらに入れ、10 万回探す時間</span></div>
+    <div class="ctl"><button type="button" id="bench">測る</button> <span id="bres" class="small" role="status"></span></div>
+    <p class="small mut">JavaScript では、オブジェクトをメモリのどこに置くかを決められない。だから、C で書かれた Valkey と同じ差にはならない。結果は端末と回ごとに変わる。</p>
+  </section>
+</div>`,
+  css: `:root { color-scheme: dark; --bg: #10131a; --fg: #e4e8f0; --mut: #9aa3b6; --line: #2b3346; --tower: #6f86b8; --box: #4fb79a; --path: #ffc562; --miss: #ff8fb3; --hit: #7dffb0; --tgt: #7fd4ff; --panel: #161a23; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    .wrap { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .ctl { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+    .ctl label { display: inline-flex; align-items: center; gap: 6px; }
+    select, button { font: inherit; min-block-size: 30px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 6px; background: #1e2433; color: var(--fg); }
+    button { cursor: pointer; }
+    button:disabled { opacity: 0.55; cursor: default; }
+    :focus-visible { outline: 2px solid #ffd27a; outline-offset: 2px; }
+    input[type="checkbox"][switch] { accent-color: var(--path); margin: 0; cursor: pointer; }
+    .hd { font-weight: 600; display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; }
+    .hd .mut { font-weight: 400; font-size: 12px; }
+    .hd .cnt { margin-inline-start: auto; font-weight: 400; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .hd .cnt b { color: var(--path); }
+    .mut { color: var(--mut); }
+    .small { font-size: 12px; margin: 0; }
+    section { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    canvas { display: block; inline-size: 100%; background: #0b0d12; border-radius: 4px; }
+    #cs { block-size: 180px; }
+    #cb { block-size: 110px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+    .legend i { display: inline-block; inline-size: 14px; block-size: 3px; vertical-align: middle; margin-inline-end: 6px; border-radius: 2px; }
+    .legend .lp { background: var(--path); }
+    .legend .lm { background: var(--miss); }
+    .legend .lh { background: var(--hit); }
+    .legend .lt { background: var(--tgt); }
+    .msg { margin: 0; padding: 6px 8px; border-inline-start: 3px solid var(--path); background: var(--panel); border-radius: 4px; font-size: 13px; }
+    .res { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    @media (min-width: 640px) { .res { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+    .st { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; margin: 0; font-size: 13px; }
+    .st dt { color: var(--mut); }
+    .st dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .mem { display: flex; flex-direction: column; gap: 6px; }
+    .bar { display: grid; grid-template-columns: 5em minmax(0, 1fr) 6.5em; gap: 8px; align-items: center; font-size: 13px; }
+    .trk { block-size: 10px; background: var(--line); border-radius: 5px; overflow: hidden; }
+    .trk i { display: block; block-size: 100%; inline-size: 0; background: var(--tower); transition: inline-size 0.4s; }
+    .trk i.b { background: var(--box); }
+    .bar output { font-variant-numeric: tabular-nums; text-align: end; }
+    .bench { border-block-start: 1px solid var(--line); padding-block-start: 8px; gap: 6px; }
+    @media (prefers-reduced-motion: reduce) { .trk i { transition: none; } }
+    .thumb .wrap { padding: 6px; gap: 4px; }
+    .thumb .ctl, .thumb .legend, .thumb #msg, .thumb .res, .thumb .bench, .thumb .hd .mut { display: none; }
+    .thumb .hd { font-size: 12px; }
+    .thumb #cs { block-size: 44vh; }
+    .thumb #cb { block-size: 28vh; }`,
+  core() {
+    // 決まった種から同じ乱数の列を作る（mulberry32）
+    function rng(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    // 0〜n−1 を、小さい順（seq）か、混ぜた順（rand）に並べる
+    function makeKeys(n, order, rand) {
+      const a = Array.from({ length: n }, (_, i) => i);
+      if (order === 'rand') {
+        for (let i = n - 1; i > 0; i--) {
+          const j = Math.floor(rand() * (i + 1));
+          const t = a[i]; a[i] = a[j]; a[j] = t;
+        }
+      }
+      return a;
+    }
+
+    // ---- skiplist（Redis・Valkey と同じく、1段上がる確率 1/4、最高 32 段） ----
+    const SKIP_P = 0.25, SKIP_MAX = 32;
+    function skipNew() {
+      return { head: { key: -Infinity, next: new Array(SKIP_MAX).fill(null) }, level: 1, n: 0 };
+    }
+    function skipLevel(rand) {
+      let l = 1;
+      while (l < SKIP_MAX && rand() < SKIP_P) l++;
+      return l;
+    }
+    function skipInsert(sl, key, rand) {
+      const upd = new Array(SKIP_MAX);
+      let x = sl.head;
+      for (let i = sl.level - 1; i >= 0; i--) {
+        while (x.next[i] && x.next[i].key < key) x = x.next[i];
+        upd[i] = x;
+      }
+      const lv = skipLevel(rand);
+      if (lv > sl.level) {
+        for (let i = sl.level; i < lv; i++) upd[i] = sl.head;
+        sl.level = lv;
+      }
+      const node = { key, next: new Array(lv).fill(null), rank: 0 };
+      for (let i = 0; i < lv; i++) { node.next[i] = upd[i].next[i]; upd[i].next[i] = node; }
+      sl.n++;
+      return node;
+    }
+    // いちばん下の段をたどって、何番目かを書き込む。小さい順の配列を返す
+    function skipRanks(sl) {
+      const out = [];
+      for (let x = sl.head.next[0]; x; x = x.next[0]) { x.rank = out.length; out.push(x); }
+      return out;
+    }
+    // 探した道を記録しながら探す。reads は読んだ別々の塊の数（入口も 1 と数える）
+    function skipSearch(sl, key) {
+      const steps = [], seen = new Set();
+      let x = sl.head, cmps = 0;
+      for (let i = sl.level - 1; i >= 0; i--) {
+        for (;;) {
+          const y = x.next[i];
+          if (!y) break;
+          cmps++;
+          const again = seen.has(y);
+          seen.add(y);
+          const go = y.key < key;
+          steps.push({ node: y, lv: i, go, again });
+          if (!go) break;
+          x = y;
+        }
+      }
+      const hit = x.next[0];
+      return { found: !!hit && hit.key === key, steps, reads: seen.size + 1, cmps };
+    }
+    // 速さを測るための、記録をしない探し方
+    function skipHas(sl, key) {
+      let x = sl.head;
+      for (let i = sl.level - 1; i >= 0; i--) {
+        let y = x.next[i];
+        while (y && y.key < key) { x = y; y = x.next[i]; }
+      }
+      const y = x.next[0];
+      return !!y && y.key === key;
+    }
+    // 1件あたりのメモリの見積もり: 戻る印 8 + 段ごとに（次の印 8 + 飛ぶ件数 8）+ 点数 8
+    function skipBytes(nodes) {
+      let lv = 0;
+      for (const x of nodes) lv += x.next.length;
+      const avgLv = nodes.length ? lv / nodes.length : 0;
+      return { avgLv, bytes: nodes.length ? 16 + 16 * avgLv : 0 };
+    }
+
+    // ---- B+ 木（枝の数 F。葉は F 件まで、内側のノードは子を F 個まで） ----
+    function btNew(F) {
+      return { F: Math.max(3, F | 0), root: { leaf: true, keys: [], next: null }, depth: 1, n: 0 };
+    }
+    // 並んだ数のうち key 以下がいくつあるか（upper）、key 未満がいくつあるか（lower）。比べた回数も返す
+    function upper(a, key) {
+      let lo = 0, hi = a.length, c = 0;
+      while (lo < hi) { const m = (lo + hi) >> 1; c++; if (a[m] <= key) lo = m + 1; else hi = m; }
+      return [lo, c];
+    }
+    function lower(a, key) {
+      let lo = 0, hi = a.length, c = 0;
+      while (lo < hi) { const m = (lo + hi) >> 1; c++; if (a[m] < key) lo = m + 1; else hi = m; }
+      return [lo, c];
+    }
+    function btInsert(bt, key) {
+      const F = bt.F, path = [];
+      let x = bt.root, rightmost = true;
+      while (!x.leaf) {
+        const i = upper(x.keys, key)[0];
+        path.push([x, i]);
+        if (i < x.kids.length - 1) rightmost = false;
+        x = x.kids[i];
+      }
+      const pos = lower(x.keys, key)[0];
+      if (x.keys[pos] === key) return false;
+      x.keys.splice(pos, 0, key);
+      bt.n++;
+      if (x.keys.length <= F) return true;
+      // 葉があふれた。右端の葉の末尾に足したときは、新しい1件だけを右の葉へ移す（小さい順に入れると満杯の葉が並ぶ）
+      const app = rightmost && pos === x.keys.length - 1;
+      const cut = app ? F : Math.ceil(x.keys.length / 2);
+      const right = { leaf: true, keys: x.keys.splice(cut), next: x.next };
+      x.next = right;
+      let sep = right.keys[0], child = right;
+      for (let d = path.length - 1; d >= 0; d--) {
+        const p = path[d][0], i = path[d][1];
+        p.keys.splice(i, 0, sep);
+        p.kids.splice(i + 1, 0, child);
+        if (p.kids.length <= F) return true;
+        // 内側のノードもあふれた。左に kc 個の子を残し、その境目の目印を親へ上げる
+        const kc = app ? F : Math.ceil(p.kids.length / 2);
+        const rKids = p.kids.splice(kc);
+        const upKey = p.keys[kc - 1];
+        const rKeys = p.keys.splice(kc);
+        p.keys.length = kc - 1;
+        sep = upKey;
+        child = { leaf: false, keys: rKeys, kids: rKids };
+      }
+      bt.root = { leaf: false, keys: [sep], kids: [bt.root, child] };
+      bt.depth++;
+      return true;
+    }
+    // 段ごとのノードの配列を返す。各ノードに、受け持つ順位の範囲 lo〜hi を書き込む
+    function btLevels(bt) {
+      const rows = [];
+      let r = 0;
+      (function walk(x, d) {
+        if (!rows[d]) rows[d] = [];
+        rows[d].push(x);
+        if (x.leaf) { x.lo = r; r += x.keys.length; x.hi = r; return; }
+        for (const k of x.kids) walk(k, d + 1);
+        x.lo = x.kids[0].lo;
+        x.hi = x.kids[x.kids.length - 1].hi;
+      })(bt.root, 0);
+      return rows;
+    }
+    function btSearch(bt, key) {
+      const steps = [];
+      let x = bt.root, cmps = 0;
+      while (!x.leaf) {
+        const [i, c] = upper(x.keys, key);
+        cmps += c;
+        steps.push({ node: x, c });
+        x = x.kids[i];
+      }
+      const [j, c] = lower(x.keys, key);
+      cmps += c;
+      steps.push({ node: x, c });
+      return { found: x.keys[j] === key, steps, reads: steps.length, cmps };
+    }
+    function btHas(bt, key) {
+      let x = bt.root;
+      while (!x.leaf) {
+        const a = x.keys;
+        let lo = 0, hi = a.length;
+        while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] <= key) lo = m + 1; else hi = m; }
+        x = x.kids[lo];
+      }
+      const a = x.keys;
+      let lo = 0, hi = a.length;
+      while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] < key) lo = m + 1; else hi = m; }
+      return a[lo] === key;
+    }
+    // 葉の詰まり具合（0〜1）
+    function btFill(rows, F) {
+      const leaves = rows[rows.length - 1] || [];
+      let k = 0;
+      for (const x of leaves) k += x.keys.length;
+      return leaves.length ? k / (leaves.length * F) : 0;
+    }
+    // 1件あたりのメモリの見積もり: 葉（16 + 8F）と内側のノード（16 + 20F）を件数で割り、点数の 8 を足す
+    function btBytes(rows, n, F) {
+      let leaves = 0, inner = 0;
+      for (const row of rows) for (const x of row) { if (x.leaf) leaves++; else inner++; }
+      return n ? (leaves * (16 + 8 * F) + inner * (16 + 20 * F)) / n + 8 : 0;
+    }
+    // ばらばらに count 回探し、読んだ塊と比べた回数の平均を出す
+    function sampleAvg(sl, bt, n, count, rand) {
+      let sr = 0, sc = 0, br = 0, bc = 0;
+      for (let i = 0; i < count; i++) {
+        const k = Math.floor(rand() * n);
+        const a = skipSearch(sl, k), b = btSearch(bt, k);
+        sr += a.reads; sc += a.cmps; br += b.reads; bc += b.cmps;
+      }
+      return { sr: sr / count, sc: sc / count, br: br / count, bc: bc / count };
+    }
+    // 目当ての近くを広げる横軸。u（0〜n）を 0〜1 に写す。c は目当ての位置、s が小さいほど近くを大きく広げる
+    function fish(u, c, n, s) {
+      if (!(n > 0)) return 0;
+      const uu = Math.min(n, Math.max(0, u)), xc = c / n;
+      if (uu <= c) return c <= 0 ? 0 : xc - xc * Math.log1p((c - uu) / s) / Math.log1p(c / s);
+      const D = n - c;
+      return D <= 0 ? 1 : xc + (1 - xc) * Math.log1p((uu - c) / s) / Math.log1p(D / s);
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    if (window.THUMB) document.documentElement.classList.add('thumb');
+    const calm = matchMedia('(prefers-reduced-motion: reduce)');
+    const nSel = $('n'), fSel = $('F'), oSel = $('ord'), fishSw = $('fish'), goBtn = $('go'), autoSw = $('auto');
+    const cs = $('cs'), cb = $('cb'), stEl = $('st'), msgEl = $('msg');
+    const srEl = $('sr'), scEl = $('sc'), brEl = $('br'), bcEl = $('bc');
+    const benchBtn = $('bench'), bresEl = $('bres');
+    const cssVar = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim() || '#888';
+    const COL = { mut: cssVar('--mut'), line: cssVar('--line'), tower: cssVar('--tower'), box: cssVar('--box'), path: cssVar('--path'), miss: cssVar('--miss'), hit: cssVar('--hit'), tgt: cssVar('--tgt') };
+    const FONT = '10px system-ui, sans-serif';
+    const PAD_L = 46, PAD_R = 10, PAD_Y = 6, SPREAD = 1;
+    // 長い処理の途中で、ときどきブラウザへ順番を返す（scheduler.yield が無いブラウザでは setTimeout）
+    const pause = () => (globalThis.scheduler && typeof scheduler.yield === 'function') ? scheduler.yield() : new Promise((r) => setTimeout(r, 0));
+    let S = null, Q = null, gen = 0, stepTimer = 0, nextTimer = 0, qDd = null;
+    const layers = [
+      { cv: cs, bg: document.createElement('canvas'), key: '', paint: paintSkip, over: overSkip },
+      { cv: cb, bg: document.createElement('canvas'), key: '', paint: paintTree, over: overTree },
+    ];
+
+    function sizeOf(cv) {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const w = Math.max(1, cv.clientWidth), h = Math.max(1, cv.clientHeight);
+      return { dpr, w, h, W: Math.max(1, Math.round(w * dpr)), H: Math.max(1, Math.round(h * dpr)) };
+    }
+    function xOf(u, z) {
+      const pw = Math.max(1, z.w - PAD_L - PAD_R);
+      return PAD_L + pw * (fishSw.checked ? fish(u, Q.key + 0.5, S.n, SPREAD) : u / S.n);
+    }
+    const xMid = (r, z) => (xOf(r, z) + xOf(r + 1, z)) / 2;
+    function line(g, x0, y0, x1, y1) { g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); }
+    function dot(g, x, y, r, fill) {
+      g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2);
+      if (fill) g.fill(); else g.stroke();
+    }
+    function targetLine(g, z) {
+      const tx = xMid(Q.key, z);
+      g.strokeStyle = COL.tgt; g.globalAlpha = 0.8; g.lineWidth = 1; g.setLineDash([3, 3]);
+      line(g, tx, 0, tx, z.h);
+      g.setLineDash([]); g.globalAlpha = 1;
+    }
+
+    // ---- skiplist の図: 段ごとの横の線と、1件ごとの塔 ----
+    function geoSkip(z) {
+      const L = S.sl.level, lh = Math.max(1, (z.h - 2 * PAD_Y) / L);
+      return { L, lh, y: (i) => PAD_Y + (L - 1 - i + 0.5) * lh };
+    }
+    function paintSkip(g, z) {
+      const { L, lh, y } = geoSkip(z);
+      g.font = FONT; g.textBaseline = 'middle'; g.fillStyle = COL.mut;
+      for (let i = 0; i < L; i++) if (lh >= 10 || i === 0 || i === L - 1) g.fillText('段 ' + (i + 1), 4, y(i));
+      g.strokeStyle = COL.line; g.lineWidth = 1;
+      for (let i = 0; i < L; i++) line(g, PAD_L - 10, y(i), z.w - PAD_R, y(i));
+      g.fillStyle = COL.mut;
+      g.fillRect(PAD_L - 10, PAD_Y + lh * 0.2, 5, L * lh - lh * 0.4);   // 入口（どの段にも印を持つ塊）
+      g.fillStyle = COL.tower; g.globalAlpha = 0.65;
+      const bottom = PAD_Y + L * lh - lh * 0.2;
+      for (const nd of S.nodes) {
+        const x0 = xOf(nd.rank, z), wd = xOf(nd.rank + 1, z) - x0;
+        const yTop = PAD_Y + (L - nd.next.length) * lh + lh * 0.2;
+        if (wd >= 3) g.fillRect(x0 + 0.5, yTop, wd - 1, bottom - yTop);
+        else g.fillRect(x0, yTop, Math.max(0.5, wd), bottom - yTop);
+      }
+      g.globalAlpha = 1;
+      targetLine(g, z);
+    }
+    function overSkip(g, z, k) {
+      const { L, y } = geoSkip(z), steps = Q.sk.steps;
+      let cx = PAD_L - 7.5, lvl = L - 1;
+      g.lineWidth = 2;
+      g.fillStyle = COL.path; dot(g, cx, y(lvl), 3, true);
+      for (let i = 0; i < k && i < steps.length; i++) {
+        const s = steps[i];
+        if (s.lv < lvl) { g.strokeStyle = COL.path; line(g, cx, y(lvl), cx, y(s.lv)); lvl = s.lv; }
+        const nx = xMid(s.node.rank, z), cy = y(lvl);
+        const last = i === steps.length - 1 && Q.sk.found && s.node.key === Q.key;
+        if (s.go) {
+          g.strokeStyle = COL.path; line(g, cx, cy, nx, cy);
+          g.fillStyle = COL.path; dot(g, nx, cy, 3, true);
+          cx = nx;
+        } else if (last) {
+          g.strokeStyle = COL.path; line(g, cx, cy, nx, cy);
+          g.fillStyle = COL.hit; dot(g, nx, cy, 4.5, true);
+        } else {
+          g.strokeStyle = COL.miss; g.globalAlpha = 0.7; g.setLineDash([2, 3]);
+          line(g, cx, cy, nx, cy);
+          g.setLineDash([]); g.globalAlpha = 1;
+          g.lineWidth = 1.5; dot(g, nx, cy, 3.5, false); g.lineWidth = 2;
+        }
+      }
+    }
+
+    // ---- B+ 木の図: 段ごとに、ノードが受け持つ範囲を箱で描く ----
+    function geoTree(z) {
+      const D = S.levels.length, lh = Math.max(1, (z.h - 2 * PAD_Y) / D);
+      return { D, lh, y: (d) => PAD_Y + (d + 0.5) * lh };
+    }
+    function paintTree(g, z) {
+      const { D, lh, y } = geoTree(z);
+      g.font = FONT; g.textBaseline = 'middle'; g.fillStyle = COL.mut;
+      for (let d = 0; d < D; d++) {
+        const name = D === 1 ? '根・葉' : d === 0 ? '根' : d === D - 1 ? '葉' : '内側';
+        if (lh >= 10 || d === 0 || d === D - 1) g.fillText(name, 4, y(d));
+      }
+      g.fillStyle = COL.box;
+      for (let d = 0; d < D; d++) {
+        for (const nd of S.levels[d]) {
+          const x0 = xOf(nd.lo, z), wd = xOf(nd.hi, z) - x0, gap = wd > 4 ? 1 : 0;
+          const full = (nd.leaf ? nd.keys.length : nd.kids.length) / S.F;
+          g.globalAlpha = 0.18 + 0.72 * Math.min(1, full);
+          g.fillRect(x0 + gap, y(d) - lh * 0.3, Math.max(0.5, wd - 2 * gap), lh * 0.6);
+        }
+      }
+      g.globalAlpha = 1;
+      targetLine(g, z);
+    }
+    function overTree(g, z, k) {
+      const { lh, y } = geoTree(z), steps = Q.bt.steps, tx = xMid(Q.key, z);
+      g.lineWidth = 2;
+      for (let i = 0; i < k && i < steps.length; i++) {
+        const nd = steps[i].node, x0 = xOf(nd.lo, z), x1 = xOf(nd.hi, z);
+        g.strokeStyle = COL.path;
+        g.strokeRect(x0 + 1, y(i) - lh * 0.3, Math.max(1, x1 - x0 - 2), lh * 0.6);
+        if (i > 0) line(g, tx, y(i - 1), tx, y(i));
+        const last = i === steps.length - 1 && Q.bt.found;
+        g.fillStyle = last ? COL.hit : COL.path;
+        dot(g, tx, y(i), last ? 4.5 : 3, true);
+      }
+    }
+
+    function draw() {
+      if (!S || !Q) return;
+      for (const L of layers) {
+        const z = sizeOf(L.cv);
+        const key = gen + '|' + Q.key + '|' + z.W + 'x' + z.H + '|' + fishSw.checked;
+        if (L.key !== key) {
+          L.bg.width = z.W; L.bg.height = z.H;
+          const gb = L.bg.getContext('2d');
+          gb.setTransform(z.dpr, 0, 0, z.dpr, 0, 0);
+          gb.clearRect(0, 0, z.w, z.h);
+          L.paint(gb, z);
+          L.key = key;
+        }
+        if (L.cv.width !== z.W) L.cv.width = z.W;
+        if (L.cv.height !== z.H) L.cv.height = z.H;
+        const g = L.cv.getContext('2d');
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.clearRect(0, 0, z.W, z.H);
+        g.drawImage(L.bg, 0, 0);
+        g.setTransform(z.dpr, 0, 0, z.dpr, 0, 0);
+        L.over(g, z, Q.k);
+      }
+      const ks = Math.min(Q.k, Q.sk.steps.length), kb = Math.min(Q.k, Q.bt.steps.length);
+      let reads = 1;
+      for (let i = 0; i < ks; i++) if (!Q.sk.steps[i].again) reads++;
+      let bcm = 0;
+      for (let i = 0; i < kb; i++) bcm += Q.bt.steps[i].c;
+      srEl.textContent = reads; scEl.textContent = ks;
+      brEl.textContent = kb; bcEl.textContent = bcm;
+    }
+
+    function fmt(v, d) { return v.toLocaleString('ja-JP', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+    function renderStats() {
+      stEl.replaceChildren();
+      const row = (a, b) => {
+        const dt = document.createElement('dt'), dd = document.createElement('dd');
+        dt.textContent = a; dd.textContent = b;
+        stEl.append(dt, dd);
+        return dd;
+      };
+      qDd = row('探した値', '');
+      const A = S.avg;
+      row('平均（400 回探す）', `skiplist ${fmt(A.sr, 1)} 塊・${fmt(A.sc, 1)} 回 ／ B+ 木 ${fmt(A.br, 1)} 塊・${fmt(A.bc, 1)} 回`);
+      row('skiplist の形', `最高 ${S.sl.level} 段。1件の高さの平均 ${fmt(S.sb.avgLv, 2)} 段`);
+      const leaves = S.levels[S.levels.length - 1].length;
+      row('B+ 木の形', `${S.levels.length} 段。葉 ${leaves.toLocaleString('ja-JP')} 個、葉の詰まり具合 ${fmt(S.fill * 100, 0)}%`);
+      const mx = Math.max(S.sb.bytes, S.bb, 1);
+      $('ms').style.inlineSize = (S.sb.bytes / mx * 100) + '%';
+      $('mb').style.inlineSize = (S.bb / mx * 100) + '%';
+      $('msv').textContent = fmt(S.sb.bytes, 1) + ' バイト';
+      $('mbv').textContent = fmt(S.bb, 1) + ' バイト';
+    }
+
+    function finish() {
+      const sr = Q.sk.reads, br = Q.bt.reads;
+      msgEl.textContent = `skiplist は ${sr} 個の塊を読み、${Q.sk.cmps} 回比べた。B+ 木は ${br} 個の塊を読み、${Q.bt.cmps} 回比べた。` +
+        '速さを決めるのは、比べた回数より読んだ塊の数である。キャッシュに無い塊を読むと、比べる1回よりずっと長く待つ。';
+      clearTimeout(nextTimer);
+      if (autoSw.checked) nextTimer = setTimeout(nextSearch, window.THUMB ? 1300 : 1900);
+    }
+    function step() {
+      Q.k++;
+      draw();
+      if (Q.k < Q.total) stepTimer = setTimeout(step, window.THUMB ? 75 : 120);
+      else finish();
+    }
+    function startSearch(key) {
+      clearTimeout(stepTimer); clearTimeout(nextTimer);
+      const sk = skipSearch(S.sl, key), bt = btSearch(S.bt, key);
+      Q = { key, sk, bt, k: 0, total: Math.max(sk.steps.length, bt.steps.length) };
+      if (qDd) qDd.textContent = `小さい方から ${(key + 1).toLocaleString('ja-JP')} 番目（全 ${S.n.toLocaleString('ja-JP')} 件）`;
+      msgEl.textContent = '探しています…';
+      if (calm.matches && !window.THUMB) { Q.k = Q.total; draw(); finish(); }
+      else step();
+    }
+    function nextSearch() { if (S) startSearch(Math.floor(S.rand() * S.n)); }
+
+    async function build() {
+      const my = ++gen;
+      clearTimeout(stepTimer); clearTimeout(nextTimer);
+      msgEl.textContent = '集合を作っています…';
+      await pause();
+      if (my !== gen) return;
+      const n = +nSel.value, F = +fSel.value, ord = oSel.value;
+      const rand = rng(20261121 + n * 3 + F);
+      const keys = makeKeys(n, ord, rand);
+      const sl = skipNew(), bt = btNew(F);
+      let deadline = performance.now() + 40;
+      for (let i = 0; i < n; i++) {
+        skipInsert(sl, keys[i], rand);
+        btInsert(bt, keys[i]);
+        if ((i & 255) === 255 && performance.now() >= deadline) {
+          await pause();
+          if (my !== gen) return;
+          deadline = performance.now() + 40;
+        }
+      }
+      const nodes = skipRanks(sl), levels = btLevels(bt);
+      S = { n, F, sl, nodes, bt, levels, rand: rng(7 + n + F), avg: sampleAvg(sl, bt, n, 400, rng(99)),
+        sb: skipBytes(nodes), bb: btBytes(levels, n, F), fill: btFill(levels, F) };
+      renderStats();
+      startSearch(Math.floor(n * 0.62));
+    }
+
+    // この端末で、記録をしない探し方の時間を測る。1回の区切りは 2 万回にして、間でブラウザへ順番を返す
+    async function bench() {
+      benchBtn.disabled = true;
+      bresEl.textContent = '20 万件を入れています…';
+      await pause();
+      const N = 200000, M = 100000, CH = 20000, r = rng(42);
+      const keys = makeKeys(N, 'rand', r);
+      const sl = skipNew(), bt = btNew(61);
+      let deadline = performance.now() + 40;
+      for (let i = 0; i < N; i++) {
+        skipInsert(sl, keys[i], r);
+        btInsert(bt, keys[i]);
+        if ((i & 255) === 255 && performance.now() >= deadline) { await pause(); deadline = performance.now() + 40; }
+      }
+      const qs = new Int32Array(M);
+      for (let i = 0; i < M; i++) qs[i] = Math.floor(r() * N);
+      bresEl.textContent = '測っています…';
+      async function timeIt(has, s) {
+        let ms = 0, hit = 0;
+        for (let a = 0; a < M; a += CH) {
+          await pause();
+          const t = performance.now();
+          for (let i = a; i < a + CH; i++) if (has(s, qs[i])) hit++;
+          ms += performance.now() - t;
+        }
+        if (hit !== M) throw new Error('見つからない値があった');
+        return ms;
+      }
+      await timeIt(skipHas, sl); await timeIt(btHas, bt);   // 慣らし
+      const ts = [], tb = [];
+      for (let k = 0; k < 3; k++) { ts.push(await timeIt(skipHas, sl)); tb.push(await timeIt(btHas, bt)); }
+      const mid = (a) => a.slice().sort((p, q) => p - q)[1];
+      const a = mid(ts), b = mid(tb), ratio = a / Math.max(1e-6, b);
+      bresEl.textContent = `skiplist ${fmt(a, 1)} ms、B+ 木 ${fmt(b, 1)} ms（10 万回、3 回測った真ん中の値）。` +
+        (ratio >= 1 ? `B+ 木の方が ${fmt(ratio, 1)} 倍速かった。` : `skiplist の方が ${fmt(1 / ratio, 1)} 倍速かった。`);
+      benchBtn.disabled = false;
+    }
+
+    nSel.addEventListener('change', build);
+    fSel.addEventListener('change', build);
+    oSel.addEventListener('change', build);
+    fishSw.addEventListener('change', draw);
+    goBtn.addEventListener('click', nextSearch);
+    autoSw.addEventListener('change', () => {
+      clearTimeout(nextTimer);
+      if (autoSw.checked && Q && Q.k >= Q.total) nextTimer = setTimeout(nextSearch, 400);
+    });
+    benchBtn.addEventListener('click', () => {
+      bench().catch((err) => { bresEl.textContent = '測れなかった: ' + err.message; benchBtn.disabled = false; });
+    });
+    new ResizeObserver(() => draw()).observe(document.querySelector('.wrap'));
+
+    autoSw.checked = !!window.THUMB || !calm.matches;
+    build();
+  },
+});
+
+dekiru.add({
+  id: 'tr-20261121-interaction-nets', c: 'trend', lv: 3, date: '2026-11-21',
+  t: 'グラフの書き換えだけで計算し、順番を変えても同じ答えになるのを確かめる（Frostbite の interaction nets）',
+  y: 'ぐらふのかきかえだけでけいさんしじゅんばんをかえてもおなじこたえになるのをたしかめるふろすとばいとのいんたらくしょんねっつ',
+  tags: ['Frostbite', 'interaction nets', 'グラフの書き換え', '並列', 'Canvas'],
+  d: '2026年11月18日、Architect Labs が CPU「Frostbite」を発表した。AI のエージェントが、命令セットから回路の配置（GDS）までを設計し、確かめたという。同じくらいの面積の普通の CPU と比べると、電力あたりの性能は 25 種類の処理の幾何平均で 4.59 倍だった（同社の記事による。比べた CPU の名前は伏せてある）。Hacker News では 11月20日に 646 点・コメント 333 件を集めた。Frostbite の土台は、1990年に Yves Lafont が考えた interaction nets という計算の仕組みである。プログラムは節点と線でできたグラフで、どの節点も主の口を1つだけ持つ。2つの節点の主の口どうしが線でつながると「書き換えられる組」になり、決まりに従って、その2つを別の小さなグラフに置き換える。これを繰り返して計算する。1回の書き換えは近くの節点しか変えず、組どうしは重ならない。だから、組をどの順番で書き換えても、全部同時に書き換えても、同じ答えになる。どの値も持ち主が1つしかないので、普通の CPU が多くの電力を使う、共有のキャッシュと、その中身をそろえる仕組みも要らないという。この見本は、記事が入門として勧める Tendrils の解説と同じく、0・+1・足し算・掛け算・複製（δ）・消去（ε）の6種類の節点を使う。入力した式からグラフを作り、書き換えて答えを出す。書き換える順番は5通りから選べる。古い組から1つずつ、ばらばらに1つずつ、全部同時に、それと、タイル 4 枚か 16 枚で分け合う順番である。タイルの動きは、記事がエージェントが作ったと書いている3つの決まりをまねた。自分の仕事があれば先にする。無ければ、隣のタイルから余っている仕事をもらう。それも無ければ休む。下の表で、順番を変えても答えと書き換えた回数は変わらず、かかった手数だけが変わることを確かめられる。Frostbite の命令セット、Rust に似た言語 Vine から中間の形 Ivy への変換、タイルの間の通信路、電力の数字は再現していない。本物の Ivy のネットは、データ・計算の節点・制御の節点の3種類の部品でできている。この見本のタイルは1手に1回だけ書き換え、仕事をもらうのに時間はかからないものとした。数は +1 の節点を数の分だけ並べて表すので、大きな数は扱えない。',
+  p: '足し算の決まりは「0 + y = y」と「(1 + x) + y = 1 + (x + y)」の2つである。＋ の節点の主の口は1つ目の数を向く。1つ目の数の先頭が +1 なら、+1 を1つ答えの側へ送り出し、残りでもう一度足し算をする。答えの +1 は計算の途中から上へ出ていくので、その答えを使う次の足し算は、計算が全部終わるのを待たずに始められる。掛け算は「0 × y = 0」と「(1 + x) × y = x × y + y」である。0 のときは y を消去の節点 ε に渡して消し、1 + x のときは y を複製の節点 δ で2つに写す。δ と ε も、数と出会うと +1 を1つずつ写したり消したりする。主の口は1つだけなので、1つの節点が2つの組に入ることはない。だから、ある組を書き換えても、ほかの組は書き換えられるまま残る。Lafont は、この性質から、どの順番で最後まで書き換えても書き換えの回数が同じになることを示した。全部同時に書き換えるときの手数は、前の書き換えを待たなければならない列のうち、いちばん長いものの長さになる。タイルをいくら増やしても、これより少ない手数にはならない。記事の 5 クイーンの例では、3183 回の書き換えに対して、いちばん長い列は 262 手だった。1手あたり平均 12 組を同時に書き換えられる計算である。タイルの見本では、書き換えで新しくできた組を、それを作ったタイルの仕事にする。自分の仕事は新しいものから取り、隣からもらうときは古いものから取る。',
+  refs: [
+    { title: 'Introducing Frostbite: A new CPU architecture discovered, designed, and verified end-to-end by AI（Architect Labs、2026-11-18）', url: 'https://architectlabs.com/blog/frostbite' },
+    { title: 'Hacker News: Frostbite: A new CPU architecture discovered, designed and verified by AI', url: 'https://news.ycombinator.com/item?id=50572503' },
+    { title: 'Architect Labs の X の投稿（2026-11-18）', url: 'https://x.com/architectlabs/status/2123187520276152487' },
+    { title: 'On Interaction Nets（Tendrils、2026-04-26）', url: 'https://tendrils.co/blog/2026-04-26/on-inets' },
+    { title: 'Yves Lafont: Interaction Nets（POPL 1990）', url: 'https://doi.org/10.1145/96709.96718' },
+  ],
+  html: `<div class="wrap">
+  <form class="ctl" id="f">
+    <label>式 <input type="text" id="ex" value="2 × 3 + 3 × 2" autocomplete="off" spellcheck="false" aria-describedby="exh"></label>
+    <button type="submit">この式で作り直す</button>
+    <label>例
+      <select id="pre">
+        <option value="">選ぶ</option>
+        <option>2 + 3</option>
+        <option>2 × 2</option>
+        <option>2 × 3 + 3 × 2</option>
+        <option>(1 + 2) × (2 + 2)</option>
+        <option>0 × 7</option>
+        <option>3 × 3 × 3</option>
+      </select>
+    </label>
+  </form>
+  <p id="exh" class="small mut">足し算（+）・掛け算（× か *）・括弧が使えます。数は 20 まで、途中の数と答えは 64 までです。</p>
+  <div class="ctl">
+    <label>書き換える順番
+      <select id="mode">
+        <option value="fifo">古い組から1つずつ</option>
+        <option value="rand">ばらばらに1つずつ</option>
+        <option value="t4">タイル 4 枚（2×2）で分け合う</option>
+        <option value="t16" selected>タイル 16 枚（4×4）で分け合う</option>
+        <option value="par">全部同時に</option>
+      </select>
+    </label>
+    <label>速さ
+      <select id="spd">
+        <option value="700">ゆっくり</option>
+        <option value="300" selected>ふつう</option>
+        <option value="90">速い</option>
+      </select>
+    </label>
+  </div>
+  <div class="ctl">
+    <button type="button" id="one">1手進める</button>
+    <label><input type="checkbox" switch id="auto"> 自動で進める</label>
+    <button type="button" id="reset">最初から</button>
+  </div>
+  <canvas id="cv" role="img" aria-label="interaction net の図。上の「答」から下へ、演算と数の節点が線でつながる。太い線が書き換えられる組"></canvas>
+  <p class="legend small mut"><span><i class="n"></i>数（0 と +1）</span><span><i class="o"></i>足し算と掛け算</span><span><i class="d"></i>複製 δ と消去 ε</span><span><i class="w"></i>書き換えられる組（タイルで分け合うときはタイルの色）</span><span><i class="p"></i>主の口</span></p>
+  <div id="tiles" class="tiles" role="group" aria-label="タイルの様子" hidden></div>
+  <p id="tlg" class="small mut" hidden>緑はその手に自分の仕事をしたタイル、橙は隣から仕事をもらったタイル、暗いのは休んだタイル。数は、手の終わりに持っている仕事（書き換えられる組）の数。上の線の色がタイルの色。</p>
+  <p id="msg" class="msg" role="status"></p>
+  <div class="res">
+    <dl id="st" class="st"></dl>
+    <div>
+      <div class="hd">手ごとの、書き換えられる組の数</div>
+      <canvas id="rd" role="img" aria-label="手ごとの、書き換えられる組の数の棒グラフ"></canvas>
+    </div>
+  </div>
+  <div class="tw" tabindex="0" role="region" aria-labelledby="cap">
+    <table>
+      <caption id="cap">同じ式を、順番だけ変えて最後まで書き換えた結果</caption>
+      <thead><tr><th scope="col">順番</th><th scope="col">答え</th><th scope="col">書き換えた回数</th><th scope="col">手数</th><th scope="col">1手あたり</th></tr></thead>
+      <tbody id="tb"></tbody>
+    </table>
+  </div>
+</div>`,
+  css: `:root { color-scheme: dark; --bg: #10131a; --fg: #e4e8f0; --mut: #9aa3b6; --line: #2b3346; --wire: #5a6582; --num: #5fc8b0; --op: #f0b45a; --dup: #b49cff; --out: #d6dcea; --act: #ff7a59; --own: #2f6f5c; --steal: #8a5a1e; --idle: #1b2130; --panel: #161a23; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    .wrap { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .ctl { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin: 0; }
+    .ctl label { display: inline-flex; align-items: center; gap: 6px; }
+    input[type="text"], select, button { font: inherit; min-block-size: 30px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 6px; background: #1e2433; color: var(--fg); }
+    input[type="text"] { inline-size: 12em; max-inline-size: 55vw; }
+    button { cursor: pointer; }
+    :focus-visible { outline: 2px solid #ffd27a; outline-offset: 2px; }
+    input[type="checkbox"][switch] { accent-color: var(--act); margin: 0; cursor: pointer; }
+    .mut { color: var(--mut); }
+    .small { font-size: 12px; margin: 0; }
+    canvas { display: block; inline-size: 100%; background: #0b0d12; border-radius: 4px; }
+    #cv { block-size: 380px; }
+    #rd { block-size: 80px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+    .legend i { display: inline-block; inline-size: 10px; block-size: 10px; border-radius: 50%; vertical-align: -1px; margin-inline-end: 5px; }
+    .legend .n { background: var(--num); }
+    .legend .o { background: var(--op); }
+    .legend .d { background: var(--dup); }
+    .legend .w { inline-size: 16px; block-size: 4px; border-radius: 2px; vertical-align: middle; background: var(--act); }
+    .legend .p { inline-size: 6px; block-size: 6px; vertical-align: 1px; background: var(--fg); }
+    .tiles { display: grid; gap: 4px; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); max-inline-size: 440px; }
+    .tile { border-radius: 4px; padding: 2px 6px; font-size: 11px; line-height: 1.35; background: var(--idle); border-block-start: 3px solid var(--hue, #888); font-variant-numeric: tabular-nums; display: flex; flex-direction: column; }
+    .tile.own { background: var(--own); }
+    .tile.steal { background: var(--steal); }
+    .tile span:first-child { color: var(--mut); }
+    .msg { margin: 0; padding: 6px 8px; border-inline-start: 3px solid var(--act); background: var(--panel); border-radius: 4px; font-size: 13px; min-block-size: 1.5em; }
+    .res { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    @media (min-width: 640px) { .res { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+    .st { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; margin: 0; font-size: 13px; }
+    .st dt { color: var(--mut); }
+    .st dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .hd { font-weight: 600; font-size: 13px; margin-block-end: 4px; }
+    .tw { overflow-x: auto; max-inline-size: 100%; }
+    table { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; min-inline-size: 100%; }
+    caption { text-align: start; font-weight: 600; padding-block-end: 4px; }
+    th, td { padding: 3px 8px; border-block-end: 1px solid var(--line); text-align: end; white-space: nowrap; }
+    th[scope="row"], thead th:first-child { text-align: start; font-weight: 400; }
+    thead th { color: var(--mut); font-weight: 400; }
+    tr.cur th, tr.cur td { background: #22293a; }
+    tr.cur th[scope="row"] { font-weight: 600; }
+    .thumb .wrap { padding: 4px; gap: 4px; }
+    .thumb .ctl, .thumb #exh, .thumb .legend, .thumb #msg, .thumb .res, .thumb .tw, .thumb .tiles, .thumb #tlg { display: none; }
+    .thumb #cv { block-size: 94vh; }`,
+  core() {
+    // ---- 式を読む（足し算・掛け算・括弧。数は 0〜20、途中の数と答えは 64 まで） ----
+    const LIMIT = { num: 20, value: 64, len: 40 };
+    function evalTree(t) {
+      if (!t.op) return t.n;
+      const a = evalTree(t.l), b = evalTree(t.r);
+      return t.op === '+' ? a + b : a * b;
+    }
+    // 表示用の文字列。グラフの形が分かるように、右側の同じ演算にも括弧を付ける
+    function showTree(t) {
+      if (!t.op) return String(t.n);
+      const wrap = (u, right) => (u.op && ((u.op === '+' && t.op === '*') || (right && u.op === t.op))) ? '(' + showTree(u) + ')' : showTree(u);
+      return wrap(t.l, false) + (t.op === '+' ? ' + ' : ' × ') + wrap(t.r, true);
+    }
+    function parseExpr(text) {
+      const s = String(text)
+        .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+        .replace(/[×xX＊]/g, '*').replace(/＋/g, '+').replace(/（/g, '(').replace(/）/g, ')')
+        .replace(/\s+/g, '');
+      if (!s) throw new Error('式が空です');
+      if (s.length > LIMIT.len) throw new Error('式が長すぎます（' + LIMIT.len + ' 文字まで）');
+      let i = 0;
+      function expr() {
+        let t = term();
+        while (s[i] === '+') { i++; t = { op: '+', l: t, r: term() }; }
+        return t;
+      }
+      function term() {
+        let t = fac();
+        while (s[i] === '*') { i++; t = { op: '*', l: t, r: fac() }; }
+        return t;
+      }
+      function fac() {
+        if (s[i] === '(') {
+          i++;
+          const t = expr();
+          if (s[i] !== ')') throw new Error((i + 1) + ' 文字目に ) が要ります');
+          i++;
+          return t;
+        }
+        const m = /^\d+/.exec(s.slice(i));
+        if (!m) throw new Error((i + 1) + ' 文字目に数が要ります');
+        i += m[0].length;
+        const n = Number(m[0]);
+        if (n > LIMIT.num) throw new Error('数は ' + LIMIT.num + ' までにしてください');
+        return { n };
+      }
+      const t = expr();
+      if (i < s.length) throw new Error((i + 1) + ' 文字目の「' + s[i] + '」は使えません');
+      (function check(u) {
+        if (evalTree(u) > LIMIT.value) throw new Error('途中の数と答えは ' + LIMIT.value + ' までにしてください（数の分だけ +1 の節点を並べるため）');
+        if (u.op) { check(u.l); check(u.r); }
+      })(t);
+      return t;
+    }
+
+    // ---- interaction net ----
+    // 節点の種類と補助の口の数。口 0 が主の口（OUT は答えの受け口で、主の口を持たない）
+    const ARITY = { Z: 0, S: 1, ADD: 2, MUL: 2, DUP: 2, ERA: 0, OUT: 0 };
+    function newNet() { return { nodes: new Map(), next: 1, fresh: [], born: [], died: [], count: 0, out: 0 }; }
+    function mk(net, k) {
+      const nd = { id: net.next++, k, p: new Array(ARITY[k] + 1).fill(null) };
+      net.nodes.set(nd.id, nd);
+      return nd;
+    }
+    // 2つの口を線でつなぐ。両方が主の口なら、書き換えられる組として控える
+    function link(net, a, pa, b, pb) {
+      a.p[pa] = [b.id, pb];
+      b.p[pb] = [a.id, pa];
+      if (pa === 0 && pb === 0 && a.k !== 'OUT' && b.k !== 'OUT') net.fresh.push({ a: a.id, b: b.id });
+    }
+    // 外へ出ている線の端 e = [節点, 口] に、新しい節点の口をつなぐ
+    function attach(net, nd, port, e, dying) {
+      if (!e || dying.has(e[0])) throw new Error('組の中で輪になった線は扱えません');
+      link(net, nd, port, net.nodes.get(e[0]), e[1]);
+    }
+    function join(net, e1, e2, dying) {
+      if (!e1 || !e2 || dying.has(e1[0]) || dying.has(e2[0])) throw new Error('組の中で輪になった線は扱えません');
+      link(net, net.nodes.get(e1[0]), e1[1], net.nodes.get(e2[0]), e2[1]);
+    }
+    // 式の木からグラフを作る。数 n は +1 を n 個つないだ列の下に 0 を置く
+    function buildNet(tree) {
+      const net = newNet();
+      function num(n) {
+        let top = mk(net, 'Z');
+        for (let i = 0; i < n; i++) { const s = mk(net, 'S'); link(net, s, 1, top, 0); top = s; }
+        return [top, 0];
+      }
+      function go(t) {
+        if (!t.op) return num(t.n);
+        const l = go(t.l), r = go(t.r);
+        const op = mk(net, t.op === '+' ? 'ADD' : 'MUL');
+        link(net, op, 0, l[0], l[1]);   // 主の口は1つ目の数を向く
+        link(net, op, 1, r[0], r[1]);
+        return [op, 2];                  // 口 2 から答えを出す
+      }
+      const res = go(tree);
+      const out = mk(net, 'OUT');
+      link(net, out, 0, res[0], res[1]);
+      net.out = out.id;
+      const init = net.fresh;
+      net.fresh = [];
+      return { net, init };
+    }
+    // 組を1つ書き換え、新しくできた組の配列を返す
+    function rewrite(net, pair) {
+      let x = net.nodes.get(pair.a), y = net.nodes.get(pair.b);
+      if (!x || !y) throw new Error('もう無い節点の組です');
+      if (x.k === 'Z' || x.k === 'S') { const t = x; x = y; y = t; }   // x を演算、y を数にそろえる
+      if (y.k !== 'Z' && y.k !== 'S') throw new Error('決まりの無い組です: ' + x.k + ' と ' + y.k);
+      const dying = new Set([x.id, y.id]);
+      const zero = y.k === 'Z', rest = zero ? null : y.p[1];   // rest は「1 + rest」の rest
+      const born = (k) => { const nd = mk(net, k); net.born.push([nd.id, x.id, y.id]); return nd; };
+      net.fresh = [];
+      switch (x.k) {
+        case 'ADD':   // 0 + y = y、(1 + x) + y = 1 + (x + y)
+          if (zero) join(net, x.p[1], x.p[2], dying);
+          else {
+            const s = born('S'), a = born('ADD');
+            attach(net, s, 0, x.p[2], dying);
+            link(net, s, 1, a, 2);
+            attach(net, a, 0, rest, dying);
+            attach(net, a, 1, x.p[1], dying);
+          }
+          break;
+        case 'MUL':   // 0 × y = 0（y は消す）、(1 + x) × y = x × y + y（y は写す）
+          if (zero) {
+            attach(net, born('ERA'), 0, x.p[1], dying);
+            attach(net, born('Z'), 0, x.p[2], dying);
+          } else {
+            const d = born('DUP'), m = born('MUL'), a = born('ADD');
+            attach(net, d, 0, x.p[1], dying);
+            attach(net, m, 0, rest, dying);
+            link(net, m, 1, d, 1);
+            link(net, a, 0, m, 2);
+            link(net, a, 1, d, 2);
+            attach(net, a, 2, x.p[2], dying);
+          }
+          break;
+        case 'DUP':   // 数を2つに写す
+          if (zero) {
+            attach(net, born('Z'), 0, x.p[1], dying);
+            attach(net, born('Z'), 0, x.p[2], dying);
+          } else {
+            const s1 = born('S'), s2 = born('S'), d = born('DUP');
+            attach(net, s1, 0, x.p[1], dying);
+            attach(net, s2, 0, x.p[2], dying);
+            attach(net, d, 0, rest, dying);
+            link(net, d, 1, s1, 1);
+            link(net, d, 2, s2, 1);
+          }
+          break;
+        case 'ERA':   // 数を消す
+          if (!zero) attach(net, born('ERA'), 0, rest, dying);
+          break;
+        default:
+          throw new Error('決まりの無い組です: ' + x.k + ' と ' + y.k);
+      }
+      net.nodes.delete(x.id);
+      net.nodes.delete(y.id);
+      net.died.push(x.id, y.id);
+      net.count++;
+      const made = net.fresh;
+      net.fresh = [];
+      return made;
+    }
+    // 答えの受け口から +1 を数える。done は 0 まで届いたか（途中なら、そこまでに出た +1 の数）
+    function decode(net) {
+      const out = net.nodes.get(net.out);
+      let e = out ? out.p[0] : null, v = 0;
+      while (e) {
+        const nd = net.nodes.get(e[0]);
+        if (!nd || e[1] !== 0) break;
+        if (nd.k === 'Z') return { v, done: true };
+        if (nd.k !== 'S') break;
+        v++;
+        e = nd.p[1];
+      }
+      return { v, done: false };
+    }
+
+    // ---- 書き換える順番 ----
+    // 決まった種から同じ乱数の列を作る（mulberry32）
+    function rng(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    // mode: fifo（古い組から1つずつ）、rand（ばらばらに1つずつ）、par（全部同時に）、tiles（k 枚のタイルが分け合う）
+    function makeRunner(tree, mode, opt) {
+      opt = opt || {};
+      const { net, init } = buildNet(tree);
+      const k = mode === 'tiles' ? Math.max(1, (opt.k | 0) || 4) : 1;
+      const cols = Math.ceil(Math.sqrt(k));
+      const rand = rng(opt.seed || 1);
+      const queues = Array.from({ length: k }, () => []);
+      queues[0].push(...init);   // 最初の仕事は全部タイル 0 が持つ
+      const nb = (t) => {
+        const r = Math.floor(t / cols), c = t % cols, out = [];
+        if (c > 0) out.push(t - 1);
+        if (c < cols - 1 && t + 1 < k) out.push(t + 1);
+        if (r > 0) out.push(t - cols);
+        if (t + cols < k) out.push(t + cols);
+        return out;
+      };
+      const R = { net, mode, k, cols, queues, steps: 0, ready: [], tiles: null, nb };
+      R.pending = () => queues.reduce((s, q) => s + q.length, 0);
+      R.done = () => R.pending() === 0;
+      const doOne = (pr, tile, how, did, made) => {
+        did.push({ a: pr.a, b: pr.b, ka: net.nodes.get(pr.a).k, kb: net.nodes.get(pr.b).k, tile, how });
+        made.push(...rewrite(net, pr));
+      };
+      R.step = () => {
+        net.born = []; net.died = [];
+        const did = [];
+        if (R.done()) return did;
+        R.ready.push(R.pending());
+        if (mode !== 'tiles') {
+          const q = queues[0];
+          let batch;
+          if (mode === 'par') batch = q.splice(0);   // 今ある組を全部。新しくできた組は次の手へ回す
+          else if (mode === 'rand') batch = q.splice(Math.floor(rand() * q.length), 1);
+          else batch = q.splice(0, 1);
+          const made = [];
+          for (const pr of batch) doOne(pr, 0, 'own', did, made);
+          q.push(...made);
+        } else {
+          const run = new Array(k).fill(null), how = new Array(k).fill('idle');
+          // 1. 自分の仕事があれば、いちばん新しいものをする
+          for (let t = 0; t < k; t++) if (queues[t].length) { run[t] = queues[t].pop(); how[t] = 'own'; }
+          // 2. 無ければ、余っている仕事がいちばん多い隣から、いちばん古いものをもらう
+          for (let t = 0; t < k; t++) {
+            if (run[t]) continue;
+            let best = -1;
+            for (const u of nb(t)) if (queues[u].length && (best < 0 || queues[u].length > queues[best].length)) best = u;
+            if (best >= 0) { run[t] = queues[best].shift(); how[t] = 'steal'; }
+          }
+          // 3. それも無ければ休む。新しくできた組は、作ったタイルの仕事になる
+          const made = queues.map(() => []);
+          for (let t = 0; t < k; t++) if (run[t]) doOne(run[t], t, how[t], did, made[t]);
+          for (let t = 0; t < k; t++) queues[t].push(...made[t]);
+          R.tiles = how.map((h, t) => ({ how: h, q: queues[t].length }));
+        }
+        R.steps++;
+        return did;
+      };
+      return R;
+    }
+    // 最後まで書き換えて、答え・書き換えた回数・手数を返す
+    function runAll(tree, mode, opt) {
+      const R = makeRunner(tree, mode, opt);
+      let maxNodes = R.net.nodes.size, guard = 0;
+      while (!R.done()) {
+        R.step();
+        if (R.net.nodes.size > maxNodes) maxNodes = R.net.nodes.size;
+        if (++guard > 200000) throw new Error('終わりませんでした');
+      }
+      const ans = decode(R.net);
+      let maxReady = 0;
+      for (const v of R.ready) if (v > maxReady) maxReady = v;
+      return { value: ans.done ? ans.v : null, interactions: R.net.count, steps: R.steps, maxReady, nodes: R.net.nodes.size, maxNodes };
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    if (window.THUMB) document.documentElement.classList.add('thumb');
+    const calm = matchMedia('(prefers-reduced-motion: reduce)');
+    const cv = $('cv'), rd = $('rd'), form = $('f'), exIn = $('ex'), preSel = $('pre'), modeSel = $('mode'), spdSel = $('spd');
+    const oneBtn = $('one'), autoSw = $('auto'), resetBtn = $('reset'), tilesEl = $('tiles'), tlgEl = $('tlg');
+    const msgEl = $('msg'), stEl = $('st'), tbEl = $('tb');
+    const cssVar = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim() || '#888';
+    const COL = { fg: cssVar('--fg'), mut: cssVar('--mut'), wire: cssVar('--wire'), num: cssVar('--num'), op: cssVar('--op'), dup: cssVar('--dup'), out: cssVar('--out'), act: cssVar('--act'), bg: cssVar('--bg') };
+    const FILL = { Z: COL.num, S: COL.num, ADD: COL.op, MUL: COL.op, DUP: COL.dup, ERA: COL.dup, OUT: COL.out };
+    const LABEL = { Z: '0', S: '+1', ADD: '+', MUL: '×', DUP: 'δ', ERA: 'ε', OUT: '答' };
+    // 口の向き。1 は下にある数を受け取る口、-1 は上へ値を渡す口。図では受け取る側を上に置く
+    const DIR = { Z: [-1], S: [-1, 1], ADD: [1, 1, -1], MUL: [1, 1, -1], DUP: [1, -1, -1], ERA: [1], OUT: [1] };
+    const MODES = {
+      fifo: { name: '古い組から1つずつ', mode: 'fifo', opt: {} },
+      rand: { name: 'ばらばらに1つずつ', mode: 'rand', opt: { seed: 7 } },
+      t4: { name: 'タイル 4 枚', mode: 'tiles', opt: { k: 4 } },
+      t16: { name: 'タイル 16 枚', mode: 'tiles', opt: { k: 16 } },
+      par: { name: '全部同時に', mode: 'par', opt: {} },
+    };
+    const OPS = new Set(['ADD', 'MUL', 'DUP', 'ERA']);
+    const RULE = {
+      'ADD-Z': '0 + y = y。＋ と 0 が消え、y が答えの側へつながった',
+      'ADD-S': '(1 + x) + y = 1 + (x + y)。+1 を1つ答えの側へ送り出した',
+      'MUL-Z': '0 × y = 0。y は消去の節点 ε に渡した',
+      'MUL-S': '(1 + x) × y = x × y + y。y を複製の節点 δ で2つに写す',
+      'DUP-Z': '複製 δ が 0 を2つに写した',
+      'DUP-S': '複製 δ が +1 を1つ写し、残りを写し続ける',
+      'ERA-Z': '消去 ε が 0 を消した',
+      'ERA-S': '消去 ε が +1 を1つ消し、残りを消し続ける',
+    };
+    const tileHue = (t, k) => 'hsl(' + (Math.round((t * 360) / Math.max(1, k)) + 20) % 360 + ' 80% 64%)';
+    let tree = null, R = null, pos = new Map(), flash = new Map();
+    let timer = 0, nextTimer = 0, raf = 0, seed = 1, peak = 0;
+
+    function sizeOf(c) {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const w = Math.max(1, c.clientWidth), h = Math.max(1, c.clientHeight);
+      return { dpr, w, h, W: Math.max(1, Math.round(w * dpr)), H: Math.max(1, Math.round(h * dpr)) };
+    }
+    function geo(z) {
+      const L = Math.max(14, Math.min(34, Math.min(z.w, z.h * 1.4) / 13));
+      return { L, r: Math.max(6, Math.min(12, L * 0.36)) };
+    }
+
+    // 最初の並べ方: 答えの受け口から下へ、受け取る口をたどって木の形に置く
+    function treeLayout() {
+      const net = R.net, z = sizeOf(cv), { L } = geo(z);
+      const depth = new Map(), xs = new Map();
+      let leaves = 0, maxD = 0;
+      (function visit(id, d) {
+        depth.set(id, d);
+        if (d > maxD) maxD = d;
+        const nd = net.nodes.get(id), dir = DIR[nd.k], kids = [];
+        for (let i = 0; i < nd.p.length; i++) {
+          const e = nd.p[i];
+          if (dir[i] === 1 && e && !depth.has(e[0])) kids.push(e[0]);
+        }
+        if (!kids.length) { xs.set(id, leaves++); return; }
+        let s = 0;
+        for (const c of kids) { visit(c, d + 1); s += xs.get(c); }
+        xs.set(id, s / kids.length);
+      })(net.out, 0);
+      pos = new Map(); flash = new Map();
+      const dy = Math.min(L, Math.max(4, (z.h - 36) / Math.max(1, maxD)));
+      for (const nd of net.nodes.values()) {
+        const known = depth.has(nd.id);
+        const x = known ? 20 + (xs.get(nd.id) + 0.5) / Math.max(1, leaves) * Math.max(1, z.w - 40) : z.w / 2;
+        const y = known ? 18 + depth.get(nd.id) * dy : z.h / 2;
+        pos.set(nd.id, { x: x + (Math.random() - 0.5) * 2, y, vx: 0, vy: 0 });
+      }
+    }
+
+    // 力で並べ直す: 節点どうしは離れ、線はばねで引き合い、受け取る側を上に保つ
+    function physics(z) {
+      const { L, r } = geo(z), net = R.net, P = [];
+      for (const id of net.nodes.keys()) { const p = pos.get(id); if (p) P.push(p); }
+      const n = P.length, rep = L * L * 0.9, far = 16 * L * L;
+      for (let i = 0; i < n; i++) {
+        const a = P[i];
+        for (let j = i + 1; j < n; j++) {
+          const b = P[j];
+          let dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy;
+          if (d2 > far) continue;
+          if (d2 < 0.01) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d2 = dx * dx + dy * dy + 0.01; }
+          const d = Math.sqrt(d2), f = Math.min(4, rep / d2);
+          const fx = dx / d * f, fy = dy / d * f;
+          a.vx -= fx; a.vy -= fy; b.vx += fx; b.vy += fy;
+        }
+      }
+      for (const nd of net.nodes.values()) {
+        const a = pos.get(nd.id);
+        if (!a) continue;
+        const dir = DIR[nd.k];
+        for (let i = 0; i < nd.p.length; i++) {
+          const e = nd.p[i];
+          if (!e || dir[i] !== 1) continue;   // 線は、受け取る口の側から1回だけ数える
+          const b = pos.get(e[0]);
+          if (!b) continue;
+          const dx = b.x - a.x, dy = b.y - a.y, d = Math.max(0.1, Math.hypot(dx, dy));
+          const f = (d - L) * 0.05;
+          a.vx += dx / d * f; a.vy += dy / d * f; b.vx -= dx / d * f; b.vy -= dy / d * f;
+          const gap = dy - L * 0.55;
+          if (gap < 0) { a.vy += gap * 0.04; b.vy -= gap * 0.04; }
+        }
+      }
+      let E = 0;
+      const x0 = r + 2, x1 = Math.max(x0, z.w - r - 2), y0 = r + 2, y1 = Math.max(y0, z.h - r - 2);
+      for (const p of P) {
+        p.vx += (z.w / 2 - p.x) * 0.0015;
+        p.vx *= 0.78; p.vy *= 0.78;
+        const sp = Math.hypot(p.vx, p.vy);
+        if (sp > 12) { p.vx *= 12 / sp; p.vy *= 12 / sp; }
+        p.x = Math.min(x1, Math.max(x0, p.x + p.vx));
+        p.y = Math.min(y1, Math.max(y0, p.y + p.vy));
+        E += p.vx * p.vx + p.vy * p.vy;
+      }
+      const o = pos.get(net.out);
+      if (o) { o.x = z.w / 2; o.y = Math.min(y1, r + 6); o.vx = 0; o.vy = 0; }
+      return E / Math.max(1, n);
+    }
+
+    function draw() {
+      const z = sizeOf(cv);
+      if (cv.width !== z.W) cv.width = z.W;
+      if (cv.height !== z.H) cv.height = z.H;
+      const g = cv.getContext('2d');
+      g.setTransform(z.dpr, 0, 0, z.dpr, 0, 0);
+      g.clearRect(0, 0, z.w, z.h);
+      if (!R) return;
+      const { r } = geo(z), net = R.net, now = performance.now();
+      const owner = new Map();   // 書き換えられる組を、どのタイルが持っているか
+      if (R.mode === 'tiles') R.queues.forEach((q, t) => { for (const pr of q) { owner.set(pr.a, t); owner.set(pr.b, t); } });
+      g.lineCap = 'round';
+      for (const nd of net.nodes.values()) {
+        const a = pos.get(nd.id);
+        if (!a) continue;
+        const dir = DIR[nd.k];
+        for (let i = 0; i < nd.p.length; i++) {
+          const e = nd.p[i];
+          if (!e || dir[i] !== 1) continue;
+          const b = pos.get(e[0]);
+          if (!b) continue;
+          if (i === 0 && e[1] === 0 && nd.k !== 'OUT') {
+            const t = owner.get(nd.id);
+            g.strokeStyle = R.mode === 'tiles' && t !== undefined ? tileHue(t, R.k) : COL.act;
+            g.lineWidth = 4;
+          } else {
+            g.strokeStyle = COL.wire;
+            g.lineWidth = 1.4;
+          }
+          g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
+        }
+      }
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.font = '600 ' + Math.round(r * 1.05) + 'px system-ui, sans-serif';
+      for (const nd of net.nodes.values()) {
+        const a = pos.get(nd.id);
+        if (!a) continue;
+        const fl = flash.get(nd.id);
+        if (fl !== undefined) {
+          const k = 1 - (now - fl) / 600;
+          if (k > 0) {
+            g.globalAlpha = k * 0.55; g.fillStyle = COL.fg;
+            g.beginPath(); g.arc(a.x, a.y, r + 5, 0, Math.PI * 2); g.fill();
+            g.globalAlpha = 1;
+          } else flash.delete(nd.id);
+        }
+        g.fillStyle = FILL[nd.k];
+        g.beginPath(); g.arc(a.x, a.y, nd.k === 'OUT' ? r * 1.25 : r, 0, Math.PI * 2); g.fill();
+        g.fillStyle = COL.bg;
+        g.fillText(LABEL[nd.k], a.x, a.y + 0.5);
+        if (nd.k !== 'OUT' && nd.p[0]) {   // 主の口の向きに点を打つ
+          const b = pos.get(nd.p[0][0]);
+          if (b) {
+            const dx = b.x - a.x, dy = b.y - a.y, d = Math.max(0.1, Math.hypot(dx, dy));
+            g.fillStyle = COL.fg;
+            g.beginPath(); g.arc(a.x + dx / d * r, a.y + dy / d * r, Math.max(1.6, r * 0.24), 0, Math.PI * 2); g.fill();
+          }
+        }
+      }
+    }
+
+    function drawReady() {
+      const z = sizeOf(rd);
+      if (rd.width !== z.W) rd.width = z.W;
+      if (rd.height !== z.H) rd.height = z.H;
+      const g = rd.getContext('2d');
+      g.setTransform(z.dpr, 0, 0, z.dpr, 0, 0);
+      g.clearRect(0, 0, z.w, z.h);
+      if (!R) return;
+      const a = R.ready, n = a.length;
+      let mx = 1;
+      for (const v of a) if (v > mx) mx = v;
+      const padL = 26, w = Math.max(1, z.w - padL - 4), h = Math.max(1, z.h - 18);
+      const bw = w / Math.max(n, 24);
+      g.fillStyle = COL.act;
+      for (let i = 0; i < n; i++) {
+        const bh = a[i] / mx * h;
+        g.fillRect(padL + i * bw, 4 + h - bh, Math.max(0.6, bw - (bw > 3 ? 1 : 0)), bh);
+      }
+      g.fillStyle = COL.mut; g.font = '10px system-ui, sans-serif';
+      g.textAlign = 'right'; g.textBaseline = 'middle';
+      g.fillText(String(mx), padL - 4, 9);
+      g.fillText('0', padL - 4, 4 + h);
+      g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+      g.fillText('手 →', padL, z.h - 2);
+    }
+
+    function renderStats() {
+      const net = R.net, ans = decode(net);
+      let answer;
+      if (R.done()) answer = ans.done ? String(ans.v) : '出なかった';
+      else answer = ans.v ? '+1 が ' + ans.v + ' 個まで出た（計算中）' : 'まだ出ていない';
+      const rows = [
+        ['式', showTree(tree) + ' = ' + evalTree(tree)],
+        ['答え（グラフから読んだ値）', answer],
+        ['書き換えた回数', String(net.count)],
+        ['手数', String(R.steps)],
+        ['今書き換えられる組', R.pending() + ' 組'],
+        ['節点の数', net.nodes.size + ' 個（いちばん多いとき ' + peak + ' 個）'],
+      ];
+      stEl.replaceChildren();
+      for (const [k, v] of rows) {
+        const dt = document.createElement('dt'), dd = document.createElement('dd');
+        dt.textContent = k; dd.textContent = v;
+        stEl.append(dt, dd);
+      }
+    }
+    function buildTiles() {
+      const isT = R.mode === 'tiles';
+      tilesEl.hidden = !isT; tlgEl.hidden = !isT;
+      tilesEl.replaceChildren();
+      if (!isT) return;
+      tilesEl.style.setProperty('--cols', R.cols);
+      for (let t = 0; t < R.k; t++) {
+        const d = document.createElement('div'), a = document.createElement('span'), b = document.createElement('span');
+        d.className = 'tile';
+        d.style.setProperty('--hue', tileHue(t, R.k));
+        a.textContent = 'タイル ' + t;
+        d.append(a, b);
+        tilesEl.append(d);
+      }
+    }
+    function renderTiles() {
+      if (R.mode !== 'tiles') return;
+      const word = { own: '自分の仕事', steal: 'もらった', idle: '休み' };
+      Array.from(tilesEl.children).forEach((d, t) => {
+        const how = R.tiles ? R.tiles[t].how : 'idle';
+        d.className = 'tile ' + how;
+        d.lastChild.textContent = (R.steps ? word[how] : '待ち') + ' ・ ' + R.queues[t].length;
+      });
+    }
+    function update() { renderStats(); renderTiles(); drawReady(); }
+
+    function renderTable() {
+      tbEl.replaceChildren();
+      for (const [key, m] of Object.entries(MODES)) {
+        const r = runAll(tree, m.mode, m.opt);
+        const tr = document.createElement('tr');
+        tr.dataset.k = key;
+        const cells = [m.name, r.value === null ? '-' : String(r.value), String(r.interactions), String(r.steps), (r.interactions / Math.max(1, r.steps)).toFixed(1)];
+        cells.forEach((c, i) => {
+          const el = document.createElement(i ? 'td' : 'th');
+          if (!i) el.scope = 'row';
+          el.textContent = c;
+          tr.append(el);
+        });
+        tbEl.append(tr);
+      }
+      markRow();
+    }
+    function markRow() { for (const tr of tbEl.children) tr.classList.toggle('cur', tr.dataset.k === modeSel.value); }
+
+    function frame() {
+      raf = 0;
+      if (!R) return;
+      const z = sizeOf(cv);
+      let e = 0;
+      for (let i = 0; i < 2; i++) e = physics(z);
+      draw();
+      if (e > 0.004 || flash.size || (timer && autoSw.checked)) raf = requestAnimationFrame(frame);
+    }
+    function kick() {
+      if (!R) return;
+      if (calm.matches && !window.THUMB) {   // 動きを減らす設定では、並べ終えた形だけを描く
+        const z = sizeOf(cv);
+        for (let i = 0; i < 300; i++) if (physics(z) < 0.004) break;
+        flash.clear();
+        draw();
+        return;
+      }
+      if (!raf) raf = requestAnimationFrame(frame);
+    }
+
+    function ruleOf(d) {
+      const op = OPS.has(d.ka) ? d.ka : d.kb, nm = op === d.ka ? d.kb : d.ka;
+      return RULE[op + '-' + nm] || '';
+    }
+    function stepText(did) {
+      const n = R.steps;
+      if (R.mode === 'tiles') {
+        let own = 0;
+        for (const d of did) if (d.how === 'own') own++;
+        return n + ' 手目: ' + did.length + ' 組を同時に書き換えた。自分の仕事をしたタイルが ' + own + ' 枚、隣から仕事をもらったタイルが ' + (did.length - own) + ' 枚、休んだタイルが ' + (R.k - did.length) + ' 枚。';
+      }
+      if (R.mode === 'par') return n + ' 手目: 重ならない ' + did.length + ' 組を同時に書き換えた。' + (did.length === 1 ? ruleOf(did[0]) + '。' : '');
+      return n + ' 手目: ' + ruleOf(did[0]) + '。';
+    }
+    function doStep() {
+      const z = sizeOf(cv), did = R.step(), now = performance.now();
+      for (const [id, a, b] of R.net.born) {
+        const pa = pos.get(a) || pos.get(b) || { x: z.w / 2, y: z.h / 2 }, pb = pos.get(b) || pa;
+        pos.set(id, { x: (pa.x + pb.x) / 2 + (Math.random() - 0.5) * 10, y: (pa.y + pb.y) / 2 + (Math.random() - 0.5) * 10, vx: 0, vy: 0 });
+        flash.set(id, now);
+      }
+      for (const id of R.net.died) { pos.delete(id); flash.delete(id); }
+      if (R.net.nodes.size > peak) peak = R.net.nodes.size;
+      msgEl.textContent = stepText(did);
+      update();
+      kick();
+    }
+    function finish() {
+      const net = R.net, ans = decode(net), avg = net.count / Math.max(1, R.steps);
+      let s = 'グラフから読んだ答えは ' + (ans.done ? ans.v : '?') + '（式の値は ' + evalTree(tree) + '）。' + net.count + ' 回の書き換えを ' + R.steps + ' 手で終えた。1手あたり平均 ' + avg.toFixed(1) + ' 組。';
+      if (R.mode === 'tiles') s += 'タイルが働いていた割合は ' + Math.round(net.count / Math.max(1, R.steps * R.k) * 100) + '%。';
+      s += '表のとおり、どの順番でも答えと書き換えた回数は同じで、手数だけが違う。';
+      msgEl.textContent = s;
+      update();
+      clearTimeout(nextTimer);
+      if (autoSw.checked) nextTimer = setTimeout(restart, window.THUMB ? 2000 : 3500);
+    }
+    function tick() {
+      timer = 0;
+      if (!R) return;
+      if (R.done()) { finish(); return; }
+      doStep();
+      if (R.done()) finish();
+      else if (autoSw.checked) timer = setTimeout(tick, +spdSel.value);
+    }
+    function restart() {
+      clearTimeout(timer); clearTimeout(nextTimer); timer = 0;
+      if (!tree) return;
+      const m = MODES[modeSel.value];
+      R = makeRunner(tree, m.mode, m.mode === 'rand' ? { seed: seed++ } : m.opt);
+      peak = R.net.nodes.size;
+      treeLayout();
+      buildTiles();
+      msgEl.textContent = '「' + showTree(tree) + '」のグラフを作った。書き換えられる組が ' + R.pending() + ' 組ある。';
+      update();
+      kick();
+      if (autoSw.checked) timer = setTimeout(tick, Math.max(500, +spdSel.value));
+    }
+    function apply(src) {
+      let t;
+      try {
+        t = parseExpr(src);
+        const r = runAll(t, 'par', {});
+        if (r.maxNodes > 420) throw new Error('途中の節点が ' + r.maxNodes + ' 個になり、図が読めなくなります。小さい数にしてください');
+      } catch (err) {
+        msgEl.textContent = 'この式は使えません: ' + err.message;
+        return;
+      }
+      tree = t;
+      renderTable();
+      restart();
+    }
+
+    form.addEventListener('submit', (ev) => { ev.preventDefault(); preSel.value = ''; apply(exIn.value); });
+    preSel.addEventListener('change', () => { if (preSel.value) { exIn.value = preSel.value; apply(preSel.value); } });
+    modeSel.addEventListener('change', () => { markRow(); restart(); });
+    resetBtn.addEventListener('click', restart);
+    oneBtn.addEventListener('click', () => {
+      autoSw.checked = false;
+      clearTimeout(timer); clearTimeout(nextTimer); timer = 0;
+      if (!R) return;
+      if (R.done()) { restart(); return; }
+      doStep();
+      if (R.done()) finish();
+    });
+    autoSw.addEventListener('change', () => {
+      clearTimeout(timer); clearTimeout(nextTimer); timer = 0;
+      if (!autoSw.checked || !R) return;
+      if (R.done()) restart();
+      else { timer = setTimeout(tick, 200); kick(); }
+    });
+    new ResizeObserver(() => { kick(); drawReady(); }).observe(document.querySelector('.wrap'));
+
+    autoSw.checked = !!window.THUMB || !calm.matches;
+    apply(exIn.value);
+  },
+});
+
+dekiru.add({
+  id: 'tr-20261122-mixed-quant', c: 'trend', lv: 3, date: '2026-11-22',
+  t: '同じ大きさのまま、量子化のビット数を部品ごとに配り分けて、元との差を小さくする（LookAtMyQuant）',
+  y: 'おなじおおきさのままりょうしかのびっとすうをぶひんごとにくばりわけてもととのさをちいさくするるっくあっとまいくおんと',
+  tags: ['LookAtMyQuant', 'Inkling 2 Mini', '量子化', '動的計画法', 'Canvas'],
+  d: '2026年11月20日、Thinking Machines が、ノートパソコンで動く言語モデル Inkling 2 Mini（重み 264 億個）を公開した。Hacker News では 1333 点を集めた。翌日、ShinMegamiBoson さんの量子化の道具 LookAtMyQuant が、このモデルの文章の部分の重みを 18.89 GB から 5.38 GB（重み1つあたり平均 1.63 ビット）に縮めたと発表し、こちらも Hacker News で 269 点を集めた。よく使われる量子化の形式は、ほとんどの行列を同じビット数で保存する。LookAtMyQuant は、モデルの部品を1つだけ圧縮したとき、モデル全体の出力がどれだけ悪くなるかを部品ごとに測る。そして、決めた大きさに収まる中で悪化の合計が最も小さくなるように、部品ごとに保存の仕方を選ぶ。解説のページには、Gemma 4 E2B で、llama.cpp の Q4_K_M と同じ大きさのまま、元のモデルとの差（KL）が 12 分の 1 になったと書かれている。この見本は、その考え方を小さなネットワークで再現する。開くと、3本の腕のうずまきを見分けるネットワーク（2→32→32→32→3、重み 2,208 個）をその場で学習させる。重みを 32 個ずつ 69 個の部品に分け、部品ごとに 0（消す）・1・2・3・4・6・8 ビットで量子化したときの悪化を、学習に使った点の上で全部測る。次に、全部の部品を同じビット数にしたときと同じバイト数の中で、悪化の合計が最も小さい配り方を動的計画法で求める。上の3つの図は、元のネットワーク・そろえた量子化・配分した量子化が平面をどう見分けるかを示し、学習に使っていない 360 点での正解率と、元との差（KL）を出す。下の図は、部品ごとの悪化と配ったビット数、それと大きさと KL の関係である。再現していない所: 本物は、言語モデルの行列、語の出現の多さで分けた埋め込みの区分、KV キャッシュを部品にして、トレリス符号など多くの保存の仕方から選ぶ。少しの部品を測った結果から残りの悪化を予測し、量子化の後に元のモデルを手本にした学習（蒸留）で直す。この見本の保存の仕方は、目盛り1つの一様な量子化と、部品を消すことの2つだけである。悪化は予測せずに全部測り、量子化の後の学習もしない。',
+  p: '部品ごとの悪化は、重みが変わった層から後ろだけを計算し直して測る。行の部品なら、その行が受け持つ出口1つの値だけが変わるので、前の層までの計算は覚えておいた値をそのまま使える。配り方を決めるのは「部品ごとに保存の仕方を1つ選び、ビット数の合計を予算以下にして、悪化の合計を最小にする」問題である。ビット数を 16 ビット単位で数えると、部品の数 × 予算 × 選び方の数に比例する手間の動的計画法で、最適な組み合わせが求まる。ただし、これは「部品ごとの悪化は足し算できる」と仮定したときの最適である。表の「足し算の予想 → 実際」で、全部を同時に量子化して測り直した値と比べられる。3〜4 ビットあたりでは予想とほぼ合い、大きく削るほど予想から外れる。外れ方は、予想より悪くなることも、良くなることもある。入力の層の2つの部品（x の重み 32 個と y の重み 32 個）は、ほかの部品より何桁も大きく効くので、多くのビットを受け取る。ビット数が少ないときは、効かない出口の行を丸ごと消し、浮いたビットを効く部品へ回す。一様な量子化は、0 を持たない 2^b 段の値を等間隔に並べ、いちばん外の段の高さを、部品の重みの二乗誤差が最小になるように探す。部品ごとに 16 ビットの目盛りを持つので、そろえた b ビットは重み1つあたり b + 0.5 ビットになる。',
+  refs: [
+    { title: 'LookAtMyQuant（GitHub。README に Inkling-2-Mini の 5.4 GB 版の結果）', url: 'https://github.com/ShinMegamiBoson/lookatmyquant' },
+    { title: 'LookAtMyQuant の解説（方法と Gemma 4 E2B の結果）', url: 'https://lookatmyquant.pages.dev' },
+    { title: 'LookAtMyQuant 2（行ごとにビット数を配る作り方）', url: 'https://lookatmyquant2.pages.dev' },
+    { title: 'Hacker News: Inkling-2-Mini in 5.4 GB Memory', url: 'https://news.ycombinator.com/item?id=50591853' },
+    { title: 'Hacker News: Inkling 2 Mini', url: 'https://news.ycombinator.com/item?id=50581260' },
+    { title: 'Thinking Machines の X の投稿（2026-11-20）', url: 'https://x.com/thinkymachines/status/2123871643797995872' },
+  ],
+  html: `<div class="wrap">
+  <p id="msg" class="msg" role="status">学習の準備をしています</p>
+  <div class="ctl">
+    <label for="bits">そろえる側のビット数</label>
+    <input type="range" id="bits" min="1" max="4" step="1" value="2">
+    <output id="bitsv" for="bits">2 ビット</output>
+  </div>
+  <div class="ctl">
+    <label><input type="checkbox" switch id="prune" checked> 部品を消す（0 ビット）も選べる</label>
+    <button type="button" id="again">別の種で学習し直す</button>
+  </div>
+  <div class="panels">
+    <figure><canvas id="c0" role="img" aria-label="元のネットワークが平面をどう見分けるかの図"></canvas><figcaption><b>元</b><small class="ex">（16 ビット）</small><span id="s0"></span></figcaption></figure>
+    <figure><canvas id="c1" role="img" aria-label="全部の部品を同じビット数にしたネットワークの図"></canvas><figcaption><b id="h1">そろえた 2 ビット</b><span id="s1"></span></figcaption></figure>
+    <figure><canvas id="c2" role="img" aria-label="ビット数を配り分けたネットワークの図"></canvas><figcaption><b>配分した</b><small class="ex">（同じ大きさ）</small><span id="s2"></span></figcaption></figure>
+  </div>
+  <p class="legend small mut"><span><i class="k0"></i><i class="k1"></i><i class="k2"></i>3本の腕（色が濃いほど自信がある）</span><span><i class="ng"></i>白い縁の点は、見分けを間違えた点</span></p>
+  <p id="sum" class="sum"></p>
+  <div class="box">
+    <div class="hd">部品ごとの悪化と、配ったビット数</div>
+    <canvas id="map" role="img" aria-label="部品ごとの悪化と配ったビット数の図"></canvas>
+    <p class="small mut">橙の棒: その部品だけを 2 ビットにしたときの悪化（KL、対数目盛り。1 マス上がると 10 倍）。下の数: 配分で配ったビット数。× は 0 ビットで消した部品。入力の層は列（x と y の重み）、ほかの層は行（1つの出口に入る重み）を部品にした。</p>
+  </div>
+  <div class="box">
+    <div class="hd">大きさと、元との差（KL、対数目盛り）</div>
+    <canvas id="crv" role="img" aria-label="大きさと元との差の図"></canvas>
+    <p class="legend small mut"><span><i class="u"></i>そろえた量子化（数はビット数）</span><span><i class="a"></i>配分した量子化</span><span><i class="cur"></i>今の大きさ</span></p>
+  </div>
+  <div class="tw" tabindex="0" role="region" aria-labelledby="cap">
+    <table>
+      <caption id="cap">同じ大きさでの比べ（KL と正解率は学習に使っていない 360 点で測った）</caption>
+      <thead><tr><th scope="col">大きさ</th><th scope="col">そろえた KL</th><th scope="col">正解率</th><th scope="col">配分した KL</th><th scope="col">正解率</th><th scope="col">足し算の予想 → 実際</th><th scope="col">消した部品</th></tr></thead>
+      <tbody id="tb"></tbody>
+    </table>
+  </div>
+</div>`,
+  css: `:root { color-scheme: dark; --bg: #10131a; --fg: #e4e8f0; --mut: #9aa3b6; --line: #2b3346; --panel: #161a23; --k0: #5fc8b0; --k1: #f0b45a; --k2: #b49cff; --uni: #f07a8a; --alloc: #6fb6ff; --dmg: #f08c5a; --act: #6fb6ff; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    .wrap { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .ctl { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin: 0; }
+    .ctl label { display: inline-flex; align-items: center; gap: 6px; }
+    input[type="range"] { accent-color: var(--act); inline-size: 10em; margin: 0; cursor: pointer; }
+    output { font-variant-numeric: tabular-nums; }
+    button { font: inherit; min-block-size: 30px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 6px; background: #1e2433; color: var(--fg); cursor: pointer; }
+    button:disabled { opacity: .5; cursor: default; }
+    :focus-visible { outline: 2px solid #ffd27a; outline-offset: 2px; }
+    input[type="checkbox"][switch] { accent-color: var(--act); margin: 0; cursor: pointer; }
+    .mut { color: var(--mut); }
+    .small { font-size: 12px; margin: 0; }
+    .msg { margin: 0; padding: 6px 8px; border-inline-start: 3px solid var(--act); background: var(--panel); border-radius: 4px; font-size: 13px; min-block-size: 1.5em; }
+    .panels { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+    figure { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+    figcaption { font-size: 12px; line-height: 1.45; color: var(--mut); }
+    figcaption b { color: var(--fg); font-weight: 600; }
+    figcaption small { font-size: inherit; }
+    figcaption span { display: block; font-variant-numeric: tabular-nums; }
+    canvas { display: block; inline-size: 100%; background: #0b0d12; border-radius: 4px; }
+    .panels canvas { aspect-ratio: 1; block-size: auto; }
+    #map { block-size: 184px; }
+    #crv { block-size: 220px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+    .legend i { display: inline-block; inline-size: 10px; block-size: 10px; border-radius: 50%; vertical-align: -1px; margin-inline-end: 4px; }
+    .legend .k0 { background: var(--k0); margin-inline-end: 2px; }
+    .legend .k1 { background: var(--k1); margin-inline-end: 2px; }
+    .legend .k2 { background: var(--k2); }
+    .legend .ng { background: transparent; border: 2px solid #fff; inline-size: 8px; block-size: 8px; }
+    .legend .u { background: var(--uni); }
+    .legend .a { inline-size: 16px; block-size: 3px; border-radius: 2px; vertical-align: middle; background: var(--alloc); }
+    .legend .cur { inline-size: 0; block-size: 12px; border-radius: 0; border-inline-start: 2px dashed var(--fg); vertical-align: -2px; }
+    .sum { margin: 0; font-size: 13px; line-height: 1.6; min-block-size: 1.6em; }
+    .box { display: flex; flex-direction: column; gap: 4px; }
+    .hd { font-size: 12px; color: var(--mut); }
+    .tw { overflow-x: auto; }
+    table { border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+    caption { text-align: start; color: var(--mut); padding-block-end: 4px; }
+    th, td { padding: 3px 8px; border-block-end: 1px solid var(--line); text-align: end; white-space: nowrap; }
+    th[scope="row"], thead th:first-child { text-align: start; font-weight: 400; }
+    thead th { color: var(--mut); font-weight: 400; }
+    tr.cur th, tr.cur td { background: #22293a; }
+    tr.cur th[scope="row"] { font-weight: 600; }
+    .thumb .wrap { padding: 4px; gap: 4px; }
+    .thumb .ctl, .thumb .legend, .thumb .sum, .thumb .box, .thumb .tw { display: none; }
+    .thumb .msg { font-size: 11px; padding: 2px 6px; }
+    .thumb .panels { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+    .thumb figcaption { font-size: 10px; }
+    .thumb .ex { display: none; }`,
+  core() {
+    // ---- 乱数（種から同じ列が出る） ----
+    function rng(seed) {
+      let s = seed >>> 0;
+      return () => {
+        s = (s + 0x6D2B79F5) >>> 0;
+        let t = s;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    function gauss(r) {
+      const u = Math.max(1e-12, r());
+      return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * r());
+    }
+
+    // ---- 3本の腕のうずまき（平面の点と、0・1・2 の組） ----
+    function makeSpiral(seed, perClass) {
+      const r = rng(seed), K = 3, n = perClass * K;
+      const X = new Float64Array(n * 2), Y = new Int32Array(n);
+      for (let k = 0; k < K; k++) {
+        for (let i = 0; i < perClass; i++) {
+          const j = k * perClass + i;
+          const t = (i + r()) / perClass;
+          const rad = 0.08 + 0.92 * t;
+          const ang = k * 2 * Math.PI / K + t * 4.2 + gauss(r) * 0.13;
+          X[j * 2] = rad * Math.cos(ang);
+          X[j * 2 + 1] = rad * Math.sin(ang);
+          Y[j] = k;
+        }
+      }
+      return { X, Y, n };
+    }
+
+    // ---- 小さなネットワーク 2 → 32 → 32 → 32 → 3（間は tanh、最後は softmax） ----
+    const SIZES = [2, 32, 32, 32, 3];
+    const FLOAT_BITS = 16, SCALE_BITS = 16;
+    function initNet(seed) {
+      const r = rng(seed), layers = [];
+      for (let l = 0; l + 1 < SIZES.length; l++) {
+        const nin = SIZES[l], nout = SIZES[l + 1];
+        const W = new Float64Array(nin * nout), b = new Float64Array(nout);
+        const sd = Math.sqrt(1 / nin) * (l === 0 ? 2.5 : 1);
+        for (let i = 0; i < W.length; i++) W[i] = gauss(r) * sd;
+        layers.push({ nin, nout, W, b });
+      }
+      return layers;
+    }
+    function cloneNet(net) {
+      return net.map((L) => ({ nin: L.nin, nout: L.nout, W: Float64Array.from(L.W), b: Float64Array.from(L.b) }));
+    }
+    function makeActs() { return SIZES.map((n) => new Float64Array(n)); }
+    function softmax(z) {
+      let m = -Infinity;
+      for (let i = 0; i < z.length; i++) if (z[i] > m) m = z[i];
+      const p = new Float64Array(z.length);
+      let s = 0;
+      for (let i = 0; i < z.length; i++) { p[i] = Math.exp(z[i] - m); s += p[i]; }
+      for (let i = 0; i < z.length; i++) p[i] /= s;
+      return p;
+    }
+    // 1点を流して確率を返す。acts を渡すと、各層の出力（tanh の後。最後の層は softmax の前）をそこに入れる
+    function forward(net, x0, x1, acts) {
+      const A = acts || makeActs();
+      A[0][0] = x0; A[0][1] = x1;
+      const last = net.length - 1;
+      for (let l = 0; l <= last; l++) {
+        const L = net[l], a = A[l], o = A[l + 1];
+        for (let r = 0; r < L.nout; r++) {
+          let s = L.b[r];
+          const base = r * L.nin;
+          for (let j = 0; j < L.nin; j++) s += L.W[base + j] * a[j];
+          o[r] = l === last ? s : Math.tanh(s);
+        }
+      }
+      return softmax(A[last + 1]);
+    }
+
+    // ---- 学習（Adam。32 点ずつの束で、正解の確率を少しならす）。step(k, lr) を何度も呼んで少しずつ進める ----
+    function makeTrainer(net, data, seed) {
+      const r = rng(seed ^ 0x5bd1e995);
+      const zeros = () => net.map((L) => ({ W: new Float64Array(L.W.length), b: new Float64Array(L.b.length) }));
+      const m = zeros(), v = zeros(), g = zeros();
+      const acts = makeActs(), deltas = SIZES.map((n) => new Float64Array(n));
+      const B = 32, SMOOTH = 0.1;
+      let t = 0;
+      function step(k, lr) {
+        let lossSum = 0;
+        for (let it = 0; it < k; it++) {
+          for (const G of g) { G.W.fill(0); G.b.fill(0); }
+          let loss = 0;
+          for (let bi = 0; bi < B; bi++) {
+            const j = Math.floor(r() * data.n);
+            const p = forward(net, data.X[j * 2], data.X[j * 2 + 1], acts);
+            loss -= Math.log(Math.max(1e-12, p[data.Y[j]]));
+            const dl = deltas[net.length];
+            for (let c = 0; c < p.length; c++) dl[c] = p[c] - (c === data.Y[j] ? 1 - SMOOTH * (p.length - 1) / p.length : SMOOTH / p.length);
+            for (let l = net.length - 1; l >= 0; l--) {
+              const L = net[l], d = deltas[l + 1], a = acts[l], G = g[l];
+              for (let o = 0; o < L.nout; o++) {
+                const dv = d[o];
+                G.b[o] += dv;
+                const base = o * L.nin;
+                for (let i = 0; i < L.nin; i++) G.W[base + i] += dv * a[i];
+              }
+              if (l > 0) {
+                const dp = deltas[l];
+                for (let i = 0; i < L.nin; i++) {
+                  let s = 0;
+                  for (let o = 0; o < L.nout; o++) s += L.W[o * L.nin + i] * d[o];
+                  dp[i] = s * (1 - a[i] * a[i]);
+                }
+              }
+            }
+          }
+          t++;
+          const b1 = 0.9, b2 = 0.999, c1 = 1 - Math.pow(b1, t), c2 = 1 - Math.pow(b2, t);
+          for (let l = 0; l < net.length; l++) {
+            for (const key of ['W', 'b']) {
+              const P = net[l][key], G = g[l][key], M = m[l][key], V = v[l][key];
+              for (let i = 0; i < P.length; i++) {
+                const gi = G[i] / B;
+                M[i] = b1 * M[i] + (1 - b1) * gi;
+                V[i] = b2 * V[i] + (1 - b2) * gi * gi;
+                P[i] -= lr * (M[i] / c1) / (Math.sqrt(V[i] / c2) + 1e-8);
+              }
+            }
+          }
+          lossSum += loss / B;
+        }
+        return lossSum / Math.max(1, k);
+      }
+      return { step, get t() { return t; } };
+    }
+
+    // ---- 部品（量子化の単位）: 重み 32 個と、16 ビットの目盛り1つ ----
+    // 入力の層は列（x の重み 32 個と y の重み 32 個）、ほかの層は行（1つの出口に入る重み）を部品にする
+    function makePieces(net) {
+      const out = [];
+      net.forEach((L, l) => {
+        if (l === 0) {
+          for (let c = 0; c < L.nin; c++) {
+            const idx = new Int32Array(L.nout);
+            for (let r = 0; r < L.nout; r++) idx[r] = r * L.nin + c;
+            out.push({ layer: l, kind: 'col', k: c, idx });
+          }
+        } else {
+          for (let r = 0; r < L.nout; r++) {
+            const idx = new Int32Array(L.nin);
+            for (let i = 0; i < L.nin; i++) idx[i] = r * L.nin + i;
+            out.push({ layer: l, kind: 'row', k: r, idx });
+          }
+        }
+      });
+      return out;
+    }
+    function pieceBits(nw, b) { return b === 0 ? 0 : nw * b + SCALE_BITS; }
+
+    // ---- 一様な量子化。0 を持たない 2^b 段を等間隔に並べ、いちばん外の段の高さを二乗誤差が最小になるように探す ----
+    // b = 0 は部品を消す（全部 0 にする）
+    function quantize(vals, b) {
+      const n = vals.length;
+      if (b === 0) {
+        let e = 0;
+        for (let i = 0; i < n; i++) e += vals[i] * vals[i];
+        return { q: new Float64Array(n), mse: n ? e / n : 0, edge: 0 };
+      }
+      let amax = 0;
+      for (let i = 0; i < n; i++) amax = Math.max(amax, Math.abs(vals[i]));
+      if (amax === 0) return { q: new Float64Array(n), mse: 0, edge: 0 };
+      const levels = 2 ** b;
+      let best = null;
+      for (let k = 20; k <= 100; k += 4) {
+        const edge = amax * k / 100;                 // いちばん外の段の高さ
+        const half = edge / (1 - 1 / levels);        // 段の高さは -half + (c + 0.5) × 幅
+        const w = 2 * half / levels;
+        const q = new Float64Array(n);
+        let e = 0;
+        for (let i = 0; i < n; i++) {
+          let c = Math.floor((vals[i] + half) / w);
+          if (c < 0) c = 0; else if (c > levels - 1) c = levels - 1;
+          q[i] = -half + (c + 0.5) * w;
+          const d = vals[i] - q[i];
+          e += d * d;
+        }
+        if (!best || e < best.e) best = { e, q, edge };
+      }
+      return { q: best.q, mse: best.e / n, edge: best.edge };
+    }
+
+    // ---- 配り方（部品ごとのビット数の並び）を当てたネットワークと、その大きさ ----
+    function applyPlan(net, pcs, plan) {
+      const qn = cloneNet(net);
+      pcs.forEach((pc, i) => {
+        const W = net[pc.layer].W, vals = new Float64Array(pc.idx.length);
+        pc.idx.forEach((wi, j) => { vals[j] = W[wi]; });
+        const { q } = quantize(vals, plan[i]);
+        pc.idx.forEach((wi, j) => { qn[pc.layer].W[wi] = q[j]; });
+      });
+      return qn;
+    }
+    // バイアスは 16 ビットのまま数える
+    function planBits(net, pcs, plan) {
+      let bits = 0;
+      pcs.forEach((pc, i) => { bits += pieceBits(pc.idx.length, plan[i]); });
+      for (const L of net) bits += L.b.length * FLOAT_BITS;
+      return bits;
+    }
+    function fullBits(net) {
+      let n = 0;
+      for (const L of net) n += L.W.length + L.b.length;
+      return n * FLOAT_BITS;
+    }
+    function weightCount(net) {
+      let n = 0;
+      for (const L of net) n += L.W.length;
+      return n;
+    }
+
+    // ---- 元との差（KL(元 ‖ 量子化)、点の平均）と正解率 ----
+    function klDiv(p, q) {
+      let s = 0;
+      for (let c = 0; c < p.length; c++) if (p[c] > 0) s += p[c] * Math.log(p[c] / Math.max(1e-12, q[c]));
+      return s;
+    }
+    function compare(orig, qn, data) {
+      const a1 = makeActs(), a2 = makeActs();
+      let kl = 0, ok = 0;
+      for (let j = 0; j < data.n; j++) {
+        const x = data.X[j * 2], y = data.X[j * 2 + 1];
+        const p = forward(orig, x, y, a1), q = forward(qn, x, y, a2);
+        kl += klDiv(p, q);
+        let arg = 0;
+        for (let c = 1; c < q.length; c++) if (q[c] > q[arg]) arg = c;
+        if (data.Y && arg === data.Y[j]) ok++;
+      }
+      return { kl: kl / Math.max(1, data.n), acc: data.Y ? ok / Math.max(1, data.n) : null };
+    }
+
+    // ---- 部品を1つだけ量子化したときの悪化（KL）を測る。measure(i) で部品 i の全部のビット数を埋める ----
+    // 元の各層の値を覚えておき、重みが変わった層から後ろだけを計算し直す
+    function damageMeter(net, pcs, calib, bitsList) {
+      const n = calib.n, NL = net.length, last = NL - 1;
+      const post = [], pre = [], probs = [];
+      const acts = makeActs();
+      for (let j = 0; j < n; j++) {
+        probs.push(forward(net, calib.X[j * 2], calib.X[j * 2 + 1], acts));
+        post.push(acts.map((a) => Float64Array.from(a)));
+        const pr = [];
+        for (let l = 0; l < NL; l++) {
+          const L = net[l], a = post[j][l], o = new Float64Array(L.nout);
+          for (let r = 0; r < L.nout; r++) {
+            let s = L.b[r];
+            for (let i = 0; i < L.nin; i++) s += L.W[r * L.nin + i] * a[i];
+            o[r] = s;
+          }
+          pr.push(o);
+        }
+        pre.push(pr);
+      }
+      const table = pcs.map(() => new Float64Array(bitsList.length));
+      const mseTable = pcs.map(() => new Float64Array(bitsList.length));
+      const work = SIZES.map((s) => new Float64Array(s));
+      function measure(pi) {
+        const pc = pcs[pi], l0 = pc.layer, L = net[l0];
+        const vals = new Float64Array(pc.idx.length);
+        pc.idx.forEach((wi, k) => { vals[k] = L.W[wi]; });
+        bitsList.forEach((b, bi) => {
+          const { q, mse } = quantize(vals, b);
+          mseTable[pi][bi] = mse;
+          const dw = new Float64Array(q.length);
+          for (let k = 0; k < q.length; k++) dw[k] = q[k] - vals[k];
+          let kl = 0;
+          for (let j = 0; j < n; j++) {
+            const z = work[l0 + 1];
+            z.set(pre[j][l0]);
+            if (pc.kind === 'col') {
+              const xin = post[j][0][pc.k];
+              for (let r = 0; r < L.nout; r++) z[r] += dw[r] * xin;
+            } else {
+              const a = post[j][l0];
+              let s = 0;
+              for (let i = 0; i < L.nin; i++) s += dw[i] * a[i];
+              z[pc.k] += s;
+            }
+            let a = new Float64Array(z.length);
+            for (let r = 0; r < z.length; r++) a[r] = l0 === last ? z[r] : Math.tanh(z[r]);
+            for (let l = l0 + 1; l < NL; l++) {
+              const M = net[l], o = new Float64Array(M.nout);
+              for (let r = 0; r < M.nout; r++) {
+                let s = M.b[r];
+                const base = r * M.nin;
+                for (let i = 0; i < M.nin; i++) s += M.W[base + i] * a[i];
+                o[r] = l === last ? s : Math.tanh(s);
+              }
+              a = o;
+            }
+            kl += klDiv(probs[j], softmax(a));
+          }
+          table[pi][bi] = kl / Math.max(1, n);
+        });
+      }
+      return { table, mseTable, measure };
+    }
+    function damageTable(net, pcs, calib, bitsList) {
+      const m = damageMeter(net, pcs, calib, bitsList);
+      for (let i = 0; i < pcs.length; i++) m.measure(i);
+      return m;
+    }
+
+    // ---- 予算の中で悪化の合計が最小になる組み合わせ ----
+    // 部品ごとに選び方を1つ選ぶナップサック問題を、16 ビット単位の動的計画法で解く。
+    // costs[i][k] は部品 i を k 番目の選び方にしたときのビット数（16 の倍数）。allowed[k] が false の選び方は使わない
+    function allocate(table, costs, budgetBits, allowed) {
+      const U = 16, N = table.length;
+      const cap = Math.floor(budgetBits / U);
+      if (!(cap >= 0)) return null;
+      let dp = new Float64Array(cap + 1).fill(Infinity);
+      dp[0] = 0;
+      const pick = [];
+      for (let i = 0; i < N; i++) {
+        const nd = new Float64Array(cap + 1).fill(Infinity);
+        const pk = new Int8Array(cap + 1).fill(-1);
+        for (let k = 0; k < table[i].length; k++) {
+          if (allowed && !allowed[k]) continue;
+          if (costs[i][k] % U) throw new Error('ビット数は 16 の倍数にする');
+          const c = costs[i][k] / U, d = table[i][k];
+          for (let u = c; u <= cap; u++) {
+            const val = dp[u - c] + d;
+            if (val < nd[u]) { nd[u] = val; pk[u] = k; }
+          }
+        }
+        pick.push(pk);
+        dp = nd;
+      }
+      let bestU = -1;
+      for (let u = 0; u <= cap; u++) if (dp[u] < Infinity && (bestU < 0 || dp[u] < dp[bestU])) bestU = u;
+      if (bestU < 0) return null;
+      const choice = new Int32Array(N);
+      let u = bestU;
+      for (let i = N - 1; i >= 0; i--) {
+        const k = pick[i][u];
+        choice[i] = k;
+        u -= costs[i][k] / U;
+      }
+      return { choice, predicted: dp[bestU], bits: bestU * U };
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const thumb = !!window.THUMB;
+    if (thumb) document.documentElement.classList.add('thumb');
+    const BITS = [0, 1, 2, 3, 4, 6, 8];       // 部品ごとに選べるビット数（0 は消す）
+    const UNI = [1, 2, 3, 4];                 // そろえる側のビット数
+    const CURVE_UNI = [1, 2, 3, 4, 6, 8];
+    const STEPS = thumb ? 1200 : 1600, RES = 72, EXT = 1.15;
+    const cssVar = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim() || '#888';
+    const COL = { fg: cssVar('--fg'), mut: cssVar('--mut'), line: cssVar('--line'), uni: cssVar('--uni'), alloc: cssVar('--alloc'), dmg: cssVar('--dmg') };
+    const CLS = [[95, 200, 176], [240, 180, 90], [180, 156, 255]];
+    const BG = [11, 13, 18];
+    const BIT_COL = { 0: '#2a2f3b', 1: '#22405e', 2: '#295582', 3: '#316ca6', 4: '#3c84c6', 6: '#5fa3df', 8: '#9ccaf2' };
+    const msgEl = $('msg'), bitsIn = $('bits'), bitsOut = $('bitsv'), pruneSw = $('prune'), againBtn = $('again');
+    const sumEl = $('sum'), tbEl = $('tb'), h1El = $('h1'), mapCv = $('map'), crvCv = $('crv');
+    const cvs = [$('c0'), $('c1'), $('c2')], caps = [$('s0'), $('s1'), $('s2')];
+    const pause = () => (globalThis.scheduler && typeof globalThis.scheduler.yield === 'function'
+      ? globalThis.scheduler.yield() : new Promise((r) => setTimeout(r, 0)));
+    const say = (t) => { msgEl.textContent = t; };
+    const bytes = (bits) => Math.round(bits / 8).toLocaleString('ja-JP') + ' バイト';
+    const fmtKL = (v) => (v >= 0.01 ? v.toFixed(3) : v >= 0.0001 ? v.toFixed(4) : v.toExponential(1));
+    const pct = (a) => (a * 100).toFixed(1) + '%';
+    let gen = 0, S = null, seed = 1;
+
+    // 学習 → 部品ごとの悪化を測る。50 ms を超えないように区切り、間で画面と操作に順番を譲る
+    async function build(sd) {
+      const my = ++gen;
+      S = null;
+      againBtn.disabled = true;
+      sumEl.textContent = '';
+      tbEl.replaceChildren();
+      const train = makeSpiral(sd, 120), test = makeSpiral(sd + 1000, 120);
+      const net = initNet(sd);
+      const tr = makeTrainer(net, train, sd);
+      let until = performance.now() + 40;
+      say(`学習しています（0 / ${STEPS} 回）`);
+      while (tr.t < STEPS) {
+        tr.step(10, tr.t < STEPS * 0.62 ? 0.01 : 0.003);
+        if (performance.now() >= until) {
+          say(`学習しています（${tr.t} / ${STEPS} 回）`);
+          await pause();
+          if (my !== gen) return;
+          until = performance.now() + 40;
+        }
+      }
+      const pcs = makePieces(net);
+      // 小窓では測る点を減らして早く描く
+      const calib = thumb ? makeSpiral(sd + 2000, 40) : train;
+      const meter = damageMeter(net, pcs, calib, BITS);
+      for (let i = 0; i < pcs.length; i++) {
+        meter.measure(i);
+        if (performance.now() >= until) {
+          say(`部品を1つずつ量子化して、悪化を測っています（${i + 1} / ${pcs.length}）`);
+          await pause();
+          if (my !== gen) return;
+          until = performance.now() + 40;
+        }
+      }
+      const W = weightCount(net), full = fullBits(net);
+      const st = {
+        seed: sd, net, train: calib, test, pcs, table: meter.table, W, full, fixed: full - W * FLOAT_BITS,
+        costs: pcs.map((p) => BITS.map((b) => pieceBits(p.idx.length, b))),
+        orig: compare(net, net, test), rows: new Map(), curves: new Map(), imgs: new Map([['orig', probImage(net)]]),
+      };
+      S = st;
+      againBtn.disabled = false;
+      msgEl.hidden = thumb;
+      say(`種 ${sd} で学習しました。重み ${W.toLocaleString('ja-JP')} 個を 32 個ずつ ${pcs.length} 個の部品に分け、部品ごとに ${BITS.length} 通りのビット数で悪化を測りました。`);
+      render();
+      if (!thumb) await ensureCurve(st, pruneSw.checked);
+    }
+
+    // そろえた b ビットと、同じ大きさで配分したもの
+    function row(st, b, prune) {
+      const key = b + (prune ? 'p' : 'n');
+      if (st.rows.has(key)) return st.rows.get(key);
+      const uplan = st.pcs.map(() => b);
+      const uq = applyPlan(st.net, st.pcs, uplan);
+      const ubits = planBits(st.net, st.pcs, uplan);
+      const allowed = BITS.map((x) => prune || x > 0);
+      const a = allocate(st.table, st.costs, ubits - st.fixed, allowed);
+      const plan = Array.from(a.choice, (k) => BITS[k]);
+      const aq = applyPlan(st.net, st.pcs, plan);
+      const r = {
+        b, key, uq, aq, plan, ubits, abits: planBits(st.net, st.pcs, plan),
+        u: compare(st.net, uq, st.test), al: compare(st.net, aq, st.test),
+        predicted: a.predicted, actual: compare(st.net, aq, st.train).kl,
+        pruned: plan.filter((x) => x === 0).length,
+      };
+      st.rows.set(key, r);
+      return r;
+    }
+
+    // 予算を 40 バイトずつ変えて配分し、大きさと KL の線を作る
+    async function ensureCurve(st, prune) {
+      const key = prune ? 'p' : 'n';
+      if (st.curves.has(key) || st.curves.has(key + '-busy')) return;
+      st.curves.set(key + '-busy', true);
+      const allowed = BITS.map((x) => prune || x > 0);
+      const pts = [];
+      let until = performance.now() + 40;
+      for (let B = 400; B <= 2600; B += 40) {
+        const a = allocate(st.table, st.costs, B * 8 - st.fixed, allowed);
+        if (a) {
+          const plan = Array.from(a.choice, (k) => BITS[k]);
+          pts.push({ bits: planBits(st.net, st.pcs, plan), kl: compare(st.net, applyPlan(st.net, st.pcs, plan), st.test).kl });
+        }
+        if (performance.now() >= until) {
+          await pause();
+          if (S !== st) return;
+          until = performance.now() + 40;
+        }
+      }
+      const uni = CURVE_UNI.map((b) => {
+        const plan = st.pcs.map(() => b);
+        return { b, bits: planBits(st.net, st.pcs, plan), kl: compare(st.net, applyPlan(st.net, st.pcs, plan), st.test).kl };
+      });
+      st.curves.delete(key + '-busy');
+      st.curves.set(key, { pts, uni });
+      if (S === st) render();
+    }
+
+    // 平面の各点で確率を求め、3色を混ぜた小さな絵にする（自信があるほど濃い）
+    function probImage(net) {
+      const c = document.createElement('canvas');
+      c.width = RES; c.height = RES;
+      const g = c.getContext('2d');
+      const im = g.createImageData(RES, RES);
+      const acts = makeActs();
+      for (let py = 0; py < RES; py++) {
+        for (let px = 0; px < RES; px++) {
+          const x = ((px + 0.5) / RES * 2 - 1) * EXT, y = (1 - (py + 0.5) / RES * 2) * EXT;
+          const p = forward(net, x, y, acts);
+          let r = 0, gg = 0, bb = 0, mx = 0;
+          for (let k = 0; k < 3; k++) {
+            r += p[k] * CLS[k][0]; gg += p[k] * CLS[k][1]; bb += p[k] * CLS[k][2];
+            mx = Math.max(mx, p[k]);
+          }
+          const t = 0.2 + 0.6 * (mx - 1 / 3) * 1.5;
+          const o = (py * RES + px) * 4;
+          im.data[o] = BG[0] + (r - BG[0]) * t;
+          im.data[o + 1] = BG[1] + (gg - BG[1]) * t;
+          im.data[o + 2] = BG[2] + (bb - BG[2]) * t;
+          im.data[o + 3] = 255;
+        }
+      }
+      g.putImageData(im, 0, 0);
+      return c;
+    }
+
+    function fit(c) {
+      const rc = c.getBoundingClientRect();
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const w = Math.max(1, Math.round(rc.width * dpr)), h = Math.max(1, Math.round(rc.height * dpr));
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+      return { g: c.getContext('2d'), w, h, dpr };
+    }
+
+    // 見分け方の図と、学習に使っていない点（間違えた点は白い縁）
+    function drawPanel(c, img, net, st) {
+      const { g, w, h, dpr } = fit(c);
+      g.imageSmoothingEnabled = true;
+      g.drawImage(img, 0, 0, w, h);
+      const acts = makeActs(), T = st.test;
+      const rad = Math.max(1.2, (thumb ? 1.4 : 2.2) * dpr * Math.min(1, w / (220 * dpr)));
+      let wrong = 0;
+      for (let j = 0; j < T.n; j++) {
+        const x = T.X[j * 2], y = T.X[j * 2 + 1];
+        const p = forward(net, x, y, acts);
+        let arg = 0;
+        for (let k = 1; k < 3; k++) if (p[k] > p[arg]) arg = k;
+        const ok = arg === T.Y[j];
+        if (!ok) wrong++;
+        const cc = CLS[T.Y[j]];
+        g.beginPath();
+        g.arc((x / EXT + 1) / 2 * w, (1 - y / EXT) / 2 * h, ok ? rad : rad * 1.3, 0, Math.PI * 2);
+        g.fillStyle = `rgb(${cc[0]},${cc[1]},${cc[2]})`;
+        g.fill();
+        g.lineWidth = ok ? (thumb ? 0.4 : 0.8) * dpr : (thumb ? 1 : 1.6) * dpr;
+        g.strokeStyle = ok ? 'rgba(0,0,0,.7)' : '#fff';
+        g.stroke();
+      }
+      return wrong;
+    }
+
+    // 上に「その部品だけを 2 ビットにしたときの悪化」の棒、下に配ったビット数
+    function drawMap(st, r) {
+      const { g, w, h, dpr } = fit(mapCv);
+      g.clearRect(0, 0, w, h);
+      const groups = [['入力', 0], ['1 層', 1], ['2 層', 2], ['出力', 3]];
+      const lw = 40 * dpr, rowH = h / groups.length, cw = (w - lw - 4 * dpr) / 32;
+      const k2 = BITS.indexOf(2), barH = rowH * 0.48, gap = 3 * dpr;
+      g.textBaseline = 'middle';
+      groups.forEach(([label, layer], gi) => {
+        const y0 = gi * rowH;
+        g.fillStyle = COL.mut;
+        g.font = `${11 * dpr}px system-ui, sans-serif`;
+        g.textAlign = 'left';
+        g.fillText(label, 2 * dpr, y0 + rowH / 2);
+        // 10 倍ごとの目盛りの線（1e-7 〜 1）
+        g.strokeStyle = COL.line;
+        g.lineWidth = 1;
+        for (let e = 0; e <= 7; e++) {
+          const yy = Math.round(y0 + gap + barH * (e / 7)) + 0.5;
+          g.globalAlpha = e === 0 || e === 7 ? 0.9 : 0.35;
+          g.beginPath(); g.moveTo(lw, yy); g.lineTo(w - 4 * dpr, yy); g.stroke();
+        }
+        g.globalAlpha = 1;
+        let j = 0;
+        st.pcs.forEach((pc, pi) => {
+          if (pc.layer !== layer) return;
+          const x = lw + j * cw;
+          j++;
+          const d = st.table[pi][k2];
+          const v = Math.max(0, Math.min(1, (Math.log10(Math.max(d, 1e-7)) + 7) / 7));
+          g.fillStyle = COL.dmg;
+          g.fillRect(x + 1, y0 + gap + barH * (1 - v), Math.max(1, cw - 2), barH * v);
+          const b = r.plan[pi], cy = y0 + gap * 2 + barH, ch = rowH - barH - gap * 3;
+          g.fillStyle = BIT_COL[b];
+          g.fillRect(x + 1, cy, Math.max(1, cw - 2), ch);
+          if (cw >= 10 * dpr) {
+            g.fillStyle = b >= 6 ? '#0d1420' : '#e4e8f0';
+            g.textAlign = 'center';
+            g.font = `${Math.min(12, cw / dpr - 1) * dpr}px system-ui, sans-serif`;
+            g.fillText(b === 0 ? '×' : String(b), x + cw / 2, cy + ch / 2);
+          }
+        });
+      });
+    }
+
+    // 横は大きさ（バイト）、縦は KL（対数目盛り）
+    function drawCurve(st, r, prune) {
+      const { g, w, h, dpr } = fit(crvCv);
+      g.clearRect(0, 0, w, h);
+      const cur = st.curves.get(prune ? 'p' : 'n');
+      const L = 44 * dpr, R = 10 * dpr, T = 10 * dpr, B = 22 * dpr;
+      const x0 = 400, x1 = 2600, y0 = -5, y1 = 0.5;
+      const X = (bits) => L + (bits / 8 - x0) / (x1 - x0) * (w - L - R);
+      const Y = (kl) => T + (y1 - Math.max(y0, Math.min(y1, Math.log10(Math.max(kl, 1e-9))))) / (y1 - y0) * (h - T - B);
+      g.strokeStyle = COL.line;
+      g.lineWidth = 1;
+      g.fillStyle = COL.mut;
+      g.font = `${10.5 * dpr}px system-ui, sans-serif`;
+      for (let e = y0; e <= 0; e++) {
+        const y = Math.round(Y(10 ** e)) + 0.5;
+        g.beginPath(); g.moveTo(L, y); g.lineTo(w - R, y); g.stroke();
+        g.textAlign = 'right'; g.textBaseline = 'middle';
+        g.fillText(e === 0 ? '1' : '1e' + e, L - 4 * dpr, y);
+      }
+      for (let bx = 500; bx <= 2500; bx += 500) {
+        const x = Math.round(X(bx * 8)) + 0.5;
+        g.beginPath(); g.moveTo(x, T); g.lineTo(x, h - B); g.stroke();
+        g.textAlign = 'center'; g.textBaseline = 'top';
+        g.fillText(bx.toLocaleString('ja-JP') + ' B', x, h - B + 5 * dpr);
+      }
+      const xc = Math.round(X(r.ubits)) + 0.5;
+      g.strokeStyle = COL.fg;
+      g.setLineDash([4 * dpr, 4 * dpr]);
+      g.beginPath(); g.moveTo(xc, T); g.lineTo(xc, h - B); g.stroke();
+      g.setLineDash([]);
+      if (!cur) {
+        g.fillStyle = COL.mut; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText('配分の線を計算しています', (L + w - R) / 2, h / 2);
+        return;
+      }
+      g.strokeStyle = COL.alloc;
+      g.lineWidth = 2 * dpr;
+      g.lineJoin = 'round';
+      g.beginPath();
+      cur.pts.forEach((p, i) => { const x = X(p.bits), y = Y(p.kl); if (i) g.lineTo(x, y); else g.moveTo(x, y); });
+      g.stroke();
+      cur.uni.forEach((u) => {
+        const x = X(u.bits), y = Y(u.kl);
+        g.fillStyle = COL.uni;
+        g.beginPath(); g.arc(x, y, 4 * dpr, 0, Math.PI * 2); g.fill();
+        g.fillStyle = COL.fg; g.textAlign = 'center'; g.textBaseline = 'bottom';
+        g.fillText(String(u.b), x, y - 5 * dpr);
+      });
+    }
+
+    function renderTable(st, prune) {
+      const b0 = +bitsIn.value;
+      tbEl.replaceChildren(...UNI.map((b) => {
+        const r = row(st, b, prune);
+        const tr = document.createElement('tr');
+        if (b === b0) tr.className = 'cur';
+        const cells = [`${b} ビット・${bytes(r.ubits)}`, fmtKL(r.u.kl), pct(r.u.acc), fmtKL(r.al.kl), pct(r.al.acc), `${fmtKL(r.predicted)} → ${fmtKL(r.actual)}`, `${r.pruned} 個`];
+        cells.forEach((t, i) => {
+          const c = document.createElement(i ? 'td' : 'th');
+          if (!i) c.scope = 'row';
+          c.textContent = t;
+          tr.append(c);
+        });
+        return tr;
+      }));
+    }
+
+    function render() {
+      const b = +bitsIn.value, prune = pruneSw.checked;
+      bitsOut.textContent = `${b} ビット（目盛りを入れて重み1つあたり ${b + 0.5} ビット）`;
+      bitsIn.setAttribute('aria-valuetext', `${b} ビット`);
+      h1El.textContent = `そろえた ${b} ビット`;
+      const st = S;
+      if (!st) return;
+      const r = row(st, b, prune);
+      if (!st.imgs.has('u' + b)) st.imgs.set('u' + b, probImage(r.uq));
+      if (!st.imgs.has('a' + r.key)) st.imgs.set('a' + r.key, probImage(r.aq));
+      drawPanel(cvs[0], st.imgs.get('orig'), st.net, st);
+      drawPanel(cvs[1], st.imgs.get('u' + b), r.uq, st);
+      drawPanel(cvs[2], st.imgs.get('a' + r.key), r.aq, st);
+      if (thumb) {
+        caps[0].textContent = `正解率 ${pct(st.orig.acc)}`;
+        caps[1].textContent = `正解率 ${pct(r.u.acc)}`;
+        caps[2].textContent = `正解率 ${pct(r.al.acc)}`;
+      } else {
+        caps[0].textContent = `${bytes(st.full)}・正解率 ${pct(st.orig.acc)}`;
+        caps[1].textContent = `${bytes(r.ubits)}・KL ${fmtKL(r.u.kl)}・正解率 ${pct(r.u.acc)}`;
+        caps[2].textContent = `${bytes(r.abits)}・KL ${fmtKL(r.al.kl)}・正解率 ${pct(r.al.acc)}`;
+      }
+      cvs[0].setAttribute('aria-label', `元のネットワークが平面をどう見分けるかの図。正解率 ${pct(st.orig.acc)}`);
+      cvs[1].setAttribute('aria-label', `全部の部品を ${b} ビットにしたネットワークの図。正解率 ${pct(r.u.acc)}`);
+      cvs[2].setAttribute('aria-label', `同じ大きさでビット数を配り分けたネットワークの図。正解率 ${pct(r.al.acc)}`);
+      if (thumb) return;
+      const cur = st.curves.get(prune ? 'p' : 'n');
+      let same = '';
+      if (cur) {
+        let hit = null;
+        for (const p of cur.pts) if (p.kl <= r.u.kl && (!hit || p.bits < hit.bits)) hit = p;
+        if (hit && hit.bits < r.ubits) same = `そろえた ${b} ビットと同じくらい元に近いもの（KL ${fmtKL(r.u.kl)} 以下）は、配分すると約 ${bytes(hit.bits)}（${Math.round(hit.bits / r.ubits * 100)}%）で作れた。`;
+      }
+      const inBits = r.plan.slice(0, 2).join('・');
+      const samePlan = !prune && r.plan.every((x) => x === b);
+      sumEl.textContent = samePlan
+        ? `部品を消せないときは、${b} ビットより少ない選び方が無いので、${bytes(r.ubits)}では配分しても全部 ${b} ビットのままになる。` + same
+        : `同じ ${bytes(r.ubits)}で、そろえた ${b} ビットは正解率 ${pct(r.u.acc)}、配分すると ${pct(r.al.acc)}。入力の層の2つの部品には ${inBits} ビットを配り、${r.pruned} 個の部品を消した。` + same;
+      drawMap(st, r);
+      mapCv.setAttribute('aria-label', `部品ごとの悪化と配ったビット数の図。入力の層の部品に ${inBits} ビット、消した部品は ${r.pruned} 個`);
+      drawCurve(st, r, prune);
+      crvCv.setAttribute('aria-label', `大きさと元との差の図。今の大きさは ${bytes(r.ubits)}`);
+      renderTable(st, prune);
+    }
+
+    bitsIn.addEventListener('input', render);
+    pruneSw.addEventListener('change', () => {
+      render();
+      if (S && !thumb) ensureCurve(S, pruneSw.checked);
+    });
+    againBtn.addEventListener('click', () => { seed++; build(seed); });
+    // 幅が変わったときだけ描き直す。表や文の書き換えで高さが変わっても、観察の通知の中では描かない
+    let lastW = -1;
+    new ResizeObserver((ents) => {
+      const w = Math.round(ents[0].contentRect.width);
+      if (w === lastW) return;
+      lastW = w;
+      setTimeout(render, 0);
+    }).observe(document.querySelector('.wrap'));
+
+    if (thumb) {
+      // 小窓では、そろえる側のビット数を 1 → 2 → 3 → 2 と自動で変えて見せる
+      const seq = [1, 2, 3, 2];
+      let i = 0;
+      bitsIn.value = seq[0];
+      setInterval(() => {
+        if (!S) return;
+        i = (i + 1) % seq.length;
+        bitsIn.value = seq[i];
+        render();
+      }, 2400);
+    }
+    build(seed);
+  },
+});
+
+dekiru.add({
+  id: 'tr-20261122-model-check', c: 'trend', lv: 3, date: '2026-11-22',
+  t: 'ルールを1つ書くだけで、操作の順番を全部調べて、ルールが破れるいちばん短い手順を見つける（TLA+ / Quint のモデル検査）',
+  y: 'るーるをひとつかくだけでそうさのじゅんばんをぜんぶしらべてるーるがやぶれるいちばんみじかいてじゅんをみつけるてぃーえるえーぷらすくいんとのもでるけんさ',
+  tags: ['TLA+', 'Quint', 'モデル検査', '決定的シミュレーションテスト', '幅優先探索', 'Canvas'],
+  d: '2026年11月21日、karamage さんが Zenn に「【TLA+】AIにテストケースを書かせるな。ルールを書け」を公開した。AI が実装とテストの両方を書くと、テストは実装と同じ思い込みを引き継ぐ。そこで人は「どんな順番で操作しても守られるべきルール」だけを書き、どの順番を試すかは機械に任せる、という記事である。記事は TLA+ 系の言語 Quint で、在庫 2 枚のチケットを 3 人が買う設計を書く。確認画面で在庫を見て、確定では在庫を見ずに減らす書き方では、quint run が 12 ミリ秒で「3 枚売れて在庫が −1」になる手順を見つけた。確定のときにもう一度在庫を見るように直すと、モデル検査器の TLC が 29 通りの状態を全部調べて、違反は無いと答えた。前日の 11 月 20 日には、Outdata の記事「Deterministic Simulation Testing Is For Everyone」が Hacker News に載った。乱数の種から環境（入力・時刻・通信など）を作り、同じ種なら同じ失敗が必ず出るようにするテストの方法を、分散データベース以外でも使おうという記事である。この見本は、2 つの記事の中心の部分をブラウザだけで作り直す。題材は、チケット販売、2 人の係が同じ口座から送金する処理、1 人用の部屋の札（相互排除）の 3 つである。題材ごとに元の書き方と直した書き方があり、操作とルールを JavaScript の状態機械で書いてある。「ランダムに試す」は、種から作った乱数で操作をでたらめに選び、200 本の手順を流す（quint run と、決定的シミュレーションテストにあたる）。同じ種でもう一度押すと、同じ手順がもう一度出る。「全部調べる」は、最初の状態から幅優先で、たどり着ける状態を 1 つ残らず作る（TLC にあたる）。ルールが破れる状態と、誰も動けなくなる状態（行き詰まり）を探し、そこまでのいちばん短い手順を表に出す。図の点は状態で、左から右へ手数が増える。点を押すと、その状態までのいちばん短い手順が表に出る。直した書き方のチケット販売を全部調べると、記事の TLC と同じく 29 通りの状態になり、作った状態（重なりを含む）も同じ 55 になる。再現していない所: TLA+ や Quint の言語は読めず、題材は見本の中に JavaScript で書いた 3 つだけである。TLC が持つ対称性による削減、「いつかは必ず入れる」のような時間についての性質（活性）の検査、記事の後半にあるモデルベーステスト（作った手順を本物の実装に流して状態を比べる）は作っていない。決定的シミュレーションテストのうち、通信の遅れや故障、時刻、ディスクを真似る部分も無く、乱数で選ぶのは操作の順番だけである。',
+  p: '操作は next(状態) が「今できる操作」を全部返す形で書く。誰がいつ動くかを決めないので、ランダムな実行も、全部を調べる探索も、同じ関数を使える。全部を調べる探索は、状態を文字列のキーにして Map に入れ、同じ状態を 2 度たどらないようにする。新しい状態を見つけたときに、どの状態からどの操作で来たか（親）を覚えておく。幅優先で探すので、親を最初の状態までさかのぼった手順が、その状態へのいちばん短い手順になる。ルールが破れる状態のうち見つけた順で最初のものを選べば、最短の反例が得られる。行き詰まりは「ルールは守られているが、できる操作が 1 つも無く、全員が終わった状態でもない」状態として数える。部屋の札で「自分の札を立ててから相手の札を見る」書き方は、2 人とも札を立てたところで止まる。ランダムな実行は、種から同じ列を出す小さな乱数（mulberry32）だけで操作を選ぶので、種が同じなら手順も同じになる。ランダムな実行で違反が出なくても「出なかった」としか言えないが、全部を調べる探索は、調べ残しが 0 であることを数で示せる。ただし、確かめたのは在庫 2 枚・3 人のような小さな世界だけである。',
+  refs: [
+    { title: '【TLA+】AIにテストケースを書かせるな。ルールを書け（karamage さん、Zenn、2026-11-21）', url: 'https://zenn.dev/karamage/articles/73027ee36796dc' },
+    { title: 'Deterministic Simulation Testing Is For Everyone（Outdata、2026-11-20）', url: 'https://outdata.net/blog/261120' },
+    { title: 'Hacker News: Deterministic Simulation Testing Is for Everyone', url: 'https://news.ycombinator.com/item?id=50574264' },
+    { title: 'Quint（公式サイト）', url: 'https://quint.sh/' },
+    { title: 'Reliable Software in the LLM Era（Quint のブログ）', url: 'https://quint.sh/posts/llm_era' },
+  ],
+  html: `<div class="wrap">
+  <div class="sel">
+    <label for="spec">題材</label><select id="spec"></select>
+    <label for="ver">書き方</label><select id="ver"></select>
+  </div>
+  <div class="box">
+    <div class="hd">操作とルール（色の付いた行が、書き方の違う所）</div>
+    <pre id="code" class="code"></pre>
+  </div>
+  <div class="ctl">
+    <button type="button" id="run">ランダムに試す（200 本）</button>
+    <label>種 <input type="number" id="seed" min="0" max="4294967295" step="1" value="1" inputmode="numeric"></label>
+    <button type="button" id="all">全部調べる</button>
+  </div>
+  <p id="msg" class="msg" role="status"></p>
+  <canvas id="graph" role="img" aria-label="状態の図"></canvas>
+  <p class="legend small mut"><span><i class="n"></i>調べた状態</span><span><i class="b"></i>ルールが破れる</span><span><i class="s"></i>行き詰まり</span><span><i class="e"></i>全員が終わった</span><span><i class="r"></i>ランダムの手順が通った</span><span><i class="p"></i>表の手順</span></p>
+  <p class="small mut">点は状態です。左端が最初の状態で、右へ行くほど手数が多くなります。点を押すと、その状態までのいちばん短い手順が表に出ます。</p>
+  <p id="cov" class="small"></p>
+  <div class="tw" tabindex="0" role="region" aria-labelledby="cap">
+    <table>
+      <caption id="cap"></caption>
+      <thead><tr id="hd"></tr></thead>
+      <tbody id="tb"></tbody>
+    </table>
+  </div>
+</div>`,
+  css: `:root { color-scheme: dark; --bg: #10131a; --fg: #e4e8f0; --mut: #9aa3b6; --line: #2f3850; --panel: #161a23; --node: #8592ad; --bad: #ff6b6b; --stuck: #f0a040; --end: #5fc8a0; --seen: #6fb6ff; --path: #ffd27a; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    .wrap { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .ctl { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+    .ctl label { display: inline-flex; align-items: center; gap: 6px; }
+    select, input, button { font: inherit; color: var(--fg); background: #1e2433; border: 1px solid var(--line); border-radius: 6px; }
+    select { min-block-size: 30px; padding: 2px 6px; max-inline-size: 100%; }
+    input[type="number"] { inline-size: 7em; min-block-size: 30px; padding: 2px 6px; font-variant-numeric: tabular-nums; }
+    button { min-block-size: 30px; padding: 2px 12px; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: default; }
+    :focus-visible { outline: 2px solid var(--path); outline-offset: 2px; }
+    .mut { color: var(--mut); }
+    .small { font-size: 12px; margin: 0; }
+    .box { display: flex; flex-direction: column; gap: 4px; }
+    .hd { font-size: 12px; color: var(--mut); }
+    .code { margin: 0; padding: 8px 10px; background: var(--panel); border-radius: 6px; font: 12.5px/1.6 ui-monospace, Consolas, monospace; overflow-x: auto; white-space: pre; }
+    .code > * { display: block; }
+    .code mark { background: #3a3320; color: #ffe2a0; }
+    .code .cm { color: var(--mut); }
+    .code .rl { color: #9fe0c0; }
+    .msg { margin: 0; padding: 6px 8px; border-inline-start: 3px solid var(--seen); background: var(--panel); border-radius: 4px; font-size: 13px; min-block-size: 1.5em; }
+    canvas { display: block; inline-size: 100%; block-size: 260px; background: #0b0d12; border-radius: 6px; cursor: pointer; }
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+    .legend i { display: inline-block; inline-size: 10px; block-size: 10px; border-radius: 50%; vertical-align: -1px; margin-inline-end: 4px; }
+    .legend .n { background: var(--node); }
+    .legend .b { background: var(--bad); }
+    .legend .s { background: var(--stuck); }
+    .legend .e { background: var(--end); }
+    .legend .r { background: transparent; border: 2px solid var(--seen); inline-size: 8px; block-size: 8px; }
+    .legend .p { inline-size: 16px; block-size: 3px; border-radius: 2px; vertical-align: middle; background: var(--path); }
+    #cov { min-block-size: 1.2em; }
+    .tw { overflow-x: auto; }
+    table { border-collapse: separate; border-spacing: 0; font-size: 12px; font-variant-numeric: tabular-nums; }
+    caption { text-align: start; color: var(--mut); padding-block-end: 4px; }
+    th, td { padding: 3px 8px; border-block-end: 1px solid var(--line); text-align: start; white-space: nowrap; }
+    thead th { color: var(--mut); font-weight: 400; }
+    tbody th { position: sticky; inset-inline-start: 0; background: var(--bg); font-weight: 400; color: var(--mut); text-align: end; }
+    td.chg { color: var(--path); }
+    tr.bad td, tr.bad th { background: #3a1e24; }
+    tr.stuck td, tr.stuck th { background: #3a2c18; }
+    .sel { display: grid; grid-template-columns: auto minmax(0, 26em); gap: 6px 8px; align-items: center; justify-content: start; }
+    .sel select { inline-size: 100%; }
+    .code .tt { color: var(--fg); font-weight: 600; }
+    .thumb, .thumb body { overflow: hidden; }
+    .thumb .wrap { padding: 4px; gap: 4px; }
+    .thumb .sel, .thumb .ctl, .thumb .box, .thumb .legend, .thumb .small, .thumb .tw { display: none; }
+    .thumb .msg { font-size: 11px; padding: 2px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .thumb canvas { block-size: calc(100vh - 40px); min-block-size: 40px; }`,
+  core() {
+    // ---- 乱数（種から同じ列が出る） ----
+    function rng(seed) {
+      let s = seed >>> 0;
+      return () => {
+        s = (s + 0x6D2B79F5) >>> 0;
+        let t = s;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    const put = (str, i, ch) => str.slice(0, i) + ch + str.slice(i + 1);
+
+    // ---- 題材 ----
+    // init: 最初の状態 / key: 状態を表す文字列 / next(s, v): 今できる操作を全部返す（誰が動くかは決めない）
+    // ok(s, v): ルールが守られているか / done(s, v): 全員が終わったか（操作が無くても行き詰まりではない）
+    const PHASE = { I: '待ち', C: '確認済み', B: '購入', S: '売り切れ' };
+    const SPECS = {
+      ticket: {
+        short: 'チケット販売',
+        title: 'チケット販売（在庫 2 枚を 3 人が買う）',
+        versions: [
+          { id: 'bug', label: '元の書き方（確定のときに在庫を見ない）' },
+          { id: 'fix', label: '直した書き方（確定のときにもう一度見る）' },
+        ],
+        code: {
+          bug: [
+            '#毎回、誰か 1 人が、今できる操作を 1 つする（順番は決めない）',
+            '確認(u)  u が「待ち」のときだけ',
+            '         u ← 在庫 > 0 なら「確認済み」、0 なら「売り切れ」',
+            '確定(u)  u が「確認済み」のときだけ',
+            '*        在庫 ← 在庫 − 1、売れた ← 売れた + 1、u ← 「購入」',
+            '!ルール   売れた ≤ 2（最初の在庫）',
+          ],
+          fix: [
+            '#毎回、誰か 1 人が、今できる操作を 1 つする（順番は決めない）',
+            '確認(u)  u が「待ち」のときだけ',
+            '         u ← 在庫 > 0 なら「確認済み」、0 なら「売り切れ」',
+            '確定(u)  u が「確認済み」のときだけ',
+            '*        在庫 > 0 なら 在庫 ← 在庫 − 1、売れた ← 売れた + 1、u ← 「購入」',
+            '*        0 なら u ← 「売り切れ」',
+            '!ルール   売れた ≤ 2（最初の在庫）',
+          ],
+        },
+        steps: 12,
+        cols: ['在庫', '売れた', 'A', 'B', 'C'],
+        init: () => ({ stock: 2, sold: 0, ph: 'III' }),
+        key: (s) => `${s.stock}/${s.sold}/${s.ph}`,
+        next(s, v) {
+          const out = [];
+          for (let i = 0; i < 3; i++) {
+            const u = 'ABC'[i], p = s.ph[i];
+            if (p === 'I') {
+              out.push({ act: `${u} が確認画面を開く${s.stock > 0 ? '' : '（売り切れ）'}`, s: { stock: s.stock, sold: s.sold, ph: put(s.ph, i, s.stock > 0 ? 'C' : 'S') } });
+            } else if (p === 'C') {
+              if (v === 'bug' || s.stock > 0) out.push({ act: `${u} が確定を押す`, s: { stock: s.stock - 1, sold: s.sold + 1, ph: put(s.ph, i, 'B') } });
+              else out.push({ act: `${u} が確定を押す（売り切れ）`, s: { stock: s.stock, sold: s.sold, ph: put(s.ph, i, 'S') } });
+            }
+          }
+          return out;
+        },
+        ok: (s) => s.sold <= 2,
+        done: (s) => !/[IC]/.test(s.ph),
+        row: (s) => [s.stock, s.sold, ...Array.from(s.ph, (c) => PHASE[c])],
+      },
+      bank: {
+        short: '2 人の送金',
+        title: '2 人の送金（甲の 100 円から、係1 が 30 円、係2 が 50 円を乙へ）',
+        versions: [
+          { id: 'bug', label: '元の書き方（残高を読んでから、計算した値を書く）' },
+          { id: 'fix', label: '直した書き方（読むと書くを 1 回で行う）' },
+        ],
+        code: {
+          bug: [
+            '#係1 と係2 が同時に動く。毎回、どちらか 1 人が 1 手進む',
+            '送金(a)',
+            '*  t ← 甲の残高を読む',
+            '*  甲 ← t − a',
+            '*  t ← 乙の残高を読む',
+            '*  乙 ← t + a',
+            '!ルール   2 人とも終わったら、甲 + 乙 = 100',
+          ],
+          fix: [
+            '#係1 と係2 が同時に動く。毎回、どちらか 1 人が 1 手進む',
+            '送金(a)',
+            '*  甲 ← 甲 − a（読むと書くを 1 回で。データベースの UPDATE など）',
+            '*  乙 ← 乙 + a',
+            '!ルール   2 人とも終わったら、甲 + 乙 = 100',
+          ],
+        },
+        steps: 12,
+        cols: ['甲', '乙', '係1', '係2'],
+        init: () => ({ x: 100, y: 0, pc: [0, 0], t: [0, 0] }),
+        key: (s) => `${s.x}/${s.y}/${s.pc}/${s.t}`,
+        next(s, v) {
+          const out = [], AMT = [30, 50];
+          for (let i = 0; i < 2; i++) {
+            const pc = s.pc[i], a = AMT[i], who = `係${i + 1}`;
+            const mk = (np, nt, x, y, act) => {
+              const P = s.pc.slice(), T = s.t.slice();
+              P[i] = np; T[i] = nt;
+              out.push({ act, s: { x, y, pc: P, t: T } });
+            };
+            if (v === 'bug') {
+              if (pc === 0) mk(1, s.x, s.x, s.y, `${who} が甲の残高を読む（${s.x} 円）`);
+              else if (pc === 1) mk(2, 0, s.t[i] - a, s.y, `${who} が甲に ${s.t[i] - a} 円を書く`);
+              else if (pc === 2) mk(3, s.y, s.x, s.y, `${who} が乙の残高を読む（${s.y} 円）`);
+              else if (pc === 3) mk(4, 0, s.x, s.t[i] + a, `${who} が乙に ${s.t[i] + a} 円を書く`);
+            } else {
+              if (pc === 0) mk(2, 0, s.x - a, s.y, `${who} が甲から ${a} 円を引く`);
+              else if (pc === 2) mk(4, 0, s.x, s.y + a, `${who} が乙に ${a} 円を足す`);
+            }
+          }
+          return out;
+        },
+        ok: (s) => !(s.pc[0] === 4 && s.pc[1] === 4) || s.x + s.y === 100,
+        done: (s) => s.pc[0] === 4 && s.pc[1] === 4,
+        row(s, v) {
+          const st = (i) => {
+            const pc = s.pc[i];
+            if (pc === 0) return '始める前';
+            if (pc === 1) return `甲を読んだ（t = ${s.t[i]}）`;
+            if (pc === 2) return v === 'bug' ? '甲に書いた' : '甲から引いた';
+            if (pc === 3) return `乙を読んだ（t = ${s.t[i]}）`;
+            return '終わり';
+          };
+          return [s.x, s.y, st(0), st(1)];
+        },
+      },
+      room: {
+        short: '1 人用の部屋の札',
+        title: '1 人用の部屋の札（A と B が出入りをくり返す）',
+        versions: [
+          { id: 'look', label: '相手の札を見てから、自分の札を立てる' },
+          { id: 'flag', label: '自分の札を立ててから、相手の札を見る' },
+          { id: 'peterson', label: 'ピーターソンの方法（自分の札と、譲る札）' },
+        ],
+        code: {
+          look: [
+            '#A と B が、外 → 部屋 → 外 を何度でもくり返す。毎回、どちらか 1 人が 1 手進む',
+            '入る  *相手の札が下りているのを見る',
+            '      *自分の札を立てて、部屋に入る',
+            '出る   自分の札を下ろして、外へ出る',
+            '!ルール   A と B が同時に部屋の中にいない（誰も動けなくなる状態も探す）',
+          ],
+          flag: [
+            '#A と B が、外 → 部屋 → 外 を何度でもくり返す。毎回、どちらか 1 人が 1 手進む',
+            '入る  *自分の札を立てる',
+            '      *相手の札が下りるまで待ってから、部屋に入る',
+            '出る   自分の札を下ろして、外へ出る',
+            '!ルール   A と B が同時に部屋の中にいない（誰も動けなくなる状態も探す）',
+          ],
+          peterson: [
+            '#A と B が、外 → 部屋 → 外 を何度でもくり返す。毎回、どちらか 1 人が 1 手進む',
+            '入る   自分の札を立てる',
+            '      *1 枚しかない「お先にどうぞ」の札を、相手に向ける',
+            '      *相手の札が下りているか、譲る札が自分を向くまで待ってから、部屋に入る',
+            '出る   自分の札を下ろして、外へ出る',
+            '!ルール   A と B が同時に部屋の中にいない（誰も動けなくなる状態も探す）',
+          ],
+        },
+        steps: 40,
+        cols: ['A', 'B', 'A の札', 'B の札', '譲る札'],
+        init: () => ({ pc: [0, 0], f: [0, 0], turn: 0 }),
+        key: (s) => `${s.pc}/${s.f}/${s.turn}`,
+        next(s, v) {
+          const out = [], IN = v === 'peterson' ? 3 : 2;
+          for (let i = 0; i < 2; i++) {
+            const o = 1 - i, who = 'AB'[i], other = 'AB'[o], pc = s.pc[i];
+            const mk = (np, nf, turn, act) => {
+              const P = s.pc.slice(), F = s.f.slice();
+              P[i] = np; F[i] = nf;
+              out.push({ act, s: { pc: P, f: F, turn } });
+            };
+            if (pc === IN) mk(0, 0, s.turn, `${who} が札を下ろして外へ出る`);
+            else if (v === 'look') {
+              if (pc === 0 && !s.f[o]) mk(1, 0, s.turn, `${who} が ${other} の札を見る（下りている）`);
+              else if (pc === 1) mk(2, 1, s.turn, `${who} が札を立てて部屋に入る`);
+            } else if (v === 'flag') {
+              if (pc === 0) mk(1, 1, s.turn, `${who} が札を立てる`);
+              else if (pc === 1 && !s.f[o]) mk(2, 1, s.turn, `${who} が ${other} の札を見て（下りている）部屋に入る`);
+            } else {
+              if (pc === 0) mk(1, 1, s.turn, `${who} が札を立てる`);
+              else if (pc === 1) mk(2, 1, o, `${who} が譲る札を ${other} に向ける`);
+              else if (pc === 2 && (!s.f[o] || s.turn === i)) mk(3, 1, s.turn, `${who} が部屋に入る（${!s.f[o] ? `${other} の札が下りている` : '譲る札が自分を向いている'}）`);
+            }
+          }
+          return out;
+        },
+        ok(s, v) {
+          const IN = v === 'peterson' ? 3 : 2;
+          return !(s.pc[0] === IN && s.pc[1] === IN);
+        },
+        done: () => false,
+        row(s, v) {
+          const NAMES = { look: ['外', '札を見た', '部屋の中'], flag: ['外', '待つ', '部屋の中'], peterson: ['外', '札を立てた', '待つ', '部屋の中'] }[v];
+          const fl = (b) => (b ? '立てた' : '下ろした');
+          return [NAMES[s.pc[0]], NAMES[s.pc[1]], fl(s.f[0]), fl(s.f[1]), v === 'peterson' ? `${'AB'[s.turn]} に向く` : '—'];
+        },
+      },
+    };
+
+    // ---- 全部調べる（幅優先）: たどり着ける状態を全部作り、親を覚える ----
+    function explore(spec, v, limit = 20000) {
+      const s0 = spec.init(v);
+      const nodes = [s0], index = new Map([[spec.key(s0), 0]]);
+      const depth = [0], parent = [-1], via = ['最初の状態'], edges = [], outdeg = [];
+      let generated = 1;
+      for (let i = 0; i < nodes.length; i++) {
+        const outs = spec.next(nodes[i], v);
+        outdeg.push(outs.length);
+        generated += outs.length;
+        for (const o of outs) {
+          const k = spec.key(o.s);
+          let j = index.get(k);
+          if (j === undefined) {
+            if (nodes.length >= limit) throw new Error('状態が多すぎます');
+            j = nodes.length;
+            index.set(k, j);
+            nodes.push(o.s);
+            depth.push(depth[i] + 1);
+            parent.push(i);
+            via.push(o.act);
+          }
+          edges.push([i, j]);
+        }
+      }
+      const bad = [], stuck = [], ends = [];
+      nodes.forEach((s, i) => {
+        if (!spec.ok(s, v)) bad.push(i);
+        else if (!outdeg[i]) (spec.done(s, v) ? ends : stuck).push(i);
+      });
+      let maxDepth = 0;
+      for (const d of depth) if (d > maxDepth) maxDepth = d;
+      return { nodes, index, depth, parent, via, edges, generated, bad, stuck, ends, maxDepth };
+    }
+
+    // 親をさかのぼって、最初の状態から i までの手順（状態の番号の並び）を作る
+    function pathTo(g, i) {
+      const p = [];
+      for (let k = i; k >= 0; k = g.parent[k]) p.push(k);
+      return p.reverse();
+    }
+
+    // ---- ランダムに試す: 種から作った乱数で操作を選び、手順を traces 本流す ----
+    function simulate(spec, v, seed, traces, maxSteps) {
+      const r = rng(seed), seen = new Set();
+      let steps = 0, trace = [];
+      for (let t = 1; t <= traces; t++) {
+        let s = spec.init(v);
+        trace = [{ act: '最初の状態', s }];
+        seen.add(spec.key(s));
+        for (let k = 0; k < maxSteps; k++) {
+          const outs = spec.next(s, v);
+          if (!outs.length) {
+            if (!spec.done(s, v)) return { kind: 'stuck', t, steps, trace, seen };
+            break;
+          }
+          const o = outs[Math.floor(r() * outs.length)];
+          s = o.s;
+          steps++;
+          trace.push(o);
+          seen.add(spec.key(s));
+          if (!spec.ok(s, v)) return { kind: 'bad', t, steps, trace, seen };
+        }
+      }
+      return { kind: 'ok', t: traces, steps, trace, seen };
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const thumb = !!window.THUMB;
+    if (thumb) document.documentElement.classList.add('thumb');
+    const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888';
+    const COL = { line: cssVar('--line'), node: cssVar('--node'), bad: cssVar('--bad'), stuck: cssVar('--stuck'), end: cssVar('--end'), seen: cssVar('--seen'), path: cssVar('--path') };
+    const specSel = $('spec'), verSel = $('ver'), codeEl = $('code'), runBtn = $('run'), allBtn = $('all'), seedIn = $('seed');
+    const msgEl = $('msg'), cv = $('graph'), covEl = $('cov'), capEl = $('cap'), hdEl = $('hd'), tbEl = $('tb');
+    const ctx = cv.getContext('2d');
+    const TRACES = 200;
+    let spec = null, ver = '', g = null, kinds = [], pos = [], rad = 5, revealed = 0, seen = new Set(), path = null, anim = 0, lastSim = null;
+    let W = 1, H = 1, dpr = 1;
+    const say = (t) => { msgEl.textContent = t; };
+
+    for (const [id, sp] of Object.entries(SPECS)) specSel.add(new Option(sp.short, id));
+    function fillVer() {
+      const sp = SPECS[specSel.value];
+      verSel.replaceChildren(...sp.versions.map((x) => new Option(x.label, x.id)));
+    }
+
+    function setup() {
+      anim++;
+      spec = SPECS[specSel.value];
+      ver = verSel.value;
+      g = explore(spec, ver);
+      kinds = g.nodes.map(() => 'node');
+      for (const i of g.ends) kinds[i] = 'end';
+      for (const i of g.stuck) kinds[i] = 'stuck';
+      for (const i of g.bad) kinds[i] = 'bad';
+      revealed = 0;
+      seen = new Set();
+      path = null;
+      lastSim = null;
+      allBtn.disabled = false;
+      renderCode();
+      covEl.textContent = '';
+      showTrace(null, '');
+      say('まだ調べていません。「ランダムに試す」は操作の順番をでたらめに選んで流し、「全部調べる」はたどり着ける状態を 1 つ残らず作ります。');
+      cv.setAttribute('aria-label', '状態の図（まだ調べていない）');
+      resize();
+    }
+
+    // 行の印: * がある行は書き方の違う行（* は空白にして桁をそろえる）。行頭の # は説明、! はルール
+    function renderCode() {
+      const tt = document.createElement('span');
+      tt.className = 'tt';
+      tt.textContent = spec.title;
+      codeEl.replaceChildren(tt, ...spec.code[ver].map((ln) => {
+        const head = /^[#!]/.test(ln) ? ln[0] : '';
+        const el = document.createElement(ln.includes('*') ? 'mark' : 'span');
+        if (head === '#') el.className = 'cm';
+        if (head === '!') el.className = 'rl';
+        el.textContent = (head ? ln.slice(1) : ln).replace('*', ' ');
+        return el;
+      }));
+    }
+
+    function resize() {
+      dpr = Math.min(2, window.devicePixelRatio || 1);
+      W = Math.max(1, cv.clientWidth);
+      H = Math.max(1, cv.clientHeight);
+      cv.width = Math.max(1, Math.round(W * dpr));
+      cv.height = Math.max(1, Math.round(H * dpr));
+      layout();
+      draw();
+    }
+
+    // 列 = 手数（幅優先の深さ）。列の中は、前の列の親の高さの平均で並べて、線の交差を減らす
+    function layout() {
+      if (!g) return;
+      const D = Math.max(1, g.maxDepth), padX = 16, padY = 14;
+      const cols = [];
+      g.depth.forEach((d, i) => { (cols[d] = cols[d] || []).push(i); });
+      const preds = g.nodes.map(() => []);
+      for (const [a, b] of g.edges) if (g.depth[a] + 1 === g.depth[b]) preds[b].push(a);
+      pos = new Array(g.nodes.length);
+      let minRow = Infinity;
+      cols.forEach((ids, d) => {
+        const x = padX + (W - 2 * padX) * (g.maxDepth ? d / D : 0.5);
+        if (d > 0) {
+          const bary = (i) => preds[i].reduce((s, a) => s + pos[a][1], 0) / Math.max(1, preds[i].length);
+          const by = new Map(ids.map((i) => [i, bary(i)]));
+          ids.sort((a, b) => by.get(a) - by.get(b) || a - b);
+        }
+        const gap = (H - 2 * padY) / ids.length;
+        minRow = Math.min(minRow, gap);
+        ids.forEach((i, k) => { pos[i] = [x, padY + gap * (k + 0.5)]; });
+      });
+      rad = Math.max(2, Math.min(7, ((W - 2 * padX) / D) * 0.2, minRow * 0.36));
+    }
+
+    function edge(a, b) {
+      const [x1, y1] = pos[a], [x2, y2] = pos[b];
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      if (g.depth[b] === g.depth[a] + 1) ctx.lineTo(x2, y2);
+      else {
+        // 手数が戻る線（出入りのくり返しなど）は、上へ曲げて描く
+        const my = Math.max(2, Math.min(y1, y2) - 16 - Math.abs(x1 - x2) * 0.15);
+        ctx.quadraticCurveTo((x1 + x2) / 2, my, x2, y2);
+      }
+      ctx.stroke();
+    }
+
+    function draw() {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      if (!g || !pos.length) return;
+      const vis = (i) => i < revealed || seen.has(i);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = COL.line;
+      for (const [a, b] of g.edges) if (vis(a) && vis(b)) edge(a, b);
+      if (path && path.length > 1) {
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = COL.path;
+        for (let k = 0; k + 1 < path.length; k++) edge(path[k], path[k + 1]);
+      }
+      const onPath = new Set(path || []);
+      for (let i = 0; i < g.nodes.length; i++) {
+        if (!vis(i)) continue;
+        const [x, y] = pos[i];
+        const r = onPath.has(i) ? rad * 1.35 : rad;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = i >= revealed && kinds[i] === 'node' ? COL.seen : COL[kinds[i]];
+        ctx.fill();
+        if (seen.has(i)) {
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = COL.seen;
+          ctx.beginPath();
+          ctx.arc(x, y, r + 2.2, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+    }
+
+    function showTrace(rows, title) {
+      capEl.textContent = rows ? `${title}（${rows.length - 1} 手）` : '手順はまだありません';
+      const th = (t) => { const e = document.createElement('th'); e.scope = 'col'; e.textContent = t; return e; };
+      hdEl.replaceChildren(th('手'), th('操作'), ...spec.cols.map(th));
+      let prev = null;
+      tbEl.replaceChildren(...(rows || []).map((r, k) => {
+        const tr = document.createElement('tr');
+        const h = document.createElement('th');
+        h.scope = 'row';
+        h.textContent = k;
+        const a = document.createElement('td');
+        a.textContent = r.act;
+        const vals = spec.row(r.s, ver);
+        tr.append(h, a, ...vals.map((x, j) => {
+          const td = document.createElement('td');
+          td.textContent = x;
+          if (prev && prev[j] !== x) td.className = 'chg';
+          return td;
+        }));
+        prev = vals;
+        if (!spec.ok(r.s, ver)) tr.className = 'bad';
+        else if (!spec.next(r.s, ver).length && !spec.done(r.s, ver)) tr.className = 'stuck';
+        return tr;
+      }));
+    }
+    const bfsRows = (p) => p.map((i) => ({ act: g.via[i], s: g.nodes[i] }));
+
+    function coverage() {
+      if (!seen.size) { covEl.textContent = ''; return; }
+      covEl.textContent = revealed >= g.nodes.length
+        ? `ランダムの手順が通った状態: 全部の ${g.nodes.length} 通りのうち ${seen.size} 通り（青い輪）`
+        : `ランダムの手順が通った状態: ${seen.size} 通り（全部で何通りあるかは「全部調べる」で分かります）`;
+    }
+
+    // 全部調べる: 幅優先で見つけた順に点を出していき、最後に最短の反例を示す
+    function exploreAll() {
+      const my = ++anim, N = g.nodes.length, dur = thumb ? 1300 : 1600, t0 = performance.now();
+      path = null;
+      showTrace(null, '');
+      revealed = 0;
+      allBtn.disabled = true;
+      const tick = () => {
+        if (my !== anim) return;
+        const f = Math.min(1, (performance.now() - t0) / dur);
+        revealed = Math.max(1, Math.ceil(N * f));
+        say(thumb ? `${spec.short}: 幅優先でたどっています（${revealed} 通り）` : `最初の状態から幅優先でたどっています（見つけた状態 ${revealed} 通り）`);
+        draw();
+        if (f < 1) setTimeout(tick, 33);
+        else finish();
+      };
+      tick();
+    }
+    function finish() {
+      allBtn.disabled = false;
+      revealed = g.nodes.length;
+      const N = g.nodes.length;
+      const target = g.bad.length ? g.bad[0] : g.stuck.length ? g.stuck[0] : -1;
+      let s = `全部で ${N} 通りの状態を調べました（作った状態は重なりを含めて ${g.generated}、調べ残し 0）。`;
+      if (g.bad.length) s += `ルールが破れる状態が ${g.bad.length} 通りあります。そこまでのいちばん短い手順は ${g.depth[target]} 手です（表）。`;
+      if (g.stuck.length) s += `誰も動けなくなる状態（行き詰まり）が ${g.stuck.length} 通りあります。${g.bad.length ? '' : `そこまでのいちばん短い手順は ${g.depth[target]} 手です（表）。`}`;
+      if (!g.bad.length && !g.stuck.length) s += 'ルールが破れる状態も、行き詰まりもありません。この小さな世界では、どの順番で操作してもルールが守られます。';
+      // 小窓では 1 行に収まる短い要約にする
+      if (thumb) s = `${spec.short}: ${N} 通りを全部調べ、${g.bad.length ? `${g.depth[target]} 手でルールが破れる` : g.stuck.length ? `${g.depth[target]} 手で行き詰まる` : '違反なし'}`;
+      say(s);
+      cv.setAttribute('aria-label', `状態の図: 全部で ${N} 通り。ルールが破れる状態 ${g.bad.length} 通り、行き詰まり ${g.stuck.length} 通り`);
+      if (target >= 0) {
+        path = pathTo(g, target);
+        showTrace(bfsRows(path), g.bad.length ? 'ルールが破れるまでのいちばん短い手順' : '行き詰まるまでのいちばん短い手順');
+      } else if (g.ends.length) {
+        path = pathTo(g, g.ends[0]);
+        showTrace(bfsRows(path), '全員が終わるまでの手順の 1 つ');
+      }
+      coverage();
+      draw();
+    }
+
+    // ランダムに試す: 同じ種なら、同じ手順がもう一度出る
+    function runRandom() {
+      anim++;
+      allBtn.disabled = false;
+      const sd = Math.min(4294967295, Math.max(0, Math.floor(Number(seedIn.value) || 0)));
+      seedIn.value = String(sd);
+      const res = simulate(spec, ver, sd, TRACES, spec.steps);
+      for (const k of res.seen) {
+        const i = g.index.get(k);
+        if (i !== undefined) seen.add(i);
+      }
+      const sig = `${res.kind}|${res.t}|${res.steps}|${res.trace.map((x) => spec.key(x.s)).join(' ')}`;
+      let again = '種を変えずにもう一度押すと、同じ手順がもう一度出ます。';
+      if (lastSim && lastSim.seed === sd) again = lastSim.sig === sig ? '前と同じ種なので、前とまったく同じ手順がもう一度出ました。' : '前と同じ種なのに、手順が変わりました。';
+      lastSim = { seed: sd, sig };
+      const n = res.trace.length - 1;
+      if (res.kind === 'bad') say(`種 ${sd}: ${res.t} 本目の手順の ${n} 手目で、ルールが破れました（ここまでに試した手は合わせて ${res.steps}）。${again}`);
+      else if (res.kind === 'stuck') say(`種 ${sd}: ${res.t} 本目の手順の ${n} 手目で、誰も動けなくなりました（行き詰まり。ここまでに試した手は合わせて ${res.steps}）。${again}`);
+      else say(`種 ${sd}: ${TRACES} 本の手順（合わせて ${res.steps} 手）を試し、ルールが破れる場面も行き詰まりも出ませんでした。ただし、出なかったと言えるのは試した手順だけです。表は最後の 1 本です。${again}`);
+      path = res.trace.map((x) => g.index.get(spec.key(x.s))).filter((i) => i !== undefined);
+      showTrace(res.trace, res.kind === 'ok' ? `種 ${sd} の最後の手順` : `種 ${sd} で見つかった手順`);
+      coverage();
+      draw();
+    }
+
+    // 点を押すと、その状態までのいちばん短い手順を表に出す
+    cv.addEventListener('click', (ev) => {
+      if (!g) return;
+      const rc = cv.getBoundingClientRect();
+      const x = ev.clientX - rc.left, y = ev.clientY - rc.top;
+      let best = -1, bd = 14 * 14;
+      for (let i = 0; i < g.nodes.length; i++) {
+        if (!(i < revealed || seen.has(i))) continue;
+        const d2 = (pos[i][0] - x) ** 2 + (pos[i][1] - y) ** 2;
+        if (d2 < bd) { bd = d2; best = i; }
+      }
+      if (best < 0) return;
+      path = pathTo(g, best);
+      showTrace(bfsRows(path), '押した状態までのいちばん短い手順');
+      draw();
+    });
+
+    specSel.addEventListener('change', () => { fillVer(); setup(); });
+    verSel.addEventListener('change', setup);
+    runBtn.addEventListener('click', runRandom);
+    allBtn.addEventListener('click', exploreAll);
+
+    let lastW = -1;
+    new ResizeObserver((ents) => {
+      const w = Math.round(ents[0].contentRect.width);
+      if (w === lastW) return;
+      lastW = w;
+      setTimeout(resize, 0);
+    }).observe(cv);
+
+    fillVer();
+    if (thumb) {
+      // 小窓では、題材と書き方を順に変えながら、全部調べる様子を見せる
+      const plan = [['ticket', 'bug'], ['ticket', 'fix'], ['room', 'flag'], ['bank', 'bug']];
+      let k = 0;
+      const loop = () => {
+        const [sp, ve] = plan[k % plan.length];
+        k++;
+        specSel.value = sp;
+        fillVer();
+        verSel.value = ve;
+        setup();
+        exploreAll();
+        setTimeout(loop, 4200);
+      };
+      loop();
+    } else {
+      setup();
+    }
+  },
+});
+dekiru.add({
+  id: 'tr-20261122-spread-stack', c: 'trend', lv: 2, date: '2026-11-22',
+  t: 'パンにナイフで塗って具を載せる。ナイフの塗り物は塗るほど減り、重心の下に支えが無い具は滑り落ちる（Sandwich Simulator）',
+  y: 'ぱんにないふでぬってぐをのせるないふのぬりものはぬるほどへりじゅうしんのしたにささえがないぐはすべりおちるさんどいっちしみゅれーた',
+  tags: ['Sandwich Simulator', 'Canvas', 'Pointer Events', '凸包', '重心'],
+  d: '2026年11月22日、Hacker News に「Sandwich Simulator」（stulle.app。ドイツ語の名前は Stullensimulator）が載り、取得した時点で 231 点を集めていた。パンに塗り物を塗って具を載せ、ドイツの Stulle（具を載せたパン）を作る遊びである。壺を押すとナイフに塗り物が付き、パンの上をなでると塗れる。説明には、空になったらもう一度壺を押すこと、具は帯からパンへ引いて載せ、取っ手やマウスのホイールで回すこと、ぐらつく具は手を離すと滑り落ちることが書いてある。この見本は、その中心の 3 つの仕組みをブラウザだけで作り直す。1 つ目は塗り方である。パンを 2 単位四方のマスに分け、マスごとに塗り物の厚さと色を持つ。ナイフが通ると、刃の下のマスとナイフの間で塗り物をやり取りする。塗るほどナイフの量は減って薄くしか塗れなくなり、空のナイフでなでると厚い所がならされる。バターの上をジャムのナイフでなでると色が混ざる。2 つ目は具の移動と回転で、具は引いて動かし、取っ手・ホイール・ボタン・キーで回す。3 つ目は具が落ちる判定で、手を離したときに、具の下に支え（パンか、先に置いた具）がある所を調べ、具の重心が支えの範囲の外なら滑り落とす。支えていた具を持ち上げたり外したりすると、上の具も続けて落ちる。塗り物は 4 種類、具は 8 種類で、絵は canvas にその場で描いている。「見本を動かす」を押すと、バターを塗って具を載せ、最後のトマトがパンの縁から滑り落ちるまでを自動で見せる。再現していない所: 元の作品の写真のような絵と多くの具、写真を撮って番号と URL を付けて残す機能は無い。元の作品が具の落ち方をどう決めているかは公開されていないので、落ちる条件はこの見本で決めた。具の厚みは数えず、下に何かがあれば支えとみなす。具の上には塗れない。',
+  p: 'ナイフは、上に残っている量から「どのくらいの厚さで塗るか」を決める。量が多いほど厚く（最大 1.5）、空に近いほど薄く（0.25）なる。刃の下のマスがその厚さより薄ければ差の 22% をナイフから足し、厚ければ差の 12% をナイフへ取り込む。足した量と取り込んだ量はナイフの量から引き、ナイフの量へ足すので、パンとナイフの塗り物の合計は変わらない。この 1 つの決まりから、塗るほど薄くなる、空のナイフで厚い所がならされて先へ伸びる、別の塗り物のナイフが通ると色が混ざる、という動きが出る。やり取りの回数はナイフが進んだ道のりで決まるので、止まっている間は塗れない。具が落ちる判定では、具の中に 3 単位おきに点を打ち、下に支えのある点だけを囲む凸包（へこみの無い多角形）を作る。平らな板は、重心がこの凸包の内側にあれば傾かない。外にあれば、支えのある所の中心から重心の向きへ滑らせる。支えのある点が 1 つも無ければ、パンの外へ出したとみなして片付ける。下の具から順に判定するので、下の具が落ちると、その具に支えられていた上の具も同じ回で落ちる。',
+  refs: [
+    { title: 'Sandwich Simulator（Stullensimulator、stulle.app）', url: 'https://stulle.app/' },
+    { title: 'Hacker News: Sandwich Simulator（2026-11-22）', url: 'https://news.ycombinator.com/item?id=50594911' },
+    { title: 'Support polygon（Wikipedia）', url: 'https://en.wikipedia.org/wiki/Support_polygon' },
+  ],
+  html: `<div class="app">
+  <div class="bar">
+    <div class="grp" role="group" aria-labelledby="potL"><span class="lab" id="potL">塗り物（押すとナイフに付く）</span><span id="pots" class="row"></span></div>
+    <div class="grp" role="group" aria-labelledby="trayL"><span class="lab" id="trayL">具（パンへ引いて載せる。押すとパンの上に置く）</span><span id="tray" class="row"></span></div>
+  </div>
+  <div class="stage"><canvas id="cv" tabindex="0" aria-label="まな板の上のパン。なでると塗れる。具を選び、矢印キーで動かし、Q と E で回す" aria-describedby="help"></canvas></div>
+  <div class="foot">
+    <span class="row"><label for="loadM">ナイフの上</label><meter id="loadM" min="0" max="1" value="0"></meter><span id="loadT">空</span></span>
+    <span id="covT">塗れた所 0%</span>
+    <span class="row"><button type="button" id="rotL" aria-label="選んだ具を左へ回す">↺ 回す</button><button type="button" id="rotR" aria-label="選んだ具を右へ回す">↻ 回す</button><button type="button" id="delB">外す</button></span>
+    <span class="row"><button type="button" id="demoB">見本を動かす</button><button type="button" id="clearB">最初から</button></span>
+  </div>
+  <p id="msg" class="msg" role="status"></p>
+  <p id="help" class="small">ドラッグしなくても使えます。具のボタンを押すとパンの上の空いた所に置きます。パンの画面を選んでから、矢印キー（Shift で大きく）で動かし、Q と E で回し、N で次の具を選び、Delete で外します。具の上でホイールを回しても回せます。</p>
+</div>`,
+  css: `:root { color-scheme: light; --bg: #f4eee5; --fg: #2b241f; --mut: #6d6257; --line: #d8ccbd; --panel: #fffaf2; --acc: #b8532c; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    .app { box-sizing: border-box; min-block-size: 100vh; display: flex; flex-direction: column; gap: 6px; padding: 8px; }
+    .bar { display: flex; flex-direction: column; gap: 4px; }
+    .grp { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: center; }
+    .lab { font-size: 12px; color: var(--mut); }
+    .row { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+    button { font: inherit; font-size: 13px; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; min-block-size: 32px; padding: 2px 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+    button:disabled { opacity: .45; cursor: default; }
+    :focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+    .pot i { inline-size: 16px; block-size: 16px; border-radius: 50%; background: var(--c); box-shadow: inset 0 -2px 0 rgb(0 0 0 / .2); }
+    .top { cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; padding-inline-start: 4px; }
+    .top canvas { inline-size: 24px; block-size: 24px; }
+    .stage { flex: 1 1 auto; min-block-size: 230px; position: relative; }
+    #cv { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; display: block; border-radius: 10px; touch-action: none; -webkit-user-select: none; user-select: none; }
+    .foot { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 13px; }
+    meter { inline-size: 80px; }
+    #loadT, #covT { font-variant-numeric: tabular-nums; }
+    .msg { margin: 0; padding: 6px 8px; background: var(--panel); border-inline-start: 3px solid var(--acc); border-radius: 4px; font-size: 13px; min-block-size: 1.5em; }
+    .small { margin: 0; font-size: 12px; color: var(--mut); }
+    .thumb .bar, .thumb .foot, .thumb .msg, .thumb .small { display: none; }
+    .thumb .app { padding: 0; }
+    .thumb .stage { min-block-size: 0; }
+    .thumb #cv { border-radius: 0; }`,
+  core() {
+    // 画面の座標は横 400 × 縦 300。パン・具・ナイフはこの座標で持つ
+    const VW = 400, VH = 300;
+    // ナイフ: half は刃の長さの半分、thick は刃の太さの半分、step は道のりを刻む幅、
+    // rate は薄い所へ足す割合、up は厚い所から取り込む割合、full は壺から取る量、hMin と hMax は塗る厚さの下限と上限
+    const KNIFE = { half: 22, thick: 3.5, step: 1.5, rate: 0.22, up: 0.12, full: 7000, hMin: 0.25, hMax: 1.5 };
+
+    function bboxOf(P) {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const [x, y] of P) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      return [x0, y0, x1, y1];
+    }
+    // 点が多角形の内側にあるか（右へ伸ばした半直線が辺と交わる回数が奇数なら内側）
+    function inPoly(P, x, y) {
+      let ins = false;
+      for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+        const xi = P[i][0], yi = P[i][1], xj = P[j][0], yj = P[j][1];
+        if ((yi > y) !== (yj > y) && x < xj + (y - yj) * (xi - xj) / (yi - yj)) ins = !ins;
+      }
+      return ins;
+    }
+    // 3 次ベジェ曲線を n 個の点に分けて out へ足す
+    function bez(a, b, c, d, n, out) {
+      for (let i = 1; i <= n; i++) {
+        const t = i / n, u = 1 - t, k0 = u * u * u, k1 = 3 * u * u * t, k2 = 3 * u * t * t, k3 = t * t * t;
+        out.push([k0 * a[0] + k1 * b[0] + k2 * c[0] + k3 * d[0], k0 * a[1] + k1 * b[1] + k2 * c[1] + k3 * d[1]]);
+      }
+    }
+    // 食パン 1 枚の輪郭。inset を与えると、上下左右からその幅だけ縮めた輪郭（耳の内側）を返す
+    function breadPoly(inset = 0) {
+      const L = 88, R = 312, B = 262, T0 = 104, TP = 40, cx = 200;
+      const P = [[L, B - 10], [L, T0]];
+      bez([L, T0], [L - 24, T0 - 14], [L - 20, TP + 14], [L + 38, TP + 4], 14, P);
+      bez([L + 38, TP + 4], [cx - 30, TP - 6], [cx + 30, TP - 6], [R - 38, TP + 4], 14, P);
+      bez([R - 38, TP + 4], [R + 20, TP + 14], [R + 24, T0 - 14], [R, T0], 14, P);
+      P.push([R, B - 10]);
+      for (let i = 1; i <= 4; i++) { const a = i / 8 * Math.PI; P.push([R - 10 + 10 * Math.cos(a), B - 10 + 10 * Math.sin(a)]); }
+      P.push([L + 10, B]);
+      for (let i = 1; i < 4; i++) { const a = Math.PI / 2 + i / 8 * Math.PI; P.push([L + 10 + 10 * Math.cos(a), B - 10 + 10 * Math.sin(a)]); }
+      if (!inset) return P;
+      const [x0, y0, x1, y1] = bboxOf(P), mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+      const sx = (x1 - x0 - 2 * inset) / (x1 - x0), sy = (y1 - y0 - 2 * inset) / (y1 - y0);
+      return P.map(([x, y]) => [mx + (x - mx) * sx, my + (y - my) * sy]);
+    }
+    // パンを cell 四方のマスに分ける。マスごとに塗り物の厚さ t と色 r, g, b（0〜1）を持つ。
+    // mask は塗れるマス（poly の内側。poly が無ければ全部）、cover は具の下に隠れて刃が届かないマス
+    function makeGrid(cell, poly) {
+      const ox = 60, oy = 30, w = Math.ceil(280 / cell), h = Math.ceil(240 / cell), n = w * h;
+      const G = { cell, ox, oy, w, h, t: new Float32Array(n), r: new Float32Array(n), g: new Float32Array(n), b: new Float32Array(n), mask: new Uint8Array(n), cover: new Uint8Array(n) };
+      for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+        G.mask[j * w + i] = !poly || inPoly(poly, ox + (i + 0.5) * cell, oy + (j + 0.5) * cell) ? 1 : 0;
+      }
+      return G;
+    }
+    // ナイフ K（load は量、r, g, b は色）を (x0, y0) から (x1, y1) へ動かす。刃は動く向きに直角に当たる
+    // （ang を与えると、その向きへ動いているものとして刃を置く）。刃の下のマスごとに、ナイフが塗る厚さ h と比べ、
+    // 薄ければナイフから足し、厚ければナイフへ取り込む。返り値はパンへ移った正味の量（取り込みが多ければ負）
+    function stroke(G, K, x0, y0, x1, y1, P = KNIFE, ang) {
+      const len = Math.hypot(x1 - x0, y1 - y0);
+      if (len < 1e-6) return 0;
+      const a = ang ?? Math.atan2(y1 - y0, x1 - x0), nx = -Math.sin(a), ny = Math.cos(a);
+      const n = Math.max(1, Math.round(len / P.step)), reach = P.half + P.thick, th2 = P.thick * P.thick;
+      let net = 0;
+      for (let s = 1; s <= n; s++) {
+        const px = x0 + (x1 - x0) * s / n, py = y0 + (y1 - y0) * s / n;
+        const ax = px - nx * P.half, ay = py - ny * P.half;
+        const i0 = Math.max(0, Math.floor((px - reach - G.ox) / G.cell)), i1 = Math.min(G.w - 1, Math.floor((px + reach - G.ox) / G.cell));
+        const j0 = Math.max(0, Math.floor((py - reach - G.oy) / G.cell)), j1 = Math.min(G.h - 1, Math.floor((py + reach - G.oy) / G.cell));
+        for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+          const k = j * G.w + i;
+          if (!G.mask[k] || G.cover[k]) continue;
+          const cx = G.ox + (i + 0.5) * G.cell, cy = G.oy + (j + 0.5) * G.cell;
+          // マスの中心から刃（長さ 2*half の線分）までの距離が thick 以内のマスだけ
+          const u = Math.min(1, Math.max(0, ((cx - ax) * nx + (cy - ay) * ny) / (2 * P.half)));
+          const qx = ax + nx * 2 * P.half * u - cx, qy = ay + ny * 2 * P.half * u - cy;
+          if (qx * qx + qy * qy > th2) continue;
+          const h = P.hMin + (P.hMax - P.hMin) * Math.sqrt(Math.min(1, K.load / P.full));
+          const tk = G.t[k];
+          if (tk < h) {
+            const d = Math.min(P.rate * (h - tk), K.load);
+            if (d <= 0) continue;
+            const tot = tk + d;
+            G.r[k] = (G.r[k] * tk + K.r * d) / tot; G.g[k] = (G.g[k] * tk + K.g * d) / tot; G.b[k] = (G.b[k] * tk + K.b * d) / tot;
+            G.t[k] = tot; K.load -= d; net += d;
+          } else {
+            const d = P.up * (tk - h);
+            if (d <= 0) continue;
+            const tot = K.load + d;
+            K.r = (K.r * K.load + G.r[k] * d) / tot; K.g = (K.g * K.load + G.g[k] * d) / tot; K.b = (K.b * K.load + G.b[k] * d) / tot;
+            K.load = tot; G.t[k] = tk - d; net -= d;
+          }
+        }
+      }
+      return net;
+    }
+    // 壺から取る。ナイフの量を full まで足し、前の塗り物が残っていれば量に応じて色が混ざる。足した量を返す
+    function takeFromPot(K, rgb, full = KNIFE.full) {
+      const add = Math.max(0, full - K.load);
+      if (add <= 0) return 0;
+      const tot = K.load + add;
+      K.r = (K.r * K.load + rgb[0] * add) / tot; K.g = (K.g * K.load + rgb[1] * add) / tot; K.b = (K.b * K.load + rgb[2] * add) / tot;
+      K.load = tot;
+      return add;
+    }
+    // 塗れた割合（厚さ thr 以上のマス ÷ 塗れるマス）と、塗れた所の平均の厚さ
+    function coverage(G, thr = 0.12) {
+      let all = 0, on = 0, sum = 0;
+      for (let k = 0; k < G.t.length; k++) {
+        if (!G.mask[k]) continue;
+        all++;
+        if (G.t[k] >= thr) { on++; sum += G.t[k]; }
+      }
+      return { frac: all ? on / all : 0, mean: on ? sum / on : 0 };
+    }
+
+    // 具の形（中心が原点の多角形）
+    const ring = (rx, ry, n, f = () => 1) => Array.from({ length: n }, (_, i) => {
+      const a = i / n * Math.PI * 2, s = f(a);
+      return [rx * s * Math.cos(a), ry * s * Math.sin(a)];
+    });
+    const SHAPES = {
+      lettuce: () => ring(38, 35, 96, (a) => 1 + 0.1 * Math.sin(a * 11) + 0.05 * Math.sin(a * 4 + 1)),
+      ham: () => ring(33, 33, 32),
+      cheese: () => {
+        const P = [], h = 29, r = 4;
+        for (const [cx, cy, a0] of [[h - r, h - r, 0], [r - h, h - r, 0.5], [r - h, r - h, 1], [h - r, r - h, 1.5]]) {
+          for (let i = 0; i <= 3; i++) { const a = (a0 + i / 6) * Math.PI; P.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
+        }
+        return P;
+      },
+      tomato: () => ring(22, 22, 28),
+      cucumber: () => ring(14, 14, 20),
+      egg: () => ring(16, 20, 24),
+      berry: () => Array.from({ length: 28 }, (_, i) => {
+        const a = i / 28 * Math.PI * 2, c = Math.cos(a);
+        return [15 * Math.sin(a) * (0.62 + 0.38 * c), c > 0 ? -12 * c : -18 * c];
+      }),
+      banana: () => ring(12, 12, 18),
+    };
+    // 多角形の中に step おきに点を打つ（輪郭の頂点も入れる）
+    function samplesOf(P, step = 3) {
+      const [x0, y0, x1, y1] = bboxOf(P), out = P.map((p) => [p[0], p[1]]);
+      for (let y = Math.ceil(y0 / step) * step; y <= y1; y += step) {
+        for (let x = Math.ceil(x0 / step) * step; x <= x1; x += step) if (inPoly(P, x, y)) out.push([x, y]);
+      }
+      return out;
+    }
+    // 具を (x, y) へ置き、角度 a だけ回したときの輪郭・囲む箱・点
+    function posed(local, x, y, a) {
+      const c = Math.cos(a), s = Math.sin(a), tf = (p) => [x + p[0] * c - p[1] * s, y + p[0] * s + p[1] * c];
+      const poly = local.poly.map(tf);
+      return { poly, box: bboxOf(poly), pts: local.pts.map(tf) };
+    }
+    const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    // 点を全部囲む、へこみの無い多角形（凸包）。x の順に並べ、下側と上側を別々に作る（アンドリューの方法）
+    function convexHull(pts) {
+      const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      if (p.length < 3) return p;
+      const lo = [], hi = [];
+      for (const q of p) {
+        while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop();
+        lo.push(q);
+      }
+      for (let i = p.length - 1; i >= 0; i--) {
+        const q = p[i];
+        while (hi.length >= 2 && cross(hi[hi.length - 2], hi[hi.length - 1], q) <= 0) hi.pop();
+        hi.push(q);
+      }
+      lo.pop(); hi.pop();
+      return lo.concat(hi);
+    }
+    // 凸包 H の内側に、どの辺からも margin 以上離れて入っているか
+    function inHull(H, x, y, margin = 0) {
+      if (H.length < 3) return false;
+      for (let i = 0; i < H.length; i++) {
+        const a = H[i], b = H[(i + 1) % H.length], len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+        if (cross(a, b, [x, y]) / len < margin) return false;
+      }
+      return true;
+    }
+    const mean = (P) => { let x = 0, y = 0; for (const p of P) { x += p[0]; y += p[1]; } return [x / P.length, y / P.length]; };
+    // 具が載っていられるか。pts は具の中の点、ok[i] はその点の下に支えがあるか。
+    // 重心が「支えのある点の凸包」の内側なら stay、外なら slide（dir は滑る向き）、支えが 1 つも無ければ gone
+    function judge(pts, ok, margin = 1.5) {
+      const sup = pts.filter((_, i) => ok[i]);
+      const frac = sup.length / Math.max(1, pts.length);
+      if (!sup.length) return { kind: 'gone', frac: 0, dir: [0, 1] };
+      const c = mean(pts);
+      if (inHull(convexHull(sup), c[0], c[1], margin)) return { kind: 'stay', frac, dir: [0, 0] };
+      const s = mean(sup);
+      let dx = c[0] - s[0], dy = c[1] - s[1];
+      const l = Math.hypot(dx, dy);
+      if (l < 1e-9) { dx = 0; dy = 1; } else { dx /= l; dy /= l; }
+      return { kind: 'slide', frac, dir: [dx, dy] };
+    }
+    const inItem = (o, x, y) => x >= o.box[0] && x <= o.box[2] && y >= o.box[1] && y <= o.box[3] && inPoly(o.poly, x, y);
+    // 下の具から順に判定する。各具は { poly, box, pts }（世界の座標）。落ちると判定した具は、上の具を支えない
+    function settle(items, onBread, margin = 1.5) {
+      const down = [];
+      return items.map((it) => {
+        const ok = it.pts.map(([x, y]) => onBread(x, y) || down.some((o) => inItem(o, x, y)));
+        const r = judge(it.pts, ok, margin);
+        if (r.kind === 'stay') down.push(it);
+        return r;
+      });
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const thumb = !!window.THUMB;
+    if (thumb) document.documentElement.classList.add('thumb');
+    const calm = matchMedia('(prefers-reduced-motion: reduce)');
+    const cv = $('cv'), ctx = cv.getContext('2d');
+    const msgEl = $('msg'), loadM = $('loadM'), loadT = $('loadT'), covT = $('covT');
+    const rotL = $('rotL'), rotR = $('rotR'), delB = $('delB'), demoB = $('demoB'), clearB = $('clearB');
+    const POTS = [
+      { id: 'butter', name: 'バター', rgb: [0.97, 0.85, 0.47] },
+      { id: 'jam', name: 'いちごジャム', rgb: [0.70, 0.06, 0.15] },
+      { id: 'choco', name: 'チョコ', rgb: [0.34, 0.19, 0.11] },
+      { id: 'peanut', name: 'ピーナツ', rgb: [0.79, 0.53, 0.25] },
+    ];
+    const TOPS = [
+      { id: 'lettuce', name: 'レタス' }, { id: 'ham', name: 'ハム' }, { id: 'cheese', name: 'チーズ' }, { id: 'tomato', name: 'トマト' },
+      { id: 'cucumber', name: 'きゅうり' }, { id: 'egg', name: 'ゆで卵' }, { id: 'berry', name: 'いちご' }, { id: 'banana', name: 'バナナ' },
+    ];
+    const NAME = Object.fromEntries(TOPS.map((t) => [t.id, t.name]));
+    const OUTER = breadPoly(0), CRUMB = breadPoly(9), OB = bboxOf(OUTER);
+    const onBread = (x, y) => x >= OB[0] && x <= OB[2] && y >= OB[1] && y <= OB[3] && inPoly(OUTER, x, y);
+    const G = makeGrid(2, breadPoly(5));
+    const K = { load: 0, r: 0, g: 0, b: 0, name: '' };
+    const LOCAL = {};
+    for (const t of TOPS) {
+      const poly = SHAPES[t.id]();
+      LOCAL[t.id] = { poly, pts: samplesOf(poly, 3), rad: Math.max(...poly.map((p) => Math.hypot(p[0], p[1]))) };
+    }
+    let rs = 12345;   // 毎回同じ順に出る乱数
+    const rand = () => { rs = (rs * 16807) % 2147483647; return rs / 2147483647; };
+    // 塗り物の表面の小さなむら。マスごとの乱数を周りの 9 マスで平均して、粒が目立たないようにする
+    const noise = new Float32Array(G.t.length);
+    {
+      const raw = new Float32Array(G.t.length).map(() => rand() - 0.5);
+      for (let j = 0; j < G.h; j++) for (let i = 0; i < G.w; i++) {
+        let s = 0, c = 0;
+        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+          const y = j + dj, x = i + di;
+          if (x >= 0 && x < G.w && y >= 0 && y < G.h) { s += raw[y * G.w + x]; c++; }
+        }
+        noise[j * G.w + i] = s / c;
+      }
+    }
+    const PV_COL = { stay: '#2f9e5a', slide: '#e0702a', gone: '#8a8f99' };
+
+    let items = [];   // 下から上の順
+    let sel = null, mode = null, off = [0, 0], pressAt = [0, 0], last = null, hover = null, pv = null, knifeAng = 0.3;
+    let nd = null, dragEndAt = -1e9, seq = 0, wasLoaded = false, lastLoadTxt = '', lastCovTxt = '';
+    let W = 1, H = 1, dpr = 1, S = 1, OX = 0, OY = 0, breadImg = null, dirty = true, spreadDirty = true, lastT = 0;
+    let demoRun = null, demoKnife = null;
+    const spreadCv = document.createElement('canvas');
+    spreadCv.width = G.w; spreadCv.height = G.h;
+    const sctx = spreadCv.getContext('2d'), img = sctx.createImageData(G.w, G.h);
+    const say = (s) => { msgEl.textContent = s; };
+    const pct = (f) => Math.round(f * 100);
+    const clampTo = (v, a, b) => Math.min(b, Math.max(a, v));
+    const rgbOf = (r, g, b) => `rgb(${Math.round(r * 255)} ${Math.round(g * 255)} ${Math.round(b * 255)})`;
+
+    // ---- 具 ----
+    function pose(it) { Object.assign(it, posed(LOCAL[it.kind], it.x, it.y, it.a)); }
+    function makeItem(kind, x, y, a) {
+      const it = { kind, x, y, a, id: ++seq, lifted: false, fall: null, poly: null, box: null, pts: null };
+      pose(it);
+      return it;
+    }
+    const stack = () => items.filter((o) => !o.fall && !o.lifted);
+    function hitItem(x, y) {
+      for (let i = items.length - 1; i >= 0; i--) {
+        const o = items[i];
+        if (!o.fall && !o.lifted && inItem(o, x, y)) return o;
+      }
+      return null;
+    }
+    // 持っている具を、今の場所で離したらどうなるか
+    function preview(it) {
+      const st = stack().filter((o) => o !== it);
+      return judge(it.pts, it.pts.map(([x, y]) => onBread(x, y) || st.some((o) => inItem(o, x, y))));
+    }
+    // 載っている具を下から判定し直し、支えを失った具を落とす。具ごとの判定を Map で返す
+    function resettle() {
+      const st = stack(), res = settle(st, onBread), M = new Map();
+      st.forEach((o, i) => {
+        M.set(o, res[i]);
+        if (res[i].kind !== 'stay') startFall(o, res[i]);
+      });
+      updateCover();
+      dirty = true;
+      return M;
+    }
+    function startFall(o, r) {
+      o.fall = { kind: r.kind, dx: r.dir[0], dy: r.dir[1], v: 30, t: 0, spin: (rand() - 0.5) * 2 };
+      if (calm.matches && !thumb) o.fall.t = 5;   // 動きを減らす設定では、すぐ消す
+      if (sel === o) sel = null;
+    }
+    function stepFalls(dt) {
+      let any = false;
+      for (const o of items) {
+        const f = o.fall;
+        if (!f) continue;
+        any = true;
+        f.t += dt;
+        if (f.kind === 'slide') {
+          f.v += 320 * dt;
+          o.x += f.dx * f.v * dt;
+          o.y += f.dy * f.v * dt;
+          if (!onBread(o.x, o.y)) o.y += 200 * f.t * dt;   // 中心がパンの縁を越えたら、下へも落ちる
+          o.a += f.spin * dt;
+          pose(o);
+        }
+      }
+      if (!any) return;
+      items = items.filter((o) => !o.fall || o.fall.t < (o.fall.kind === 'slide' ? 1.1 : 0.35));
+      dirty = true;
+      updateSel();
+    }
+    // 具の下のマスには刃が届かない
+    function updateCover() {
+      G.cover.fill(0);
+      for (const o of stack()) {
+        const i0 = Math.max(0, Math.floor((o.box[0] - G.ox) / G.cell)), i1 = Math.min(G.w - 1, Math.floor((o.box[2] - G.ox) / G.cell));
+        const j0 = Math.max(0, Math.floor((o.box[1] - G.oy) / G.cell)), j1 = Math.min(G.h - 1, Math.floor((o.box[3] - G.oy) / G.cell));
+        for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+          const k = j * G.w + i;
+          if (!G.cover[k] && inPoly(o.poly, G.ox + (i + 0.5) * G.cell, G.oy + (j + 0.5) * G.cell)) G.cover[k] = 1;
+        }
+      }
+    }
+    const fellNames = (M, but) => [...M].filter(([o, r]) => o !== but && r.kind !== 'stay').map(([o]) => NAME[o.kind]);
+    function report(it, M, verb) {
+      const r = M.get(it), nm = NAME[it.kind], others = fellNames(M, it);
+      let s = '';
+      if (r && r.kind === 'stay') s = `${nm}を${verb}。` + (r.frac < 0.995 ? `下に支えがあるのは ${pct(r.frac)}% だが、重心は支えの上にある。` : '');
+      else if (r && r.kind === 'slide') s = `${nm}は重心の下に支えが無いので、滑り落ちた（支えがあったのは ${pct(r.frac)}%）。`;
+      else if (r) s = `${nm}はパンの外に出たので、片付けた。`;
+      if (others.length) s += `支えを失った${others.join('・')}も落ちた。`;
+      if (s) say(s);
+    }
+    let liftFell = [];   // 持ち上げたときに落ちた具の名前（離したときの知らせに足す）
+    function lift(o) {
+      items = items.filter((x) => x !== o);
+      items.push(o);
+      o.lifted = true;
+      liftFell = fellNames(resettle(), o);
+      if (liftFell.length) say(`${NAME[o.kind]}を持ち上げたので、その上の${liftFell.join('・')}が落ちた。`);
+    }
+    function drop(o, verb = '載せた') {
+      o.lifted = false;
+      report(o, resettle(), verb);
+      if (liftFell.length) say(msgEl.textContent + `持ち上げたときに、上の${liftFell.join('・')}が落ちた。`);
+      liftFell = [];
+      updateSel();
+    }
+    function autoPlace(kind) {
+      let it = null;
+      for (let i = 0; i < 40 && !it; i++) {
+        const c = makeItem(kind, 120 + rand() * 160, 85 + rand() * 150, (rand() - 0.5) * 1.2);
+        if (preview(c).kind === 'stay') it = c;
+      }
+      it = it || makeItem(kind, 200, 160, 0);
+      items.push(it);
+      sel = it;
+      drop(it, 'パンの上に置いた');
+    }
+    function turnSel(d) {
+      if (!sel || sel.fall) return;
+      stopDemo();
+      sel.a += d;
+      pose(sel);
+      report(sel, resettle(), '回した');
+      updateSel();
+    }
+    function removeSel() {
+      if (!sel) return;
+      const o = sel;
+      items = items.filter((x) => x !== o);
+      sel = null;
+      const fell = fellNames(resettle(), o);
+      say(`${NAME[o.kind]}を外した。` + (fell.length ? `支えを失った${fell.join('・')}も落ちた。` : ''));
+      updateSel();
+    }
+    function updateSel() {
+      const on = !!sel && !sel.fall;
+      rotL.disabled = rotR.disabled = delB.disabled = !on;
+    }
+    const handleDist = (o) => LOCAL[o.kind].rad + 14;
+    const handlePos = (o) => [o.x + Math.sin(o.a) * handleDist(o), o.y - Math.cos(o.a) * handleDist(o)];
+    const nearHandle = (o, p) => { const h = handlePos(o); return Math.hypot(p[0] - h[0], p[1] - h[1]) < Math.max(9, 18 / S); };
+
+    // ---- 塗り物とナイフ ----
+    function take(pt) {
+      const before = K.load;
+      takeFromPot(K, pt.rgb);
+      K.name = before > KNIFE.full * 0.05 && K.name !== pt.name ? '混ざった塗り物' : pt.name;
+      wasLoaded = true;
+      say(`ナイフに${pt.name}を取った。パンの上をなでると塗れる。`);
+      updateLoad();
+      dirty = true;
+    }
+    // 刃の向きを、動く向きへ少しずつ寄せる。刃は前へ動いても後ろへ動いても同じ線なので、180 度の差は無いものとする
+    function turnTo(cur, target) {
+      let d = target - cur;
+      d -= Math.round(d / Math.PI) * Math.PI;
+      return cur + d * 0.35;
+    }
+    function knifeTo(from, p) {
+      const dx = p[0] - from[0], dy = p[1] - from[1];
+      if (dx * dx + dy * dy < 0.36) return false;
+      knifeAng = turnTo(knifeAng, Math.atan2(dy, dx));
+      stroke(G, K, from[0], from[1], p[0], p[1], KNIFE, knifeAng);
+      spreadDirty = true;
+      return true;
+    }
+    function updateLoad() {
+      const f = Math.min(1, K.load / KNIFE.full);
+      loadM.value = f;
+      const empty = K.load < KNIFE.full * 0.005;
+      const lt = empty ? '空' : `${K.name} ${pct(f)}%`;
+      if (lt !== lastLoadTxt) loadT.textContent = lastLoadTxt = lt;
+      const ct = `塗れた所 ${pct(coverage(G).frac)}%`;
+      if (ct !== lastCovTxt) covT.textContent = lastCovTxt = ct;
+      if (empty && wasLoaded && !demoRun) say('ナイフの塗り物が無くなった。壺をもう一度押す。空のナイフでなでると、塗った所がならされる。');
+      if (empty) wasLoaded = false;
+    }
+
+    // ---- 描く ----
+    function polyPath(c, P) { c.beginPath(); P.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.closePath(); }
+    function disc(c, x, y, rx, ry = rx) { c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); }
+    function rrect(c, x, y, w, h, r) {
+      c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
+      c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
+    }
+    function capsule(c, x0, x1, r) { c.beginPath(); c.arc(x0, 0, r, Math.PI / 2, Math.PI * 1.5); c.arc(x1, 0, r, -Math.PI / 2, Math.PI / 2); c.closePath(); }
+    const scaled = (P, k) => P.map(([x, y]) => [x * k, y * k]);
+    const BASE = { lettuce: '#7fc55a', ham: '#e9959c', cheese: '#f3c443', tomato: '#d4302a', cucumber: '#2e7b33', egg: '#fbf9ef', berry: '#d62a3a', banana: '#f4eac2' };
+    const DETAIL = {
+      lettuce(c, P) {
+        polyPath(c, scaled(P, 0.82)); c.fillStyle = '#a6dc7b'; c.fill();
+        c.strokeStyle = '#e4f6c8'; c.lineWidth = 2; c.lineCap = 'round';
+        c.beginPath(); c.moveTo(-2, 28); c.quadraticCurveTo(2, 0, -2, -28);
+        for (const sg of [-1, 1]) for (const y of [-16, -4, 8, 20]) { c.moveTo(0, y); c.quadraticCurveTo(sg * 10, y - 4, sg * 22, y - 10); }
+        c.stroke();
+        polyPath(c, P); c.strokeStyle = '#4f9a3a'; c.lineWidth = 1.4; c.stroke();
+      },
+      ham(c) {
+        disc(c, 0, 0, 27); c.fillStyle = '#f4b3b7'; c.fill();
+        c.strokeStyle = 'rgb(255 236 236 / .7)'; c.lineWidth = 2;
+        c.beginPath(); c.arc(-6, -4, 14, 0.3, 2.2); c.moveTo(17, 6); c.arc(8, 6, 9, 0, 1.6); c.stroke();
+        disc(c, 0, 0, 31.5); c.strokeStyle = '#c86672'; c.lineWidth = 3; c.stroke();
+      },
+      cheese(c, P) {
+        c.fillStyle = '#d9a22a';
+        for (const [x, y, r] of [[-14, -12, 5], [10, -5, 6.5], [-6, 14, 4], [16, 16, 3.5], [-19, 8, 2.5], [4, -21, 2.5]]) { disc(c, x, y, r); c.fill(); }
+        polyPath(c, P); c.strokeStyle = '#d29b28'; c.lineWidth = 1.2; c.stroke();
+      },
+      tomato(c) {
+        disc(c, 0, 0, 18.5); c.fillStyle = '#ec5440'; c.fill();
+        for (let i = 0; i < 3; i++) {
+          const a = i * Math.PI * 2 / 3 - Math.PI / 2;
+          c.save(); c.translate(Math.cos(a) * 9.5, Math.sin(a) * 9.5); c.rotate(a);
+          disc(c, 0, 0, 5, 6.5); c.fillStyle = '#f6b26b'; c.fill();
+          c.fillStyle = '#fbe7b0';
+          for (const [sx, sy] of [[0, -3], [0, 3], [1.5, 0]]) { disc(c, sx, sy, 1.1, 1.6); c.fill(); }
+          c.restore();
+        }
+        disc(c, 0, 0, 4); c.fillStyle = '#f5c39d'; c.fill();
+      },
+      cucumber(c) {
+        disc(c, 0, 0, 12.4); c.fillStyle = '#d3eca8'; c.fill();
+        disc(c, 0, 0, 7.5); c.fillStyle = '#bde08e'; c.fill();
+        c.fillStyle = '#f1f7da';
+        for (let i = 0; i < 8; i++) {
+          const a = i * Math.PI / 4;
+          c.save(); c.translate(Math.cos(a) * 4.6, Math.sin(a) * 4.6); c.rotate(a); disc(c, 0, 0, 1.6, 0.9); c.fill(); c.restore();
+        }
+      },
+      egg(c, P) {
+        disc(c, 0, 1.5, 9, 10.5); c.fillStyle = '#f2ae22'; c.fill();
+        disc(c, -1, 0, 5, 5.5); c.fillStyle = '#f7c74e'; c.fill();
+        polyPath(c, P); c.strokeStyle = '#e2ddcc'; c.lineWidth = 0.8; c.stroke();
+      },
+      berry(c, P) {
+        polyPath(c, scaled(P, 0.74)); c.fillStyle = '#f39aa1'; c.fill();
+        c.strokeStyle = 'rgb(255 245 245 / .85)'; c.lineWidth = 1.2;
+        c.beginPath(); c.moveTo(0, -7); c.lineTo(0, 11);
+        c.moveTo(0, -4); c.quadraticCurveTo(-6, 0, -5, 7); c.moveTo(0, -4); c.quadraticCurveTo(6, 0, 5, 7); c.stroke();
+        c.fillStyle = '#f6dd7c';
+        P.forEach(([x, y], i) => { if (i % 3 === 0) { disc(c, x * 0.88, y * 0.88, 0.8); c.fill(); } });
+      },
+      banana(c, P) {
+        polyPath(c, P); c.strokeStyle = '#e2cd86'; c.lineWidth = 1.6; c.stroke();
+        c.strokeStyle = 'rgb(205 175 105 / .45)'; c.lineWidth = 0.8; c.beginPath();
+        for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; c.moveTo(Math.cos(a) * 3, Math.sin(a) * 3); c.lineTo(Math.cos(a) * 9, Math.sin(a) * 9); }
+        c.stroke();
+        c.fillStyle = '#6d4f27';
+        for (let i = 0; i < 3; i++) { const a = i * Math.PI * 2 / 3 + 0.5; disc(c, Math.cos(a) * 2.2, Math.sin(a) * 2.2, 0.9); c.fill(); }
+      },
+    };
+    // 具を中心が原点の座標で描く。shadow は [色, ぼかし, 横, 縦]（画面の画素）
+    function paintItem(c, kind, shadow) {
+      const P = LOCAL[kind].poly;
+      c.save();
+      if (shadow) { c.shadowColor = shadow[0]; c.shadowBlur = shadow[1]; c.shadowOffsetX = shadow[2]; c.shadowOffsetY = shadow[3]; }
+      polyPath(c, P);
+      c.fillStyle = BASE[kind];
+      c.fill();
+      c.restore();
+      c.save();
+      DETAIL[kind](c, P);
+      c.restore();
+    }
+    function drawItem(o) {
+      let alpha = 1, k = o.lifted ? 1.06 : 1;
+      const f = o.fall;
+      if (f && f.kind === 'slide') alpha = 1 - Math.max(0, f.t - 0.55) / 0.55;
+      else if (f) { alpha = 1 - f.t / 0.35; k = Math.max(0.05, 1 - f.t); }
+      if (alpha <= 0) return;
+      const sd = S * dpr;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(o.x, o.y); ctx.rotate(o.a); ctx.scale(k, k);
+      paintItem(ctx, o.kind, o.lifted ? ['rgb(40 20 0 / .35)', 10 * sd, 5 * sd, 8 * sd] : ['rgb(40 20 0 / .3)', 3 * sd, 1.2 * sd, 2 * sd]);
+      ctx.restore();
+    }
+    function drawSel(o, color, handle) {
+      const L = LOCAL[o.kind];
+      ctx.save();
+      ctx.translate(o.x, o.y); ctx.rotate(o.a);
+      if (o.lifted) ctx.scale(1.06, 1.06);
+      polyPath(ctx, L.poly);
+      ctx.setLineDash([4, 3]); ctx.lineWidth = 1.6; ctx.strokeStyle = color; ctx.stroke(); ctx.setLineDash([]);
+      if (handle) {
+        const d = handleDist(o), r = Math.max(5, 9 / S);
+        ctx.beginPath(); ctx.moveTo(0, -L.rad); ctx.lineTo(0, -d + r); ctx.lineWidth = 1.4; ctx.stroke();
+        disc(ctx, 0, -d, r); ctx.fillStyle = '#fff'; ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, -d, r * 0.55, -2.6, 0.9); ctx.stroke();
+      }
+      ctx.restore();
+    }
+    // ナイフ。ang は動く向きで、刃はそれに直角。柄は右下へ出す
+    function drawKnife(x, y, ang) {
+      let ax = -Math.sin(ang), ay = Math.cos(ang);
+      if (ax + ay < 0) { ax = -ax; ay = -ay; }
+      const sd = S * dpr, hf = KNIFE.half;
+      ctx.save();
+      ctx.translate(x, y); ctx.rotate(Math.atan2(ay, ax));
+      ctx.shadowColor = 'rgb(0 0 0 / .3)'; ctx.shadowBlur = 6 * sd; ctx.shadowOffsetX = 3 * sd; ctx.shadowOffsetY = 6 * sd;
+      capsule(ctx, -hf + 4, hf, 4.6);
+      const gr = ctx.createLinearGradient(0, -4.6, 0, 4.6);
+      gr.addColorStop(0, '#f1f4f7'); gr.addColorStop(1, '#aeb7c0');
+      ctx.fillStyle = gr; ctx.fill();
+      capsule(ctx, hf + 8, hf + 46, 5.6); ctx.fillStyle = '#35393f'; ctx.fill();
+      ctx.shadowColor = 'transparent';
+      ctx.fillStyle = '#c6ccd2'; ctx.fillRect(hf, -3.2, 8, 6.4);
+      ctx.fillStyle = '#9aa1a8';
+      for (const xx of [hf + 20, hf + 34]) { disc(ctx, xx, 0, 1.3); ctx.fill(); }
+      capsule(ctx, -hf + 4, hf, 4.6); ctx.strokeStyle = '#8c959e'; ctx.lineWidth = 0.8; ctx.stroke();
+      if (K.load > 1) {
+        const s = Math.sqrt(Math.min(1.3, K.load / KNIFE.full));
+        disc(ctx, -3, 0, 4 + 15 * s, 1.4 + 3 * s); ctx.fillStyle = rgbOf(K.r, K.g, K.b); ctx.fill();
+        disc(ctx, -6, -1, 2 + 6 * s, 0.6 + 0.8 * s); ctx.fillStyle = 'rgb(255 255 255 / .35)'; ctx.fill();
+      }
+      ctx.restore();
+    }
+    function renderBread() {
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.ceil(VW * S * dpr)); c.height = Math.max(1, Math.ceil(VH * S * dpr));
+      const b = c.getContext('2d'), sd = S * dpr;
+      let s0 = 99;
+      const r0 = () => { s0 = (s0 * 16807) % 2147483647; return s0 / 2147483647; };
+      b.setTransform(sd, 0, 0, sd, 0, 0);
+      // まな板
+      b.save();
+      b.shadowColor = 'rgb(0 0 0 / .35)'; b.shadowBlur = 14 * sd; b.shadowOffsetY = 6 * sd;
+      rrect(b, 14, 10, 372, 282, 22);
+      const wood = b.createLinearGradient(0, 10, 0, 292);
+      wood.addColorStop(0, '#d9ab72'); wood.addColorStop(1, '#c48f55');
+      b.fillStyle = wood; b.fill();
+      b.restore();
+      b.save();
+      rrect(b, 14, 10, 372, 282, 22); b.clip();
+      b.strokeStyle = 'rgb(120 70 30 / .13)'; b.lineWidth = 1.2;
+      for (let i = 0; i < 26; i++) {
+        const y0 = 14 + i * 11 + r0() * 4;
+        b.beginPath();
+        for (let x = 10; x <= 390; x += 10) {
+          const y = y0 + Math.sin(x / 47 + i) * 2.5 + Math.sin(x / 13 + i * 3) * 0.6;
+          if (x === 10) b.moveTo(x, y); else b.lineTo(x, y);
+        }
+        b.stroke();
+      }
+      b.restore();
+      // パンの耳と影
+      b.save();
+      b.shadowColor = 'rgb(70 35 0 / .35)'; b.shadowBlur = 8 * sd; b.shadowOffsetX = 2 * sd; b.shadowOffsetY = 5 * sd;
+      polyPath(b, OUTER);
+      const crust = b.createLinearGradient(0, 40, 0, 262);
+      crust.addColorStop(0, '#b4682c'); crust.addColorStop(1, '#a05827');
+      b.fillStyle = crust; b.fill();
+      b.restore();
+      // 白い所と気泡の粒
+      polyPath(b, CRUMB);
+      const crumb = b.createRadialGradient(200, 150, 20, 200, 150, 150);
+      crumb.addColorStop(0, '#f8e8c6'); crumb.addColorStop(1, '#eccf98');
+      b.fillStyle = crumb; b.fill();
+      b.save();
+      polyPath(b, CRUMB); b.clip();
+      const CB = bboxOf(CRUMB);
+      for (let i = 0; i < 1400; i++) {
+        const x = CB[0] + r0() * (CB[2] - CB[0]), y = CB[1] + r0() * (CB[3] - CB[1]);
+        b.fillStyle = r0() < 0.55 ? 'rgb(170 120 60 / .16)' : 'rgb(255 252 240 / .5)';
+        disc(b, x, y, 0.5 + r0() * 1.3, 0.4 + r0() * 0.9); b.fill();
+      }
+      b.restore();
+      polyPath(b, CRUMB); b.strokeStyle = 'rgb(150 90 40 / .35)'; b.lineWidth = 1.2; b.stroke();
+      breadImg = c;
+    }
+    // 塗り物のマスを 1 マス 1 画素の絵にする。光は左上から当て、左上へ向いた斜面を明るくする
+    function paintSpread() {
+      const d = img.data, w = G.w, h = G.h, T = G.t;
+      for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+        const k = j * w + i, q = k * 4, t = T[k];
+        if (t < 0.02) { d[q + 3] = 0; continue; }
+        const gx = (i < w - 1 ? T[k + 1] : t) - (i > 0 ? T[k - 1] : t);
+        const gy = (j < h - 1 ? T[k + w] : t) - (j > 0 ? T[k - w] : t);
+        const sh = clampTo(1 + (gx + gy) * 0.22 + noise[k] * 0.3 * Math.min(1, t), 0.6, 1.4);
+        const sp = Math.max(0, sh - 1.12) * 1.6;
+        d[q] = (G.r[k] * sh + sp) * 255;
+        d[q + 1] = (G.g[k] * sh + sp) * 255;
+        d[q + 2] = (G.b[k] * sh + sp) * 255;
+        d[q + 3] = Math.min(1, t / 0.6) * 245;
+      }
+      sctx.putImageData(img, 0, 0);
+    }
+    const onBoard = (p) => p[0] > 14 && p[0] < 386 && p[1] > 10 && p[1] < 292;
+    const wantKnife = (p) => onBoard(p) && !hitItem(p[0], p[1]) && !(sel && !sel.fall && nearHandle(sel, p));
+    function draw() {
+      dirty = false;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = '#4a3528';
+      ctx.fillRect(0, 0, cv.width, cv.height);
+      if (!breadImg) renderBread();
+      ctx.drawImage(breadImg, OX * dpr, OY * dpr);
+      ctx.setTransform(S * dpr, 0, 0, S * dpr, OX * dpr, OY * dpr);
+      if (spreadDirty) { spreadDirty = false; paintSpread(); updateLoad(); }
+      ctx.save();
+      polyPath(ctx, OUTER); ctx.clip();
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(spreadCv, G.ox, G.oy, G.w * G.cell, G.h * G.cell);
+      ctx.restore();
+      for (const o of items) if (!o.lifted) drawItem(o);
+      for (const o of items) if (o.lifted) drawItem(o);
+      if (sel && !sel.fall) drawSel(sel, pv ? PV_COL[pv.kind] : '#2563c9', !sel.lifted && mode !== 'new' && !demoRun);
+      const kp = demoKnife || (hover && (mode === 'spread' || (!mode && wantKnife(hover))) ? hover : null);
+      if (kp) drawKnife(kp[0], kp[1], knifeAng);
+    }
+
+    // ---- 大きさと座標 ----
+    function resize() {
+      const r = cv.getBoundingClientRect();
+      dpr = Math.min(2, window.devicePixelRatio || 1);
+      W = Math.max(1, r.width); H = Math.max(1, r.height);
+      cv.width = Math.max(1, Math.round(W * dpr)); cv.height = Math.max(1, Math.round(H * dpr));
+      S = Math.max(0.05, Math.min(W / VW, H / VH));
+      OX = (W - VW * S) / 2; OY = (H - VH * S) / 2;
+      breadImg = null;
+      dirty = true;
+    }
+    const toW = (e) => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left - OX) / S, (e.clientY - r.top - OY) / S]; };
+
+    // ---- パンの画面の操作 ----
+    cv.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      stopDemo();
+      const p = toW(e);
+      hover = p;
+      cv.setPointerCapture(e.pointerId);
+      if (sel && !sel.fall && nearHandle(sel, p)) mode = 'rotate';
+      else {
+        const o = hitItem(p[0], p[1]);
+        if (o) { sel = o; mode = 'press'; off = [p[0] - o.x, p[1] - o.y]; pressAt = [e.clientX, e.clientY]; }
+        else { sel = null; mode = 'spread'; last = p; }
+      }
+      updateSel();
+      dirty = true;
+    });
+    cv.addEventListener('pointermove', (e) => {
+      const p = toW(e);
+      hover = p;
+      dirty = true;
+      if (!cv.hasPointerCapture(e.pointerId)) {
+        cv.style.cursor = sel && !sel.fall && nearHandle(sel, p) ? 'grab' : hitItem(p[0], p[1]) ? 'grab' : onBoard(p) ? 'none' : 'default';
+        return;
+      }
+      if (mode === 'press' && sel && Math.hypot(e.clientX - pressAt[0], e.clientY - pressAt[1]) > 4) {
+        mode = 'move';
+        cv.style.cursor = 'grabbing';
+        lift(sel);
+      }
+      if (mode === 'move' && sel) {
+        sel.x = clampTo(p[0] - off[0], 0, VW); sel.y = clampTo(p[1] - off[1], 0, VH);
+        pose(sel);
+        pv = preview(sel);
+      } else if (mode === 'rotate' && sel) {
+        sel.a = Math.atan2(p[1] - sel.y, p[0] - sel.x) + Math.PI / 2;
+        pose(sel);
+      } else if (mode === 'spread' && last) {
+        if (knifeTo(last, p)) last = p;
+      }
+    });
+    cv.addEventListener('lostpointercapture', (e) => {
+      if (mode === 'move' && sel) drop(sel, '動かした');
+      else if (mode === 'rotate' && sel) { report(sel, resettle(), '回した'); updateSel(); }
+      if (e.pointerType !== 'mouse') hover = null;
+      mode = null; last = null; pv = null; dirty = true;
+    });
+    cv.addEventListener('pointerleave', () => { if (!mode) { hover = null; dirty = true; } });
+    cv.addEventListener('wheel', (e) => {
+      const p = toW(e), o = hitItem(p[0], p[1]);
+      if (!o) return;
+      e.preventDefault();
+      sel = o;
+      turnSel(Math.sign(e.deltaY) * Math.PI / 18);
+    }, { passive: false });
+    cv.addEventListener('keydown', (e) => {
+      const st = stack();
+      if (!st.length) return;
+      if (!sel || sel.fall || !st.includes(sel)) sel = st[st.length - 1];
+      const o = sel, d = e.shiftKey ? 16 : 4;
+      let verb = '動かした';
+      switch (e.key) {
+        case 'ArrowLeft': o.x -= d; break;
+        case 'ArrowRight': o.x += d; break;
+        case 'ArrowUp': o.y -= d; break;
+        case 'ArrowDown': o.y += d; break;
+        case 'q': case 'Q': o.a -= Math.PI / 12; verb = '回した'; break;
+        case 'e': case 'E': o.a += Math.PI / 12; verb = '回した'; break;
+        case 'n': case 'N':
+          e.preventDefault();
+          sel = st[(st.indexOf(o) + 1) % st.length];
+          say(`${NAME[sel.kind]}を選んだ。`);
+          updateSel(); dirty = true;
+          return;
+        case 'Delete': case 'Backspace': e.preventDefault(); removeSel(); return;
+        default: return;
+      }
+      e.preventDefault();
+      stopDemo();
+      o.x = clampTo(o.x, 0, VW); o.y = clampTo(o.y, 0, VH);
+      pose(o);
+      report(o, resettle(), verb);
+      updateSel();
+    });
+    rotL.addEventListener('click', () => turnSel(-Math.PI / 12));
+    rotR.addEventListener('click', () => turnSel(Math.PI / 12));
+    delB.addEventListener('click', () => { stopDemo(); removeSel(); });
+
+    // ---- 壺と具のボタン ----
+    for (const pt of POTS) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'pot';
+      const sw = document.createElement('i');
+      sw.style.setProperty('--c', rgbOf(...pt.rgb));
+      b.append(sw, pt.name);
+      b.addEventListener('click', () => { stopDemo(); take(pt); });
+      $('pots').append(b);
+    }
+    for (const t of TOPS) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'top';
+      const ic = document.createElement('canvas');
+      ic.width = ic.height = 48;
+      const ix = ic.getContext('2d'), k = 22 / LOCAL[t.id].rad;
+      ix.setTransform(k, 0, 0, k, 24, 24);
+      paintItem(ix, t.id);
+      b.append(ic, t.name);
+      b.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        stopDemo();
+        nd = { btn: b, sx: e.clientX, sy: e.clientY, cx: e.clientX, cy: e.clientY, up: false, item: null };
+        b.setPointerCapture(e.pointerId);
+      });
+      b.addEventListener('pointermove', (e) => {
+        if (!nd || nd.btn !== b || !b.hasPointerCapture(e.pointerId)) return;
+        nd.cx = e.clientX; nd.cy = e.clientY;
+        const p = toW(e);
+        if (!nd.item) {
+          if (Math.hypot(e.clientX - nd.sx, e.clientY - nd.sy) <= 4) return;
+          nd.item = makeItem(t.id, p[0], p[1], (rand() - 0.5) * 0.8);
+          nd.item.lifted = true;
+          items.push(nd.item);
+          sel = nd.item; mode = 'new';
+          updateSel();
+        }
+        nd.item.x = p[0]; nd.item.y = p[1];
+        pose(nd.item);
+        pv = preview(nd.item);
+        dirty = true;
+      });
+      b.addEventListener('pointerup', () => {
+        if (!nd || nd.btn !== b) return;
+        nd.up = true;
+        if (nd.item) dragEndAt = performance.now();
+      });
+      b.addEventListener('lostpointercapture', () => {
+        if (!nd || nd.btn !== b) return;
+        const d = nd;
+        nd = null; mode = null; pv = null; dirty = true;
+        if (!d.item) return;   // 動かさずに離したときは click で置く
+        dragEndAt = performance.now();
+        const r = cv.getBoundingClientRect();
+        if (d.up && d.cx >= r.left && d.cx <= r.right && d.cy >= r.top && d.cy <= r.bottom) drop(d.item);
+        else {
+          items = items.filter((o) => o !== d.item);
+          sel = null;
+          say(`${t.name}を戻した。`);
+          updateSel();
+        }
+      });
+      b.addEventListener('click', () => {
+        if (performance.now() - dragEndAt < 500) return;
+        stopDemo();
+        autoPlace(t.id);
+      });
+      $('tray').append(b);
+    }
+
+    // ---- 見本の自動の動き ----
+    function clearAll() {
+      items = []; sel = null; mode = null; pv = null;
+      for (const a of [G.t, G.r, G.g, G.b, G.cover]) a.fill(0);
+      K.load = 0; K.name = ''; wasLoaded = false;
+      spreadDirty = dirty = true;
+      updateSel();
+    }
+    function along(P, u) {   // 折れ線の上で、全体の長さに対して u の位置
+      const L = [];
+      let tot = 0;
+      for (let i = 1; i < P.length; i++) { const l = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]); L.push(l); tot += l; }
+      let d = u * tot;
+      for (let i = 0; i < L.length; i++) {
+        if (d <= L[i] || i === L.length - 1) {
+          const f = Math.min(1, d / L[i]);
+          return [P[i][0] + (P[i + 1][0] - P[i][0]) * f, P[i][1] + (P[i + 1][1] - P[i][1]) * f];
+        }
+        d -= L[i];
+      }
+      return P[P.length - 1];
+    }
+    const ease = (u) => u * u * (3 - 2 * u);
+    const once = (d, fn) => { let done = false; return { d, f() { if (!done) { done = true; fn(); } } }; };
+    function knifePath(P, d) {
+      let prev = null;
+      return { d, f(u) {
+        const p = along(P, u);
+        if (!prev || knifeTo(prev, p)) prev = p;
+        demoKnife = u < 1 ? p : null;
+      } };
+    }
+    function bringIn(kind, x, y, a) {
+      let it = null;
+      return { d: 0.6, f(u) {
+        if (!it) { it = makeItem(kind, x - 40, VH + 30, a - 0.6); it.lifted = true; items.push(it); }
+        const e = ease(u);
+        it.x = x - 40 + 40 * e; it.y = VH + 30 + (y - VH - 30) * e; it.a = a - 0.6 + 0.6 * e;
+        pose(it);
+        if (u >= 1) drop(it);
+      } };
+    }
+    function demoSteps() {
+      return [
+        once(0.3, () => { clearAll(); take(POTS[0]); }),
+        knifePath([[100, 84], [300, 88], [300, 122], [100, 126], [100, 162], [300, 166], [300, 204], [100, 208], [100, 244], [300, 247]], 3.6),
+        once(0.25, () => take(POTS[1])),
+        knifePath([[110, 70], [170, 74], [170, 96], [110, 98]], 0.8),
+        bringIn('lettuce', 165, 140, 0.2),
+        bringIn('ham', 238, 150, 0),
+        bringIn('cheese', 192, 192, 0.35),
+        bringIn('tomato', 168, 122, 0),
+        bringIn('egg', 242, 207, 0),
+        bringIn('cucumber', 248, 108, 0),
+        bringIn('tomato', 322, 178, 0),
+        once(1.8, () => {}),
+      ];
+    }
+    function startDemo() {
+      demoRun = { steps: demoSteps(), i: 0, t0: performance.now() };
+      demoB.textContent = '見本を止める';
+    }
+    function stopDemo() {
+      if (!demoRun) return;
+      demoRun = null; demoKnife = null;
+      demoB.textContent = '見本を動かす';
+      for (const o of items.filter((x) => x.lifted)) drop(o);
+      dirty = true;
+    }
+    function runDemo(now) {
+      const R = demoRun;
+      if (!R) return;
+      while (R.i < R.steps.length) {
+        const st = R.steps[R.i], u = Math.min(1, (now - R.t0) / (st.d * 1000));
+        st.f(u);
+        if (u < 1) break;
+        R.i++;
+        R.t0 += st.d * 1000;
+      }
+      dirty = true;
+      if (R.i < R.steps.length) return;
+      if (thumb) { startDemo(); return; }
+      demoRun = null; demoKnife = null;
+      demoB.textContent = '見本を動かす';
+      say('見本はここまで。最後のトマトは、重心がパンの縁より外にあったので滑り落ちた。自分でも塗って、具を載せてみてください。');
+    }
+    demoB.addEventListener('click', () => {
+      if (demoRun) { stopDemo(); say('見本を止めた。'); return; }
+      startDemo();
+      say('見本を動かしている。バターを塗り、ジャムを少し重ね、具を順に載せる。');
+    });
+    clearB.addEventListener('click', () => { stopDemo(); clearAll(); updateLoad(); say('最初からにした。'); });
+
+    function frame(now) {
+      requestAnimationFrame(frame);
+      const dt = Math.min(0.05, Math.max(0, (now - lastT) / 1000));
+      lastT = now;
+      runDemo(now);
+      stepFalls(dt);
+      if (dirty || spreadDirty) draw();
+    }
+    new ResizeObserver(resize).observe(cv);
+    resize();
+    updateSel();
+    updateLoad();
+    say('壺（バターなど）を押すとナイフに塗り物が付きます。パンの上をなでると塗れます。具は上の帯からパンへ引いて載せます。');
+    if (thumb) startDemo();
+    requestAnimationFrame(frame);
+  },
+});
+
+dekiru.add({
+  id: 'tr-20261123-perplexity-compress', c: 'trend', lv: 3, date: '2026-11-23',
+  t: '次の文字を当てる力をパープレキシティで測り、その予測で文章を本当に圧縮する（OpenAI「Perplexity and Intelligence」）',
+  y: 'つぎのもじをあてるちからをぱーぷれきしてぃではかりそのよそくでぶんしょうをほんとうにあっしゅくする',
+  tags: ['Perplexity and Intelligence', 'パープレキシティ', '算術符号', 'n-gram', 'CompressionStream', 'Canvas'],
+  d: '2026年11月22日、OpenAI の Chief Scientist の Jakub Pachocki さんが記事「Perplexity and Intelligence」を公開し、Hacker News では取得した時点で 396 点・263 件のコメントを集めていた。記事は、言語モデルの事前学習を「圧縮する道具（次を予測する道具と同じもの）を作ること」と説明する。そして、学習に使っていない文での予測の外れ具合（パープレキシティ。交差エントロピーの損失と同じもの）を、各社で比べる共通の物差しにしようと提案している。社内の値として、GPT‑3.5 が約 0.99、GPT‑4 が約 0.91 で、0.8 を下回ってからサイバーセキュリティや数学で大きな能力が現れたと書いている。この見本では、直前の 0〜6 文字から次の 1 文字を当てる小さなモデル（文字の並びの回数を数え、Witten–Bell の方法でなめらかにしたもの）をブラウザの中で学習させ、学習に使わなかった文で損失とパープレキシティを測る。さらに、そのモデルが出す確率で算術符号を作って文を実際にビット列へ圧縮し、元に戻して一致することを確かめ、ブラウザの deflate（CompressionStream）と大きさを比べる。予測が上手いほど小さく縮む、という記事の前提を手元で確かめられる。再現できていない所: 記事の値はトークン単位で、大きなモデルと OpenAI の社内の評価用データで測ったもの。この見本は 1 文字単位の小さな数え上げのモデルなので、数の大きさは記事の値と比べられない。算術符号は、文字の一覧（学習用の文と当てさせる文に出てくる文字）を送る側と受け取る側が同じものを持っている前提で、一覧を送る分は大きさに入れていない。',
+  p: '損失は「実際に来た文字に付けていた確率」の −ln の平均で、e の損失乗がパープレキシティになる。パープレキシティが 4 なら、毎回 4 つの候補から同じ確率で選ぶ場合と同じくらい当てにくい。確率 p の文字は算術符号でおよそ −log₂p ビットで書けるので、損失の合計 ÷ ln 2 ÷ 8 がほぼ圧縮後のバイト数になる。符号を作る側は 32 ビットの整数の区間 [low, high] を文字の確率の幅に狭め、上の桁が決まったら書き出す。受け取る側は同じモデルで同じ確率を計算し、同じ順に区間を狭めて文字を取り出す。確率は整数の度数（合計は 65536 以下、どの文字も 1 以上）に直してから使い、両側の計算の結果がずれないようにしている。',
+  refs: [
+    { title: 'Perplexity and Intelligence（OpenAI、Jakub Pachocki、2026-11-22）', url: 'https://openai.com/index/perplexity-and-intelligence/' },
+    { title: 'Hacker News: Perplexity and Intelligence（2026-11-22）', url: 'https://news.ycombinator.com/item?id=50601525' },
+    { title: 'Jakub Pachocki さんの X の投稿（2026-11-22）', url: 'https://x.com/merettm/status/2124549218995949967' },
+    { title: 'Arithmetic coding（Wikipedia）', url: 'https://en.wikipedia.org/wiki/Arithmetic_coding' },
+  ],
+  html: `<div class="app">
+  <div class="bar">
+    <label class="row">文の組 <select id="preset">
+      <option value="ja">天気の日記（日本語）</option>
+      <option value="en">天気の日記（英語）</option>
+      <option value="rnd">でたらめな英字（当てようがない）</option>
+    </select></label>
+    <span class="row"><label for="ord">直前の何文字を見るか</label><input type="range" id="ord" min="0" max="6" step="1" value="3"><output id="ordOut" for="ord">3 文字</output></span>
+  </div>
+  <div class="texts">
+    <label>学習に使う文<textarea id="trainT" spellcheck="false"></textarea></label>
+    <label>当てさせる文（学習には使わない）<textarea id="testT" spellcheck="false"></textarea></label>
+  </div>
+  <div class="stats">
+    <div class="stat"><span>損失（1 文字あたりの log-perplexity）</span><b id="lossO">-</b><span>ナット</span></div>
+    <div class="stat"><span>パープレキシティ（e の損失乗）</span><b id="pplO">-</b><span>個の候補から選ぶのと同じ当てにくさ</span></div>
+    <div class="stat"><span>1 文字を書くのに要る長さ</span><b id="bpcO">-</b><span>ビット</span></div>
+  </div>
+  <div id="heat" class="heat" tabindex="0" aria-label="当てさせる文。色が濃い文字ほど当てられなかった。左右の矢印キーで文字を選ぶと、そのときの予想が下に出る"></div>
+  <p id="pick" class="pick" role="status"></p>
+  <div class="lower">
+    <figure>
+      <canvas id="cv" role="img" aria-label="直前の文字数と損失のグラフ"></canvas>
+      <figcaption><span class="key k1"></span>学習に使わなかった文　<span class="key k2"></span>学習に使った文（低いほどよく当たる）</figcaption>
+    </figure>
+    <div class="tw"><table>
+      <caption>当てさせる文を縮めた大きさ</caption>
+      <thead><tr><th scope="col">やり方</th><th scope="col">バイト</th><th scope="col">1 文字あたりのビット</th></tr></thead>
+      <tbody id="cmp"></tbody>
+    </table></div>
+  </div>
+  <p id="note" class="small"></p>
+  <p class="small">算術符号の実物には、先頭に文字数（4 バイト）が入っている。deflate の 2 行目は「学習用の文と当てさせる文をつないで縮めた大きさ − 学習用の文だけを縮めた大きさ」で、モデルと同じく学習用の文を先に知っている条件にそろえたもの。</p>
+</div>`,
+  css: `:root { color-scheme: light; --bg: #f4f2ec; --fg: #23211d; --mut: #625d53; --line: #d6d0c3; --panel: #fffdf8; --acc: #1d6a86; --hot: #d4452a; --train: #8a8478; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    .app { box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; padding: 10px; max-inline-size: 980px; margin-inline: auto; }
+    .bar { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; }
+    .row { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    select, output { font: inherit; }
+    select { max-inline-size: 100%; }
+    #ord { accent-color: var(--acc); inline-size: min(200px, 46vw); }
+    #ord:focus-visible { outline: 2px solid var(--acc); outline-offset: 4px; }
+    output { min-inline-size: 3.5em; font-variant-numeric: tabular-nums; }
+    .texts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 8px; }
+    .texts label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--mut); }
+    textarea { box-sizing: border-box; inline-size: 100%; block-size: 6.5em; resize: vertical; font: 13px/1.5 system-ui, sans-serif; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
+    .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+    .stat { min-inline-size: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; display: flex; flex-direction: column; }
+    .stat span { font-size: 11px; color: var(--mut); line-height: 1.35; }
+    .stat b { font-size: 22px; line-height: 1.25; font-variant-numeric: tabular-nums; }
+    .heat { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; max-block-size: 10.5em; overflow: auto; font-size: 15px; line-height: 1.85; }
+    .heat:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+    .heat span { border-radius: 2px; background: color-mix(in oklab, var(--hot) calc(var(--s, 0) * 85%), transparent); }
+    .heat span.sel { outline: 2px solid var(--acc); outline-offset: 1px; }
+    .pick { margin: 0; min-block-size: 3em; font-size: 13px; }
+    .pick .ctx { background: #e6eef1; border-radius: 3px; padding-inline: 3px; white-space: pre; }
+    .pick .hit { font-weight: 700; color: var(--acc); }
+    .lower { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 8px; align-items: start; }
+    figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
+    canvas { display: block; inline-size: 100%; block-size: 180px; }
+    figcaption { font-size: 12px; color: var(--mut); }
+    .key { display: inline-block; inline-size: 18px; block-size: 0; border-block-start: 3px solid var(--acc); vertical-align: middle; margin-inline-end: 4px; }
+    .key.k2 { border-block-start: 3px dashed var(--train); }
+    .tw { overflow-x: auto; }
+    table { border-collapse: collapse; inline-size: 100%; font-size: 12.5px; background: var(--panel); border: 1px solid var(--line); }
+    caption { text-align: start; font-size: 12px; color: var(--mut); padding-block-end: 2px; }
+    th, td { border-block-end: 1px solid var(--line); padding: 4px 6px; text-align: start; font-weight: normal; }
+    thead th { color: var(--mut); font-size: 11.5px; }
+    td.num { text-align: end; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    tr.best th { font-weight: 700; }
+    .small { font-size: 12px; color: var(--mut); margin: 0; }
+    .thumb .texts, .thumb .small, .thumb .tw, .thumb .pick { display: none; }
+    .thumb .heat { max-block-size: 6.5em; }
+    @media (max-width: 420px) { .stat b { font-size: 18px; } }`,
+  core() {
+    // 直前の何文字まで数えておくか（スライダーの上限）
+    const MAX_ORDER = 6;
+
+    // 文字列を「文字」（コードポイント）の配列にする。改行は \n にそろえる
+    function charsOf(text) {
+      return Array.from(String(text).replace(/\r\n?/g, '\n'));
+    }
+
+    // 学習: 長さ 0〜maxOrder の文脈ごとに、その後に来た文字の回数を数える
+    // ctx のキーは文脈の文字列（長さ 0 は ''）、値は { n: 回数の合計, m: 文字 → 回数 }
+    function train(chars, maxOrder) {
+      const ctx = new Map();
+      for (let i = 0; i < chars.length; i++) {
+        const c = chars[i];
+        let key = '';
+        for (let k = 0; k <= maxOrder && k <= i; k++) {
+          if (k > 0) key = chars[i - k] + key;
+          let node = ctx.get(key);
+          if (!node) { node = { n: 0, m: new Map() }; ctx.set(key, node); }
+          node.n++;
+          node.m.set(c, (node.m.get(c) || 0) + 1);
+        }
+      }
+      return { maxOrder, ctx };
+    }
+
+    // 文字の一覧（符号にするとき、送る側と受け取る側が同じ一覧を持つ）
+    function alphabetOf(...lists) {
+      const s = new Set();
+      for (const L of lists) for (const c of L) s.add(c);
+      return [...s].sort();
+    }
+
+    // 位置 i で、実際に使える文脈の長さ（学習用の文に一度も出なかった文脈は使えない）
+    function usedOrder(model, hist, i, order) {
+      let key = '', used = -1;
+      for (let k = 0; k <= order && k <= i; k++) {
+        if (k > 0) key = hist[i - k] + key;
+        if (!model.ctx.has(key)) break;
+        used = k;
+      }
+      return used;
+    }
+
+    // hist の i 文字目に文字 c が来る確率（Witten–Bell の方法）
+    // 短い文脈から順に p = (その文脈で c が来た回数 + 種類数 × 1 つ短い文脈での p) ÷ (その文脈の回数 + 種類数)
+    // 一番下は、一覧の K 種類の文字が同じ確率 1/K
+    function prob(model, hist, i, order, c, K) {
+      let p = 1 / K, key = '';
+      for (let k = 0; k <= order && k <= i; k++) {
+        if (k > 0) key = hist[i - k] + key;
+        const node = model.ctx.get(key);
+        if (!node) break;
+        const T = node.m.size;
+        p = ((node.m.get(c) || 0) + T * p) / (node.n + T);
+      }
+      return p;
+    }
+
+    // 位置 i に来る文字について、一覧の全部の文字の確率（合計は 1）。prob と同じ式を全部の文字に使う
+    function dist(model, hist, i, order, alphabet) {
+      const K = alphabet.length, p = new Float64Array(K).fill(1 / K);
+      let key = '';
+      for (let k = 0; k <= order && k <= i; k++) {
+        if (k > 0) key = hist[i - k] + key;
+        const node = model.ctx.get(key);
+        if (!node) break;
+        const T = node.m.size, den = node.n + T;
+        for (let j = 0; j < K; j++) p[j] = ((node.m.get(alphabet[j]) || 0) + T * p[j]) / den;
+      }
+      return p;
+    }
+
+    // 文を 1 文字ずつ当てさせて、外れ具合を測る
+    // bits[i] は i 文字目に付けていた確率の −log2。loss は −ln の平均（log-perplexity）、ppl は e の loss 乗
+    function evaluate(model, chars, order, K) {
+      const bits = new Float64Array(chars.length);
+      let nats = 0;
+      for (let i = 0; i < chars.length; i++) {
+        const p = prob(model, chars, i, order, chars[i], K);
+        nats -= Math.log(p);
+        bits[i] = -Math.log2(p);
+      }
+      const loss = nats / Math.max(1, chars.length);
+      return { bits, nats, loss, ppl: Math.exp(loss), bpc: loss / Math.LN2, totalBits: nats / Math.LN2 };
+    }
+
+    // 文脈の長さ 0〜maxOrder ごとの損失
+    function lossCurve(model, chars, K, maxOrder) {
+      const out = [];
+      for (let k = 0; k <= maxOrder; k++) out.push(chars.length ? evaluate(model, chars, k, K).loss : NaN);
+      return out;
+    }
+
+    // 確率の高い順に k 個
+    function topK(p, alphabet, k) {
+      const idx = Array.from(p, (_, j) => j).sort((a, b) => p[b] - p[a] || (alphabet[a] < alphabet[b] ? -1 : 1));
+      return idx.slice(0, k).map((j) => ({ c: alphabet[j], p: p[j] }));
+    }
+
+    // 算術符号: 32 ビットの区間 [low, high]。HALF・Q1・Q3 は区間の半分と 4 分の 1 の位置
+    const AC = { TOP: 2 ** 32, HALF: 2 ** 31, Q1: 2 ** 30, Q3: 3 * 2 ** 30, TOTAL: 2 ** 16 };
+
+    // 確率を整数の度数の累計にする。どの文字も 1 以上にして、幅 0 で区間が消えないようにする
+    // cum[j]〜cum[j+1] が j 番目の文字の幅、cum[K] は total 以下
+    function cumFreq(p, total) {
+      const K = p.length, spare = total - K;
+      if (spare < K) throw new Error('文字の種類が多すぎて符号にできません（' + K + ' 種類）');
+      const cum = new Float64Array(K + 1);
+      for (let j = 0; j < K; j++) cum[j + 1] = cum[j] + 1 + Math.floor(p[j] * spare);
+      return cum;
+    }
+
+    // 圧縮: 先頭 32 ビットに文字数、続けて算術符号のビット列
+    function encode(model, chars, order, alphabet) {
+      const index = new Map(alphabet.map((c, j) => [c, j]));
+      const out = [];
+      let cur = 0, nb = 0, pending = 0;
+      const put = (b) => { cur = (cur << 1) | b; nb++; if ((nb & 7) === 0) { out.push(cur); cur = 0; } };
+      // 区間が真ん中をまたいで縮んだときは、次に決まる桁の反対を pending 個まとめて書く
+      const emit = (b) => { put(b); for (; pending > 0; pending--) put(1 - b); };
+      const n = chars.length, K = alphabet.length;
+      for (let s = 31; s >= 0; s--) put(Math.floor(n / 2 ** s) % 2);
+      let low = 0, high = AC.TOP - 1;
+      for (let i = 0; i < n; i++) {
+        const j = index.get(chars[i]);
+        if (j === undefined) throw new Error('一覧に無い文字です: ' + chars[i]);
+        const cum = cumFreq(dist(model, chars, i, order, alphabet), AC.TOTAL), tot = cum[K];
+        const range = high - low + 1;
+        high = low + Math.floor(range * cum[j + 1] / tot) - 1;
+        low = low + Math.floor(range * cum[j] / tot);
+        for (;;) {
+          if (high < AC.HALF) emit(0);
+          else if (low >= AC.HALF) { emit(1); low -= AC.HALF; high -= AC.HALF; }
+          else if (low >= AC.Q1 && high < AC.Q3) { pending++; low -= AC.Q1; high -= AC.Q1; }
+          else break;
+          low *= 2; high = high * 2 + 1;
+        }
+      }
+      // 終わり: 区間の中に入る値を 2 ビット分（と pending）書く
+      pending++;
+      emit(low < AC.Q1 ? 0 : 1);
+      const bits = nb;
+      if (nb & 7) out.push(cur << (8 - (nb & 7)));
+      return { bytes: Uint8Array.from(out), bits };
+    }
+
+    // 元に戻す: 同じモデルで同じ確率を計算し、同じ順に区間を狭める。読み終えた後のビットは 0 とみなす
+    function decode(model, bytes, order, alphabet) {
+      let pos = 0;
+      const bit = () => { const v = bytes[pos >> 3]; const b = v === undefined ? 0 : (v >> (7 - (pos & 7))) & 1; pos++; return b; };
+      let n = 0;
+      for (let s = 0; s < 32; s++) n = n * 2 + bit();
+      if (n > 1e6) throw new Error('文字数が大きすぎます: ' + n);
+      let low = 0, high = AC.TOP - 1, value = 0;
+      for (let s = 0; s < 32; s++) value = value * 2 + bit();
+      const out = [], K = alphabet.length;
+      for (let i = 0; i < n; i++) {
+        const cum = cumFreq(dist(model, out, i, order, alphabet), AC.TOTAL), tot = cum[K];
+        const range = high - low + 1;
+        const target = Math.floor(((value - low + 1) * tot - 1) / range);
+        let lo = 0, hi = K - 1;
+        while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (cum[mid] <= target) lo = mid; else hi = mid - 1; }
+        out.push(alphabet[lo]);
+        high = low + Math.floor(range * cum[lo + 1] / tot) - 1;
+        low = low + Math.floor(range * cum[lo] / tot);
+        for (;;) {
+          if (high < AC.HALF) { /* 上の桁が 0 に決まった。区間を広げるだけ */ }
+          else if (low >= AC.HALF) { low -= AC.HALF; high -= AC.HALF; value -= AC.HALF; }
+          else if (low >= AC.Q1 && high < AC.Q3) { low -= AC.Q1; high -= AC.Q1; value -= AC.Q1; }
+          else break;
+          low *= 2; high = high * 2 + 1; value = value * 2 + bit();
+        }
+      }
+      return out;
+    }
+
+    // でたらめな文字列（種を決めると毎回同じ並びになる）
+    function randomLetters(seed, n, letters) {
+      let a = seed >>> 0;
+      const out = [];
+      for (let i = 0; i < n; i++) {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        out.push(letters[Math.floor((((t ^ (t >>> 14)) >>> 0) / 4294967296) * letters.length)]);
+      }
+      return out.join('');
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const thumb = !!window.THUMB;
+    if (thumb) document.documentElement.classList.add('thumb');
+    const preset = $('preset'), ord = $('ord'), ordOut = $('ordOut'), trainT = $('trainT'), testT = $('testT');
+    const lossO = $('lossO'), pplO = $('pplO'), bpcO = $('bpcO');
+    const heat = $('heat'), pick = $('pick'), cv = $('cv'), g = cv.getContext('2d'), cmp = $('cmp'), note = $('note');
+    const css = getComputedStyle(document.documentElement);
+    const col = (name, alt) => (css.getPropertyValue(name).trim() || alt);
+    const C = { acc: col('--acc', '#1d6a86'), train: col('--train', '#8a8478'), line: col('--line', '#d6d0c3'), mut: col('--mut', '#625d53'), fg: col('--fg', '#23211d') };
+    const LIMIT = { train: 8000, test: 2000 };
+
+    const JA_TRAIN = [
+      '十一月一日。朝は晴れ。気温は八度で、少し寒い。昼から雲が出て、夕方に小雨が降った。駅まで歩いて、パンを買って帰った。',
+      '十一月二日。朝はくもり。気温は十度で、風が強い。昼は晴れて、少し暖かくなった。駅まで自転車で行って、本を借りて帰った。',
+      '十一月三日。朝は雨。気温は九度で、とても寒い。昼も雨が続いて、夕方にやんだ。家で本を読んで、夜にパンを焼いた。',
+      '十一月四日。朝は晴れ。気温は七度で、とても寒い。昼は晴れて、空が青かった。駅まで歩いて、牛乳を買って帰った。',
+      '十一月五日。朝はくもり。気温は十一度で、風は弱い。昼から晴れて、暖かくなった。公園まで歩いて、写真を撮って帰った。',
+      '十一月六日。朝は晴れ。気温は九度で、少し寒い。昼は雲が多く、夕方に風が強くなった。駅まで自転車で行って、パンを買って帰った。',
+      '十一月七日。朝は雨。気温は八度で、風が強い。昼から雨がやんで、夕方は晴れた。家で手紙を書いて、夜に本を読んだ。',
+    ].join('\n');
+    const JA_TEST = [
+      '十一月八日。朝はくもり。気温は九度で、少し寒い。昼から雨が降って、夕方にやんだ。駅まで歩いて、本を借りて帰った。',
+      '十一月九日。朝は晴れ。気温は十度で、風は弱い。昼は晴れて、暖かくなった。公園まで自転車で行って、パンを買って帰った。',
+    ].join('\n');
+    const EN_TRAIN = [
+      'Nov 1. Morning was sunny. It was 8 degrees and a little cold. Clouds came in the afternoon and light rain fell in the evening. I walked to the station and bought bread.',
+      'Nov 2. Morning was cloudy. It was 10 degrees and windy. The afternoon was sunny and a little warm. I rode my bike to the station and borrowed a book.',
+      'Nov 3. Morning was rainy. It was 9 degrees and very cold. The rain went on all afternoon and stopped in the evening. I read a book at home and baked bread at night.',
+      'Nov 4. Morning was sunny. It was 7 degrees and very cold. The afternoon was clear and the sky was blue. I walked to the station and bought milk.',
+      'Nov 5. Morning was cloudy. It was 11 degrees and calm. The afternoon was sunny and warm. I walked to the park and took photos.',
+      'Nov 6. Morning was sunny. It was 9 degrees and a little cold. The afternoon was cloudy and the wind got strong in the evening. I rode my bike to the station and bought bread.',
+      'Nov 7. Morning was rainy. It was 8 degrees and windy. The rain stopped in the afternoon and the evening was clear. I wrote a letter at home and read a book at night.',
+    ].join('\n');
+    const EN_TEST = [
+      'Nov 8. Morning was cloudy. It was 9 degrees and a little cold. Rain fell in the afternoon and stopped in the evening. I walked to the station and borrowed a book.',
+      'Nov 9. Morning was sunny. It was 10 degrees and calm. The afternoon was sunny and warm. I rode my bike to the park and bought bread.',
+    ].join('\n');
+    const LETTERS = 'abcdefghijklmnopqrstuvwxyz';
+    const PRESETS = {
+      ja: { train: JA_TRAIN, test: JA_TEST },
+      en: { train: EN_TRAIN, test: EN_TEST },
+      rnd: { train: randomLetters(7, 1200, LETTERS), test: randomLetters(11, 300, LETTERS) },
+    };
+
+    let S = null, sel = -1, ev = null, dfTok = 0, timer = 0;
+    const show = (c) => (c === '\n' ? '改行' : c === ' ' ? '空白' : c);
+    const pct = (p) => (p >= 0.1 ? (p * 100).toFixed(0) : p >= 0.001 ? (p * 100).toFixed(1) : (p * 100).toFixed(3)) + '%';
+    const fmtPpl = (v) => (v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : String(Math.round(v)));
+
+    function load(name) {
+      const p = PRESETS[name] || PRESETS.ja;
+      trainT.value = p.train;
+      testT.value = p.test;
+      sel = -1;
+      rebuild();
+    }
+
+    // 文が変わったとき: 学習し直し、文脈の長さごとの損失を測り、当てさせる文の文字を並べ直す
+    function rebuild() {
+      let trainC = charsOf(trainT.value), testC = charsOf(testT.value);
+      const cut = [];
+      if (trainC.length > LIMIT.train) { trainC = trainC.slice(0, LIMIT.train); cut.push('学習用の文は先頭の ' + LIMIT.train + ' 文字だけを使います。'); }
+      if (testC.length > LIMIT.test) { testC = testC.slice(0, LIMIT.test); cut.push('当てさせる文は先頭の ' + LIMIT.test + ' 文字だけを使います。'); }
+      const model = train(trainC, MAX_ORDER);
+      const alphabet = alphabetOf(trainC, testC), K = Math.max(1, alphabet.length);
+      const curves = { train: lossCurve(model, trainC, K, MAX_ORDER), test: lossCurve(model, testC, K, MAX_ORDER) };
+      const frag = document.createDocumentFragment(), spans = [];
+      testC.forEach((c, i) => {
+        const s = document.createElement('span');
+        s.textContent = c === '\n' ? '↵\n' : c;
+        s.dataset.i = String(i);
+        spans.push(s);
+        frag.append(s);
+      });
+      heat.replaceChildren(frag);
+      S = { trainC, testC, model, alphabet, K, curves, cut, spans, df: null, dfMsg: '', code: null, codeErr: '' };
+      if (sel >= testC.length) sel = -1;
+      update();
+      runDeflate();
+    }
+
+    // 文脈の長さが変わったとき: 外れ具合・色・算術符号・表・グラフを作り直す
+    function update() {
+      if (!S) return;
+      const order = Number(ord.value);
+      ordOut.textContent = order + ' 文字';
+      ord.setAttribute('aria-valuetext', '直前の ' + order + ' 文字');
+      const n = S.testC.length;
+      ev = evaluate(S.model, S.testC, order, S.K);
+      lossO.textContent = n ? ev.loss.toFixed(3) : '-';
+      pplO.textContent = n ? fmtPpl(ev.ppl) : '-';
+      bpcO.textContent = n ? ev.bpc.toFixed(2) : '-';
+      for (let i = 0; i < n; i++) S.spans[i].style.setProperty('--s', Math.min(1, ev.bits[i] / 10).toFixed(3));
+      S.code = null; S.codeErr = '';
+      if (n) {
+        try {
+          const t0 = performance.now();
+          const enc = encode(S.model, S.testC, order, S.alphabet);
+          const back = decode(S.model, enc.bytes, order, S.alphabet);
+          S.code = { bytes: enc.bytes.length, bits: enc.bits, same: back.join('') === S.testC.join(''), ms: performance.now() - t0 };
+        } catch (e) { S.codeErr = e.message; }
+      }
+      renderTable();
+      drawChart();
+      showPick();
+    }
+
+    async function deflateSize(str) {
+      const s = new Blob([str]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+      return (await new Response(s).arrayBuffer()).byteLength;
+    }
+    function runDeflate() {
+      const tok = ++dfTok, my = S;
+      if (!('CompressionStream' in window)) { my.dfMsg = 'この環境は CompressionStream に未対応のため、deflate の行は空けています。'; renderTable(); return; }
+      const tr = my.trainC.join(''), te = my.testC.join('');
+      Promise.all([deflateSize(te), deflateSize(tr), deflateSize(tr + te)]).then(([alone, a, ab]) => {
+        if (tok !== dfTok) return;
+        my.df = { alone, cond: Math.max(0, ab - a) };
+        renderTable();
+      }).catch((e) => {
+        if (tok !== dfTok) return;
+        my.dfMsg = 'deflate で縮められませんでした（' + e.message + '）。';
+        renderTable();
+      });
+    }
+
+    function renderTable() {
+      const n = S.testC.length, raw = new TextEncoder().encode(S.testC.join('')).length;
+      // 3 つ目の値は「実際に縮めた大きさか」。太字の印は、実際に縮めた中で一番小さい行に付ける
+      const rows = [
+        ['元の文字（UTF-8）', n ? raw : null, false],
+        ['deflate で当てさせる文だけを縮める', n && S.df ? S.df.alone : null, true],
+        ['deflate に学習用の文を先に読ませる', n && S.df ? S.df.cond : null, true],
+        ['このモデルの損失から計算した大きさ', n ? Math.ceil(ev.totalBits / 8) : null, false],
+        ['このモデルの予測で算術符号にした実物', S.code ? S.code.bytes : null, true],
+      ];
+      const known = rows.filter((r) => r[2] && r[1] != null).map((r) => r[1]);
+      const best = known.length ? Math.min(...known) : -1;
+      const frag = document.createDocumentFragment();
+      for (const [name, bytes, real] of rows) {
+        const tr = document.createElement('tr');
+        if (real && bytes === best) tr.className = 'best';
+        const th = document.createElement('th');
+        th.scope = 'row';
+        th.textContent = name;
+        const b = document.createElement('td'), per = document.createElement('td');
+        b.className = per.className = 'num';
+        b.textContent = bytes == null ? '-' : String(bytes);
+        per.textContent = bytes == null || !n ? '-' : (bytes * 8 / n).toFixed(2);
+        tr.append(th, b, per);
+        frag.append(tr);
+      }
+      cmp.replaceChildren(frag);
+      const msg = [];
+      if (S.code) msg.push(S.code.same ? '算術符号から元に戻した文は、元の文と 1 文字も違わなかった（符号化と復元で ' + S.code.ms.toFixed(0) + ' ms）。' : '元に戻した文が元と一致しなかった。');
+      if (S.codeErr) msg.push('算術符号にできませんでした: ' + S.codeErr);
+      if (S.dfMsg) msg.push(S.dfMsg);
+      msg.push(...S.cut);
+      msg.push('記事の値（GPT‑4 で約 0.91 など）は 1 トークンあたりで、ここの値は 1 文字あたりなので、数の大きさは比べられない。');
+      note.textContent = msg.join(' ');
+    }
+
+    function showPick() {
+      for (const s of heat.querySelectorAll('.sel')) s.classList.remove('sel');
+      const n = S.testC.length;
+      if (sel < 0 || sel >= n) {
+        pick.textContent = n ? '色の濃い文字ほど、モデルが当てられなかった文字です。文字を押すか、文を選んで左右の矢印キーを押すと、その時の予想が出ます。' : '当てさせる文を入れてください。';
+        return;
+      }
+      const order = Number(ord.value), c = S.testC[sel];
+      S.spans[sel].classList.add('sel');
+      const p = dist(S.model, S.testC, sel, order, S.alphabet);
+      const top = topK(p, S.alphabet, 5), used = usedOrder(S.model, S.testC, sel, order);
+      const pc = p[S.alphabet.indexOf(c)];
+      const ctxText = S.testC.slice(Math.max(0, sel - Math.max(0, used)), sel).join('').replace(/\n/g, '↵');
+      const span = (cls, text) => { const e = document.createElement('span'); e.className = cls; e.textContent = text; return e; };
+      const parts = [];
+      if (used > 0) parts.push('直前の ', span('ctx', ctxText), ' の次の文字の予想: ');
+      else parts.push((sel === 0 ? '文の始まりなので' : '学習用の文に同じ並びが無いので') + '、文字の多さだけで予想: ');
+      top.forEach((t, k) => {
+        parts.push(k ? '・' : '');
+        parts.push(t.c === c ? span('hit', '「' + show(t.c) + '」' + pct(t.p)) : '「' + show(t.c) + '」' + pct(t.p));
+      });
+      parts.push('。実際は「' + show(c) + '」で、付けていた確率は ' + pct(pc) + '（' + (-Math.log2(pc)).toFixed(1) + ' ビット）。');
+      if (used > 0 && used < order && sel >= order) parts.push('直前の ' + order + ' 文字の並びは学習用の文に無かったので、' + used + ' 文字まで縮めて当てた。');
+      pick.replaceChildren(...parts);
+    }
+
+    function drawChart() {
+      const r = cv.getBoundingClientRect(), dpr = Math.max(1, window.devicePixelRatio || 1);
+      const W = Math.max(1, Math.round(r.width)), H = Math.max(1, Math.round(r.height));
+      const bw = Math.max(1, Math.round(W * dpr)), bh = Math.max(1, Math.round(H * dpr));
+      if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, W, H);
+      if (!S) return;
+      const order = Number(ord.value);
+      const pad = { l: 34, r: 10, t: 10, b: 24 };
+      const vals = [...S.curves.train, ...S.curves.test].filter(Number.isFinite);
+      const top = Math.max(0.5, ...vals) * 1.08;
+      const X = (k) => pad.l + (Math.max(1, W - pad.l - pad.r)) * k / MAX_ORDER;
+      const Y = (v) => pad.t + (Math.max(1, H - pad.t - pad.b)) * (1 - v / top);
+      // 選んでいる文脈の長さ
+      g.fillStyle = 'rgba(29, 106, 134, 0.10)';
+      g.fillRect(X(order) - 10, pad.t, 20, Math.max(0, H - pad.t - pad.b));
+      // 目盛り
+      g.font = '11px system-ui, sans-serif';
+      g.lineWidth = 1;
+      const step = top > 6 ? 2 : top > 3 ? 1 : 0.5;
+      g.textAlign = 'right'; g.textBaseline = 'middle';
+      for (let v = 0; v <= top; v += step) {
+        g.strokeStyle = C.line;
+        g.beginPath(); g.moveTo(pad.l, Y(v)); g.lineTo(W - pad.r, Y(v)); g.stroke();
+        g.fillStyle = C.mut; g.fillText(v.toFixed(step < 1 ? 1 : 0), pad.l - 4, Y(v));
+      }
+      g.textAlign = 'center'; g.textBaseline = 'top';
+      for (let k = 0; k <= MAX_ORDER; k++) { g.fillStyle = k === order ? C.fg : C.mut; g.fillText(String(k), X(k), H - pad.b + 5); }
+      const line = (arr, color, dash) => {
+        g.strokeStyle = color; g.lineWidth = 2; g.setLineDash(dash);
+        g.beginPath();
+        let started = false;
+        arr.forEach((v, k) => { if (!Number.isFinite(v)) return; if (started) g.lineTo(X(k), Y(v)); else { g.moveTo(X(k), Y(v)); started = true; } });
+        g.stroke();
+        g.setLineDash([]);
+        g.fillStyle = color;
+        arr.forEach((v, k) => { if (Number.isFinite(v)) { g.beginPath(); g.arc(X(k), Y(v), k === order ? 4 : 2.5, 0, Math.PI * 2); g.fill(); } });
+      };
+      line(S.curves.train, C.train, [5, 4]);
+      line(S.curves.test, C.acc, []);
+      const say = (arr) => arr.map((v, k) => k + ' 文字 ' + (Number.isFinite(v) ? v.toFixed(2) : '-')).join('、');
+      cv.setAttribute('aria-label', '直前に見る文字数と損失（ナット）のグラフ。学習に使わなかった文: ' + say(S.curves.test) + '。学習に使った文: ' + say(S.curves.train) + '。');
+    }
+
+    function choose(i, byKey) {
+      sel = i;
+      showPick();
+      if (byKey && S.spans[i]) {
+        // 枠の中だけを動かす（ページ全体は動かさない）
+        const s = S.spans[i], t = s.offsetTop;
+        if (t < heat.scrollTop) heat.scrollTop = t;
+        else if (t + s.offsetHeight > heat.scrollTop + heat.clientHeight) heat.scrollTop = t + s.offsetHeight - heat.clientHeight;
+      }
+    }
+    heat.addEventListener('click', (e) => { const s = e.target.closest('span[data-i]'); if (s) choose(Number(s.dataset.i), false); });
+    heat.addEventListener('pointerover', (e) => { if (e.pointerType !== 'mouse') return; const s = e.target.closest('span[data-i]'); if (s) choose(Number(s.dataset.i), false); });
+    heat.addEventListener('keydown', (e) => {
+      const n = S ? S.testC.length : 0;
+      if (!n) return;
+      let k;
+      if (e.key === 'ArrowRight') k = sel < 0 ? 0 : Math.min(n - 1, sel + 1);
+      else if (e.key === 'ArrowLeft') k = sel < 0 ? 0 : Math.max(0, sel - 1);
+      else if (e.key === 'Home') k = 0;
+      else if (e.key === 'End') k = n - 1;
+      else return;
+      e.preventDefault();
+      choose(k, true);
+    });
+    ord.addEventListener('input', update);
+    preset.addEventListener('change', () => load(preset.value));
+    const later = () => { clearTimeout(timer); timer = setTimeout(rebuild, 300); };
+    trainT.addEventListener('input', later);
+    testT.addEventListener('input', later);
+    new ResizeObserver(() => drawChart()).observe(cv);
+
+    if (thumb) ord.value = '0';
+    load('ja');
+    if (thumb) {
+      // 一覧の小窓: 見る文字数を 0 から 6 まで順に増やし、色と損失が変わる様子を見せる
+      let k = 0;
+      setInterval(() => {
+        k = (k + 1) % (MAX_ORDER + 1);
+        ord.value = String(k);
+        update();
+      }, 1000);
+    }
+  },
+});
+
+dekiru.add({
+  id: 'tr-20261123-ntp-offset', c: 'trend', lv: 2, date: '2026-11-23',
+  t: '行きと帰りの4つの時刻から時計のずれを計算し、くるった進み方まで直す（NTP の時刻合わせ）',
+  y: 'いきとかえりのよっつのじこくからとけいのずれをけいさんしくるったすすみかたまでなおす',
+  tags: ['NTP', 'NTP Pool', 'chrony', '時刻合わせ', 'Canvas'],
+  d: '2026年11月17日、Jeff Geerling さんが記事「I joined the NTP Pool, but not with my Stratum 1 Pi」を公開した。11月22日に Hacker News に投稿され、取得した時点で 134 点・42 件のコメントを集めていた。記事では、衛星（GNSS）の信号で時刻を合わせた Raspberry Pi（Stratum 1）から VPS の時刻サーバー（Stratum 2）へ時刻を渡し、世界中の機械が時刻を問い合わせる NTP Pool に加わった経緯、chrony の設定、サーバーが止まってから採点が戻るまでの様子を書いている。比べている Cloudflare の時刻サーバーの線がときどき段になって上下するのは、行きと帰りで通る経路が変わるためだろう、とも書いている。この見本では、NTP の問い合わせ1回で記録する4つの時刻から、相手とのずれ θ と往復の時間 δ を計算する様子を図にする。そして、くるった時計を2つのやり方で合わせて比べる。1つは毎回、測ったずれをそのまま足すやり方。もう1つは、直近 8 回のうち往復が一番短い回を選び、ずれを少しずつ直しながら進み方（周波数）も直すやり方（NTP 風）。2つの時計は同じ回線の待ち時間で問い合わせる。行きと帰りの時間に差をつけると、NTP 風のやり方でもその差の半分だけずれたまま落ち着き、測ったずれは 0 に見えることを確かめられる。再現できていない所: 回線と時刻サーバーは乱数で作った模擬で、本物の時刻サーバーには問い合わせない（ブラウザから NTP の UDP の通信は送れない）。直し方は ntpd や chrony の仕組みを大きく省いたもの。複数のサーバーから良いものを選ぶ処理、問い合わせの間隔を 64〜1024 秒で変える処理、chrony の回帰による推定、直す速さの上限などは入れていない。NTP Pool がサーバーを採点する仕組み、衛星の PPS 信号、ネットワークの部品が付ける時刻（ハードウェアのタイムスタンプ）も扱っていない。',
+  p: '自分が送った時刻 t1、相手が受け取った時刻 t2、相手が返した時刻 t3、自分が受け取った時刻 t4 の4つがあれば、往復の時間は δ = (t4 − t1) − (t3 − t2)、ずれは θ = ((t2 − t1) + (t3 − t4)) ÷ 2 で出る（RFC 5905 と同じ式）。θ が正しいのは行きと帰りの時間が同じときだけで、違うと「行き − 帰り」の半分だけ外れる。回線の混雑で待たされた回ほど外れが大きくなりやすいので、往復が短い回を選ぶと誤差が小さくなる（右下の図で、どの点も三角形の内側に入り、左の先ほど狭い）。時計の進み方がくるっていると、ずれだけ直しても次の問い合わせまでにまたずれる。そこで θ の一部で時計を動かし（比例）、θ に比例した量を進み方の直しへ足し続ける（積分）。同じ回の θ を2度使わないように、使った回の番号を覚えておく。',
+  refs: [
+    { title: 'I joined the NTP Pool, but not with my Stratum 1 Pi（Jeff Geerling、2026-11-17）', url: 'https://www.jeffgeerling.com/blog/2026/i-joined-the-ntp-pool/' },
+    { title: 'Hacker News: I joined the NTP Pool, but not with my Stratum 1 Pi（2026-11-22）', url: 'https://news.ycombinator.com/item?id=50600622' },
+    { title: 'RFC 5905: Network Time Protocol Version 4', url: 'https://www.rfc-editor.org/rfc/rfc5905' },
+    { title: 'NTP Pool Project', url: 'https://www.ntppool.org/' },
+  ],
+  html: `<div class="app">
+  <div class="bar">
+    <label class="ctl"><span class="nm">自分の時計のくるい <small id="dayO"></small></span><input type="range" id="ppm" min="-200" max="200" step="10" value="80"><output id="ppmO" for="ppm"></output></label>
+    <label class="ctl"><span class="nm">回線の混み具合（待たされる時間の平均）</span><input type="range" id="jit" min="0" max="40" step="1" value="12"><output id="jitO" for="jit"></output></label>
+    <label class="ctl"><span class="nm">行きと帰りの時間の差（行き − 帰り）</span><input type="range" id="asym" min="-20" max="20" step="1" value="0"><output id="asymO" for="asym"></output></label>
+    <div class="btns"><button type="button" id="route">経路を変える</button><button type="button" id="pause">止める</button><button type="button" id="reset">最初から</button></div>
+  </div>
+  <div class="stats">
+    <div class="stat"><span>測ったずれ θ（NTP 風の時計）</span><b id="thO">-</b><span>ms</span></div>
+    <div class="stat"><span>往復の時間 δ</span><b id="dlO">-</b><span>ms</span></div>
+    <div class="stat"><span>NTP 風の時計の本当のずれ</span><b id="eN" class="n">-</b><span id="rN">ms</span></div>
+    <div class="stat"><span>毎回そのまま合わせた時計の本当のずれ</span><b id="eS" class="r">-</b><span id="rS">ms</span></div>
+    <div class="stat"><span>NTP 風の時計の進み方の直し</span><b id="fO">-</b><span id="fSub">ppm</span></div>
+  </div>
+  <figure>
+    <canvas id="ex" role="img" aria-label="最新の問い合わせ。自分が t1 に送り、相手が t2 に受け取り、t3 に返し、自分が t4 に受け取る"></canvas>
+    <p class="fx">ずれ θ = ((t2 − t1) + (t3 − t4)) ÷ 2 = ((<span id="fa">-</span>) + (<span id="fb">-</span>)) ÷ 2 = <b id="fth">-</b> ms<br>往復 δ = (t4 − t1) − (t3 − t2) = <span id="fc">-</span> − <span id="fd">-</span> = <b id="fdl">-</b> ms</p>
+    <p class="small" id="truth"></p>
+    <p class="why" id="why"></p>
+  </figure>
+  <div class="lower">
+    <figure>
+      <canvas id="gr" role="img" aria-label="2つの時計の本当のずれの移り変わり"></canvas>
+      <figcaption><span class="key"></span>NTP 風（往復が一番短い回を選び、進み方も直す）　<span class="key raw"></span>毎回、測ったずれをそのまま足す　<span class="key dash"></span>行きと帰りの差 ÷ 2。縦は本当のずれ（ms）、横は時間（分）</figcaption>
+    </figure>
+    <figure class="wedge">
+      <canvas id="wd" role="img" aria-label="往復の時間と、測ったずれの誤差の散らばり"></canvas>
+      <figcaption>横は往復の時間 δ、縦は θ の誤差（ms）。点は直近 60 回（往復が特に長い 1 割は図の外）で、<span class="dot"></span>は NTP 風の時計が直すのに使った回。どの点も色の付いた三角形の中に入る</figcaption>
+    </figure>
+  </div>
+  <p class="small">2つの時計は同じ時刻サーバーに 16 秒ごとに問い合わせ、回線で待たされる時間も同じ乱数を使う。1 回の問い合わせを 0.45 秒で見せている。「本当のずれ」は模擬なので分かる値で、実際の時計からは見えない。</p>
+</div>`,
+  css: `:root { color-scheme: light; --bg: #f4f2ec; --fg: #23211d; --mut: #625d53; --line: #d6d0c3; --panel: #fffdf8; --ntp: #1d6a86; --raw: #c2492f; --srv: #2f7d4f; --soft: #dcebee; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    .app { box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; padding: 10px; max-inline-size: 980px; margin-inline: auto; }
+    .bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 6px 16px; align-items: end; }
+    .ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; min-inline-size: 0; }
+    .ctl .nm { flex: 1 0 100%; font-size: 12px; color: var(--mut); line-height: 1.35; }
+    .ctl small { font-size: 11.5px; }
+    .ctl input { flex: 1 1 100px; min-inline-size: 0; margin: 4px 0; }
+    .ctl output { flex: 0 0 auto; min-inline-size: 5.2em; text-align: end; font-size: 13px; font-variant-numeric: tabular-nums; }
+    input[type="range"]:focus-visible, button:focus-visible { outline: 2px solid var(--ntp); outline-offset: 2px; }
+    .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+    button { font: inherit; font-size: 13px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--fg); cursor: pointer; }
+    button:hover { border-color: var(--mut); }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 6px; }
+    .stat { min-inline-size: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; display: flex; flex-direction: column; }
+    .stat span { font-size: 11px; color: var(--mut); line-height: 1.35; }
+    .stat b { font-size: 21px; line-height: 1.25; font-variant-numeric: tabular-nums; }
+    .stat b.n { color: var(--ntp); }
+    .stat b.r { color: var(--raw); }
+    figure { margin: 0; min-inline-size: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
+    canvas { display: block; inline-size: 100%; }
+    #ex { block-size: 132px; }
+    #gr, #wd { block-size: 210px; }
+    .fx { margin: 4px 0 2px; font-size: 12.5px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .why { margin: 2px 0 0; font-size: 12.5px; min-block-size: 2.7em; }
+    .lower { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 8px; align-items: start; }
+    @media (max-width: 640px) { .lower { grid-template-columns: minmax(0, 1fr); } }
+    figcaption { font-size: 12px; color: var(--mut); line-height: 1.45; }
+    .key { display: inline-block; inline-size: 18px; block-size: 0; border-block-start: 3px solid var(--ntp); vertical-align: middle; margin-inline-end: 4px; }
+    .key.raw { border-block-start-color: var(--raw); }
+    .key.dash { border-block-start: 2px dashed var(--mut); }
+    .dot { display: inline-block; inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--ntp); vertical-align: middle; margin-inline: 2px; }
+    .small { font-size: 12px; color: var(--mut); margin: 0; }
+    .thumb .bar, .thumb .stats, .thumb .fx, .thumb .why, .thumb .small, .thumb figcaption, .thumb .wedge { display: none; }
+    .thumb .app { padding: 6px; gap: 6px; }
+    .thumb #ex { block-size: 96px; }
+    .thumb #gr { block-size: 108px; }`,
+  core() {
+    // 1回の問い合わせで記録する4つの時刻から、相手との時計のずれ θ と往復の時間 δ を出す（RFC 5905 と同じ式）
+    //   t1: 自分が送った時刻（自分の時計）  t2: 相手が受け取った時刻（相手の時計）
+    //   t3: 相手が返した時刻（相手の時計）  t4: 自分が受け取った時刻（自分の時計）
+    // θ は「相手の時計 − 自分の時計」。行きと帰りにかかる時間が同じときだけ正しい値になる
+    function offsetDelay(t1, t2, t3, t4) {
+      return { offset: ((t2 - t1) + (t3 - t4)) / 2, delay: (t4 - t1) - (t3 - t2) };
+    }
+
+    // 往復が一番短かった回の番号。同じ長さなら新しい方（無ければ -1）
+    function pickBest(samples) {
+      let b = -1;
+      for (let i = 0; i < samples.length; i++) if (b < 0 || samples[i].delay <= samples[b].delay) b = i;
+      return b;
+    }
+
+    // 種を決めると毎回同じ並びになる乱数（0 以上 1 未満）
+    function rng(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a = (a + 0x6d2b79f5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    // 回線の混雑で増える待ち時間（ms）。短いことが多く、ときどき長い（指数分布）
+    function queueDelay(mean, rnd) {
+      return mean > 0 ? -mean * Math.log(1 - rnd()) : 0;
+    }
+
+    // 1回分の回線の様子: 行きの時間 df、帰りの時間 db、相手の中での処理の時間 proc（ms）
+    // p.base は混雑が無いときの片道の時間、p.asym は「行き − 帰り」、p.jitter は待ち時間の平均
+    function netSample(p, rnd) {
+      return {
+        df: Math.max(0.2, p.base + p.asym / 2 + queueDelay(p.jitter, rnd)),
+        db: Math.max(0.2, p.base - p.asym / 2 + queueDelay(p.jitter, rnd)),
+        proc: 0.05 + rnd() * 0.25,
+      };
+    }
+
+    const FILTER = 8;     // 往復の長さを比べる回数（直近の何回か）
+    const KP = 0.4;       // 測ったずれのうち、1回で直す割合
+    const KI = 0.03;      // 進み方（周波数）を直す強さ
+    const STEP_MS = 128;  // 最初にこれより大きくずれていたら、少しずつではなく一度に合わせる
+
+    // 模擬の時計。e は「自分の時計 − 本当の時刻」（ms）、f は進み方の直し（ppm）
+    function makeSim(e0) {
+      return { t: 0, e: e0, f: 0, n: 0, used: -1, samples: [] };
+    }
+
+    // p.tau 秒待ってから1回問い合わせ、決めたやり方で自分の時計を直す。
+    // p.mode: 'step'（毎回そのまま足す）または 'ntp'（往復が一番短い回を選び、進み方も直す）
+    // p.ppm: 自分の時計の本当のくるい（100 万分の 1 単位）
+    function poll(s, p, net) {
+      const tau = p.tau;
+      s.t += tau;
+      s.e += (p.ppm + s.f) * 1e-3 * tau;              // 待っている間に、くるいと直しの差の分だけずれる
+      const before = s.e;
+      const T1 = s.t * 1000;                          // 送った瞬間の本当の時刻（ms）
+      const t1 = T1 + s.e;
+      const t2 = T1 + net.df;                         // 相手の時計は正しいとする
+      const t3 = t2 + net.proc;
+      const t4 = t3 + net.db + s.e;
+      const m = offsetDelay(t1, t2, t3, t4);
+      const sample = { id: s.n++, offset: m.offset, delay: m.delay };
+      s.samples.push(sample);
+      if (s.samples.length > FILTER) s.samples.shift();
+      const best = s.samples[pickBest(s.samples)];
+      let adj = 0, usedId = -1;
+      if (p.mode === 'step' || (sample.id === 0 && Math.abs(m.offset) > STEP_MS)) {
+        adj = sample.offset;
+        usedId = sample.id;
+      } else if (best.id !== s.used) {                // 同じ回の θ は2度使わない
+        adj = KP * best.offset;
+        s.f += (KI * best.offset / tau) * 1e3;        // ms/秒 を ppm に直して足す
+        usedId = best.id;
+      }
+      if (usedId >= 0) s.used = usedId;
+      if (adj) {
+        s.e += adj;
+        for (const x of s.samples) x.offset -= adj;   // 前の回の θ も、時計を動かした分だけ直しておく
+      }
+      return { id: sample.id, t1, t2, t3, t4, df: net.df, db: net.db, offset: m.offset, delay: m.delay,
+        err: m.offset + before, before, after: s.e, adj, usedId, bestId: best.id, bestDelay: best.delay };
+    }
+
+    // 二乗平均（ずれの大きさの目安）
+    function rms(list) {
+      let sum = 0;
+      for (const v of list) sum += v * v;
+      return list.length ? Math.sqrt(sum / list.length) : 0;
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const thumb = !!window.THUMB;
+    if (thumb) document.documentElement.classList.add('thumb');
+    const ex = $('ex'), gr = $('gr'), wd = $('wd');
+    const gx = ex.getContext('2d'), gg = gr.getContext('2d'), gw = wd.getContext('2d');
+    const css = getComputedStyle(document.documentElement);
+    const col = (n, alt) => css.getPropertyValue(n).trim() || alt;
+    const C = { fg: col('--fg', '#23211d'), mut: col('--mut', '#625d53'), line: col('--line', '#d6d0c3'), ntp: col('--ntp', '#1d6a86'), raw: col('--raw', '#c2492f'), srv: col('--srv', '#2f7d4f'), soft: col('--soft', '#dcebee') };
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const TAU = 16, BASE = 12, WINDOW = 120, WEDGE = 60, RECENT = 30, E0 = 25;
+    const PERIOD = 450, ANIM = 380;
+    const P = { ppm: 80, jitter: 12, asym: 0, base: BASE, tau: TAU };
+    const ppmI = $('ppm'), jitI = $('jit'), asymI = $('asym'), pauseB = $('pause');
+    let simN, simS, R, histN, histS, dots, lastN = null, lastS = null;
+    let running = true, acc = 0, prevT = 0, animAt = -1e9, dirty = true;
+
+    const sg = (v, d = 2) => {
+      const a = Math.abs(v).toFixed(d);
+      return (Number(a) === 0 ? '' : v < 0 ? '−' : '+') + a;
+    };
+    // 自分や相手の時計の読み（分:秒、0.1 ms まで）
+    function clock(ms) {
+      const u = Math.max(0, Math.round(ms * 10));
+      const m = Math.floor(u / 600000);
+      return String(m).padStart(2, '0') + ':' + ((u - m * 600000) / 10000).toFixed(4).padStart(7, '0');
+    }
+    function niceStep(m) {
+      for (const s of [0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500]) if (m / s <= 3) return s;
+      return 1000;
+    }
+
+    function reset() {
+      simN = makeSim(E0); simS = makeSim(E0); R = rng(20261123);
+      histN = [{ t: 0, before: E0, after: E0 }]; histS = [{ t: 0, before: E0, after: E0 }];
+      dots = []; lastN = lastS = null; acc = 0; dirty = true;
+    }
+
+    // 同じ回線の様子で、2つの時計が1回ずつ問い合わせる
+    function stepOnce() {
+      const net = netSample(P, R);
+      lastN = poll(simN, { ...P, mode: 'ntp' }, net);
+      lastS = poll(simS, { ...P, mode: 'step' }, net);
+      histN.push({ t: simN.t, before: lastN.before, after: lastN.after });
+      histS.push({ t: simS.t, before: lastS.before, after: lastS.after });
+      if (histN.length > WINDOW + 1) { histN.shift(); histS.shift(); }
+      dots.push({ id: lastN.id, delay: lastN.delay, err: lastN.err, asym: P.asym, used: false });
+      if (dots.length > WEDGE) dots.shift();
+      if (lastN.usedId >= 0) { const d = dots.find((x) => x.id === lastN.usedId); if (d) d.used = true; }
+      animAt = performance.now();
+      dirty = true;
+    }
+
+    function fit(cv, ctx) {
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const cw = Math.max(1, cv.clientWidth), ch = Math.max(1, cv.clientHeight);
+      const w = Math.max(1, Math.round(cw * dpr)), h = Math.max(1, Math.round(ch * dpr));
+      if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { w: cw, h: ch };
+    }
+    function seg(ctx, x1, y1, x2, y2) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
+    function arrow(ctx, x1, y1, x2, y2) {
+      seg(ctx, x1, y1, x2, y2);
+      const a = Math.atan2(y2 - y1, x2 - x1), k = 7;
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - k * Math.cos(a - 0.4), y2 - k * Math.sin(a - 0.4));
+      ctx.lineTo(x2 - k * Math.cos(a + 0.4), y2 - k * Math.sin(a + 0.4));
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // 上: 最新の問い合わせの4つの時刻
+    function drawEx(now) {
+      const { w, h } = fit(ex, gx);
+      gx.clearRect(0, 0, w, h);
+      const yS = 30, yC = h - 28, x0 = 6, x1 = w - 6;
+      const narrow = w < 380;
+      gx.font = (narrow ? '10.5px' : '11.5px') + ' system-ui, sans-serif';
+      gx.lineWidth = 2;
+      gx.strokeStyle = C.srv; seg(gx, x0, yS, x1, yS);
+      gx.strokeStyle = C.ntp; seg(gx, x0, yC, x1, yC);
+      gx.textBaseline = 'bottom'; gx.textAlign = 'left';
+      gx.fillStyle = C.srv; gx.fillText('相手（時刻サーバー）', x0, yS - 5);
+      gx.fillStyle = C.ntp; gx.fillText('自分（NTP 風の時計）', x0, yC - 5);
+      if (!lastN) return;
+      const o = lastN, total = o.df + (o.t3 - o.t2) + o.db;
+      const L = w * (narrow ? 0.34 : 0.3), Rr = w - (narrow ? 12 : 0.12 * w);
+      const X = (ms) => L + (ms / total) * (Rr - L);
+      const p1 = [X(0), yC], p2 = [X(o.df), yS], p3 = [X(o.df + (o.t3 - o.t2)), yS], p4 = [X(total), yC];
+      gx.strokeStyle = C.mut; gx.fillStyle = C.mut; gx.lineWidth = 1.5;
+      arrow(gx, p1[0], p1[1], p2[0], p2[1]);
+      arrow(gx, p3[0], p3[1], p4[0], p4[1]);
+      gx.fillStyle = C.fg;
+      for (const q of [p1, p2, p3, p4]) { gx.beginPath(); gx.arc(q[0], q[1], 3, 0, Math.PI * 2); gx.fill(); }
+      gx.textBaseline = 'bottom';
+      gx.textAlign = 'right'; gx.fillText('t2 ' + clock(o.t2), p2[0] - 4, yS - 5);
+      gx.textAlign = 'left'; gx.fillText('t3 ' + clock(o.t3), p3[0] + 4, yS - 5);
+      gx.textBaseline = 'top';
+      gx.textAlign = 'center'; gx.fillText('t1 ' + clock(o.t1), p1[0], yC + 5);
+      gx.textAlign = 'right'; gx.fillText('t4 ' + clock(o.t4), Math.min(w - 4, p4[0] + 40), yC + 5);
+      // 行き来する問い合わせの印
+      const u = (now - animAt) / ANIM;
+      if (!reduce && u >= 0 && u < 1) {
+        const ms = u * total;
+        let x, y;
+        if (ms < o.df) { const k = ms / o.df; x = p1[0] + (p2[0] - p1[0]) * k; y = p1[1] + (p2[1] - p1[1]) * k; }
+        else if (ms < o.df + (o.t3 - o.t2)) { x = p2[0]; y = yS; }
+        else { const k = (ms - o.df - (o.t3 - o.t2)) / o.db; x = p3[0] + (p4[0] - p3[0]) * k; y = p3[1] + (p4[1] - p3[1]) * k; }
+        gx.fillStyle = C.ntp; gx.beginPath(); gx.arc(x, y, 5, 0, Math.PI * 2); gx.fill();
+      }
+    }
+
+    // 左下: 2つの時計の本当のずれ
+    function drawGraph() {
+      const { w, h } = fit(gr, gg);
+      gg.clearRect(0, 0, w, h);
+      const padL = 46, padR = 8, padT = 8, padB = 20;
+      const pw = Math.max(1, w - padL - padR), ph = Math.max(1, h - padT - padB);
+      const span = WINDOW * TAU;
+      const tEnd = Math.max(span, histN[histN.length - 1].t), tStart = tEnd - span;
+      const X = (t) => padL + ((t - tStart) / span) * pw;
+      let m = Math.abs(P.asym / 2) + 0.25;
+      for (const H of [histN, histS]) for (let i = Math.max(0, H.length - 40); i < H.length; i++) m = Math.max(m, Math.abs(H[i].before), Math.abs(H[i].after));
+      const st = niceStep(m), n = Math.max(1, Math.ceil((m * 1.08) / st)), topV = n * st;
+      const Y = (v) => padT + ph / 2 - (v / topV) * (ph / 2);
+      gg.font = '10.5px system-ui, sans-serif';
+      gg.lineWidth = 1;
+      gg.textAlign = 'right'; gg.textBaseline = 'middle';
+      for (let k = -n; k <= n; k++) {
+        const v = k * st;
+        gg.strokeStyle = k === 0 ? C.mut : C.line;
+        seg(gg, padL, Y(v), padL + pw, Y(v));
+        gg.fillStyle = C.mut;
+        gg.fillText(sg(v, st < 1 ? 2 : 0), padL - 4, Y(v));
+      }
+      gg.textAlign = 'center'; gg.textBaseline = 'top';
+      for (let t = Math.ceil(tStart / 300) * 300; t <= tEnd; t += 300) {
+        if (t < 0) continue;
+        gg.fillText(Math.round(t / 60) + ' 分', X(t), padT + ph + 4);
+      }
+      gg.save();
+      gg.beginPath(); gg.rect(padL, padT, pw, ph); gg.clip();
+      if (P.asym) {
+        gg.setLineDash([5, 4]); gg.strokeStyle = C.mut;
+        seg(gg, padL, Y(P.asym / 2), padL + pw, Y(P.asym / 2));
+        gg.setLineDash([]);
+      }
+      for (const [H, c, lw] of [[histS, C.raw, 1.4], [histN, C.ntp, 2]]) {
+        gg.strokeStyle = c; gg.lineWidth = lw; gg.lineJoin = 'round';
+        gg.beginPath();
+        gg.moveTo(X(H[0].t), Y(H[0].after));
+        for (let i = 1; i < H.length; i++) { gg.lineTo(X(H[i].t), Y(H[i].before)); gg.lineTo(X(H[i].t), Y(H[i].after)); }
+        gg.stroke();
+      }
+      gg.restore();
+    }
+
+    // 右下: 往復の時間と θ の誤差。誤差は（行き − 帰り）÷ 2 なので、どの点も三角形の中に入る
+    function drawWedge() {
+      const { w, h } = fit(wd, gw);
+      gw.clearRect(0, 0, w, h);
+      const padL = 40, padR = 8, padT = 8, padB = 30;
+      const pw = Math.max(1, w - padL - padR), ph = Math.max(1, h - padT - padB);
+      const d0 = 2 * BASE, a = P.asym / 2;
+      // 横は往復の短い方から 9 割の回まで（まれに来るとても長い往復で、三角形の先がつぶれないように）
+      const ds = dots.map((d) => d.delay).sort((p, q) => p - q);
+      const d90 = ds.length ? ds[Math.floor((ds.length - 1) * 0.9)] : d0;
+      const xMin = d0 - 4, xMax = Math.max(d0 + 12, d90) + 4;
+      // 縦は三角形が右端でちょうど収まる高さ
+      const eMax = Math.abs(a) + (xMax - d0) / 2;
+      const st = niceStep(eMax), n = Math.max(1, Math.ceil((eMax * 1.05) / st)), topV = n * st;
+      const X = (d) => padL + ((d - xMin) / (xMax - xMin)) * pw;
+      const Y = (e) => padT + ph / 2 - (e / topV) * (ph / 2);
+      gw.font = '10.5px system-ui, sans-serif';
+      gw.lineWidth = 1;
+      gw.textAlign = 'right'; gw.textBaseline = 'middle';
+      for (let k = -n; k <= n; k++) {
+        gw.strokeStyle = k === 0 ? C.mut : C.line;
+        seg(gw, padL, Y(k * st), padL + pw, Y(k * st));
+        gw.fillStyle = C.mut;
+        gw.fillText(sg(k * st, st < 1 ? 2 : 0), padL - 4, Y(k * st));
+      }
+      const xs = niceStep((xMax - xMin) / 1.6);
+      gw.textAlign = 'center'; gw.textBaseline = 'top';
+      for (let d = Math.ceil(xMin / xs) * xs; d <= xMax; d += xs) gw.fillText(String(d), X(d), padT + ph + 3);
+      gw.textAlign = 'right';
+      gw.fillText('往復 δ（ms）', padL + pw, padT + ph + 16);
+      gw.save();
+      gw.beginPath(); gw.rect(padL, padT, pw, ph); gw.clip();
+      const r = xMax - d0;
+      gw.fillStyle = C.soft;
+      gw.beginPath(); gw.moveTo(X(d0), Y(a)); gw.lineTo(X(xMax), Y(a + r / 2)); gw.lineTo(X(xMax), Y(a - r / 2)); gw.closePath(); gw.fill();
+      for (const d of dots) {
+        gw.globalAlpha = d.asym === P.asym ? 1 : 0.3;
+        gw.fillStyle = d.used ? C.ntp : C.mut;
+        gw.beginPath(); gw.arc(X(d.delay), Y(d.err), d.used ? 3.6 : 2.4, 0, Math.PI * 2); gw.fill();
+      }
+      gw.globalAlpha = 1;
+      const last = dots[dots.length - 1];
+      if (last) { gw.strokeStyle = C.fg; gw.lineWidth = 1.5; gw.beginPath(); gw.arc(X(last.delay), Y(last.err), 6, 0, Math.PI * 2); gw.stroke(); }
+      gw.restore();
+    }
+
+    function showOutputs() {
+      $('ppmO').textContent = sg(P.ppm, 0) + ' ppm';
+      const day = P.ppm * 0.0864;
+      $('dayO').textContent = P.ppm === 0 ? '（くるいなし）' : '（1日に ' + Math.abs(day).toFixed(1) + ' 秒' + (day > 0 ? '進む）' : '遅れる）');
+      $('jitO').textContent = P.jitter + ' ms';
+      $('asymO').textContent = sg(P.asym, 0) + ' ms';
+    }
+
+    function updateText() {
+      if (!lastN) {
+        for (const id of ['thO', 'dlO', 'eN', 'eS', 'fO', 'fa', 'fb', 'fc', 'fd', 'fth', 'fdl']) $(id).textContent = '-';
+        $('rN').textContent = 'ms'; $('rS').textContent = 'ms';
+        $('fSub').textContent = 'ppm'; $('truth').textContent = ''; $('why').textContent = '';
+        return;
+      }
+      const o = lastN;
+      $('thO').textContent = sg(o.offset);
+      $('dlO').textContent = o.delay.toFixed(2);
+      $('eN').textContent = sg(o.after);
+      $('eS').textContent = sg(lastS.after);
+      const pick = (H) => H.slice(-RECENT).flatMap((x) => [x.before, x.after]);
+      const k = Math.min(RECENT, histN.length - 1);
+      $('rN').textContent = 'ms（直近 ' + k + ' 回の二乗平均 ' + rms(pick(histN)).toFixed(2) + '）';
+      $('rS').textContent = 'ms（直近 ' + k + ' 回の二乗平均 ' + rms(pick(histS)).toFixed(2) + '）';
+      $('fO').textContent = sg(simN.f, 1);
+      $('fSub').textContent = 'ppm（くるいは ' + sg(P.ppm, 0) + ' ppm）';
+      $('fa').textContent = sg(o.t2 - o.t1);
+      $('fb').textContent = sg(o.t3 - o.t4);
+      $('fth').textContent = sg(o.offset);
+      $('fc').textContent = (o.t4 - o.t1).toFixed(2);
+      $('fd').textContent = (o.t3 - o.t2).toFixed(2);
+      $('fdl').textContent = o.delay.toFixed(2);
+      $('truth').textContent = '本当の片道（模擬なので分かる）: 行き ' + o.df.toFixed(2) + ' ms、帰り ' + o.db.toFixed(2) + ' ms。θ の誤差は（行き − 帰り）÷ 2 = ' + sg(o.err) + ' ms。';
+      let why;
+      if (o.usedId === o.id) why = 'この回の往復は直近 8 回で一番短い。この回の θ の 4 割だけ時計を動かし、θ に比例した量を進み方の直しにも足した。';
+      else if (o.usedId >= 0) why = 'この回の往復は長いので使わない。直近 8 回で一番短い往復（' + o.bestDelay.toFixed(2) + ' ms、' + (o.id - o.usedId) + ' 回前）はまだ使っていないので、その θ で直した。';
+      else why = 'この回の往復は長いので使わない。直近 8 回で一番短い往復（' + o.bestDelay.toFixed(2) + ' ms、' + (o.id - o.bestId) + ' 回前）は前に使ったので、今回は時計を直さない。';
+      $('why').textContent = why;
+    }
+
+    function readInputs() {
+      P.ppm = Number(ppmI.value); P.jitter = Number(jitI.value); P.asym = Number(asymI.value);
+      showOutputs();
+      dirty = true;
+    }
+    for (const el of [ppmI, jitI, asymI]) el.addEventListener('input', readInputs);
+    $('route').addEventListener('click', () => {
+      let v;
+      do { v = Math.round((Math.random() * 2 - 1) * 16); } while (Math.abs(v - P.asym) < 6);
+      asymI.value = String(v);
+      readInputs();
+    });
+    pauseB.addEventListener('click', () => {
+      running = !running;
+      pauseB.textContent = running ? '止める' : '動かす';
+      prevT = 0; acc = 0;
+    });
+    $('reset').addEventListener('click', () => { reset(); });
+
+    function render(now) {
+      drawGraph(); drawWedge(); updateText(); drawEx(now);
+    }
+    function frame(now) {
+      const dt = prevT ? Math.min(1000, now - prevT) : 0;
+      prevT = now;
+      if (running) {
+        acc += dt;
+        let k = 0;
+        while (acc >= PERIOD && k < 3) { acc -= PERIOD; stepOnce(); k++; }
+        if (acc >= PERIOD) acc = 0;
+      }
+      if (dirty) { render(now); dirty = false; }
+      else if (now - animAt < ANIM + 60) drawEx(now);
+      requestAnimationFrame(frame);
+    }
+
+    reset();
+    showOutputs();
+    if (thumb) for (let i = 0; i < WINDOW; i++) stepOnce();
+    render(performance.now());
+    dirty = false;
+    if ('ResizeObserver' in window) new ResizeObserver(() => { dirty = true; }).observe(document.body);
+    requestAnimationFrame(frame);
+  },
+});
+
+dekiru.add({
+  id: 'tr-20261123-mini-city', c: 'trend', lv: 3, date: '2026-11-23',
+  t: '斜め上から見た小さな街で、信号を守る車を走らせ、建物や木の陰へ1画素ずつ隠す（Small SF）',
+  y: 'ななめうえからみたちいさなまちでしんごうをまもるくるまをはしらせたてものやきのかげへいちがそずつかくす',
+  tags: ['Small SF', '奥行きの図', '信号と車の流れ', '太陽の位置', 'Canvas'],
+  d: '2026年11月22日、Ari Dutilh さんのサイト「Small SF」が Hacker News に投稿され、取得した時点で 272 点・93 件のコメントを集めていた。Small SF は、サンフランシスコを斜め 45 度の上から見た1枚の大きなイラストの地図で、本物の路線バス・電車・船・飛行機の位置と、本物の太陽と霧に合わせた光、模擬の車の流れを重ねている。説明のページ「How it\'s made」によると、車の流れだけは作り物で、OpenStreetMap の 8,673 本の道と 1,562 か所の本物の信号の上で、信号を守り、前の車に付いて走る車を動かしている。建物の陰に入った車は、街の奥行きの図（カメラから見える物までの距離）と車の形を画素ごとに比べ、建物の方が近い部分だけを消している。この見本では、その仕組みを自分で作った小さな街で再現する。交差点が 5 × 5 ある架空の街を 0.5 単位ごとの高さの格子として作り、画面の1画素ごとに視線を伸ばして最初に当たる屋根・壁・地面・木を求め、色と奥行きを記録する。車は毎フレーム、自分の箱と視線の交わりを1画素ずつ計算し、記録した奥行きより手前の画素だけを描く。信号は青・黄・赤のあとに全方向が赤になる間を挟む。車は前の車との間を保つ式（IDM）で速さを決め、黄色になったときは無理なく止まれるなら止まる。走る台数は朝 8 時と夕方 5 時半に多く、夜中に少ない。光は、サンフランシスコの時刻から太陽の高さと方角を計算して当て、影は当たった点から太陽へ向けてもう一度視線を伸ばして決める。夜は窓と街灯とヘッドライトがともる。再現できていない所: 本物のバス・船・飛行機の位置、天気と霧、イラストの絵（Small SF は Google の 3D の街のデータを描き直した画像を使っている）は扱わない。街の形は乱数で作った架空のもので、交差点ではまっすぐ進むか右へ曲がるだけで、左には曲がらない。一時停止の交差点、坂、高架の道、拡大や移動、車への乗り込みも入れていない。',
+  p: '斜め上から見る正射影では、画面の上にあるほど「高い」か「奥」のどちらかなので、車をただ上に重ねると屋根や木の上を走って見える。そこで画面の1画素ごとに、視線の向き (0.5, 0.5, −0.707) で高さの格子を1マスずつ進み（DDA）、最初に当たった面までの距離 t を奥行きの図として残す。車の画素では、視線と車の箱の交わり（slab 法）から距離を出し、図の t より小さいときだけ描く。比べるのは画素ごとなので、車は建物の角から少しずつ隠れる。光と影は奥行きの図と別に持ち、時刻を変えたときは影だけを数フレームに分けて計算し直す。車の加速は IDM の式 a × (1 − (v ÷ v0)⁴ − (望む間隔 ÷ 今の間隔)²) で決め、赤信号は「止まる線の上に止まっている車」として同じ式に入れる。黄色では、今の速さで止まるのに要る距離 v² ÷ 2b が止まる線までの距離より短ければ止まり、長ければそのまま進む。',
+  refs: [
+    { title: 'Small SF: an illustrated, live map of San Francisco（Ari Dutilh）', url: 'https://smallsf.com/' },
+    { title: 'Small SF · How it\'s made（2026年11月）', url: 'https://smallsf.com/about' },
+    { title: 'Hacker News: A miniature San Francisco with live buses, planes and boats（2026-11-22）', url: 'https://news.ycombinator.com/item?id=50603589' },
+    { title: 'Intelligent driver model（Wikipedia）', url: 'https://en.wikipedia.org/wiki/Intelligent_driver_model' },
+  ],
+  html: `<div class="app">
+  <div class="bar">
+    <label class="ctl"><span class="nm">サンフランシスコの時刻</span><input type="range" id="hour" min="0" max="1435" step="5" value="720"><output id="hourO" for="hour">12:00</output></label>
+    <div class="btns"><button type="button" id="now" aria-pressed="true">今の時刻</button><button type="button" id="fast" aria-pressed="false">早送り</button></div>
+    <fieldset class="view"><legend>表示</legend><label><input type="radio" name="view" value="pic" checked>絵</label><label><input type="radio" name="view" value="depth">奥行きの図</label></fieldset>
+    <label class="chk"><input type="checkbox" id="ghost">隠れた車をうっすら見せる</label>
+  </div>
+  <figure class="stage"><canvas id="cv" role="img" aria-label="斜め上から見た小さな街。車が信号を守って走り、建物や木の陰に入った部分は見えなくなる"></canvas></figure>
+  <div class="stats">
+    <div class="stat"><span>走っている車</span><b id="carsO">-</b><span id="tgtO">台</span></div>
+    <div class="stat"><span>太陽の高さ</span><b id="altO">-</b><span id="azO"></span></div>
+    <div class="stat"><span>建物や木に隠れている車</span><b id="hidO">-</b><span>台（形の 6 割より多く隠れている車）</span></div>
+    <div class="stat"><span>止まっている車</span><b id="stopO">-</b><span>台（信号待ちや前の車待ち）</span></div>
+  </div>
+  <p class="small">時刻を動かすと、サンフランシスコのその時刻の太陽の位置で光と影を計算し直す（数フレームかかる）。早送りは 1 時間を約 3 秒で進め、車の台数も時刻に合わせて増減する。「奥行きの図」は、画素ごとにカメラから最初に当たる物までの近さを明るさで表したもので、明るいほど近い。橙色の車は、この図より手前にある画素だけが描かれる。</p>
+</div>`,
+  css: `:root { color-scheme: light; --bg: #eef0ee; --fg: #1f2326; --mut: #596065; --line: #cfd5d2; --panel: #fbfcfb; --acc: #2a6b8a; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    .app { box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; padding: 10px; max-inline-size: 1000px; margin-inline: auto; }
+    .bar { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
+    .ctl { display: flex; align-items: center; gap: 8px; flex: 1 1 280px; min-inline-size: 0; }
+    .ctl .nm { font-size: 12px; color: var(--mut); white-space: nowrap; }
+    .ctl input { flex: 1 1 120px; min-inline-size: 0; margin: 4px 0; }
+    .ctl output { min-inline-size: 3.2em; font-variant-numeric: tabular-nums; font-weight: 600; }
+    input { accent-color: var(--acc); }
+    .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+    button { font: inherit; font-size: 13px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--fg); cursor: pointer; }
+    button:hover { border-color: var(--mut); }
+    button[aria-pressed="true"] { background: var(--acc); border-color: var(--acc); color: #fff; }
+    input:focus-visible, button:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+    .view { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 13px; }
+    .view legend { float: left; padding: 0; margin-inline-end: 2px; font-size: 12px; color: var(--mut); }
+    .view label, .chk { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+    .stage { margin: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #1c3a46; }
+    canvas { display: block; inline-size: 100%; aspect-ratio: 13 / 10; max-block-size: 72vh; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 6px; }
+    .stat { min-inline-size: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; display: flex; flex-direction: column; }
+    .stat span { font-size: 11px; color: var(--mut); line-height: 1.35; }
+    .stat b { font-size: 21px; line-height: 1.25; font-variant-numeric: tabular-nums; }
+    .small { font-size: 12px; color: var(--mut); margin: 0; }
+    .thumb .bar, .thumb .stats, .thumb .small { display: none; }
+    .thumb .app { padding: 0; max-inline-size: none; }
+    .thumb .stage { border: 0; border-radius: 0; }
+    .thumb canvas { block-size: 100vh; aspect-ratio: auto; max-block-size: none; }`,
+  core() {
+    // 単位: 1 = 約 4 m。x は東、y は北、h は上。陸の地面の高さは GROUND、陸の外は高さ 0 の海
+    const R2 = Math.SQRT1_2, SQ2 = Math.SQRT2, RAD = Math.PI / 180;
+    const WORLD = 60, CELL = 0.5, GN = 120, GROUND = 0.3;
+    const STREETS = [6, 18, 30, 42, 54];                // 通りの中心線（東西にも南北にも同じ位置）
+    const SF = { lat: 37.7749, lon: -122.4194 };
+    const SIG = { green: 9, yellow: 2.5, red: 1 };      // 秒。red は全方向が赤になる間
+    const CYCLE = 2 * (SIG.green + SIG.yellow + SIG.red);
+    const STOP = 2.1;                                   // 交差点の中心から、止まった車の中心までの距離
+    const IDM = { v0: 2.6, a: 1.6, b: 2.2, s0: 0.35, T: 0.9 };
+    const VIEW = [0.5, 0.5, -R2];                       // 視線: 北東を向き、45 度見下ろす
+    // 車の色（白・黒・銀が多く、ときどき黄色のタクシー）と割合
+    const VCOL = [[[0.93, 0.93, 0.92], 26], [[0.1, 0.1, 0.11], 18], [[0.68, 0.7, 0.72], 18], [[0.42, 0.43, 0.45], 10], [[0.16, 0.3, 0.55], 8], [[0.62, 0.13, 0.12], 8], [[0.95, 0.76, 0.12], 5], [[0.2, 0.38, 0.3], 4], [[0.76, 0.7, 0.58], 3]];
+
+    function rng(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    function hash3(a, b, c) {
+      let h = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263) + Math.imul(c | 0, 1274126177)) | 0;
+      h = Math.imul(h ^ (h >>> 13), 1103515245);
+      return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+    }
+
+    // ---- 信号と車 ----
+    // 交差点の信号。前半は南北が青→黄→赤、後半は東西。どちらも赤の間は全方向が赤
+    function signalAt(t, off) {
+      const u = (((t + off) % CYCLE) + CYCLE) % CYCLE, half = CYCLE / 2, k = u % half;
+      const st = k < SIG.green ? 'g' : k < SIG.green + SIG.yellow ? 'y' : 'r';
+      return u < half ? { ns: st, ew: 'r' } : { ns: 'r', ew: st };
+    }
+    // 速さ v から、減速 b で dist 以内に止まれるか
+    function canStop(v, dist, b) {
+      return (v * v) / (2 * b) <= dist;
+    }
+    // IDM: 前との間隔 gap（車と車のすき間）、近づく速さ dv から加速を決める
+    function idm(v, v0, gap, dv, P) {
+      const free = 1 - Math.pow(v / Math.max(0.01, v0), 4);
+      if (!(gap < Infinity)) return P.a * free;
+      const want = P.s0 + Math.max(0, v * P.T + (v * dv) / (2 * Math.sqrt(P.a * P.b)));
+      const r = want / Math.max(0.01, gap);
+      return P.a * (free - r * r);
+    }
+    // 時刻ごとの車の量（0〜1）。朝 8 時と夕方 5 時半に多く、夜中に少ない
+    function demand(hour) {
+      const h = ((hour % 24) + 24) % 24;
+      const bump = (c, w) => { let d = Math.abs(h - c); d = Math.min(d, 24 - d); return Math.exp(-((d / w) ** 2)); };
+      const day = 0.5 - 0.5 * Math.cos((2 * Math.PI * (h - 3.5)) / 24);
+      return Math.min(1, 0.1 + 0.42 * day + 0.45 * bump(8, 1.3) + 0.5 * bump(17.5, 1.7));
+    }
+
+    // ---- 太陽 ----
+    function dayOfYear(y, m, d) {
+      return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(y, 0, 1)) / 86400000) + 1;
+    }
+    function declination(doy) {
+      return 23.44 * Math.sin((2 * Math.PI * (284 + doy)) / 365);
+    }
+    // 均時差（分）
+    function eqTime(doy) {
+      const B = (2 * Math.PI * (doy - 81)) / 364;
+      return 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
+    }
+    // UTC の時刻と経度から、その場所の太陽の時刻（正午に太陽が真南）
+    function solarHour(utcH, lon, doy) {
+      return utcH + lon / 15 + eqTime(doy) / 60;
+    }
+    // 太陽の高さ alt と方角 az（北が 0、東が 90。どちらも度）
+    function sunPosition(doy, sh, lat) {
+      const d = declination(doy) * RAD, p = lat * RAD, H = (sh - 12) * 15 * RAD;
+      const sa = Math.sin(p) * Math.sin(d) + Math.cos(p) * Math.cos(d) * Math.cos(H);
+      const alt = Math.asin(Math.max(-1, Math.min(1, sa)));
+      let az = Math.atan2(-Math.cos(d) * Math.sin(H), Math.sin(d) * Math.cos(p) - Math.cos(d) * Math.sin(p) * Math.cos(H));
+      if (az < 0) az += 2 * Math.PI;
+      return { alt: alt / RAD, az: az / RAD };
+    }
+    // 太陽の方向の単位ベクトル（x 東、y 北、h 上）
+    function sunVector(alt, az) {
+      const a = alt * RAD, z = az * RAD;
+      return [Math.sin(z) * Math.cos(a), Math.cos(z) * Math.cos(a), Math.sin(a)];
+    }
+    // 太陽の高さから、空の明るさ（amb）・日の光（sun）・空の色（sky）・夜の度合いを決める
+    function lightState(alt, az) {
+      const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+      const mv = (a, b, t) => a + (b - a) * t;
+      const day = sm(-6, 12, alt), gold = sm(-4, 2, alt) * (1 - sm(6, 22, alt));
+      const night = 1 - sm(-7, 0.5, alt), I = sm(-1, 6, alt) * 0.82, warm = sm(2, 30, alt);
+      return {
+        alt, az, L: sunVector(alt, az), day, gold, night, up: I > 0.005,
+        amb: [mv(0.1, 0.5, day) + gold * 0.1, mv(0.12, 0.53, day) + gold * 0.04, mv(0.23, 0.6, day) - gold * 0.03],
+        sun: [I, I * mv(0.55, 0.95, warm), I * mv(0.28, 0.88, warm)],
+        sky: [mv(0.03, 0.55, day) + gold * 0.32, mv(0.05, 0.7, day) + gold * 0.08, mv(0.13, 0.9, day) + gold * 0.02],
+      };
+    }
+
+    // ---- 見え方 ----
+    // 画面の横 sx（右が正）と縦 sy（上が正）、カメラからの奥行き depth
+    function project(x, y, h) {
+      return { sx: (x - y) * R2, sy: (x + y) / 2 + h * R2, depth: (x + y) / 2 - h * R2 };
+    }
+    // 画面の点 (sx, sy) を通る視線の出発点（高さ hTop）
+    function rayOrigin(sx, sy, hTop) {
+      const s = 2 * (sy - hTop * R2), d = sx * SQ2;
+      return [(s + d) / 2, (s - d) / 2, hTop];
+    }
+    // 一番近い通りの中心線までの距離
+    function streetDist(v) {
+      const m = (((v - 6) % 12) + 12) % 12;
+      return Math.min(m, 12 - m);
+    }
+    // 地面の色: 車道・横断歩道・中央線・歩道・芝生・岸の遊歩道
+    function groundAlbedo(x, y, m, out) {
+      const ex = streetDist(x), ey = streetDist(y);
+      let r = 0.7, g = 0.68, b = 0.63;
+      if (ex < 1 || ey < 1) {
+        r = 0.34; g = 0.35; b = 0.37;
+        if (ey < 1 && ex >= 1) {
+          if (ex < 1.5) { if ((((y + 1) / 0.3) % 1) < 0.55 && ey < 0.92) { r = 0.86; g = 0.86; b = 0.83; } }
+          else if (ey < 0.06) { r = 0.88; g = 0.72; b = 0.2; }
+        } else if (ex < 1 && ey >= 1) {
+          if (ey < 1.5) { if ((((x + 1) / 0.3) % 1) < 0.55 && ex < 0.92) { r = 0.86; g = 0.86; b = 0.83; } }
+          else if (ex < 0.06) { r = 0.88; g = 0.72; b = 0.2; }
+        }
+      } else if (ex < 1.5 || ey < 1.5) { r = 0.75; g = 0.73; b = 0.69; }
+      else if (m === -1) { const n = 0.03 * Math.sin(x * 3.1) * Math.sin(y * 2.7); r = 0.4 + n; g = 0.57 + n; b = 0.3; }
+      else if (x < 1 || y < 1 || x > WORLD - 1 || y > WORLD - 1) { r = 0.72; g = 0.69; b = 0.62; }
+      out[0] = r; out[1] = g; out[2] = b;
+      return out;
+    }
+
+    // 高さの格子と木から、光線の計算に使う形をまとめる（木がかかるマスの一覧も作る）
+    function makeWorld(H, M, buildings, trees) {
+      let hi = GROUND;
+      for (let i = 0; i < H.length; i++) if (H[i] > hi) hi = H[i];
+      for (const t of trees) hi = Math.max(hi, t.z + t.r);
+      const cnt = new Int32Array(GN * GN + 1);
+      const each = (t, f) => {
+        const x0 = Math.max(0, Math.floor((t.x - t.r) / CELL)), x1 = Math.min(GN - 1, Math.floor((t.x + t.r) / CELL));
+        const y0 = Math.max(0, Math.floor((t.y - t.r) / CELL)), y1 = Math.min(GN - 1, Math.floor((t.y + t.r) / CELL));
+        for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) f(y * GN + x);
+      };
+      for (const t of trees) each(t, (c) => { cnt[c + 1]++; });
+      for (let i = 0; i < GN * GN; i++) cnt[i + 1] += cnt[i];
+      const idx = new Int32Array(cnt[GN * GN]), fill = cnt.slice(0, GN * GN);
+      trees.forEach((t, k) => each(t, (c) => { idx[fill[c]++] = k; }));
+      return { H, M, buildings, trees, tStart: cnt, tIdx: idx, maxH: hi, top: hi + 0.5 };
+    }
+
+    // 架空の街: 通りの間の街区を区画に分けて建物を建て、公園・岸・歩道に木を植える
+    function buildTown(seed) {
+      const R = rng(seed);
+      const H = new Float32Array(GN * GN).fill(GROUND), M = new Int32Array(GN * GN);
+      const buildings = [null], trees = [];
+      const PAL = [[0.94, 0.91, 0.86], [0.96, 0.96, 0.94], [0.85, 0.88, 0.9], [0.91, 0.83, 0.77], [0.81, 0.86, 0.82], [0.9, 0.85, 0.66], [0.79, 0.81, 0.85], [0.86, 0.77, 0.79]];
+      const TOWER = [[0.72, 0.76, 0.8], [0.6, 0.65, 0.7], [0.82, 0.83, 0.85], [0.68, 0.72, 0.7]];
+      const spans = [[2, 9]];
+      for (let k = 0; k < 4; k++) spans.push([(STREETS[k] + 1.5) / CELL, (STREETS[k + 1] - 1.5) / CELL]);
+      spans.push([(STREETS[4] + 1.5) / CELL, GN - 2]);
+      const tree = (x, y, r, z) => trees.push({ x, y, r, z, tr: 0.07, g: R() });
+      const cut = (a, b) => {
+        const n = b - a, k = n >= 16 && R() < 0.55 ? 3 : 2, out = [a];
+        for (let i = 1; i < k; i++) out.push(Math.round(a + (n * i) / k + (R() - 0.5) * 2.5));
+        out.push(b);
+        return out;
+      };
+      const last = spans.length - 1;
+      for (let bj = 0; bj <= last; bj++) for (let bi = 0; bi <= last; bi++) {
+        const [x0, x1] = spans[bi], [y0, y1] = spans[bj];
+        const edge = bi === 0 || bj === 0 || bi === last || bj === last, park = bi === 2 && bj === 1;
+        if (edge || park) {
+          for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) M[y * GN + x] = -1;
+          for (let ty = y0 * CELL + 1.4; ty <= y1 * CELL - 1.4 + 1e-9; ty += 3) {
+            for (let tx = x0 * CELL + 1.4; tx <= x1 * CELL - 1.4 + 1e-9; tx += 3) {
+              if (!park && R() < 0.2) continue;
+              const r = park ? 0.62 + R() * 0.3 : 0.55 + R() * 0.25;
+              tree(tx + (R() - 0.5) * 0.6, ty + (R() - 0.5) * 0.6, r, GROUND + 0.5 + r);
+            }
+          }
+          continue;
+        }
+        const xs = cut(x0, x1), ys = cut(y0, y1);
+        for (let a = 0; a < xs.length - 1; a++) for (let c = 0; c < ys.length - 1; c++) {
+          let lx0 = xs[a], lx1 = xs[a + 1], ly0 = ys[c], ly1 = ys[c + 1];
+          const cx = ((lx0 + lx1) * CELL) / 2, cy = ((ly0 + ly1) * CELL) / 2;
+          const tall = Math.max(0, 1 - Math.hypot(cx - 44, cy - 42) / 20);
+          let h = GROUND + 1.1 + R() * 2.1, col = PAL[Math.floor(R() * PAL.length)];
+          if (tall > 0.15 && R() < 0.35 + tall * 0.6) {
+            h += tall * (2.5 + R() * 6);
+            col = TOWER[Math.floor(R() * TOWER.length)];
+            if (tall > 0.45 && lx1 - lx0 > 6 && ly1 - ly0 > 6 && R() < 0.6) { lx0++; lx1--; ly0++; ly1--; }
+          }
+          const id = buildings.length, dk = 0.85 + R() * 0.08;
+          buildings.push({ id, h, wall: col, roof: R() < 0.4 ? [0.62, 0.6, 0.57] : [col[0] * dk, col[1] * dk, col[2] * dk], tower: h > GROUND + 4 });
+          for (let y = ly0; y < ly1; y++) for (let x = lx0; x < lx1; x++) { H[y * GN + x] = h; M[y * GN + x] = id; }
+        }
+      }
+      // 歩道の木（車の屋根より高い所に葉がある）
+      for (const c of STREETS) for (const side of [-1.25, 1.25]) for (let k = 0; k < 4; k++) {
+        for (let u = STREETS[k] + 3; u <= STREETS[k + 1] - 3 + 1e-9; u += 3) {
+          if (R() < 0.42) { const r = 0.42 + R() * 0.14; tree(u, c + side, r, GROUND + 1.2); }
+          if (R() < 0.42) { const r = 0.42 + R() * 0.14; tree(c + side, u, r, GROUND + 1.2); }
+        }
+      }
+      return makeWorld(H, M, buildings, trees);
+    }
+
+    // 木（葉の球と幹の円柱）と視線の交わり。今までより近ければ out を書き換える
+    function hitTree(tr, k, ox, oy, oz, out) {
+      const lx = ox - tr.x, ly = oy - tr.y, lz = oz - tr.z;
+      const b = lx * 0.5 + ly * 0.5 - lz * R2, c = lx * lx + ly * ly + lz * lz - tr.r * tr.r, disc = b * b - c;
+      if (disc >= 0) {
+        const t = -b - Math.sqrt(disc);
+        if (t > 0 && t < out.t) {
+          out.t = t; out.kind = 1; out.id = k; out.n = 4;
+          out.nx = (lx + 0.5 * t) / tr.r; out.ny = (ly + 0.5 * t) / tr.r; out.nz = (lz - R2 * t) / tr.r;
+        }
+      }
+      const b2 = lx * 0.5 + ly * 0.5, c2 = lx * lx + ly * ly - tr.tr * tr.tr, d2 = b2 * b2 - 0.5 * c2;
+      if (d2 >= 0) {
+        const t = (-b2 - Math.sqrt(d2)) / 0.5, z = oz - R2 * t;
+        if (t > 0 && t < out.t && z >= GROUND && z <= tr.z) {
+          out.t = t; out.kind = 2; out.id = k; out.n = 4;
+          out.nx = (lx + 0.5 * t) / tr.tr; out.ny = (ly + 0.5 * t) / tr.tr; out.nz = 0;
+        }
+      }
+    }
+
+    // 画面の点から視線を伸ばし、最初に当たる物を求める（高さの格子を1マスずつ進む）
+    //   out.t: 出発点からの距離（同じ画素どうしなら、小さいほどカメラに近い）
+    //   out.n: 0 上の面、1 西向きの壁、2 南向きの壁、4 木（向きは nx, ny, nz）
+    //   out.kind: 0 陸のマス（id はマスの番号）、1 木の葉、2 木の幹（id は木の番号）、3 海
+    function castRay(W, sx, sy, out) {
+      const hT = W.top, s = 2 * (sy - hT * R2), d = sx * SQ2;
+      const ox = (s + d) / 2, oy = (s - d) / 2, oz = hT;
+      const H = W.H, T = W.trees, ts = W.tStart, ti = W.tIdx, tD = CELL / 0.5;
+      let ix = Math.floor(ox / CELL), iy = Math.floor(oy / CELL);
+      let tx = ((ix + 1) * CELL - ox) / 0.5, ty = ((iy + 1) * CELL - oy) / 0.5, t0 = 0, axis = -1;
+      out.t = Infinity; out.kind = 3; out.n = 0; out.id = -1;
+      for (let guard = 0; guard < 4000; guard++) {
+        if (t0 >= out.t) break;
+        const t1 = Math.min(tx, ty);
+        const inside = ix >= 0 && iy >= 0 && ix < GN && iy < GN, cell = iy * GN + ix;
+        const hc = inside ? H[cell] : 0;
+        if (inside) for (let k = ts[cell]; k < ts[cell + 1]; k++) hitTree(T[ti[k]], ti[k], ox, oy, oz, out);
+        if (oz - t0 * R2 <= hc) {
+          if (t0 < out.t) { out.t = t0; out.n = axis === 0 ? 1 : 2; out.kind = inside ? 0 : 3; out.id = inside ? cell : -1; }
+          break;
+        }
+        if (oz - t1 * R2 <= hc) {
+          const th = (oz - hc) * SQ2;
+          if (th < out.t) { out.t = th; out.n = 0; out.kind = inside ? 0 : 3; out.id = inside ? cell : -1; }
+          break;
+        }
+        if (tx < ty) { ix++; t0 = tx; tx += tD; axis = 0; } else { iy++; t0 = ty; ty += tD; axis = 1; }
+      }
+      if (!(out.t < Infinity)) { out.t = oz * SQ2; out.kind = 3; out.n = 0; out.id = -1; }
+      out.x = ox + 0.5 * out.t; out.y = oy + 0.5 * out.t; out.h = oz - R2 * out.t;
+      return out;
+    }
+
+    // 点 (x, y, z) から太陽の方向 L へ伸ばした線が、建物か木に当たるか（当たれば影）
+    function shadowAt(W, x, y, z, L) {
+      const H = W.H, T = W.trees, ts = W.tStart, ti = W.tIdx;
+      let ix = Math.floor(x / CELL), iy = Math.floor(y / CELL);
+      const hl = Math.hypot(L[0], L[1]);
+      const dx = hl > 1e-6 ? L[0] / hl : 0, dy = hl > 1e-6 ? L[1] / hl : 0, slope = hl > 1e-6 ? L[2] / hl : 1e9;
+      const sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1;
+      const tdx = Math.abs(dx) > 1e-9 ? CELL / Math.abs(dx) : Infinity, tdy = Math.abs(dy) > 1e-9 ? CELL / Math.abs(dy) : Infinity;
+      let tx = Math.abs(dx) > 1e-9 ? (dx > 0 ? (ix + 1) * CELL - x : x - ix * CELL) / Math.abs(dx) : Infinity;
+      let ty = Math.abs(dy) > 1e-9 ? (dy > 0 ? (iy + 1) * CELL - y : y - iy * CELL) / Math.abs(dy) : Infinity;
+      let u = 0;
+      for (let guard = 0; guard < 400; guard++) {
+        if (ix < 0 || iy < 0 || ix >= GN || iy >= GN) return false;
+        const hz = z + u * slope;
+        if (hz > W.maxH) return false;
+        const cell = iy * GN + ix;
+        if (hz < H[cell] - 1e-4) return true;
+        for (let k = ts[cell]; k < ts[cell + 1]; k++) {
+          const tr = T[ti[k]];
+          const lx = x - tr.x, ly = y - tr.y, lz = z - tr.z;
+          const b = lx * L[0] + ly * L[1] + lz * L[2], c = lx * lx + ly * ly + lz * lz - tr.r * tr.r;
+          if (b < 0 && b * b - c >= 0) return true;
+        }
+        if (u > 45 || hl <= 1e-6) return false;
+        if (tx < ty) { ix += sx; u = tx; tx += tdx; } else { iy += sy; u = ty; ty += tdy; }
+      }
+      return false;
+    }
+
+    // 道のつながり: 車線ごとの道（交差点と交差点の間）と、交差点の中の動き（まっすぐ・右折）
+    function makeTraffic(seed) {
+      const links = [], nodes = [], N = STREETS.length;
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) nodes.push({ x: STREETS[i], y: STREETS[j], off: (i * 5 + j * 9) % CYCLE });
+      const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      const inbound = new Map(), outbound = new Map();
+      const road = (x0, y0, x1, y1, d, endNode, startNode) => {
+        const L = { id: links.length, kind: 'road', x0, y0, dx: d[0], dy: d[1], len: Math.hypot(x1 - x0, y1 - y0), node: endNode, axis: d[0] !== 0 ? 'ew' : 'ns', next: [], cars: [], entry: startNode < 0, exit: endNode < 0, turn: false, curve: null };
+        links.push(L);
+        return L;
+      };
+      DIRS.forEach((d, di) => {
+        const alongX = d[0] !== 0, sign = alongX ? d[0] : d[1];
+        for (let k = 0; k < N; k++) {
+          const lane = STREETS[k] + (alongX ? -0.5 * d[0] : 0.5 * d[1]);
+          const P = (u) => (alongX ? [u, lane] : [lane, u]);
+          const order = sign > 0 ? [0, 1, 2, 3, 4] : [4, 3, 2, 1, 0];
+          let pos = sign > 0 ? 0 : WORLD, prev = -1;
+          for (const m of order) {
+            const c = STREETS[m], end = c - sign * STOP, node = alongX ? k * N + m : m * N + k;
+            const a = P(pos), b = P(end), L = road(a[0], a[1], b[0], b[1], d, node, prev);
+            inbound.set(node + ',' + di, L);
+            if (prev >= 0) outbound.set(prev + ',' + di, L);
+            pos = c + sign * STOP; prev = node;
+          }
+          const a = P(pos), b = P(sign > 0 ? WORLD : 0), L = road(a[0], a[1], b[0], b[1], d, -1, prev);
+          outbound.set(prev + ',' + di, L);
+        }
+      });
+      nodes.forEach((nd, n) => {
+        DIRS.forEach((d, di) => {
+          const Lin = inbound.get(n + ',' + di);
+          const ex = Lin.x0 + Lin.dx * Lin.len, ey = Lin.y0 + Lin.dy * Lin.len;
+          const straight = outbound.get(n + ',' + di);
+          const rd = [d[1], -d[0]], ri = DIRS.findIndex((q) => q[0] === rd[0] && q[1] === rd[1]);
+          const right = outbound.get(n + ',' + ri);
+          const ms = { id: links.length, kind: 'move', x0: ex, y0: ey, dx: d[0], dy: d[1], len: 2 * STOP, node: -1, axis: Lin.axis, next: [straight.id], cars: [], entry: false, exit: false, turn: false, curve: null };
+          links.push(ms);
+          const p = [ex, ey, nd.x + rd[0] * 0.5 - d[0] * 0.5, nd.y + rd[1] * 0.5 - d[1] * 0.5, right.x0, right.y0];
+          const tab = [0];
+          let px = p[0], py = p[1], acc = 0;
+          for (let i = 1; i <= 24; i++) {
+            const u = i / 24, a = 1 - u;
+            const qx = a * a * p[0] + 2 * a * u * p[2] + u * u * p[4], qy = a * a * p[1] + 2 * a * u * p[3] + u * u * p[5];
+            acc += Math.hypot(qx - px, qy - py); tab.push(acc); px = qx; py = qy;
+          }
+          const mr = { id: links.length, kind: 'move', x0: ex, y0: ey, dx: 0, dy: 0, len: acc, node: -1, axis: Lin.axis, next: [right.id], cars: [], entry: false, exit: false, turn: true, curve: { p, tab } };
+          links.push(mr);
+          Lin.next = [ms.id, mr.id];
+        });
+      });
+      // 同じ道へ合流する、交差点の中の動きどうしを覚えておく（直進と、隣の向きからの右折）
+      const feeders = new Map();
+      for (const L of links) if (L.kind === 'move') { const k = L.next[0]; if (!feeders.has(k)) feeders.set(k, []); feeders.get(k).push(L.id); }
+      for (const L of links) if (L.kind === 'move') L.merge = feeders.get(L.next[0]).filter((id) => id !== L.id);
+      return { links, nodes, cars: [], entries: links.filter((L) => L.entry).map((L) => L.id), t: 0, rand: rng(seed), max: 100, target: 0, spawnAcc: 0, redRuns: 0, nextId: 1 };
+    }
+
+    // 道の上の位置 s から、地図の上の位置と向き
+    function posOnLink(L, s, out) {
+      if (!L.curve) { out.x = L.x0 + L.dx * s; out.y = L.y0 + L.dy * s; out.th = Math.atan2(L.dy, L.dx); return out; }
+      const p = L.curve.p, tab = L.curve.tab, n = tab.length - 1;
+      let i = 0;
+      while (i < n - 1 && tab[i + 1] < s) i++;
+      const f = Math.min(1, Math.max(0, (s - tab[i]) / Math.max(1e-9, tab[i + 1] - tab[i])));
+      const u = (i + f) / n, a = 1 - u;
+      out.x = a * a * p[0] + 2 * a * u * p[2] + u * u * p[4];
+      out.y = a * a * p[1] + 2 * a * u * p[3] + u * u * p[5];
+      out.th = Math.atan2(2 * a * (p[3] - p[1]) + 2 * u * (p[5] - p[3]), 2 * a * (p[2] - p[0]) + 2 * u * (p[4] - p[2]));
+      return out;
+    }
+    // 次の交差点での動き（7 割まっすぐ、3 割右折）と、その先の道を決める
+    function planNext(sim, c) {
+      const L = sim.links[c.link];
+      if (L.kind === 'road' && L.node >= 0) { const m = L.next[sim.rand() < 0.7 ? 0 : 1]; c.plan = [m, sim.links[m].next[0]]; }
+      else if (L.kind === 'move') c.plan = [L.next[0]];
+      else c.plan = [];
+    }
+    function addCar(sim, link, s, v, kind) {
+      const R = sim.rand, k = kind || (R() < 0.12 ? 'van' : 'car');
+      let w = R() * 100, col = VCOL[0][0];
+      for (const [cc, pp] of VCOL) { w -= pp; if (w < 0) { col = cc; break; } }
+      if (k === 'van' && R() < 0.7) col = [0.94, 0.94, 0.93];
+      const c = { id: sim.nextId++, link, s, v, a: 0, kind: k, len: k === 'van' ? 1.35 : 1.0, wid: k === 'van' ? 0.56 : 0.48, col, v0: IDM.v0 * (0.88 + R() * 0.2), plan: [], yd: null };
+      planNext(sim, c);
+      sim.cars.push(c);
+      const cs = sim.links[link].cars;
+      cs.push(c);
+      cs.sort((p, q) => p.s - q.s);
+      return c;
+    }
+
+    // 車の流れを dt 秒進める。hour は車の量を決める時刻
+    function stepTraffic(sim, dt, hour) {
+      const links = sim.links;
+      sim.t += dt;
+      const st = sim.nodes.map((n) => signalAt(sim.t, n.off));
+      for (const L of links) {
+        const cs = L.cars;
+        for (let k = 0; k < cs.length; k++) {
+          const c = cs[k];
+          let gap = Infinity, vl = 0;
+          const lead = cs[k + 1];
+          if (lead) { gap = lead.s - c.s - (lead.len + c.len) / 2; vl = lead.v; }
+          else {
+            let acc = L.len - c.s;
+            // 同じ道から別の向きへ進み始めたばかりの車も、交差点の入口では前の車として見る
+            if (L.kind === 'road' && L.node >= 0) {
+              for (const mid of L.next) {
+                if (mid === c.plan[0]) continue;
+                const f = links[mid].cars[0];
+                if (f && f.s < 1.8) { const g = acc + f.s - (f.len + c.len) / 2; if (g < gap) { gap = g; vl = f.v; } }
+              }
+            }
+            for (const pid of c.plan) {
+              const P = links[pid];
+              if (P.cars.length) { const f = P.cars[0], g = acc + f.s - (f.len + c.len) / 2; if (g < gap) { gap = g; vl = f.v; } break; }
+              acc += P.len;
+            }
+          }
+          // 合流: 相手の方が合流する所に近ければ、相手を前の車として見る（同じ近さなら番号の小さい方が先）
+          if (L.kind === 'move') {
+            const mine = L.len - c.s;
+            for (const mid of L.merge) {
+              const O = links[mid];
+              for (const o of O.cars) {
+                const rest = O.len - o.s;
+                if (rest < mine || (rest === mine && o.id < c.id)) { const g = mine - rest - (o.len + c.len) / 2; if (g < gap) { gap = g; vl = o.v; } }
+              }
+            }
+          }
+          if (L.kind === 'road' && L.node >= 0) {
+            const s = st[L.node][L.axis], dist = L.len - c.s;
+            if (s === 'g') c.yd = null;
+            else if (c.yd === null) c.yd = s === 'y' && !canStop(c.v, dist, IDM.b) ? 'go' : 'stop';
+            let stop = s !== 'g' && c.yd === 'stop';
+            // 先の道が詰まっていたら交差点に入らない
+            if (!stop && c.yd !== 'go' && dist < 3 && c.plan.length > 1) {
+              const O = links[c.plan[1]].cars[0];
+              if (O && O.s < O.len / 2 + c.len + 0.3 && O.v < 0.6) stop = true;
+            }
+            if (stop) { const g = dist - 0.05 + IDM.s0; if (g < gap) { gap = g; vl = 0; } }
+          }
+          let v0 = c.v0;
+          if (L.turn) v0 *= 0.45;
+          else if (c.plan.length && links[c.plan[0]].turn) v0 = Math.min(v0, c.v0 * 0.45 + 0.45 * (L.len - c.s));
+          c.a = Math.max(-9, Math.min(IDM.a, idm(c.v, v0, gap, c.v - vl, IDM)));
+        }
+      }
+      for (const c of sim.cars) {
+        c.v = Math.max(0, c.v + c.a * dt);
+        c.s += c.v * dt;
+        let L = links[c.link];
+        while (c.s >= L.len) {
+          if (L.exit || !c.plan.length) { c.dead = true; break; }
+          if (L.kind === 'road' && L.node >= 0 && st[L.node][L.axis] !== 'g' && c.yd !== 'go') sim.redRuns++;
+          c.s -= L.len; c.link = c.plan.shift(); c.yd = null; L = links[c.link];
+          if (!c.plan.length) planNext(sim, c);
+        }
+      }
+      sim.cars = sim.cars.filter((c) => !c.dead);
+      for (const L of links) L.cars.length = 0;
+      for (const c of sim.cars) links[c.link].cars.push(c);
+      for (const L of links) if (L.cars.length > 1) L.cars.sort((p, q) => p.s - q.s);
+      // 目安の台数より少なければ、街の端から車を入れる（1 秒に 10 台まで）
+      const target = Math.round(sim.max * demand(hour));
+      sim.target = target;
+      if (sim.cars.length < target) {
+        sim.spawnAcc += dt * 10;
+        while (sim.spawnAcc >= 1) {
+          sim.spawnAcc -= 1;
+          const E = links[sim.entries[Math.floor(sim.rand() * sim.entries.length)]], f = E.cars[0];
+          if (!f || f.s - f.len / 2 > 2.2) addCar(sim, E.id, 0.5, 1.6 + sim.rand() * 0.6);
+          if (sim.cars.length >= target) { sim.spawnAcc = 0; break; }
+        }
+      } else sim.spawnAcc = 0;
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const thumb = !!window.THUMB;
+    if (thumb) document.documentElement.classList.add('thumb');
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const cv = $('cv'), ctx = cv.getContext('2d');
+    const hourI = $('hour'), hourO = $('hourO'), nowB = $('now'), fastB = $('fast'), ghostI = $('ghost');
+    const town = buildTown(20261123);
+    const sim = makeTraffic(11);
+    sim.max = thumb ? 90 : 120;
+    const MAXPX = thumb ? 90000 : 420000;
+    const TT = town.top;
+
+    // 画面に入れる範囲（sy は上が大きい）
+    let syHi = WORLD;
+    for (let iy = 0; iy < GN; iy++) for (let ix = 0; ix < GN; ix++) {
+      const v = ((ix + iy + 2) * CELL) / 2 + town.H[iy * GN + ix] * R2;
+      if (v > syHi) syHi = v;
+    }
+    for (const t of town.trees) syHi = Math.max(syHi, (t.x + t.y) / 2 + (t.z + t.r) * R2);
+    const SX0 = -WORLD * R2 - 1.2, SX1 = WORLD * R2 + 1.2, SY0 = -1.4, SY1 = syHi + 0.8;
+
+    // サンフランシスコの今の時刻・UTC との差（時間）・1年の何日目
+    let fmt = null;
+    try {
+      fmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' });
+    } catch (e) { fmt = null; }
+    function sfNow() {
+      const d = new Date();
+      const utc = d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600;
+      if (fmt) {
+        try {
+          const q = {};
+          for (const p of fmt.formatToParts(d)) q[p.type] = p.value;
+          const hour = (Number(q.hour) % 24) + Number(q.minute) / 60 + Number(q.second) / 3600;
+          const off = ((hour - utc + 36) % 24) - 12;
+          const doy = dayOfYear(Number(q.year), Number(q.month), Number(q.day));
+          if (Number.isFinite(hour) && Number.isFinite(off) && Number.isFinite(doy)) return { hour, off, doy };
+        } catch (e) { /* 下の近似を使う */ }
+      }
+      return { hour: (((utc - 8) % 24) + 24) % 24, off: -8, doy: dayOfYear(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()) };
+    }
+    let tz = sfNow();
+    let mode = thumb ? (reduce ? 'manual' : 'fast') : 'live';
+    let hour = thumb ? 15.2 : tz.hour;
+    let view = 'pic', ghost = false;
+    function sunFor(h) {
+      return sunPosition(tz.doy, solarHour(h - tz.off, SF.lon, tz.doy), SF.lat);
+    }
+    function withMul(Sx) {
+      const a = Sx.amb[0] + Sx.amb[1] + Sx.amb[2], u = (Sx.sun[0] + Sx.sun[1] + Sx.sun[2]) * Math.max(0, Sx.L[2]);
+      Sx.shMul = a / Math.max(1e-6, a + u);
+      return Sx;
+    }
+
+    // ---- 画素の入れ物 ----
+    let BW = 0, BH = 0, scale = 1, offX = 0, offY = 0, dMin = 0, dSpan = 1;
+    let tB, xB, yB, zB, nB, kB, iB, nxB, nyB, nzB, sB, sBack, base, back, depthImg, zbuf, img, frameB;
+    let S = null, job = null;
+    const pxSx = (px) => SX0 + (px + 0.5 - offX) / scale;
+    const pySy = (py) => SY1 - (py + 0.5 - offY) / scale;
+    const sxPx = (sx) => (sx - SX0) * scale + offX - 0.5;
+    const syPy = (sy) => (SY1 - sy) * scale + offY - 0.5;
+    const c8 = (v) => (v <= 0 ? 0 : v >= 1 ? 255 : (v * 255 + 0.5) | 0);
+    const pack = (r, g, b) => (0xff000000 | (c8(b) << 16) | (c8(g) << 8) | c8(r)) >>> 0;
+    function mix(c0, c1, a) {
+      const k = 1 - a;
+      const r = ((c0 & 255) * k + (c1 & 255) * a) | 0, g = (((c0 >>> 8) & 255) * k + ((c1 >>> 8) & 255) * a) | 0, b = (((c0 >>> 16) & 255) * k + ((c1 >>> 16) & 255) * a) | 0;
+      return (0xff000000 | (b << 16) | (g << 8) | r) >>> 0;
+    }
+    function shadeFx(c0, mul, add) {
+      const r = Math.min(255, (c0 & 255) * mul + add * 255) | 0, g = Math.min(255, ((c0 >>> 8) & 255) * mul + add * 228) | 0, b = Math.min(255, ((c0 >>> 16) & 255) * mul + add * 160) | 0;
+      return (0xff000000 | (b << 16) | (g << 8) | r) >>> 0;
+    }
+    function depthCol(d, tint) {
+      const g = Math.max(0, Math.min(1, 1 - (d - dMin) / dSpan)), v = 0.1 + 0.9 * g;
+      return tint ? pack(v, v * 0.55, v * 0.16) : pack(v * 0.86, v * 0.92, v);
+    }
+
+    // 1画素ずつ視線を伸ばし、当たった物と奥行きを記録する
+    function geometry() {
+      const hit = { t: 0, x: 0, y: 0, h: 0, n: 0, kind: 0, id: 0, nx: 0, ny: 0, nz: 0 };
+      let lo = Infinity, hi = -Infinity;
+      for (let py = 0, p = 0; py < BH; py++) {
+        const sy = pySy(py);
+        for (let px = 0; px < BW; px++, p++) {
+          castRay(town, pxSx(px), sy, hit);
+          tB[p] = hit.t; xB[p] = hit.x; yB[p] = hit.y; zB[p] = hit.h; nB[p] = hit.n; kB[p] = hit.kind; iB[p] = hit.id;
+          if (hit.n === 4) { nxB[p] = hit.nx; nyB[p] = hit.ny; nzB[p] = hit.nz; }
+          const d = (hit.x + hit.y) / 2 - hit.h * R2;
+          if (d < lo) lo = d;
+          if (d > hi) hi = d;
+        }
+      }
+      dMin = lo; dSpan = Math.max(1e-6, hi - lo);
+      for (let p = 0; p < BW * BH; p++) depthImg[p] = depthCol((xB[p] + yB[p]) / 2 - zB[p] * R2, false);
+    }
+
+    function lampGlow(x, y) {
+      const ex = streetDist(x), ey = streetDist(y);
+      if (ex > 3.2 || ey > 3.2) return 0;
+      const a = ex - 1.3, b = ey - 1.3, f = Math.max(0, 1 - (a * a + b * b) / 4.4);
+      return f * f * 0.85;
+    }
+    // 記録した当たりの点に、太陽・空・夜の明かりの光を当てて色にする（行 r0〜r1）
+    function lightRows(Sx, r0, r1, out, sOut) {
+      const L = Sx.L, A = Sx.amb, U = Sx.sun, K = Sx.sky, night = Sx.night;
+      const M = town.M, B = town.buildings, T = town.trees, gc = [0, 0, 0];
+      for (let p = r0 * BW, end = r1 * BW; p < end; p++) {
+        const kind = kB[p], n = nB[p], x = xB[p], y = yB[p], z = zB[p];
+        let nx = 0, ny = 0, nz = 1;
+        if (n === 1) { nx = -1; nz = 0; } else if (n === 2) { ny = -1; nz = 0; } else if (n === 4) { nx = nxB[p]; ny = nyB[p]; nz = nzB[p]; }
+        let ar, ag, ab, er = 0, eg = 0, eb = 0, ao = 1, water = false, ground = false;
+        if (kind === 3) {
+          water = true;
+          const w = 0.025 * Math.sin(x * 1.7 + y * 2.3) + 0.02 * Math.sin(x * 4.1 - y * 3.3);
+          ar = 0.13 + w; ag = 0.27 + w; ab = 0.34 + w;
+        } else if (kind === 1) {
+          const g = T[iB[p]].g;
+          ar = 0.24 + g * 0.12; ag = 0.4 + g * 0.14; ab = 0.19 + g * 0.06; ao = 0.78 + 0.22 * nz;
+        } else if (kind === 2) {
+          ar = 0.32; ag = 0.24; ab = 0.17;
+        } else {
+          const m = M[iB[p]];
+          if (m > 0) {
+            const b = B[m];
+            if (n === 0) { ar = b.roof[0]; ag = b.roof[1]; ab = b.roof[2]; }
+            else {
+              ar = b.wall[0]; ag = b.wall[1]; ab = b.wall[2];
+              ao = 0.7 + 0.3 * Math.min(1, (z - GROUND) / 1.6);
+              const w = n === 1 ? y : x, fz = (z - GROUND) / 0.9, fl = Math.floor(fz), fw = w / 0.7, col = Math.floor(fw);
+              const a = fz - fl, c = fw - col;
+              if (fl >= 0 && a > 0.32 && a < 0.78 && c > 0.2 && c < 0.74 && z < b.h - 0.2) {
+                ar = ar * 0.45 + 0.08; ag = ag * 0.48 + 0.1; ab = ab * 0.5 + 0.15;
+                if (night > 0 && hash3(m, fl, col + n * 9973) < (b.tower ? 0.5 : 0.36)) { er = 0.95 * night; eg = 0.74 * night; eb = 0.42 * night; }
+              }
+            }
+          } else if (n !== 0) { ar = 0.5; ag = 0.48; ab = 0.44; ao = 0.8; }
+          else { groundAlbedo(x, y, m, gc); ar = gc[0]; ag = gc[1]; ab = gc[2]; ground = true; }
+        }
+        let ndl = nx * L[0] + ny * L[1] + nz * L[2], sh = 0;
+        if (Sx.up && ndl > 0) sh = shadowAt(town, x + nx * 0.02, y + ny * 0.02, z + nz * 0.02, L) ? 0 : 1;
+        else ndl = 0;
+        sOut[p] = sh;
+        let lr = A[0] * ao + U[0] * ndl * sh, lg = A[1] * ao + U[1] * ndl * sh, lb = A[2] * ao + U[2] * ndl * sh;
+        if (ground && night > 0.02) { const g = lampGlow(x, y) * night; lr += g; lg += g * 0.8; lb += g * 0.5; }
+        let r = ar * lr + er, g = ag * lg + eg, bl = ab * lb + eb;
+        if (water) { r = r * 0.6 + K[0] * 0.4; g = g * 0.6 + K[1] * 0.4; bl = bl * 0.6 + K[2] * 0.4; }
+        out[p] = pack(r, g, bl);
+      }
+    }
+    // 影の計算は重いので、時刻を変えたときは数フレームに分けて裏の入れ物に描き、できたら入れ替える
+    function runJob(budget) {
+      if (!job) return;
+      const t0 = performance.now();
+      while (job.row < BH && performance.now() - t0 < budget) {
+        const r1 = Math.min(BH, job.row + 6);
+        lightRows(job.S, job.row, r1, back, sBack);
+        job.row = r1;
+      }
+      if (job.row >= BH) {
+        const a = base; base = back; back = a;
+        const b = sB; sB = sBack; sBack = b;
+        S = job.S; job = null;
+      }
+    }
+
+    function setup() {
+      const cw = Math.max(1, cv.clientWidth), ch = Math.max(1, cv.clientHeight);
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      let w = Math.max(1, Math.round(cw * dpr)), h = Math.max(1, Math.round(ch * dpr));
+      const k = Math.min(1, Math.sqrt(MAXPX / (w * h)));
+      w = Math.max(1, Math.round(w * k)); h = Math.max(1, Math.round(h * k));
+      if (w === BW && h === BH) return;
+      BW = w; BH = h; cv.width = w; cv.height = h;
+      scale = Math.min(w / (SX1 - SX0), h / (SY1 - SY0));
+      offX = (w - (SX1 - SX0) * scale) / 2; offY = (h - (SY1 - SY0) * scale) / 2;
+      const n = w * h;
+      tB = new Float32Array(n); xB = new Float32Array(n); yB = new Float32Array(n); zB = new Float32Array(n);
+      nxB = new Float32Array(n); nyB = new Float32Array(n); nzB = new Float32Array(n);
+      nB = new Uint8Array(n); kB = new Uint8Array(n); iB = new Int32Array(n); sB = new Uint8Array(n); sBack = new Uint8Array(n);
+      base = new Uint32Array(n); back = new Uint32Array(n); depthImg = new Uint32Array(n); zbuf = new Float32Array(n);
+      img = ctx.createImageData(w, h); frameB = new Uint32Array(img.data.buffer);
+      geometry();
+      const sp = sunFor(hour);
+      S = withMul(lightState(sp.alt, sp.az));
+      lightRows(S, 0, BH, base, sB);
+      job = null;
+    }
+
+    // ---- 車と信号を1画素ずつ描く ----
+    let SLAB_F = 0;
+    // 視線（車の向きに回した座標）と箱 P[q..q+5] の交わり。入った面の番号を SLAB_F に入れる
+    function slab(ox, oy, oz, ix, iy, iz, P, q) {
+      let a = (P[q] - ox) * ix, b = (P[q + 1] - ox) * ix, tn, tf, f;
+      if (a < b) { tn = a; tf = b; f = 0; } else { tn = b; tf = a; f = 1; }
+      a = (P[q + 2] - oy) * iy; b = (P[q + 3] - oy) * iy;
+      if (a < b) { if (a > tn) { tn = a; f = 2; } if (b < tf) tf = b; } else { if (b > tn) { tn = b; f = 3; } if (a < tf) tf = a; }
+      a = (P[q + 4] - oz) * iz; b = (P[q + 5] - oz) * iz;
+      if (a < b) { if (a > tn) { tn = a; f = 4; } if (b < tf) tf = b; } else { if (b > tn) { tn = b; f = 5; } if (a < tf) tf = a; }
+      if (tn > tf || tf < 0) return -1;
+      SLAB_F = f;
+      return tn;
+    }
+    const oc = { alpha: 1, total: 0, seen: 0 };
+    // 箱の集まりを描く。奥行きの図（tB）より手前の画素だけを描き、ほかの車とは zbuf で前後を比べる
+    function drawBoxes(x, y, th, P, hmax, rr, paint) {
+      const cs = Math.cos(th), sn = Math.sin(th);
+      const sx0 = (x - y) * R2, sy0 = (x + y) / 2 + GROUND * R2;
+      const pxa = Math.max(0, Math.floor(sxPx(sx0 - rr))), pxb = Math.min(BW - 1, Math.ceil(sxPx(sx0 + rr)));
+      const pya = Math.max(0, Math.floor(syPy(sy0 + (rr + hmax) * R2))), pyb = Math.min(BH - 1, Math.ceil(syPy(sy0 - rr * R2)));
+      oc.total = 0; oc.seen = 0;
+      if (pxa > pxb || pya > pyb) return;
+      const dlx = 0.5 * cs + 0.5 * sn, dly = 0.5 * cs - 0.5 * sn, dlz = -R2;
+      const ix = 1 / (Math.abs(dlx) < 1e-9 ? 1e-9 : dlx), iy = 1 / (Math.abs(dly) < 1e-9 ? 1e-9 : dly), iz = 1 / dlz;
+      const oz = TT - GROUND;
+      for (let py = pya; py <= pyb; py++) {
+        const sxy = 2 * (pySy(py) - TT * R2);
+        for (let px = pxa; px <= pxb; px++) {
+          const d = pxSx(px) * SQ2, ox = (sxy + d) / 2 - x, oy = (sxy - d) / 2 - y;
+          const lx = ox * cs + oy * sn, ly = oy * cs - ox * sn;
+          let best = Infinity, bf = 0, bq = 0;
+          for (let q = 0; q < P.length; q += 6) {
+            const t = slab(lx, ly, oz, ix, iy, iz, P, q);
+            if (t >= 0 && t < best) { best = t; bf = SLAB_F; bq = q; }
+          }
+          if (best === Infinity) continue;
+          oc.total++;
+          const p = py * BW + px, front = best < tB[p] - 0.012;
+          if (front) { oc.seen++; if (best >= zbuf[p]) continue; zbuf[p] = best; }
+          else if (!ghost) continue;
+          const hx = lx + dlx * best, hy = ly + dly * best, hz = oz + dlz * best;
+          const col = view === 'depth'
+            ? depthCol((x + hx * cs - hy * sn + y + hx * sn + hy * cs) / 2 - (hz + GROUND) * R2, true)
+            : paint(bq, bf, hx, hy, hz, cs, sn);
+          frameB[p] = front ? (oc.alpha < 1 ? mix(frameB[p], col, oc.alpha) : col) : mix(frameB[p], col, 0.32);
+        }
+      }
+    }
+    let cur = null, curSig = 'r';
+    function paintCar(bq, bf, hx, hy, hz, cs, sn) {
+      const c = cur, L = S.L, A = S.amb, U = S.sun, night = S.night;
+      let nlx = 0, nly = 0, nlz = 0;
+      if (bf === 0) nlx = -1; else if (bf === 1) nlx = 1; else if (bf === 2) nly = -1; else if (bf === 3) nly = 1; else if (bf === 4) nlz = -1; else nlz = 1;
+      const nwx = nlx * cs - nly * sn, nwy = nlx * sn + nly * cs;
+      const ndl = S.up ? Math.max(0, nwx * L[0] + nwy * L[1] + nlz * L[2]) * c.sh : 0;
+      let ar = c.col[0], ag = c.col[1], ab = c.col[2], er = 0, eg = 0, eb = 0;
+      if ((bq > 0 && bf < 4) || (c.kind === 'van' && bf === 1 && hz > 0.38)) { ar = 0.12; ag = 0.15; ab = 0.2; }
+      else if (bq === 0 && bf < 2 && Math.abs(hy) > c.wid / 2 - 0.13 && hz > 0.12 && hz < 0.25) {
+        if (bf === 1) { const k = 0.2 + night * 1.1; er = k; eg = k * 0.93; eb = k * 0.7; }
+        else { const k = (c.a < -0.7 ? 0.85 : 0.12) + night * 0.6; er = k; eg = k * 0.1; eb = k * 0.08; }
+      }
+      const sp = bf === 5 ? 0.05 : 0;
+      return pack(ar * (A[0] + U[0] * ndl) + er + sp, ag * (A[1] + U[1] * ndl) + eg + sp, ab * (A[2] + U[2] * ndl) + eb + sp);
+    }
+    const LAMP = { g: [0.25, 1, 0.55], y: [1, 0.82, 0.15], r: [1, 0.2, 0.15] };
+    function paintSig(bq, bf) {
+      const A = S.amb, U = S.sun, up = S.up && bf === 5 ? Math.max(0, S.L[2]) : 0;
+      if (bq === 0) return pack(0.26 * (A[0] + U[0] * up), 0.27 * (A[1] + U[1] * up), 0.28 * (A[2] + U[2] * up));
+      const c = LAMP[curSig];
+      return pack(c[0] * 0.9 + 0.05, c[1] * 0.9 + 0.05, c[2] * 0.9 + 0.05);
+    }
+    function partsOf(c) {
+      const hl = c.len / 2, hw = c.wid / 2;
+      if (c.kind === 'van') return [-hl, hl, -hw, hw, 0.05, 0.62];
+      return [-hl, hl, -hw, hw, 0.05, 0.29, -0.3 * c.len, 0.17 * c.len, -hw * 0.84, hw * 0.84, 0.29, 0.46];
+    }
+    const SIGS = [];
+    sim.nodes.forEach((nd, k) => {
+      for (const [dx, dy, axis] of [[-1.3, -1.3, 'ew'], [1.3, 1.3, 'ew'], [1.3, -1.3, 'ns'], [-1.3, 1.3, 'ns']]) SIGS.push({ x: nd.x + dx, y: nd.y + dy, node: k, axis });
+    });
+    const SIG_PARTS = [-0.05, 0.05, -0.05, 0.05, 0, 1.08, -0.15, 0.15, -0.15, 0.15, 1.02, 1.45];
+
+    // 車の足元の影・日の影・夜のヘッドライトの照らす所を、地面の画素に足す
+    function groundFx(c) {
+      const x = c.px, y = c.py, cs = Math.cos(c.th), sn = Math.sin(c.th), hl = c.len / 2, hw = c.wid / 2;
+      let ox = 0, oy = 0;
+      const sunOn = S.up && c.sh > 0 && S.L[2] > 0.04, lamp = S.night > 0.15;
+      if (sunOn) {
+        const k = 0.32 / S.L[2];
+        ox = -S.L[0] * k; oy = -S.L[1] * k;
+        const m = Math.hypot(ox, oy);
+        if (m > 2.4) { ox *= 2.4 / m; oy *= 2.4 / m; }
+      }
+      let x0 = x - 0.8, x1 = x + 0.8, y0 = y - 0.8, y1 = y + 0.8;
+      if (sunOn) { x0 = Math.min(x0, x + ox - 0.8); x1 = Math.max(x1, x + ox + 0.8); y0 = Math.min(y0, y + oy - 0.8); y1 = Math.max(y1, y + oy + 0.8); }
+      if (lamp) {
+        const fx = x + cs * (hl + 1.4), fy = y + sn * (hl + 1.4);
+        x0 = Math.min(x0, fx - 1.5); x1 = Math.max(x1, fx + 1.5); y0 = Math.min(y0, fy - 1.5); y1 = Math.max(y1, fy + 1.5);
+      }
+      const pxa = Math.max(0, Math.floor(sxPx((x0 - y1) * R2))), pxb = Math.min(BW - 1, Math.ceil(sxPx((x1 - y0) * R2)));
+      const pya = Math.max(0, Math.floor(syPy((x1 + y1) / 2 + GROUND * R2))), pyb = Math.min(BH - 1, Math.ceil(syPy((x0 + y0) / 2 + GROUND * R2)));
+      for (let py = pya; py <= pyb; py++) {
+        for (let px = pxa, p = py * BW + pxa; px <= pxb; px++, p++) {
+          if (kB[p] !== 0 || nB[p] !== 0 || zB[p] > GROUND + 0.01) continue;
+          const wx = xB[p] - x, wy = yB[p] - y, lx = wx * cs + wy * sn, ly = wy * cs - wx * sn;
+          let mul = 1, add = 0;
+          if (Math.abs(lx) < hl + 0.07 && Math.abs(ly) < hw + 0.06) mul = 0.8;
+          if (sunOn && sB[p]) {
+            for (let f = 0; f <= 1.001; f += 0.25) {
+              const qx = wx - ox * f, qy = wy - oy * f, ax = qx * cs + qy * sn, ay = qy * cs - qx * sn;
+              if (Math.abs(ax) < hl && Math.abs(ay) < hw) { mul = Math.min(mul, S.shMul); break; }
+            }
+          }
+          if (lamp && lx > hl && lx < hl + 2.6) {
+            const w = 0.1 + (lx - hl) * 0.32;
+            if (Math.abs(ly) < w) add = S.night * 0.45 * (1 - (lx - hl) / 2.6) * (1 - Math.abs(ly) / w);
+          }
+          if (mul < 1 || add > 0) frameB[p] = shadeFx(frameB[p], mul, add);
+        }
+      }
+    }
+
+    let hidCount = 0;
+    const tmpP = { x: 0, y: 0, th: 0 };
+    function draw() {
+      frameB.set(view === 'depth' ? depthImg : base);
+      zbuf.set(tB);
+      for (const c of sim.cars) {
+        posOnLink(sim.links[c.link], c.s, tmpP);
+        c.px = tmpP.x; c.py = tmpP.y; c.th = tmpP.th;
+        c.sh = S.up && !shadowAt(town, c.px, c.py, GROUND + 0.5, S.L) ? 1 : 0;
+      }
+      if (view === 'pic') for (const c of sim.cars) groundFx(c);
+      hidCount = 0;
+      for (const c of sim.cars) {
+        cur = c;
+        const edge = Math.min(c.px, c.py, WORLD - c.px, WORLD - c.py);
+        oc.alpha = Math.max(0, Math.min(1, (edge - 0.3) / 1.6));
+        if (oc.alpha <= 0) continue;
+        if (!c.parts) c.parts = partsOf(c);
+        drawBoxes(c.px, c.py, c.th, c.parts, c.kind === 'van' ? 0.62 : 0.46, Math.hypot(c.len, c.wid) / 2 + 0.05, paintCar);
+        if (oc.total > 0 && oc.seen < oc.total * 0.4) hidCount++;
+      }
+      oc.alpha = 1;
+      const st = sim.nodes.map((n) => signalAt(sim.t, n.off));
+      for (const g of SIGS) { curSig = st[g.node][g.axis]; drawBoxes(g.x, g.y, 0, SIG_PARTS, 1.45, 0.25, paintSig); }
+      ctx.putImageData(img, 0, 0);
+    }
+
+    // ---- 表示の文字と操作 ----
+    const DIR = ['北', '北東', '東', '南東', '南', '南西', '西', '北西'];
+    function showHour() {
+      const m = Math.floor(hour * 60 + 1e-6) % 1440, h = Math.floor(m / 60), mi = m % 60;
+      hourO.textContent = String(h).padStart(2, '0') + ':' + String(mi).padStart(2, '0');
+      hourI.setAttribute('aria-valuetext', h + '時' + mi + '分');
+    }
+    function syncSlider() {
+      if (mode !== 'manual') hourI.value = String(Math.min(1435, Math.round((hour * 60) / 5) * 5 % 1440));
+      showHour();
+    }
+    function stats() {
+      $('carsO').textContent = String(sim.cars.length);
+      $('tgtO').textContent = '台（この時刻の目安 ' + sim.target + ' 台）';
+      $('altO').textContent = (S.alt < 0 ? '−' : '') + Math.abs(S.alt).toFixed(1) + '°';
+      $('azO').textContent = S.alt > -0.8 ? '方角は' + DIR[Math.round(S.az / 45) % 8] : '地平線の下（方角は' + DIR[Math.round(S.az / 45) % 8] + '）';
+      $('hidO').textContent = String(hidCount);
+      let n = 0;
+      for (const c of sim.cars) if (c.v < 0.05) n++;
+      $('stopO').textContent = String(n);
+    }
+    function setModeUI() {
+      nowB.setAttribute('aria-pressed', String(mode === 'live'));
+      fastB.setAttribute('aria-pressed', String(mode === 'fast'));
+    }
+    hourI.addEventListener('input', () => { mode = 'manual'; hour = Number(hourI.value) / 60; job = null; setModeUI(); showHour(); });
+    nowB.addEventListener('click', () => { mode = 'live'; tz = sfNow(); hour = tz.hour; job = null; setModeUI(); syncSlider(); });
+    fastB.addEventListener('click', () => { mode = mode === 'fast' ? 'manual' : 'fast'; setModeUI(); });
+    for (const r of document.querySelectorAll('input[name="view"]')) r.addEventListener('change', () => { if (r.checked) view = r.value; });
+    ghostI.addEventListener('change', () => { ghost = ghostI.checked; });
+
+    let prev = 0, acc = 0, lastStat = -1e9;
+    function frame(now) {
+      const dt = prev ? Math.min(0.1, (now - prev) / 1000) : 0;
+      prev = now;
+      if (mode === 'live') { tz = sfNow(); hour = tz.hour; }
+      else if (mode === 'fast') hour = (hour + dt / 3.2) % 24;
+      if (!job) {
+        const sp = sunFor(hour);
+        if (Math.abs(sp.alt - S.alt) > 0.3 || Math.abs(((sp.az - S.az + 540) % 360) - 180) > 0.8) job = { S: withMul(lightState(sp.alt, sp.az)), row: 0 };
+      }
+      runJob(thumb ? 9 : 7);
+      acc += dt;
+      let k = 0;
+      while (acc >= 1 / 30 && k < 4) { stepTraffic(sim, 1 / 30, hour); acc -= 1 / 30; k++; }
+      if (acc >= 1 / 30) acc = 0;
+      draw();
+      if (now - lastStat > 300) { lastStat = now; stats(); syncSlider(); }
+      requestAnimationFrame(frame);
+    }
+
+    for (let i = 0; i < 1350; i++) stepTraffic(sim, 1 / 30, hour);
+    setModeUI();
+    setup();
+    draw();
+    stats(); syncSlider();
+    let rsT = 0;
+    if ('ResizeObserver' in window) new ResizeObserver(() => { clearTimeout(rsT); rsT = setTimeout(() => { setup(); draw(); }, BW > 1 ? 150 : 0); }).observe(cv);
+    requestAnimationFrame(frame);
+  },
+});

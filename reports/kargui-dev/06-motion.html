@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 6 章 動き（アニメーション） ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="0.2 の後の 2 つ目として、値を滑らかに動かす道具を足しました。数を 1 つ返す書き方、動き方の曲線、Windows の「アニメーション効果」に従う作り、試験台での扱い、起動のたびに無駄なフレームを描いていた不具合の見つけ方を、図と写真で紹介します。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 6 章</p>
+  <h1>動き（アニメーション）</h1>
+  <p class="lede">0.2 の後の 2 つ目として、値を滑らかに動かす道具を足しました。切り替えの丸が滑り、開閉する節の中身が上から出入りします。この章では、書き方、動き方の曲線、OS の設定に従う作り、試験台での扱いを順に書きます。最後に、起動のたびに無駄なフレームを描いていた不具合と、その見つけ方を書きます。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>数を 1 つ返すだけの書き方と、毎フレーム呼ぶ理由</li>
+      <li>初めが速く終わりがゆっくりの曲線と、167 ms・250 ms という長さ</li>
+      <li>Windows の「アニメーション効果」をオフにした人への対応</li>
+      <li>試験台では動きを切っておく理由</li>
+      <li>起動のたびに 6 フレーム描いていた不具合と、読み込んだ DLL を比べた見つけ方</li>
+    </ul>
+  </section>
+
+  <h2 id="api">書き方: 数を 1 つ返す</h2>
+  <p><code>ui.animate(名前, 目標, 時間)</code> は数を 1 つ返します。目標が変わると、返す数は今の値から新しい目標へ、<code>時間</code> をかけて動きます。アプリは返った数を幅や高さに使うだけで、動きの始まりや終わりを扱いません。</p>
+<pre><code>let width = ui.animate("panel", if wide { 320.0 } else { 160.0 }, Duration::from_millis(250));
+ui.column(|ui| {
+    ui.label("パネル");
+})
+.width(Size::Fixed(width));</code></pre>
+  <p>kargui の画面は、毎フレーム <code>view</code> を呼び直して作ります（第 1 章）。動きの道具も同じ形にしました。アプリは毎フレーム「今の目標」を渡し、kargui は名前ごとに「どこから・どこへ・いつ始めたか」を覚えます。egui の <code>animate_bool</code> も、名前と目標を毎フレーム渡す形です。WinUI は、動きを部品の性質や Storyboard として先に宣言します。kargui は即時モードなので、渡す値を変えるだけで動く前者の形にしました。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 呼ばれなかった値は、そのフレームの終わりに捨てる</span>
+    <p>覚えた値は、そのフレームで 1 回も呼ばれなかったら捨てます。部品が画面から消えた後も、覚えた値が残り続けないようにするためです。その代わり、<code>if</code> の中で呼ぶと、消す時の動きが見えません。次に呼んだ時は初めての値として扱い、目標から始まるからです。手引きには「出しているかどうかに関わらず、毎フレーム呼ぶ」と書きました。</p>
+  </div>
+
+  <h3>出し入れは <code>.reveal</code> で</h3>
+  <p><code>ui.animate_bool(名前, 出すか)</code> は 0 と 1 の間を 250 ms で動きます。この値を <code>.reveal(割合)</code> に渡すと、部品の上から割合の高さだけを見せ、残りを切り取ります。親の中では見せる高さだけを取るので、下の部品も一緒に動きます。</p>
+<pre><code>ui.toggle(&amp;mut autosave, "自動で保存する");
+let shown = ui.animate_bool("interval", autosave);
+if shown &gt; 0.0 {
+    ui.column(|ui| {
+        // 保存の間隔の行
+    })
+    .reveal(shown);
+}</code></pre>
+  <!-- gen:film -->
+<figure>
+  <div class="film">
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/motion/open-000-dark.webp"><img src="img/motion/open-000-light.webp" alt="押す前。自動で保存するのスイッチが切れていて、保存の間隔の行は無い" width="600" height="224" loading="lazy" decoding="async"></picture><figcaption>押す前</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/motion/open-030-dark.webp"><img src="img/motion/open-030-light.webp" alt="押してから 30 ms。保存の間隔の行が上から途中まで見えている" width="600" height="224" loading="lazy" decoding="async"></picture><figcaption>30 ms</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/motion/open-060-dark.webp"><img src="img/motion/open-060-light.webp" alt="押してから 60 ms。保存の間隔の行が上から途中まで見えている" width="600" height="224" loading="lazy" decoding="async"></picture><figcaption>60 ms</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/motion/open-100-dark.webp"><img src="img/motion/open-100-light.webp" alt="押してから 100 ms。保存の間隔の行が上から途中まで見えている" width="600" height="224" loading="lazy" decoding="async"></picture><figcaption>100 ms</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/motion/open-160-dark.webp"><img src="img/motion/open-160-light.webp" alt="押してから 160 ms。保存の間隔の行が上から途中まで見えている" width="600" height="224" loading="lazy" decoding="async"></picture><figcaption>160 ms</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/motion/open-250-dark.webp"><img src="img/motion/open-250-light.webp" alt="押してから 250 ms。保存の間隔の行が全部見えている" width="600" height="224" loading="lazy" decoding="async"></picture><figcaption>250 ms</figcaption></figure>
+  </div>
+  <figcaption>「自動で保存する」を入れた後の 250 ms。試験台の止めた時計を進めながら撮った。保存の間隔の行が上から現れ、下の「つづりを確かめる」も一緒に下がる。スイッチの丸は 167 ms で右端に着く。</figcaption>
+</figure>
+<!-- /gen:film -->
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい書き方: 高さを伸ばすだけで出し入れする</span>
+    <p>最初は手引きの例に <code>.height(Size::Fixed(40.0 * shown))</code> と書きました。kargui のふつうの column は中身を切り取らないので、伸びる途中の中身が下の部品に重なります。試験は値しか見ないので、この重なりは試験では見つかりません。例を読み直して気づき、<code>.reveal</code> を作りました。中身は元の大きさのまま並べるので、文字が詰まったり、折り返しが変わったりもしません。切り取られた所の部品は押せず、全部隠れた部品へは Tab で移りません。</p>
+  </div>
+
+  <h2 id="curve">動き方の曲線と長さ</h2>
+  <!-- gen:curve -->
+<figure class="diagram">
+    <svg viewBox="0 0 720 300" role="img" aria-labelledby="cv-title cv-desc">
+      <title id="cv-title">250 ms の動きで、目標までどれだけ進んだか</title>
+      <desc id="cv-desc">横が押してからの時間（0 から 250 ms）、縦が目標までの割合。kargui の曲線は初めが速く、125 ms で 88 % に着き、終わりはゆっくり 100 % に近づく。比べのための一定の速さの線は、125 ms で 50 %。</desc>
+      <line class="grid-line" x1="70" y1="250" x2="680" y2="250"/><text class="tick" x="60" y="254" text-anchor="end">0 %</text><line class="grid-line" x1="70" y1="145" x2="680" y2="145"/><text class="tick" x="60" y="149" text-anchor="end">50 %</text><line class="grid-line" x1="70" y1="40" x2="680" y2="40"/><text class="tick" x="60" y="44" text-anchor="end">100 %</text>
+      <line class="axis" x1="70" y1="250" x2="680" y2="250"/>
+      <line class="axis" x1="70" y1="250" x2="70" y2="30"/>
+      <text class="tick" x="70" y="270" text-anchor="middle">0</text><text class="tick" x="192" y="270" text-anchor="middle">50</text><text class="tick" x="314" y="270" text-anchor="middle">100</text><text class="tick" x="375" y="270" text-anchor="middle">125</text><text class="tick" x="436" y="270" text-anchor="middle">150</text><text class="tick" x="558" y="270" text-anchor="middle">200</text><text class="tick" x="680" y="270" text-anchor="middle">250</text>
+      <text class="sub" x="680" y="290" text-anchor="end">押してからの時間（ms）</text>
+      <path class="linear" d="M70,250 L680,40"/>
+      <polyline class="curve" points="70.0,250.0 82.2,237.7 94.4,225.8 106.6,214.4 118.8,203.5 131.0,193.1 143.2,183.1 155.4,173.6 167.6,164.5 179.8,155.8 192.0,147.5 204.2,139.7 216.4,132.2 228.6,125.1 240.8,118.4 253.0,112.0 265.2,106.0 277.4,100.4 289.6,95.1 301.8,90.0 314.0,85.4 326.2,81.0 338.4,76.9 350.6,73.1 362.8,69.5 375.0,66.3 387.2,63.2 399.4,60.4 411.6,57.9 423.8,55.6 436.0,53.4 448.2,51.5 460.4,49.8 472.6,48.3 484.8,46.9 497.0,45.7 509.2,44.6 521.4,43.7 533.6,42.9 545.8,42.2 558.0,41.7 570.2,41.2 582.4,40.9 594.6,40.6 606.8,40.4 619.0,40.2 631.2,40.1 643.4,40.0 655.6,40.0 667.8,40.0 680.0,40.0"/>
+      <line class="grid-line" x1="375" y1="66.25" x2="375" y2="250"/>
+      <circle class="dot" cx="375" cy="66.3" r="5"/>
+      <text class="curve-text" x="387" y="88.25">125 ms で 88 %</text>
+      <text class="curve-text" x="82" y="82">kargui（3 次の減速）</text>
+      <text class="sub" x="484.8" y="137.2">一定の速さ（比べ用）</text>
+    </svg>
+    <figcaption>250 ms の動きで、押してから目標までどれだけ進んだか。初めに大きく動くので、押したことがすぐ分かる。終わりはゆっくり止まる。</figcaption>
+  </figure>
+<!-- /gen:curve -->
+  <p>値は、初めが速く、終わりがゆっくり動きます（3 次の減速の曲線 <code>1 − (1 − t)³</code>）。250 ms の動きでは、半分の 125 ms で目標までの 88 % に着きます。押した直後に大きく動くので、押したことがすぐ分かります。</p>
+  <p>長さは WinUI の部品に合わせました。切り替えの丸のような小さな動きは 167 ms（ControlFastAnimationDuration）、節の出し入れは 250 ms（ControlNormalAnimationDuration）です。動いている途中で目標が変わったら、その時の値から新しい目標へ動き直します。素早く 2 回押しても、丸は端へ飛ばずに引き返します。</p>
+
+  <h2 id="frames">止まっている窓は描かない</h2>
+  <p>値が動いている間だけ、kargui は次のフレームを頼みます。目標に着いたら頼むのをやめるので、止まっている窓は CPU を使いません。タスク帳を 12 秒置いた時の CPU の時間は、測る道具の最小の刻み（15.6 ms）の 1 つ分でした。作者が設定の見本で試した記録を、表にまとめました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-frames">
+    <table>
+      <caption id="t-frames">作者が試した時の、1 回の動きで描いたフレーム</caption>
+      <thead><tr><th scope="col">操作</th><th scope="col" class="num">描いた枚数</th><th scope="col" class="num">1 枚の仕事（平均）</th><th scope="col" class="num">いちばん長い 1 枚</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">「自動で保存する」を切る</th><td class="num" data-label="描いた枚数">35 枚</td><td class="num" data-label="1 枚の仕事">0.43 ms</td><td class="num" data-label="いちばん長い 1 枚">1.32 ms</td></tr>
+        <tr><th scope="row">入れ直す</th><td class="num" data-label="描いた枚数">37 枚</td><td class="num" data-label="1 枚の仕事">0.48 ms</td><td class="num" data-label="いちばん長い 1 枚">1.27 ms</td></tr>
+        <tr><th scope="row">素早く 2 回押す（途中で引き返す）</th><td class="num" data-label="描いた枚数">63 枚</td><td class="num" data-label="1 枚の仕事">0.52 ms</td><td class="num" data-label="いちばん長い 1 枚">2.26 ms</td></tr>
+        <tr><th scope="row">アニメーション効果をオフにして 4 回押す</th><td class="num" data-label="描いた枚数">0 枚</td><td class="num" data-label="1 枚の仕事">―</td><td class="num" data-label="いちばん長い 1 枚">―</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>1 枚の仕事は、画面を作る時間と描く時間の合計です。250 ms で約 35 枚なので、作者のモニターは 1 秒に約 140 回書き換えていると考えられます。素早く 2 回押した時は、2 つの動きが途切れずに 1 続きの 63 枚になりました。途中で引き返しても、動きを始め直していないことが分かります。</p>
+
+  <h2 id="reduce">Windows の「アニメーション効果」に従う</h2>
+  <p>Windows には、画面の動きを減らす設定があります（設定 &gt; アクセシビリティ &gt; 視覚効果 &gt; アニメーション効果）。動きで気分が悪くなる人や、動きに気を取られる人が使います。WCAG 2.1 の達成基準 2.3.3（操作から始まる動き、AAA）も、本来の働きに要らない動きを止められるようにすることを求めています。</p>
+  <p>kargui は窓を作る時に、この設定を <code>SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION)</code> で読みます。アプリを開いたまま設定を変えると、OS から <code>WM_SETTINGCHANGE</code> が届くので、そこで読み直します。オフの間は、<code>animate</code> がすぐ目標の値を返します。自分で描く動きには、<code>ui.reduce_motion()</code> を見てもらいます。作者の記録には、設定を変えるたびに次の行が出ていました。</p>
+<pre><code>08:39:53.552 event=motion.setting args="key=None"            result="reduce=false"
+08:40:45.757 event=motion.setting args="key=None spi=0x1043" result="reduce=true"
+08:41:01.893 event=motion.setting args="key=None spi=0x1043" result="reduce=false"</code></pre>
+  <p class="small">1 行目は起動した時、2 行目はオフにした時、3 行目はオンに戻した時です。<code>0x1043</code> は、OS が「アニメーション効果が変わった」と知らせる番号（SPI_SETCLIENTAREAANIMATION）です。</p>
+
+  <h2 id="tests">試験台では動きを切っておく</h2>
+  <p>試験台（<code>Harness</code>）の時計は止まっていて、<code>wait</code> を呼んだ時だけ進みます。動きの途中の値も、毎回同じ数で確かめられます。</p>
+  <p>ただし、このままでは困ることがありました。開閉する節を閉じても、時計が進まないので、中身が閉じる途中の形で残り続けます。「閉じたら中身が消える」を確かめる試験は、<code>wait</code> を書き足さないと落ちます。そこで、試験台は動きを切った状態で始めることにしました。押した後の画面は、時計を進めなくても動き終わった形になります。動きそのものを試す時だけ、<code>reduce_motion(false)</code> で入れます。</p>
+<pre><code>// 初めは動きを切ってあるので、押すとすぐ開き終わる
+let mut h = Harness::new(Drawer { open: false, shown: 0.0 });
+h.click("開く");
+assert_eq!(h.app().shown, 1.0);
+
+// 動きを入れると、時計を進めた分だけ動く
+let mut h = Harness::new(Drawer { open: false, shown: 0.0 });
+h.reduce_motion(false).click("開く");
+assert_eq!(h.app().shown, 0.0);
+h.wait(Duration::from_millis(125));
+assert!(h.app().shown &gt; 0.5);</code></pre>
+  <p>多くの試験は、押した後の終わりの形を確かめます。動きを試す試験の方が少ないので、そちらに 1 行足してもらう形にしました。上の写真の並びも、この試験台で時計を 30 ms・60 ms と進めながら撮っています。</p>
+
+  <h2 id="startup">起動のたびに 6 フレーム描いていた</h2>
+  <p>足し終えた後、前の版（a15bb46）と同じ時に、順番を往復させて軽さを測りました。起動の時間は変わりませんでしたが、メモリが 3 回とも同じだけ増えていました。</p>
+  <!-- gen:mem -->
+<div class="pair">
+  <figure class="bars" id="c-mem-ws">
+    <figcaption><span class="bars-title">使っているメモリ（MB）</span><span class="bars-hint">タスク帳の起動直後。少ないほど軽い</span></figcaption>
+    <div class="bar-rows">
+      <div class="bar-row" data-v="old"><span class="bar-name">動きの前</span><span class="bar-track"><span class="bar" style="--w: 77.5%"></span><span class="bar-val">15.5 MB</span></span></div>
+      <div class="bar-row" data-v="v020"><span class="bar-name">直す前</span><span class="bar-track"><span class="bar" style="--w: 93.0%"></span><span class="bar-val">18.6 MB（+3.1）</span></span></div>
+      <div class="bar-row" data-v="new"><span class="bar-name">直した後</span><span class="bar-track"><span class="bar" style="--w: 77.5%"></span><span class="bar-val">15.5 MB</span></span></div>
+    </div>
+  </figure>
+  <figure class="bars" id="c-mem-priv">
+    <figcaption><span class="bars-title">自分だけのメモリ（MB）</span><span class="bars-hint">ほかのアプリと分け合わない分</span></figcaption>
+    <div class="bar-rows">
+      <div class="bar-row" data-v="old"><span class="bar-name">動きの前</span><span class="bar-track"><span class="bar" style="--w: 75.7%"></span><span class="bar-val">5.3 MB</span></span></div>
+      <div class="bar-row" data-v="v020"><span class="bar-name">直す前</span><span class="bar-track"><span class="bar" style="--w: 82.9%"></span><span class="bar-val">5.8 MB（+0.5）</span></span></div>
+      <div class="bar-row" data-v="new"><span class="bar-name">直した後</span><span class="bar-track"><span class="bar" style="--w: 75.7%"></span><span class="bar-val">5.3 MB</span></span></div>
+    </div>
+  </figure>
+</div>
+<p class="small">reports/rust-gui/bench の startup で、2 つの版を同じ時に往復の順で測った（各 15 回）。動きの前は a15bb46、直す前は 6faa5d3、直した後は 34c0402。使っているメモリは working set、自分だけのメモリは private bytes。</p>
+<!-- /gen:mem -->
+  <p>増え方が毎回同じなので、測り方のぶれではないと考えました。2 つの版を起動して、読み込んだ DLL を比べると、今の版だけが 5 つ多く読み込んでいました。dxcore.dll・directxdatabasehelper.dll・cfgmgr32.dll・crypt32.dll・kernel.appcore.dll で、どれも DirectX と機器の一覧に関わる DLL です。</p>
+  <h3>疑った所を 1 つずつ確かめる</h3>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-probe">
+    <table>
+      <caption id="t-probe">原因を絞り込んだ順番</caption>
+      <thead><tr><th scope="col">確かめたこと</th><th scope="col">結果</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">起動で新しく呼ぶ OS の関数（アニメーション効果の設定を読む）を止めた版を作る</th><td data-label="結果">5 つの DLL は残った。この関数は原因ではない</td></tr>
+        <tr><th scope="row">前の版の exe を、今の版と同じ場所から起動する</th><td data-label="結果">前の版は読み込まない。置き場所は関係ない</td></tr>
+        <tr><th scope="row">起動の記録を読む</th><td data-label="結果">今の版だけ、起動の直後に「動き」のフレームを 6 枚描いていた</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><code>animate</code> は、初めて呼ばれた値を「目標から目標へ、167 ms かけて動く」形で覚えていました。値は動かないのに、167 ms が終わるまで次のフレームを頼みます。タスク帳には「ダーク」の切り替えがあるので、起動のたびに 6 フレーム描いていました。動きのフレームは、画面の書き換えの時機を待ってから描きます。CPU で描く道は、この待ち方に DXGI を使います。DXGI は初めて使う時に準備するので、そこで 5 つの DLL が読み込まれていました。</p>
+  <p>初めて呼ばれた値は、止まった形で覚えるように直しました。先に「初めて呼んだ値ではフレームを頼まない」という試験を書き、直す前の作りで落ちることを確かめてから直しています。直した後は、読み込む DLL もメモリも前の版と同じになり、起動は 50〜54 ms（前の版は 52〜54 ms）でした。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい作り方: 初めて見た値を「動いている」と扱う</span>
+    <p>動きの道具は、値が変わった時だけ動きを始めてください。初めて見た値は、止まっているものとして扱います。そうしないと、部品が画面に出るたびに、誰にも見えない動きのためにフレームを描きます。描くこと自体は 1 枚 0.1 ms ほどでも、初めて動いた時の準備（今回は DXGI）が起動のメモリを増やします。</p>
+  </div>
+  <div class="insight">
+    <span class="box-title">分かったこと: メモリが毎回同じだけ増えたら、読み込んだ DLL を比べる</span>
+    <p>第 3 章の shell32.dll と同じく、今回も原因は「ふだんは読まない DLL を、起動の途中で読む」ことでした。PowerShell の <code>Get-Process</code> で 2 つの版のモジュールの一覧を出して比べると、数分で範囲を絞れます。</p>
+  </div>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="05-drag-and-drop.html">← 第 5 章 ドラッグ＆ドロップ</a>
+    <a href="07-fonts.html">第 7 章 書体 →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>

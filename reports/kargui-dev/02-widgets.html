@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 2 章 0.1 から 0.2 へ、部品をそろえた順番 ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="0.1 の kargui には、ドロップダウンもメニューもありませんでした。13 のフレームワークを調べて足す部品を決め、土台から順に作った記録です。部品の写真と、足すのにかかった時間のグラフつき。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 2 章</p>
+  <h1>0.1 から 0.2 へ、部品をそろえた順番</h1>
+  <p class="lede">0.1 の kargui には、ボタン・チェック・入力欄・一覧など、タスク帳を作るのに要る部品しかありませんでした。ドロップダウンもメニューもありません。この章では、足す部品をどう選び、どの順で作ったかを書きます。結論を先に書くと、ほかの部品が使う「土台」を先に作ったことで、後の部品は 1 組 15 分前後で足せました。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>足す部品を、13 のフレームワークが持っているかどうかで決めた方法</li>
+      <li>「できた」と言える部品の基準（6 項目）</li>
+      <li>土台を先に作ると、後の部品が速く進む理由</li>
+      <li>0.1 と 0.2 の大きさの違い（行数・試験・API の数）</li>
+    </ul>
+  </section>
+
+  <h2 id="choose">足す部品の選び方</h2>
+  <p>デスクトップの GUI フレームワーク 13 個について、持っている部品と仕組みを調べました。13 個のうち 7 割以上が持つ物を「1 群」と呼び、ふつうのアプリに要る物とみなしました。ラジオボタン・メニュー・タブ・木の表示・表・日付の選択・複数の窓・ファイルのダイアログなどが入ります。</p>
+  <p>動きと読み上げの手本には、次の組を使いました。見た目は kargui のままにし、キーボードの操作と読み上げは Windows の作法に合わせています。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-ref">
+    <table>
+      <caption id="t-ref">手本にした物</caption>
+      <thead><tr><th scope="col">手本</th><th scope="col">何を学んだか</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">WinUI 3</th><td data-label="学んだこと">部品の変種と選択肢、Windows のキー操作（WinUI と食い違う時は WinUI に合わせる）</td></tr>
+        <tr><th scope="row">Qt</th><td data-label="学んだこと">部品の変種と選択肢（WinUI と Qt の両方にある物は必ず作る）</td></tr>
+        <tr><th scope="row">Dear ImGui と egui</th><td data-label="学んだこと">即時モードでの書き方（押せない範囲、引っ張る荷物など）</td></tr>
+        <tr><th scope="row">APG と UI オートメーション</th><td data-label="学んだこと">部品ごとのキー操作と、読み上げソフトに出す役割と項目</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="done">「できた」と言える基準</h2>
+  <p>部品の数だけを増やすと、キーボードで使えない部品や、読み上げソフトが黙る部品が増えます。そこで、1 つの部品は次の 6 項目を満たしたら「できた」とすることにしました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-done">
+    <table>
+      <caption id="t-done">部品ごとの「できた」の基準</caption>
+      <thead><tr><th scope="col">項目</th><th scope="col">中身</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">1. 変種</th><td data-label="中身">WinUI 3 と Qt の両方にある変種と選択肢は、全部作る</td></tr>
+        <tr><th scope="row">2. 状態</th><td data-label="中身">ふつう・乗る・押す・焦点・押せない（と、選んだ・確かめた）を、明るい方と暗い方で描く</td></tr>
+        <tr><th scope="row">3. キー操作</th><td data-label="中身">APG のその部品の型のキー操作を全部満たす</td></tr>
+        <tr><th scope="row">4. 読み上げ</th><td data-label="中身">UI オートメーションのその部品の種類で必須の操作と項目を出す</td></tr>
+        <tr><th scope="row">5. 日本語入力</th><td data-label="中身">文字を打つ部品は、入力欄と同じ 5 項目を満たす</td></tr>
+        <tr><th scope="row">6. 説明・試験・軽さ</th><td data-label="中身">動く例、試験台の試験、写真、ガイドの節。1,000 個並べても軽さを保つ</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="order">土台から作る</h2>
+  <p>メニュー・ドロップダウン・日付の選択・ツールチップ・ダイアログは、どれも「ほかの部品の上に重ねて出す」物です。重ねる物の外を押したら閉じる、Esc で閉じる、焦点を中に閉じ込める、閉じたら元の部品へ焦点を戻す、といった決まりは共通です。これを部品ごとに書くと、同じ決まりを 5 回書き、5 回間違えます。</p>
+  <p>そこで、1 群の部品より先に、次の 5 つの「土台」を作りました。</p>
+  <ol>
+    <li><strong>押せない状態</strong>（<code>ui.enabled(false, ..)</code>）: どの部品にも効く</li>
+    <li><strong>重ねて出す層</strong>（浮き出し・ダイアログ・ツールチップ）: 閉じる・焦点の決まりを 1 か所に書く</li>
+    <li><strong>アプリのキー・タイマー・スレッド</strong>: ショートカット、決めた時刻に起きる、ほかのスレッドから描き直す</li>
+    <li><strong>アイコンと画像</strong>: kargui が自分で描く 18 個のアイコンと、画像のファイル</li>
+    <li><strong>複数行の文字</strong>: 複数行の入力欄と、折り返す文字の位置の計算</li>
+  </ol>
+
+  <!-- gen:minutes -->
+  <figure class="bars" id="c-minutes">
+    <figcaption><span class="bars-title">前の commit からの時間（分）</span><span class="bars-hint">2026 年 11 月 22 日。上が土台、下が 1 群の部品とアプリの仕組み</span></figcaption>
+    <div class="bar-rows">
+      <div class="bar-row" data-v="v010"><span class="bar-name">押せない状態</span><span class="bar-track"><span class="bar" style="--w: 100%"></span><span class="bar-val">41 分</span></span></div>
+      <div class="bar-row" data-v="v010"><span class="bar-name">OS の境目</span><span class="bar-track"><span class="bar" style="--w: 39%"></span><span class="bar-val">16 分</span></span></div>
+      <div class="bar-row" data-v="v010"><span class="bar-name">重ねて出す層</span><span class="bar-track"><span class="bar" style="--w: 51%"></span><span class="bar-val">21 分</span></span></div>
+      <div class="bar-row" data-v="v010"><span class="bar-name">キー・タイマー</span><span class="bar-track"><span class="bar" style="--w: 44%"></span><span class="bar-val">18 分</span></span></div>
+      <div class="bar-row" data-v="v010"><span class="bar-name">アイコン・画像</span><span class="bar-track"><span class="bar" style="--w: 59%"></span><span class="bar-val">24 分</span></span></div>
+      <div class="bar-row" data-v="v010"><span class="bar-name">複数行の文字</span><span class="bar-track"><span class="bar" style="--w: 95%"></span><span class="bar-val">39 分</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">A 組</span><span class="bar-track"><span class="bar" style="--w: 41%"></span><span class="bar-val">17 分</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">ドロップダウン</span><span class="bar-track"><span class="bar" style="--w: 17%"></span><span class="bar-val">7 分</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">メニュー</span><span class="bar-track"><span class="bar" style="--w: 90%"></span><span class="bar-val">37 分</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">C 組</span><span class="bar-track"><span class="bar" style="--w: 32%"></span><span class="bar-val">13 分</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">D 組</span><span class="bar-track"><span class="bar" style="--w: 29%"></span><span class="bar-val">12 分</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">E 組</span><span class="bar-track"><span class="bar" style="--w: 49%"></span><span class="bar-val">20 分</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">F 組</span><span class="bar-track"><span class="bar" style="--w: 32%"></span><span class="bar-val">13 分</span></span></div>
+      <div class="bar-row" data-v="v020"><span class="bar-name">アプリの仕組み</span><span class="bar-track"><span class="bar" style="--w: 80%"></span><span class="bar-val">33 分</span></span></div>
+      <div class="bar-row" data-v="v020"><span class="bar-name">アプリ 3 本</span><span class="bar-track"><span class="bar" style="--w: 46%"></span><span class="bar-val">19 分</span></span></div>
+    </div>
+  </figure>
+  <!-- /gen:minutes -->
+  <p class="small">commit の時刻の差なので、作る時間のほかに、試験・測定・写真・ガイドを書く時間を含みます。作業を止めていた時間（押せない状態の前）も含みます。</p>
+
+  <p>メニュー（37 分）が目立って長いのは、キー操作の決まりが多いからです。矢印・Home・End・文字で飛ぶ・入れ子のメニューへの出入り・メニューバーの隣へ移る・F10 など、WAI-ARIA のメニューの型を全部満たしました。一方、ドロップダウン（7 分）は重ねて出す層の上に一覧を置くだけで済みました。タブ・数の入力・ツールバー（C 組）や、格子・仕切り・自由に描く面（D 組）も 15 分以内です。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 共通の決まりは、部品より先に 1 か所に書く</span>
+    <p>重ねて出す層を先に作ったので、ドロップダウン・メニュー・日付の選択・ツールチップ・ダイアログは、閉じる・焦点を戻す決まりを部品ごとに書かずに済みました。決まりを直す時も、直す場所は重ねて出す層の 1 か所です。</p>
+  </div>
+
+  <h2 id="gallery">そろった部品</h2>
+  <p>0.2 で足した部品の一部です。どの写真も試験台で描いた物で、本物の窓と同じ CPU の道で描いています。明るい方と暗い方は、読んでいる環境の設定に合わせて切り替わります。</p>
+  <div class="gallery">
+    <!-- gen:gallery -->
+<figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/button-dark.webp"><img src="img/shots/button-light.webp" alt="ふつうのボタン、主のボタン、小さいボタン" width="360" height="60" loading="lazy" decoding="async"></picture><figcaption>ボタン（ふつう・主・小さい）</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/toggle-dark.webp"><img src="img/shots/toggle-light.webp" alt="チェックとスイッチ" width="240" height="56" loading="lazy" decoding="async"></picture><figcaption>チェックとスイッチ</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/segmented-dark.webp"><img src="img/shots/segmented-light.webp" alt="並んだ選択肢から 1 つを選ぶ部品" width="320" height="60" loading="lazy" decoding="async"></picture><figcaption>並んだ選択肢</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/slider-dark.webp"><img src="img/shots/slider-light.webp" alt="スライダー" width="360" height="90" loading="lazy" decoding="async"></picture><figcaption>スライダー</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/text_input_ime-dark.webp"><img src="img/shots/text_input_ime-light.webp" alt="日本語を変換している途中の入力欄。文節ごとに下線がある" width="360" height="60" loading="lazy" decoding="async"></picture><figcaption>日本語入力（変換中の文節に下線）</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/dropdown-dark.webp"><img src="img/shots/dropdown-light.webp" alt="開いたドロップダウン" width="360" height="230" loading="lazy" decoding="async"></picture><figcaption>ドロップダウン</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/menus-dark.webp"><img src="img/shots/menus-light.webp" alt="メニューバーから開いたメニューと入れ子のメニュー" width="520" height="260" loading="lazy" decoding="async"></picture><figcaption>メニューバーと入れ子のメニュー</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/context_menu-dark.webp"><img src="img/shots/context_menu-light.webp" alt="右クリックで開いたメニュー。アイコンとショートカットが並ぶ" width="420" height="230" loading="lazy" decoding="async"></picture><figcaption>右クリックのメニュー</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/tabs-dark.webp"><img src="img/shots/tabs-light.webp" alt="タブ" width="420" height="170" loading="lazy" decoding="async"></picture><figcaption>タブ</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/toolbar-dark.webp"><img src="img/shots/toolbar-light.webp" alt="アイコンのボタンが並ぶツールバー" width="480" height="140" loading="lazy" decoding="async"></picture><figcaption>ツールバー</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/grid_split-dark.webp"><img src="img/shots/grid_split-light.webp" alt="格子に並べた入力欄と、左右の仕切り" width="560" height="220" loading="lazy" decoding="async"></picture><figcaption>格子の並べ方と仕切り</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/canvas-dark.webp"><img src="img/shots/canvas-light.webp" alt="自由に描く面に描いた図形" width="360" height="220" loading="lazy" decoding="async"></picture><figcaption>自由に描く面</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/tree-dark.webp"><img src="img/shots/tree-light.webp" alt="フォルダーの木" width="320" height="240" loading="lazy" decoding="async"></picture><figcaption>木の表示</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/table-dark.webp"><img src="img/shots/table-light.webp" alt="見出しのある表" width="520" height="210" loading="lazy" decoding="async"></picture><figcaption>見出しのある表（並べ替え・列の幅）</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/date_picker-dark.webp"><img src="img/shots/date_picker-light.webp" alt="開いた暦" width="340" height="360" loading="lazy" decoding="async"></picture><figcaption>日付の選択</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/dialog-dark.webp"><img src="img/shots/dialog-light.webp" alt="窓の中のダイアログ。後ろが暗くなっている" width="440" height="240" loading="lazy" decoding="async"></picture><figcaption>窓の中のダイアログ</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/tooltip-dark.webp"><img src="img/shots/tooltip-light.webp" alt="ツールチップ" width="320" height="100" loading="lazy" decoding="async"></picture><figcaption>ツールチップ</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/more_widgets-dark.webp"><img src="img/shots/more_widgets-light.webp" alt="ラジオボタン、進み具合、カード、開閉する節などが並ぶ" width="560" height="330" loading="lazy" decoding="async"></picture><figcaption>ラジオボタン・進み具合・カード・開閉する節</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/disabled-dark.webp"><img src="img/shots/disabled-light.webp" alt="押せない状態で薄く描いた部品" width="520" height="130" loading="lazy" decoding="async"></picture><figcaption>押せない状態</figcaption></figure>
+    <figure><picture><source media="(prefers-color-scheme: dark)" srcset="img/shots/icons-dark.webp"><img src="img/shots/icons-light.webp" alt="kargui が自分で描く 18 個のアイコン" width="520" height="110" loading="lazy" decoding="async"></picture><figcaption>kargui が描くアイコン 18 個</figcaption></figure>
+<!-- /gen:gallery -->
+  </div>
+
+  <h2 id="numbers">数で見る 0.1 と 0.2</h2>
+  <!-- gen:versions -->
+<div class="pair">
+  <figure class="bars" id="c-loc2">
+    <figcaption><span class="bars-title">コードの行数</span><span class="bars-hint">crates/kargui/src</span></figcaption>
+    <div class="bar-rows">
+      <div class="bar-row" data-v="v010"><span class="bar-name">0.1.0</span><span class="bar-track"><span class="bar" style="--w: 43.2%"></span><span class="bar-val">9,502 行</span></span></div>
+      <div class="bar-row" data-v="v020"><span class="bar-name">0.2.0</span><span class="bar-track"><span class="bar" style="--w: 93.3%"></span><span class="bar-val">20,510 行</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">今の main</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">21,987 行</span></span></div>
+    </div>
+  </figure>
+  <figure class="bars" id="c-api2">
+    <figcaption><span class="bars-title">公開の項目</span><span class="bars-hint">rustdoc の JSON で数えた</span></figcaption>
+    <div class="bar-rows">
+      <div class="bar-row" data-v="v010"><span class="bar-name">0.1.0</span><span class="bar-track"><span class="bar" style="--w: 43.3%"></span><span class="bar-val">345 個</span></span></div>
+      <div class="bar-row" data-v="v020"><span class="bar-name">0.2.0</span><span class="bar-track"><span class="bar" style="--w: 95.2%"></span><span class="bar-val">759 個</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">今の main</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">797 個</span></span></div>
+    </div>
+  </figure>
+  <figure class="bars" id="c-tests2">
+    <figcaption><span class="bars-title">試験の数</span><span class="bars-hint">#[test] の数</span></figcaption>
+    <div class="bar-rows">
+      <div class="bar-row" data-v="v010"><span class="bar-name">0.1.0</span><span class="bar-track"><span class="bar" style="--w: 39.1%"></span><span class="bar-val">79 個</span></span></div>
+      <div class="bar-row" data-v="v020"><span class="bar-name">0.2.0</span><span class="bar-track"><span class="bar" style="--w: 87.1%"></span><span class="bar-val">176 個</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">今の main</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">202 個</span></span></div>
+    </div>
+  </figure>
+  <figure class="bars" id="c-guide2">
+    <figcaption><span class="bars-title">ガイドの章</span><span class="bars-hint">日本語が元・英語は訳</span></figcaption>
+    <div class="bar-rows">
+      <div class="bar-row" data-v="v010"><span class="bar-name">0.1.0</span><span class="bar-track"><span class="bar" style="--w: 47.4%"></span><span class="bar-val">9 章</span></span></div>
+      <div class="bar-row" data-v="v020"><span class="bar-name">0.2.0</span><span class="bar-track"><span class="bar" style="--w: 89.5%"></span><span class="bar-val">17 章</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">今の main</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">19 章</span></span></div>
+    </div>
+  </figure>
+</div>
+<!-- /gen:versions -->
+  <p>コードの行数は 2 倍を超えました。公開の API（型・関数・欄など）の数も 2 倍を超えています。それに合わせて、試験・ガイド・写真も増やしています。API が変わったのに説明を直していないと検査で落ちる仕組みは、0.1 から使っています。</p>
+
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい書き方: 型を増やして、使い方を覚えることを増やす</span>
+    <p>部品ごとに <code>Button</code>・<code>Slider</code>・<code>Tabs</code> といった型があります。どの型にも <code>.width()</code>・<code>.tooltip()</code>・<code>.context_menu()</code>・<code>.drag_source()</code> が同じ名前で付くように、マクロ（<code>common!</code>）で 1 か所から付けています。部品ごとに手で書くと、付け忘れた部品だけ使えない、という差が出ます。</p>
+  </div>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="01-frame.html">← 第 1 章 1 フレームの中で起きること</a>
+    <a href="03-apps.html">第 3 章 ふつうのアプリで見つけたこと →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>

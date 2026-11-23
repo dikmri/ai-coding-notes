@@ -1,0 +1,25 @@
+{
+  "source": "github.com/dikmri/kargui の docs/shots（試験台で描いた写真。cargo run -p xtask -- shots で作る）",
+  "shots": [
+    { "name": "button", "alt": "ふつうのボタン、主のボタン、小さいボタン", "caption": "ボタン（ふつう・主・小さい）" },
+    { "name": "toggle", "alt": "チェックとスイッチ", "caption": "チェックとスイッチ" },
+    { "name": "segmented", "alt": "並んだ選択肢から 1 つを選ぶ部品", "caption": "並んだ選択肢" },
+    { "name": "slider", "alt": "スライダー", "caption": "スライダー" },
+    { "name": "text_input_ime", "alt": "日本語を変換している途中の入力欄。文節ごとに下線がある", "caption": "日本語入力（変換中の文節に下線）" },
+    { "name": "dropdown", "alt": "開いたドロップダウン", "caption": "ドロップダウン" },
+    { "name": "menus", "alt": "メニューバーから開いたメニューと入れ子のメニュー", "caption": "メニューバーと入れ子のメニュー" },
+    { "name": "context_menu", "alt": "右クリックで開いたメニュー。アイコンとショートカットが並ぶ", "caption": "右クリックのメニュー" },
+    { "name": "tabs", "alt": "タブ", "caption": "タブ" },
+    { "name": "toolbar", "alt": "アイコンのボタンが並ぶツールバー", "caption": "ツールバー" },
+    { "name": "grid_split", "alt": "格子に並べた入力欄と、左右の仕切り", "caption": "格子の並べ方と仕切り" },
+    { "name": "canvas", "alt": "自由に描く面に描いた図形", "caption": "自由に描く面" },
+    { "name": "tree", "alt": "フォルダーの木", "caption": "木の表示" },
+    { "name": "table", "alt": "見出しのある表", "caption": "見出しのある表（並べ替え・列の幅）" },
+    { "name": "date_picker", "alt": "開いた暦", "caption": "日付の選択" },
+    { "name": "dialog", "alt": "窓の中のダイアログ。後ろが暗くなっている", "caption": "窓の中のダイアログ" },
+    { "name": "tooltip", "alt": "ツールチップ", "caption": "ツールチップ" },
+    { "name": "more_widgets", "alt": "ラジオボタン、進み具合、カード、開閉する節などが並ぶ", "caption": "ラジオボタン・進み具合・カード・開閉する節" },
+    { "name": "disabled", "alt": "押せない状態で薄く描いた部品", "caption": "押せない状態" },
+    { "name": "icons", "alt": "kargui が自分で描く 18 個のアイコン", "caption": "kargui が描くアイコン 18 個" }
+  ]
+}

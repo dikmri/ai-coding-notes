@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 4 章 CI を初めて回した日と 0.2.0 ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="手元では全部通る試験が、GitHub Actions では Windows と Linux で落ちました。手元と CI の違いをたどった記録と、0.1.0 と比べて使い方を壊す変更を調べてから 0.2.0 を出した手順です。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 4 章</p>
+  <h1>CI を初めて回した日と 0.2.0</h1>
+  <p class="lede">kargui のリポジトリには、送るたびに Windows・Linux・macOS で試験を走らせる仕組み（GitHub Actions）を用意していました。ただ、0.2 の作業を GitHub に送るまで、一度も走っていませんでした。初めて走った日、手元では全部通る試験が、Windows と Linux で落ちました。この章は、その原因をたどった記録と、0.2.0 を出すまでの手順です。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>手元で通る試験が、CI で落ちる 2 つの典型（道具の版の違い・入っている物の違い）</li>
+      <li>公開した版と比べて「使い方を壊す変更」を調べる方法</li>
+      <li>docs.rs で説明のリンクが切れていた理由と、もう起きないようにした仕組み</li>
+    </ul>
+  </section>
+
+  <h2 id="ci">初めての CI の結果</h2>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-ci">
+    <table>
+      <caption id="t-ci">初めての CI（16 件の commit をまとめて送った時）</caption>
+      <thead><tr><th scope="col">OS</th><th scope="col">結果</th><th scope="col">落ちた所</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">macOS</th><td data-label="結果">通った</td><td data-label="落ちた所">なし（macOS で走らせたのはこれが初めて）</td></tr>
+        <tr><th scope="row">Windows</th><td data-label="結果">落ちた</td><td data-label="落ちた所">説明の割合の検査が「説明 0/0」と数えて止まった</td></tr>
+        <tr><th scope="row">Linux</th><td data-label="結果">落ちた</td><td data-label="落ちた所">組み立ての途中で、fontconfig が見つからずに止まった</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>どちらも、送った変更で壊れたのではありません。手元と CI の環境の違いが、初めての実行で表に出た物です。</p>
+
+  <h3>Windows: 道具の版の違い</h3>
+  <p>kargui には「公開している全部の項目に説明と動く例があるか」を数える検査があります。数えるのは rustdoc の <code>--show-coverage</code> で、結果の JSON を標準出力から読んでいました。</p>
+  <ol>
+    <li><strong>観測</strong>: CI では、検査が「説明 0/0」と数えた。手元では 479/479 だった。</li>
+    <li><strong>なぜ 0 か</strong>: CI の標準出力に、JSON が無かった。代わりに <code>Generated output into "…/doc/kargui.json"</code> の 1 行だけが出ていた。</li>
+    <li><strong>なぜ JSON が無いか</strong>: 手元の Rust は 1.95、CI は最新の 1.100 だった。1.100 の rustdoc は、この JSON を標準出力ではなくファイルに書く。</li>
+  </ol>
+  <p>Rust 1.100 を手元に足して同じ命令を走らせ、この動きを確かめてから直しました。検査は、標準出力に置き場所が出ていればそのファイルを読み、出ていなければ標準出力を読みます。1.95 と 1.100 の両方で、479/479 と数えることを確かめました。</p>
+
+  <h3>Linux: 入っている物の違い</h3>
+  <ol>
+    <li><strong>観測</strong>: 組み立ての途中で <code>yeslogic-fontconfig-sys</code> が止まった。pkg-config が fontconfig を見つけられなかった。</li>
+    <li><strong>なぜ fontconfig が要るか</strong>: Linux の文字の道で使う parley の中の fontique が、OS のフォントを探すのに fontconfig を使う。組み立ての時に、その開発用のファイルが要る。</li>
+    <li><strong>なぜ手元では通ったか</strong>: 手元の試験に使う WSL2 には、開発用のファイル（libfontconfig1-dev）が前から入っていた。CI の素の ubuntu には入っていなかった。</li>
+  </ol>
+  <p>CI で libfontconfig1-dev と pkg-config を入れるようにし、README の「Linux と macOS」の節にも、Linux で組み立てる時に要ると書きました。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい確かめ方: 手元で通ったから大丈夫、と考える</span>
+    <p>手元の道具の版と、手元に入っている物は、ほかの人の PC と同じではありません。CI は最新の stable の Rust と、何も入っていない OS で走ります。手元と CI の版の差は、作業の覚え書きに書いておき、CI と同じ版で確かめる命令も残しています（<code>cargo +1.100.0 …</code>）。</p>
+  </div>
+
+  <h2 id="semver">使い方を壊す変更を調べる</h2>
+  <p>0.x の版では、0.1 から 0.2 に上げる時に使い方を変えてもかまいません。ただ、何が変わったかを書かないと、使う人が困ります。そこで、crates.io に出した 0.1.0 と今の公開の API を、道具で比べました。</p>
+  <ol>
+    <li>0.1.0 を出した時の commit を、作業の場所を変えずに <code>git archive</code> で取り出す</li>
+    <li>両方の rustdoc の JSON（公開の項目の一覧）を作る</li>
+    <li>小さな台本で比べ、消えた物・形が変わった物・足された物を出す</li>
+    <li>足された物のうち、前からある型に足した値・欄・関数が、使い方を壊すかを調べる</li>
+  </ol>
+  <!-- gen:apicount -->
+<figure class="bars" id="c-api4">
+    <figcaption><span class="bars-title">公開の項目の数</span><span class="bars-hint">rustdoc の JSON で数えた。消えた物は 0</span></figcaption>
+    <div class="bar-rows">
+      <div class="bar-row" data-v="v010"><span class="bar-name">0.1.0</span><span class="bar-track"><span class="bar" style="--w: 43.3%"></span><span class="bar-val">345 個</span></span></div>
+      <div class="bar-row" data-v="v020"><span class="bar-name">0.2.0</span><span class="bar-track"><span class="bar" style="--w: 95.2%"></span><span class="bar-val">759 個</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">今の main</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">797 個</span></span></div>
+    </div>
+  </figure>
+<!-- /gen:apicount -->
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-semver">
+    <table>
+      <caption id="t-semver">0.1.0 と 0.2.0 の公開の API の違い</caption>
+      <thead><tr><th scope="col">変わった所</th><th scope="col">0.1.0 で書いたコードは</th><th scope="col">CHANGELOG</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">消えた物</th><td data-label="0.1.0 のコードは">0 件</td><td data-label="CHANGELOG">書く物なし</td></tr>
+        <tr><th scope="row"><code>Key</code> に <code>#[non_exhaustive]</code> と値 46 個</th><td data-label="0.1.0 のコードは">全部のキーを並べた <code>match</code> が壊れる</td><td data-label="CHANGELOG">書いた</td></tr>
+        <tr><th scope="row"><code>Options</code> に欄 <code>icon</code>・<code>min_size</code></th><td data-label="0.1.0 のコードは">全部の欄を書いて作るコードが壊れる（<code>..Options::new(..)</code> なら壊れない）</td><td data-label="CHANGELOG">書いた</td></tr>
+        <tr><th scope="row"><code>App</code> に <code>window</code>・<code>close_requested</code></th><td data-label="0.1.0 のコードは">壊れない（どちらも既定の中身がある）</td><td data-label="CHANGELOG">書いた（壊れないことを）</td></tr>
+        <tr><th scope="row"><code>Size::Fill</code>・<code>Size::Fixed</code></th><td data-label="0.1.0 のコードは">変わっていない（台本の見かけの差）</td><td data-label="CHANGELOG">書く物なし</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="insight">
+    <span class="box-title">分かったこと: 比べる台本も、出た結果を確かめる</span>
+    <p>台本は最初、<code>Size::Fill</code> と <code>Size::Fixed</code> が「変わった」と出しました。中身を見ると、どちらも <code>f32</code> を 1 つ持つだけで、0.1.0 と同じでした。rustdoc の JSON は、型の中の欄を番号で指します。その番号が作るたびに変わるので、番号ごと比べた台本が違うと判断していました。</p>
+  </div>
+
+  <h2 id="docs">説明のリンクが切れていた</h2>
+  <p>0.2.0 の準備で説明を作り直すと、rustdoc が注意を 3 つ出しました。2 つは、説明の中のリンクの先（<code>crate::Button</code>）が見つからないという注意です。<code>Button</code> は <code>kargui::ui</code> の中にあり、<code>kargui</code> の直下にはありません。docs.rs の 0.1.0 の説明では、このリンクが切れて見えていました。</p>
+  <p>リンクを直したうえで、CI に「説明を注意なしで作れるか」の検査を足しました（<code>RUSTDOCFLAGS=-D warnings</code>）。注意が 1 つでも出れば、CI が落ちます。</p>
+
+  <h2 id="release">0.2.0 を出すまでの分担</h2>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-release">
+    <table>
+      <caption id="t-release">0.2.0 の公開の手順と分担</caption>
+      <thead><tr><th scope="col">手順</th><th scope="col">誰が</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">版の番号を 0.2.0 にし、CHANGELOG と README を直す</th><td data-label="誰が">AI</td></tr>
+        <tr><th scope="row">0.1.0 と比べて、使い方を壊す変更を調べる</th><td data-label="誰が">AI</td></tr>
+        <tr><th scope="row">Windows と Linux で試験と検査を通し、<code>cargo publish --dry-run</code> を通す</th><td data-label="誰が">AI</td></tr>
+        <tr><th scope="row">GitHub へ送り、CI が 3 つの OS で通るのを確かめる</th><td data-label="誰が">AI（作者が「送って」と言った時だけ）</td></tr>
+        <tr><th scope="row">crates.io に出す・版の印（タグ）を付ける</th><td data-label="誰が">作者</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>外へ出す操作（GitHub へ送る・crates.io に出す）は、作者が決めます。AI に任せた送る操作も、kargui の main を送る 1 行の命令だけを許可にしています。</p>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="03-apps.html">← 第 3 章 ふつうのアプリで見つけたこと</a>
+    <a href="05-drag-and-drop.html">第 5 章 ドラッグ＆ドロップ →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>
