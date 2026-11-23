@@ -142,7 +142,7 @@ const CHAPTERS = [
   { href: "07-fonts.html", no: "第 7 章", title: "書体", text: "Font の 3 つの形と書体の探し方、入力欄の書体が 1 フレーム遅れて伝わる理由、作者の記録から見つけた行の間の不具合。", thumb: "fonts/lines" },
   { href: "08-pickers.html", no: "第 8 章", title: "色と時刻の選択", text: "時刻をます目にした理由、濃淡の面を絵で描く方法、作者の記録から見つけた打つ途中の番号と、引っ張っても選べない入力欄。", thumb: "pickers/time" },
   { href: "09-rich-text.html", no: "第 9 章", title: "書式付きの文字", text: "範囲を表示だけにした理由、1 つの段落として並べて部分ごとに色を付ける仕組み、見えないコードの背景と Linux で落ちた試験。", thumb: "rich/sample" },
-  { href: "10-linux.html", no: "第 10 章", title: "Linux の窓（Wayland）", text: "検証用の Linux の PC と AI が画面を操作する道具、境目のファイル 1 つで窓を開く作り、タッチパッドの取りこぼし、後から足したクリップボードと日本語入力。", thumb: "linux/settings" },
+  { href: "10-linux.html", no: "第 10 章", title: "Linux の窓（Wayland）", text: "検証用の Linux の PC と AI が画面を操作する道具、境目のファイル 1 つで窓を開く作り、タッチパッドの取りこぼし、後から足したクリップボード・日本語入力・読み上げ・ファイルのダイアログ。", thumb: "linux/settings" },
 ];
 
 function chapters() {
@@ -238,8 +238,9 @@ ${figure("apps/expenses", "家計簿の見本", "家計簿（<code>examples/expe
   "10-linux.html": {
     deps: () =>
       bars("c-deps", "Wayland の窓に要る依存の数", "少ないほど軽い。Linux で cargo tree で数えた", [
-        { name: "smithay-client-toolkit を使う形", v: "old", value: 57, label: "57 個（開発用の部品が要る）" },
-        { name: "今回の形（低い層を直接）", v: "new", value: 32, label: "32 個（kargui に増えたのは 13 個）" },
+        // 値の文字は短くする（幅 320 の画面で棒の外へはみ出した。括弧の中身は、すぐ上の本文と見出しにある）
+        { name: "smithay-client-toolkit を使う形", v: "old", value: 57, label: "57 個" },
+        { name: "今回の形（低い層を直接）", v: "new", value: 32, label: "32 個" },
       ]),
     settings: () =>
       figure(
@@ -273,6 +274,18 @@ ${figure("apps/expenses", "家計簿の見本", "家計簿（<code>examples/expe
         "上は「明日は」を変換している所、下は → で「東京に」へ移った所。太い下線が今変換している文節で、先頭の「東京」は確定済みの文字。上では「東京に行く」が 1 本の細い下線になる。",
         { flat: true },
       ),
+    portal: () => `${figure(
+      "linux/portal-save",
+      "GTK の名前を付けて保存のダイアログ。名前の欄に tokyo memo.txt、場所は tmp の kargui-dialog で、saved copy.txt と tokyo memo.txt が並び、右下の種類はテキスト",
+      "メモ帳の見本で /tmp/kargui-dialog のファイルを開いた後の「名前を付けて保存」。ポータルのダイアログが、開いたファイルのフォルダから始まる（名前と種類は、メモ帳が頼んだ物）。",
+      { flat: true },
+    )}
+  ${figure(
+    "linux/os-dark",
+    "暗い表示の設定の見本。テーマはシステムが選ばれ、名前・メール・書体・文字の大きさなどが並ぶ",
+    "OS を暗い方の設定（color-scheme が prefer-dark）にして開いた設定の見本。テーマの「システム」は、ポータルから読んだ OS の設定に従う。",
+    { flat: true },
+  )}`,
     workspace: () =>
       figure(
         "linux/ime-workspace",
