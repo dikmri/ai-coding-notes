@@ -8,7 +8,7 @@ export const ART = {
   streetNight: ['img/street-night.png', 384, 216],
   doors: ['img/doors.png', 48, 44],       // 0 閉 1 半分 2 開
   folks: ['img/folks.png', 20, 30],       // 開店待ちの人（Frostwind）。人ごとに 2 コマ（待つ・歩く）
-  hero: ['img/hero.png', 24, 32],         // 主人公: 0-5 走る 6-7 立つ 8 話す 9-10 跳ぶ 11-12 よろける
+  hero: ['img/hero.png', 32, 32],         // 主人公: 0-5 走る 6-7 立つ 8 話す 9-10 跳ぶ 11 よろける 12 倒れる
   bust: ['img/bust.png', 48, 48],         // 主人公の顔: 0 ふつう 1 まばたき 2 喜ぶ 3 脳汁 4 落ちこむ 5 絶望
   parlor: ['img/parlor.png', 384, 216],
   machines: ['img/machines.png', 60, 104],

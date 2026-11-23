@@ -4,7 +4,7 @@ import { MACHINES } from '../sim/machines.mjs';
 import { createSession, YEN_PER_BALL, MODE_LABEL } from '../sim/sim.mjs';
 import { chainColor, chainLabel, mealTier, MEALS, SPEEDS, BASE_SPEED, todayRpk, milestoneCross } from './logic.mjs';
 import { Graph } from './graph.mjs';
-import { rampFrom } from './fx.mjs';
+import { rampFrom, FxLayer } from './fx.mjs';
 import { drawText, textWidth, signed, comma } from './pixtext.mjs';
 import { art, frame, HERO, BUST } from './art.mjs';
 import { sfx, startSad, stopSad, startAmbient, stopAmbient } from './audio.mjs';
@@ -30,10 +30,11 @@ function bubble(ctx, text, x, y, size = 12) {
   ctx.fillStyle = '#ffffff'; ctx.fillRect(bx + 1, by + 1, w - 2, h - 2); ctx.fillRect(x - 1, by + h - 1, 3, 3); ctx.fillRect(x, by + h + 2, 1, 2);
   drawText(ctx, text, bx + 5, by + 4, { size, color: '#0b0a12' });
 }
+function vertical(ctx, text, x, y, color) { [...text].forEach((ch, i) => drawText(ctx, ch, x, y + i * 9, { size: 9, color, align: 'center' })); }
 function fade(ctx, a) { if (a <= 0) return; ctx.fillStyle = `rgba(4,3,10,${Math.min(1, a)})`; ctx.fillRect(0, 0, W, H); }
 // 主人公の全身（足元が (x, ground)）
 function hero(ctx, f, x, ground = GROUND, flip = false) {
-  if (frame(ctx, 'hero', f, x - 12, ground - 32, { flip })) return;
+  if (frame(ctx, 'hero', f, x - 16, ground - 32, { flip })) return;
   ctx.fillStyle = '#d0263a'; ctx.fillRect(x - 5, ground - 22, 10, 12);
   ctx.fillStyle = '#ffd5b5'; ctx.fillRect(x - 4, ground - 30, 8, 8);
   ctx.fillStyle = '#2f3a6a'; ctx.fillRect(x - 5, ground - 10, 4, 10); ctx.fillRect(x + 1, ground - 10, 4, 10);
@@ -43,8 +44,11 @@ function street(ctx, night = false, doorFrame = 0) {
     ctx.fillStyle = night ? '#0d1030' : '#9fd4ff'; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = night ? '#2a2438' : '#d6d0e0'; ctx.fillRect(150, 40, 200, 136);
     ctx.fillStyle = '#5a5070'; ctx.fillRect(0, GROUND, W, H - GROUND);
-    drawText(ctx, 'ドル箱会館', 250, 52, { size: 16, color: night ? '#ff5ad0' : '#d0263a', align: 'center', bold: true });
   }
+  // 看板の名前と、のぼりの縦書き（夜はネオンの色）
+  drawText(ctx, 'ドル箱会館', 256, 39, { size: 20, color: night ? '#ffa6e8' : '#ffd84a', outline: night ? '#ff5ad0' : '#4a0d1e', align: 'center', bold: true });
+  vertical(ctx, '新台入替', 201, 123, night ? '#ffa6e8' : '#8c1a2b');
+  vertical(ctx, '朝から全台', 305, 121, night ? '#b5ecff' : '#1a4f8c');
   if (!frame(ctx, 'doors', doorFrame, DOOR_X, GROUND - 44)) {
     ctx.fillStyle = '#63c6ff'; const g = doorFrame * 10;
     ctx.fillRect(DOOR_X, GROUND - 44, 24 - g, 44); ctx.fillRect(DOOR_X + 24 + g, GROUND - 44, 24 - g, 44);
@@ -180,7 +184,8 @@ export function makeScenes(G) {
     enter() {
       const P = G.play;
       this.t = 0; this.evIndex = 0; this.msg = []; this.lastFx = -9; this.face = 'normal'; this.faceUntil = 0; this.lastHitClock = -99;
-      this.prevSa = 0; this.seen = new Set(); this.closing = 0; this.rain = null; this.sad = false;
+      this.prevSa = 0; this.seen = new Set(); this.closing = 0; this.rain = null; this.sad = false; this.lastFirework = -9;
+      this.weather = new FxLayer(280, 148, 6, 18); // 雨はグラフの中だけ
       P.graph = new Graph({ x: 6, y: 18, w: 280, h: 148, endT: P.session.endT });
       G.controls('play');
       this.say(`${clockText(0)} ${P.machine.name} で打ち始め。今日の回りは千円で約 ${P.rpk} 回`, '#ffffff');
@@ -200,6 +205,7 @@ export function makeScenes(G) {
       }
       P.graph.sync(s.samples);
       P.graph.ease(dt);
+      this.weather.update(dt);
       // 万発・逆万発
       const sa = s.state.sa;
       for (const id of milestoneCross(this.prevSa, sa, this.seen)) this.milestone(id);
@@ -223,7 +229,7 @@ export function makeScenes(G) {
         } else if (e.type === 'modeEnd') {
           if (e.result === 'out') {
             this.say(`${clockText(e.t)} ${e.mode === 'bonus' ? '通常へ' : `${MODE_LABEL[e.mode]} 終了……通常へ`}${e.chain >= 2 ? `（${e.chain} 連で終わり）` : ''}`, '#a9a1bb');
-            if (e.chain >= 2) { this.face = 'sad'; this.faceUntil = G.clock + 1.2; }
+            if (e.chain >= 2) { this.face = P.session.state.sa >= 0 ? 'happy' : 'sad'; this.faceUntil = G.clock + 1.2; }
           } else this.say(`${clockText(e.t)} ${MODE_LABEL[e.mode]} 終了、${MODE_LABEL[e.to]} へ`, '#d6d0e0');
           log('sim.modeEnd', { t: Math.round(e.t), mode: e.mode, result: e.result, to: e.to, chain: e.chain });
         } else if (e.type === 'cash') {
@@ -250,7 +256,7 @@ export function makeScenes(G) {
       if (e.chain >= 5 && e.chain % 5 === 0) {
         sfx('chain', e.chain);
         this.say(`${chainLabel(e.chain)}！！`, chainColor(e.chain, G.clock));
-        if (e.chain >= 10) { const tip = P.graph.tip(); G.fx.spawn('firework', Math.min(230, Math.max(60, tip.x)), 150, { palette: rampFrom(chainColor(e.chain, 0.3), 7) }); }
+        if (e.chain >= 10) { const tip = P.graph.tip(); this.firework(Math.min(230, Math.max(60, tip.x)), rampFrom(chainColor(e.chain, 0.3), 7)); }
         log('milestone.chain', { chain: e.chain });
       }
     },
@@ -265,11 +271,17 @@ export function makeScenes(G) {
       this.say(`${k} 万発 突破！！`, '#ffd84a');
       sfx('fanfare', (k - 1) * 2);
       G.fx.spawn('confetti', 146, 166);
-      G.fx.spawn('firework', 146, 150);
+      this.firework(146);
       this.face = 'joy'; this.faceUntil = G.clock + 4;
       log('milestone', { id, sa: P.session.state.sa, t: Math.round(P.session.state.t) });
     },
-    startRain() { if (!this.rain) this.rain = G.fx.spawn('rain', 146, 166, { density: 0.45, light: 0.4 }); },
+    // 花火は 1.5 秒に 1 回まで（強い光を 1 秒に 3 回より多く出さない）
+    firework(x, palette) {
+      if (G.clock - this.lastFirework < 1.5) return;
+      this.lastFirework = G.clock;
+      G.fx.spawn('firework', x, 150, { light: 0.6, ...(palette ? { palette } : {}) });
+    },
+    startRain() { if (!this.rain) this.rain = this.weather.spawn('rain', 140, 148, { density: 0.45, light: 0.4 }); },
     stopRain() { if (this.rain) { this.rain.stop(); this.rain = null; } },
     close() {
       if (this.closing) return;
@@ -293,6 +305,7 @@ export function makeScenes(G) {
       drawText(ctx, clockText(st.t), W - 6, 2, { size: 12, color: '#ffffff', align: 'right' });
       if (G.paused) drawText(ctx, '一時停止中', W - 52, 3, { size: 10, color: '#ff9a9a', align: 'right' });
       P.graph.draw(ctx, G.clock, { liveChain: st.chain });
+      this.weather.draw(ctx);
       // データカウンター
       panel(ctx, 290, 18, 90, 148, '#0f0d22', '#3d3550');
       const lines = [
@@ -371,22 +384,25 @@ export function makeScenes(G) {
       this.t = 0;
       this.yen = st.sa * YEN_PER_BALL; this.tier = mealTier(this.yen); this.meal = MEALS[this.tier];
       G.controls('result');
-      if (this.tier === 'S') { this.dust = G.fx.spawn('goldDust', 8 + 104, 8 + 132); G.fx.spawn('confetti', 112, 140); }
-      if (this.tier === 'D') this.rainFx = G.fx.spawn('rain', 112, 144, { density: 0.8 });
+      this.mealFx = new FxLayer(208, 136, 8, 8); // 金粉・紙吹雪・雨は晩ごはんの絵の中だけ
+      if (this.tier === 'S') { this.mealFx.spawn('goldDust', 104, 132); this.mealFx.spawn('confetti', 104, 132); }
+      if (this.tier === 'D') this.mealFx.spawn('rain', 104, 136, { density: 0.8 });
       if (this.tier === 'S' || this.tier === 'A') sfx('fanfare', 0); else if (this.tier === 'D') sfx('lose');
       log('result', { machine: P.machine.id, yen: this.yen, sa: st.sa, invest: st.invest, hits: st.hitsTotal, first: st.firstHits, maxChain: st.maxChain, tier: this.tier, spins: st.spinsTotal });
     },
-    leave() { G.fx.clear(); },
-    update(dt) { this.t += dt; },
+    leave() { G.fx.clear(); this.mealFx?.clear(); },
+    update(dt) { this.t += dt; this.mealFx.update(dt); },
     draw(ctx) {
       const P = G.play, st = P.session.state;
       ctx.fillStyle = '#0b0a12'; ctx.fillRect(0, 0, W, H);
       const key = `meal${this.tier}`;
       if (!frame(ctx, key, 0, 8, 8)) { panel(ctx, 8, 8, 208, 136, '#1a1626', '#5a5070'); drawText(ctx, this.meal.name, 112, 70, { size: 14, color: '#ffffff', align: 'center' }); }
-      drawText(ctx, `今夜の晩ごはん: ${this.meal.name}`, 8, 150, { size: 12, color: '#ffd84a' });
-      drawText(ctx, `「${this.meal.line}」`, 8, 166, { size: 12, color: '#ffffff' });
-      drawText(ctx, `${P.machine.name}  ${comma(st.spinsTotal)} 回転・大当り ${st.hitsTotal} 回・最高 ${st.maxChain} 連`, 8, 186, { size: 10, color: '#a9a1bb' });
-      drawText(ctx, `今日の回り 千円で約 ${P.rpk} 回（ボーダー ${P.machine.border}）`, 8, 199, { size: 10, color: '#7e7593' });
+      this.mealFx.draw(ctx);
+      drawText(ctx, '今夜の晩ごはん', 8, 146, { size: 10, color: '#a9a1bb' });
+      drawText(ctx, this.meal.name, 8, 158, { size: 12, color: '#ffd84a', bold: true });
+      drawText(ctx, `「${this.meal.line}」`, 8, 174, { size: 12, color: '#ffffff' });
+      drawText(ctx, `${P.machine.name}  ${comma(st.spinsTotal)} 回転・大当り ${st.hitsTotal} 回・最高 ${st.maxChain} 連`, 8, 190, { size: 10, color: '#a9a1bb' });
+      drawText(ctx, `今日の回り 千円で約 ${P.rpk} 回（ボーダー ${P.machine.border}）`, 8, 202, { size: 10, color: '#7e7593' });
       // 右: 収支
       drawText(ctx, '本日の収支', 226, 10, { size: 12, color: '#d6d0e0' });
       drawText(ctx, `${signed(this.yen)} 円`, 378, 28, { size: 20, color: this.yen >= 0 ? '#ffd84a' : '#63c6ff', align: 'right', bold: true, outline: '#0b0a12' });

@@ -22,8 +22,9 @@ export function rampFrom(hex, n = 8) {
 }
 
 export class FxLayer {
-  constructor(w, h) {
-    this.w = w; this.h = h;
+  // (ox, oy) は画面の上での左上。効果はこの四角の中だけに描かれる
+  constructor(w, h, ox = 0, oy = 0) {
+    this.w = w; this.h = h; this.ox = ox; this.oy = oy;
     this.frame = createFrame(w, h);
     this.list = [];
   }
@@ -49,8 +50,8 @@ export class FxLayer {
     if (!this.list.length) return;
     clearFrame(this.frame);
     for (const f of this.list) f.draw(this.frame);
-    const img = ctx.getImageData(0, 0, this.w, this.h);
+    const img = ctx.getImageData(this.ox, this.oy, this.w, this.h);
     composite(this.frame, img.data, new Uint32Array(img.data.buffer));
-    ctx.putImageData(img, 0, 0);
+    ctx.putImageData(img, this.ox, this.oy);
   }
 }
