@@ -238,8 +238,9 @@ ${figure("apps/expenses", "家計簿の見本", "家計簿（<code>examples/expe
   "10-linux.html": {
     deps: () =>
       bars("c-deps", "Wayland の窓に要る依存の数", "少ないほど軽い。Linux で cargo tree で数えた", [
-        { name: "smithay-client-toolkit を使う形", v: "old", value: 57, label: "57 個（開発用の部品が要る）" },
-        { name: "今回の形（低い層を直接）", v: "new", value: 32, label: "32 個（kargui に増えたのは 13 個）" },
+        // 値の文字は短くする（幅 320 の画面で棒の外へはみ出した。括弧の中身は、すぐ上の本文と見出しにある）
+        { name: "smithay-client-toolkit を使う形", v: "old", value: 57, label: "57 個" },
+        { name: "今回の形（低い層を直接）", v: "new", value: 32, label: "32 個" },
       ]),
     settings: () =>
       figure(
