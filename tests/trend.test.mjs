@@ -1795,3 +1795,210 @@ test('時刻合わせ: 同じ回の θ は2度使わず、最初に大きくず�
   const c = X.poll(big, p, { df: 14, db: 10, proc: 0.1 });
   assert.ok(near(c.after, 2) && Math.abs(c.offset) > X.STEP_MS);
 });
+
+// ---- 小さな街（Small SF）: tr-20261123-mini-city ----
+const CITY = 'tr-20261123-mini-city';
+const CITY_NAMES = ['signalAt', 'canStop', 'idm', 'demand', 'dayOfYear', 'solarHour', 'sunPosition', 'sunVector', 'lightState', 'project', 'rayOrigin', 'streetDist', 'makeWorld', 'buildTown', 'castRay', 'shadowAt', 'makeTraffic', 'posOnLink', 'addCar', 'stepTraffic', 'CYCLE', 'SIG', 'GROUND', 'CELL', 'GN', 'IDM', 'SF'];
+// 建物が1つだけの街
+function oneBox(X, x0, x1, y0, y1, h) {
+  const H = new Float32Array(X.GN * X.GN).fill(X.GROUND), M = new Int32Array(X.GN * X.GN);
+  for (let y = y0 / X.CELL; y < y1 / X.CELL; y++) for (let x = x0 / X.CELL; x < x1 / X.CELL; x++) { H[y * X.GN + x] = h; M[y * X.GN + x] = 1; }
+  return X.makeWorld(H, M, [null, { id: 1, h }], []);
+}
+
+test('小さな街: 信号は2つの向きが同時に青や黄にならず、黄色のあとに全方向が赤の間がある', () => {
+  const X = trendCore(CITY, CITY_NAMES);
+  assert.equal(X.CYCLE, 25);
+  let allRed = 0, prev = null;
+  const changes = [];
+  for (let i = 0; i < 2500; i++) {
+    const t = i * 0.01, s = X.signalAt(t, 0);
+    assert.ok(s.ns === 'r' || s.ew === 'r', 't=' + t);
+    if (s.ns === 'r' && s.ew === 'r') allRed++;
+    const k = s.ns + s.ew;
+    if (k !== prev) { changes.push(k); prev = k; }
+  }
+  assert.deepEqual(changes, ['gr', 'yr', 'rr', 'rg', 'ry', 'rr']);
+  assert.ok(near(allRed * 0.01, 2 * X.SIG.red, 0.02));
+  // ずらし off を足すと同じ順で時間がずれる。負の時刻でも同じ
+  assert.deepEqual({ ...X.signalAt(3, 10) }, { ...X.signalAt(13, 0) });
+  assert.deepEqual({ ...X.signalAt(-1, 0) }, { ...X.signalAt(24, 0) });
+});
+
+test('小さな街: 止まれるかの判定と、IDM の加速', () => {
+  const X = trendCore(CITY, CITY_NAMES);
+  // 速さ 2、減速 2 なら止まるのに 1 要る
+  assert.equal(X.canStop(2, 1, 2), true);
+  assert.equal(X.canStop(2, 0.99, 2), false);
+  const P = X.IDM;
+  assert.ok(X.idm(0, P.v0, Infinity, 0, P) > 0);                   // 前が空いていれば発進する
+  assert.ok(near(X.idm(P.v0, P.v0, Infinity, 0, P), 0));             // 望む速さなら加速しない
+  assert.ok(X.idm(2, P.v0, 0.5, 2, P) < -P.b);                       // 止まった車がすぐ前なら強く減速する
+  assert.ok(near(X.idm(0, P.v0, P.s0, 0, P), 0));                    // 間隔 s0 で止まったまま
+  assert.ok(X.idm(0, P.v0, P.s0 * 0.9, 0, P) < 0);
+});
+
+test('小さな街: 車の量は朝 8 時と夕方 5 時半に多く、夜中に一番少ない', () => {
+  const X = trendCore(CITY, CITY_NAMES);
+  const v = (h) => X.demand(h);
+  assert.ok(v(8) > v(6) && v(8) > v(11));
+  assert.ok(v(17.5) > v(15) && v(17.5) > v(20));
+  assert.ok(v(17.5) > v(8));
+  let lo = 1, at = 0;
+  for (let h = 0; h < 24; h += 0.25) if (v(h) < lo) { lo = v(h); at = h; }
+  assert.ok(at >= 2 && at <= 5, '一番少ないのは ' + at + ' 時');
+  assert.ok(near(v(25), v(1)) && near(v(-1), v(23)));
+  for (let h = 0; h < 24; h += 0.5) assert.ok(v(h) > 0 && v(h) <= 1);
+});
+
+test('小さな街: 太陽の位置（夏至の正午と、サンフランシスコの 11 月 23 日）', () => {
+  const X = trendCore(CITY, CITY_NAMES);
+  assert.equal(X.dayOfYear(2026, 1, 1), 1);
+  assert.equal(X.dayOfYear(2026, 11, 23), 327);
+  assert.equal(X.dayOfYear(2024, 3, 1), 61);
+  // 夏至（172 日目）の太陽の正午: 高さは 90 − 緯度 + 23.44、方角は真南
+  const s = X.sunPosition(172, 12, 37.77);
+  assert.ok(near(s.alt, 90 - 37.77 + 23.44, 0.05), String(s.alt));
+  assert.ok(near(s.az, 180, 0.01));
+  // 午前は東寄り、午後は西寄り、真夜中は地平線の下
+  assert.ok(X.sunPosition(172, 9, 37.77).az < 180 && X.sunPosition(172, 15, 37.77).az > 180);
+  assert.ok(X.sunPosition(172, 0, 37.77).alt < 0);
+  // サンフランシスコの 11 月 23 日、時計の 12 時（UTC 20 時）: 太陽はほぼ南で、高さは約 31 度
+  const doy = 327, sh = X.solarHour(20, X.SF.lon, doy);
+  assert.ok(near(sh, 12.05, 0.05), String(sh));
+  const n = X.sunPosition(doy, sh, X.SF.lat);
+  assert.ok(n.alt > 30 && n.alt < 33 && Math.abs(n.az - 180) < 3, JSON.stringify(n));
+  // 7 時（UTC 15 時）はまだ低く、17 時（翌日の UTC 1 時）は沈んでいる
+  assert.ok(X.sunPosition(doy, X.solarHour(15, X.SF.lon, doy), X.SF.lat).alt < 3);
+  assert.ok(X.sunPosition(doy, X.solarHour(25, X.SF.lon, doy), X.SF.lat).alt < 0);
+  // 太陽の方向は単位ベクトル。光の状態は、夜は夜の度合い 1、昼は 0
+  const L = Array.from(X.sunVector(30, 135));
+  assert.ok(near(Math.hypot(...L), 1) && L[0] > 0 && L[1] < 0 && near(L[2], 0.5));
+  assert.equal(X.lightState(-20, 0).night, 1);
+  assert.equal(X.lightState(-20, 0).up, false);
+  assert.equal(X.lightState(40, 180).night, 0);
+  assert.equal(X.lightState(40, 180).up, true);
+});
+
+test('小さな街: 視線は手前の地面にそのまま当たり、建物の奥の地面は建物に隠れる', () => {
+  const X = trendCore(CITY, CITY_NAMES);
+  const W = oneBox(X, 20, 22, 20, 22, 5);
+  const hit = {};
+  // 建物の手前（南西）の地面
+  let p = X.project(19, 19, X.GROUND);
+  X.castRay(W, p.sx, p.sy, hit);
+  assert.equal(hit.kind, 0);
+  assert.equal(hit.n, 0);
+  assert.ok(near(hit.x, 19, 1e-6) && near(hit.y, 19, 1e-6) && near(hit.h, X.GROUND, 1e-6));
+  // 建物の奥（北東）の地面: 先に建物に当たる
+  p = X.project(23, 23, X.GROUND);
+  X.castRay(W, p.sx, p.sy, hit);
+  assert.equal(W.M[hit.id], 1);
+  // 地面までの距離より当たった物の方が近い。だからそこに置いた車は隠れる
+  const o = Array.from(X.rayOrigin(p.sx, p.sy, W.top));
+  assert.ok(hit.t < (o[2] - X.GROUND) * Math.SQRT2 - 0.5);
+  // 西向きの壁の真ん中
+  p = X.project(20, 21.2, 2);
+  X.castRay(W, p.sx, p.sy, hit);
+  assert.equal(hit.n, 1);
+  assert.ok(near(hit.x, 20, 1e-6) && near(hit.y, 21.2, 1e-6) && near(hit.h, 2, 1e-6));
+  // 陸の外は海（高さ 0）
+  p = X.project(-3, 10, 0);
+  X.castRay(W, p.sx, p.sy, hit);
+  assert.equal(hit.kind, 3);
+  assert.ok(near(hit.h, 0, 1e-6));
+});
+
+test('小さな街: 建物の影は太陽と反対の側にでき、太陽が高いと短くなる', () => {
+  const X = trendCore(CITY, CITY_NAMES);
+  const W = oneBox(X, 20, 22, 20, 22, 5);
+  const g = X.GROUND + 0.01;
+  const east = Array.from(X.sunVector(20, 90));   // 東の低い太陽
+  assert.equal(X.shadowAt(W, 18.5, 21, g, east), true);    // 建物の西
+  assert.equal(X.shadowAt(W, 23.5, 21, g, east), false);   // 建物の東
+  assert.equal(X.shadowAt(W, 18.5, 25, g, east), false);   // 建物から外れた所
+  // 高さ 4.7 の建物の影の長さは 4.7 ÷ tan(太陽の高さ)。20 度なら約 12.9、60 度なら約 2.7
+  assert.equal(X.shadowAt(W, 10, 21, g, east), true);
+  const high = Array.from(X.sunVector(60, 90));
+  assert.equal(X.shadowAt(W, 18, 21, g, high), true);
+  assert.equal(X.shadowAt(W, 16.5, 21, g, high), false);
+  // 屋根の上は影にならない
+  assert.equal(X.shadowAt(W, 21, 21, 5.01, east), false);
+});
+
+test('小さな街: 通りと歩道には建物が無く、建物は街区の中だけに建つ', () => {
+  const X = trendCore(CITY, CITY_NAMES);
+  const W = X.buildTown(20261123);
+  let n = 0;
+  for (let iy = 0; iy < X.GN; iy++) for (let ix = 0; ix < X.GN; ix++) {
+    const x = (ix + 0.5) * X.CELL, y = (iy + 0.5) * X.CELL, i = iy * X.GN + ix;
+    if (X.streetDist(x) < 1.5 || X.streetDist(y) < 1.5) { assert.ok(near(W.H[i], X.GROUND, 1e-6)); assert.equal(W.M[i], 0); }
+    if (W.M[i] > 0) { n++; assert.ok(W.H[i] > X.GROUND + 1); }
+  }
+  assert.ok(n > 1000, String(n));
+  assert.ok(W.buildings.length > 30 && W.maxH > 6 && W.top > W.maxH, String(W.maxH));
+  // 木の幹は車道に立てない
+  for (const t of W.trees) assert.ok(!(X.streetDist(t.x) < 1 || X.streetDist(t.y) < 1), t.x + ',' + t.y);
+  // 同じ種なら同じ街になる
+  assert.deepEqual(Array.from(X.buildTown(20261123).H), Array.from(W.H));
+});
+
+test('小さな街: 道はとぎれずにつながり、交差点ではまっすぐと右折に分かれる', () => {
+  const X = trendCore(CITY, CITY_NAMES);
+  const sim = X.makeTraffic(1);
+  const roads = sim.links.filter((L) => L.kind === 'road'), moves = sim.links.filter((L) => L.kind === 'move');
+  assert.equal(roads.length, 4 * 5 * 6);
+  assert.equal(moves.length, 25 * 4 * 2);
+  assert.equal(sim.entries.length, 20);
+  const a = {}, b = {};
+  for (const L of sim.links) {
+    for (const nid of L.next) {
+      const N = sim.links[nid];
+      X.posOnLink(L, L.len, a);
+      X.posOnLink(N, 0, b);
+      assert.ok(near(a.x, b.x, 1e-6) && near(a.y, b.y, 1e-6), L.id + '→' + nid);
+      assert.ok(Math.abs(Math.sin(a.th - b.th)) < 1e-6 && Math.cos(a.th - b.th) > 0);
+    }
+    if (L.kind === 'road' && !L.exit) assert.equal(L.next.length, 2);
+    if (L.kind === 'move') assert.equal(L.merge.length, 1);
+  }
+  // 右折は右へ: 東へ向かう車は南へ曲がる
+  const east = roads.find((L) => L.dx === 1 && L.node === 12);
+  const turn = sim.links[east.next[1]];
+  assert.ok(turn.turn);
+  X.posOnLink(turn, turn.len, b);
+  assert.ok(near(Math.cos(b.th), 0, 1e-6) && Math.sin(b.th) < 0);
+});
+
+test('小さな街: 赤信号では止まる線の手前で止まり、青になったら交差点へ入る', () => {
+  const X = trendCore(CITY, CITY_NAMES);
+  const sim = X.makeTraffic(2);
+  sim.max = 0;
+  const node = 12, L = sim.links.find((q) => q.kind === 'road' && q.dx === 1 && q.node === node);
+  sim.nodes[node].off = 0;   // 0〜12.5 秒は南北の番で、東西は赤
+  const c = X.addCar(sim, L.id, 0, 2.4, 'car');
+  for (let i = 0; i < 30 * 10; i++) X.stepTraffic(sim, 1 / 30, 12);
+  assert.equal(c.link, L.id);
+  assert.ok(c.s > L.len - 0.4 && c.s < L.len && c.v < 0.05, JSON.stringify({ s: c.s, len: L.len, v: c.v }));
+  for (let i = 0; i < 30 * 6; i++) X.stepTraffic(sim, 1 / 30, 12);
+  assert.notEqual(c.link, L.id);
+  assert.equal(sim.redRuns, 0);
+});
+
+test('小さな街: 夕方の混む時刻に 2 分動かしても、同じ道の車は重ならず、赤で交差点へ入る車もいない', () => {
+  const X = trendCore(CITY, CITY_NAMES);
+  const sim = X.makeTraffic(5);
+  sim.max = 120;
+  let most = 0;
+  for (let i = 0; i < 30 * 120; i++) {
+    X.stepTraffic(sim, 1 / 30, 17.5);
+    for (const L of sim.links) for (let k = 1; k < L.cars.length; k++) {
+      const p = L.cars[k - 1], q = L.cars[k];
+      assert.ok(q.s - p.s - (p.len + q.len) / 2 > -0.02, 'link ' + L.id + ' t=' + sim.t.toFixed(2));
+    }
+    most = Math.max(most, sim.cars.length);
+  }
+  assert.ok(most > 80, String(most));
+  assert.equal(sim.redRuns, 0);
+  for (const c of sim.cars) assert.ok(c.v >= 0 && c.v < X.IDM.v0 * 1.2);
+});

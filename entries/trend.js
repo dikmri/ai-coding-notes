@@ -10693,3 +10693,936 @@ dekiru.add({
     requestAnimationFrame(frame);
   },
 });
+
+dekiru.add({
+  id: 'tr-20261123-mini-city', c: 'trend', lv: 3, date: '2026-11-23',
+  t: '斜め上から見た小さな街で、信号を守る車を走らせ、建物や木の陰へ1画素ずつ隠す（Small SF）',
+  y: 'ななめうえからみたちいさなまちでしんごうをまもるくるまをはしらせたてものやきのかげへいちがそずつかくす',
+  tags: ['Small SF', '奥行きの図', '信号と車の流れ', '太陽の位置', 'Canvas'],
+  d: '2026年11月22日、Ari Dutilh さんのサイト「Small SF」が Hacker News に投稿され、取得した時点で 272 点・93 件のコメントを集めていた。Small SF は、サンフランシスコを斜め 45 度の上から見た1枚の大きなイラストの地図で、本物の路線バス・電車・船・飛行機の位置と、本物の太陽と霧に合わせた光、模擬の車の流れを重ねている。説明のページ「How it\'s made」によると、車の流れだけは作り物で、OpenStreetMap の 8,673 本の道と 1,562 か所の本物の信号の上で、信号を守り、前の車に付いて走る車を動かしている。建物の陰に入った車は、街の奥行きの図（カメラから見える物までの距離）と車の形を画素ごとに比べ、建物の方が近い部分だけを消している。この見本では、その仕組みを自分で作った小さな街で再現する。交差点が 5 × 5 ある架空の街を 0.5 単位ごとの高さの格子として作り、画面の1画素ごとに視線を伸ばして最初に当たる屋根・壁・地面・木を求め、色と奥行きを記録する。車は毎フレーム、自分の箱と視線の交わりを1画素ずつ計算し、記録した奥行きより手前の画素だけを描く。信号は青・黄・赤のあとに全方向が赤になる間を挟む。車は前の車との間を保つ式（IDM）で速さを決め、黄色になったときは無理なく止まれるなら止まる。走る台数は朝 8 時と夕方 5 時半に多く、夜中に少ない。光は、サンフランシスコの時刻から太陽の高さと方角を計算して当て、影は当たった点から太陽へ向けてもう一度視線を伸ばして決める。夜は窓と街灯とヘッドライトがともる。再現できていない所: 本物のバス・船・飛行機の位置、天気と霧、イラストの絵（Small SF は Google の 3D の街のデータを描き直した画像を使っている）は扱わない。街の形は乱数で作った架空のもので、交差点ではまっすぐ進むか右へ曲がるだけで、左には曲がらない。一時停止の交差点、坂、高架の道、拡大や移動、車への乗り込みも入れていない。',
+  p: '斜め上から見る正射影では、画面の上にあるほど「高い」か「奥」のどちらかなので、車をただ上に重ねると屋根や木の上を走って見える。そこで画面の1画素ごとに、視線の向き (0.5, 0.5, −0.707) で高さの格子を1マスずつ進み（DDA）、最初に当たった面までの距離 t を奥行きの図として残す。車の画素では、視線と車の箱の交わり（slab 法）から距離を出し、図の t より小さいときだけ描く。比べるのは画素ごとなので、車は建物の角から少しずつ隠れる。光と影は奥行きの図と別に持ち、時刻を変えたときは影だけを数フレームに分けて計算し直す。車の加速は IDM の式 a × (1 − (v ÷ v0)⁴ − (望む間隔 ÷ 今の間隔)²) で決め、赤信号は「止まる線の上に止まっている車」として同じ式に入れる。黄色では、今の速さで止まるのに要る距離 v² ÷ 2b が止まる線までの距離より短ければ止まり、長ければそのまま進む。',
+  refs: [
+    { title: 'Small SF: an illustrated, live map of San Francisco（Ari Dutilh）', url: 'https://smallsf.com/' },
+    { title: 'Small SF · How it\'s made（2026年11月）', url: 'https://smallsf.com/about' },
+    { title: 'Hacker News: A miniature San Francisco with live buses, planes and boats（2026-11-22）', url: 'https://news.ycombinator.com/item?id=50603589' },
+    { title: 'Intelligent driver model（Wikipedia）', url: 'https://en.wikipedia.org/wiki/Intelligent_driver_model' },
+  ],
+  html: `<div class="app">
+  <div class="bar">
+    <label class="ctl"><span class="nm">サンフランシスコの時刻</span><input type="range" id="hour" min="0" max="1435" step="5" value="720"><output id="hourO" for="hour">12:00</output></label>
+    <div class="btns"><button type="button" id="now" aria-pressed="true">今の時刻</button><button type="button" id="fast" aria-pressed="false">早送り</button></div>
+    <fieldset class="view"><legend>表示</legend><label><input type="radio" name="view" value="pic" checked>絵</label><label><input type="radio" name="view" value="depth">奥行きの図</label></fieldset>
+    <label class="chk"><input type="checkbox" id="ghost">隠れた車をうっすら見せる</label>
+  </div>
+  <figure class="stage"><canvas id="cv" role="img" aria-label="斜め上から見た小さな街。車が信号を守って走り、建物や木の陰に入った部分は見えなくなる"></canvas></figure>
+  <div class="stats">
+    <div class="stat"><span>走っている車</span><b id="carsO">-</b><span id="tgtO">台</span></div>
+    <div class="stat"><span>太陽の高さ</span><b id="altO">-</b><span id="azO"></span></div>
+    <div class="stat"><span>建物や木に隠れている車</span><b id="hidO">-</b><span>台（形の 6 割より多く隠れている車）</span></div>
+    <div class="stat"><span>止まっている車</span><b id="stopO">-</b><span>台（信号待ちや前の車待ち）</span></div>
+  </div>
+  <p class="small">時刻を動かすと、サンフランシスコのその時刻の太陽の位置で光と影を計算し直す（数フレームかかる）。早送りは 1 時間を約 3 秒で進め、車の台数も時刻に合わせて増減する。「奥行きの図」は、画素ごとにカメラから最初に当たる物までの近さを明るさで表したもので、明るいほど近い。橙色の車は、この図より手前にある画素だけが描かれる。</p>
+</div>`,
+  css: `:root { color-scheme: light; --bg: #eef0ee; --fg: #1f2326; --mut: #596065; --line: #cfd5d2; --panel: #fbfcfb; --acc: #2a6b8a; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    .app { box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; padding: 10px; max-inline-size: 1000px; margin-inline: auto; }
+    .bar { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
+    .ctl { display: flex; align-items: center; gap: 8px; flex: 1 1 280px; min-inline-size: 0; }
+    .ctl .nm { font-size: 12px; color: var(--mut); white-space: nowrap; }
+    .ctl input { flex: 1 1 120px; min-inline-size: 0; margin: 4px 0; }
+    .ctl output { min-inline-size: 3.2em; font-variant-numeric: tabular-nums; font-weight: 600; }
+    input { accent-color: var(--acc); }
+    .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+    button { font: inherit; font-size: 13px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--fg); cursor: pointer; }
+    button:hover { border-color: var(--mut); }
+    button[aria-pressed="true"] { background: var(--acc); border-color: var(--acc); color: #fff; }
+    input:focus-visible, button:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+    .view { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 13px; }
+    .view legend { float: left; padding: 0; margin-inline-end: 2px; font-size: 12px; color: var(--mut); }
+    .view label, .chk { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+    .stage { margin: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #1c3a46; }
+    canvas { display: block; inline-size: 100%; aspect-ratio: 13 / 10; max-block-size: 72vh; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 6px; }
+    .stat { min-inline-size: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; display: flex; flex-direction: column; }
+    .stat span { font-size: 11px; color: var(--mut); line-height: 1.35; }
+    .stat b { font-size: 21px; line-height: 1.25; font-variant-numeric: tabular-nums; }
+    .small { font-size: 12px; color: var(--mut); margin: 0; }
+    .thumb .bar, .thumb .stats, .thumb .small { display: none; }
+    .thumb .app { padding: 0; max-inline-size: none; }
+    .thumb .stage { border: 0; border-radius: 0; }
+    .thumb canvas { block-size: 100vh; aspect-ratio: auto; max-block-size: none; }`,
+  core() {
+    // 単位: 1 = 約 4 m。x は東、y は北、h は上。陸の地面の高さは GROUND、陸の外は高さ 0 の海
+    const R2 = Math.SQRT1_2, SQ2 = Math.SQRT2, RAD = Math.PI / 180;
+    const WORLD = 60, CELL = 0.5, GN = 120, GROUND = 0.3;
+    const STREETS = [6, 18, 30, 42, 54];                // 通りの中心線（東西にも南北にも同じ位置）
+    const SF = { lat: 37.7749, lon: -122.4194 };
+    const SIG = { green: 9, yellow: 2.5, red: 1 };      // 秒。red は全方向が赤になる間
+    const CYCLE = 2 * (SIG.green + SIG.yellow + SIG.red);
+    const STOP = 2.1;                                   // 交差点の中心から、止まった車の中心までの距離
+    const IDM = { v0: 2.6, a: 1.6, b: 2.2, s0: 0.35, T: 0.9 };
+    const VIEW = [0.5, 0.5, -R2];                       // 視線: 北東を向き、45 度見下ろす
+    // 車の色（白・黒・銀が多く、ときどき黄色のタクシー）と割合
+    const VCOL = [[[0.93, 0.93, 0.92], 26], [[0.1, 0.1, 0.11], 18], [[0.68, 0.7, 0.72], 18], [[0.42, 0.43, 0.45], 10], [[0.16, 0.3, 0.55], 8], [[0.62, 0.13, 0.12], 8], [[0.95, 0.76, 0.12], 5], [[0.2, 0.38, 0.3], 4], [[0.76, 0.7, 0.58], 3]];
+
+    function rng(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    function hash3(a, b, c) {
+      let h = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263) + Math.imul(c | 0, 1274126177)) | 0;
+      h = Math.imul(h ^ (h >>> 13), 1103515245);
+      return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+    }
+
+    // ---- 信号と車 ----
+    // 交差点の信号。前半は南北が青→黄→赤、後半は東西。どちらも赤の間は全方向が赤
+    function signalAt(t, off) {
+      const u = (((t + off) % CYCLE) + CYCLE) % CYCLE, half = CYCLE / 2, k = u % half;
+      const st = k < SIG.green ? 'g' : k < SIG.green + SIG.yellow ? 'y' : 'r';
+      return u < half ? { ns: st, ew: 'r' } : { ns: 'r', ew: st };
+    }
+    // 速さ v から、減速 b で dist 以内に止まれるか
+    function canStop(v, dist, b) {
+      return (v * v) / (2 * b) <= dist;
+    }
+    // IDM: 前との間隔 gap（車と車のすき間）、近づく速さ dv から加速を決める
+    function idm(v, v0, gap, dv, P) {
+      const free = 1 - Math.pow(v / Math.max(0.01, v0), 4);
+      if (!(gap < Infinity)) return P.a * free;
+      const want = P.s0 + Math.max(0, v * P.T + (v * dv) / (2 * Math.sqrt(P.a * P.b)));
+      const r = want / Math.max(0.01, gap);
+      return P.a * (free - r * r);
+    }
+    // 時刻ごとの車の量（0〜1）。朝 8 時と夕方 5 時半に多く、夜中に少ない
+    function demand(hour) {
+      const h = ((hour % 24) + 24) % 24;
+      const bump = (c, w) => { let d = Math.abs(h - c); d = Math.min(d, 24 - d); return Math.exp(-((d / w) ** 2)); };
+      const day = 0.5 - 0.5 * Math.cos((2 * Math.PI * (h - 3.5)) / 24);
+      return Math.min(1, 0.1 + 0.42 * day + 0.45 * bump(8, 1.3) + 0.5 * bump(17.5, 1.7));
+    }
+
+    // ---- 太陽 ----
+    function dayOfYear(y, m, d) {
+      return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(y, 0, 1)) / 86400000) + 1;
+    }
+    function declination(doy) {
+      return 23.44 * Math.sin((2 * Math.PI * (284 + doy)) / 365);
+    }
+    // 均時差（分）
+    function eqTime(doy) {
+      const B = (2 * Math.PI * (doy - 81)) / 364;
+      return 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
+    }
+    // UTC の時刻と経度から、その場所の太陽の時刻（正午に太陽が真南）
+    function solarHour(utcH, lon, doy) {
+      return utcH + lon / 15 + eqTime(doy) / 60;
+    }
+    // 太陽の高さ alt と方角 az（北が 0、東が 90。どちらも度）
+    function sunPosition(doy, sh, lat) {
+      const d = declination(doy) * RAD, p = lat * RAD, H = (sh - 12) * 15 * RAD;
+      const sa = Math.sin(p) * Math.sin(d) + Math.cos(p) * Math.cos(d) * Math.cos(H);
+      const alt = Math.asin(Math.max(-1, Math.min(1, sa)));
+      let az = Math.atan2(-Math.cos(d) * Math.sin(H), Math.sin(d) * Math.cos(p) - Math.cos(d) * Math.sin(p) * Math.cos(H));
+      if (az < 0) az += 2 * Math.PI;
+      return { alt: alt / RAD, az: az / RAD };
+    }
+    // 太陽の方向の単位ベクトル（x 東、y 北、h 上）
+    function sunVector(alt, az) {
+      const a = alt * RAD, z = az * RAD;
+      return [Math.sin(z) * Math.cos(a), Math.cos(z) * Math.cos(a), Math.sin(a)];
+    }
+    // 太陽の高さから、空の明るさ（amb）・日の光（sun）・空の色（sky）・夜の度合いを決める
+    function lightState(alt, az) {
+      const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+      const mv = (a, b, t) => a + (b - a) * t;
+      const day = sm(-6, 12, alt), gold = sm(-4, 2, alt) * (1 - sm(6, 22, alt));
+      const night = 1 - sm(-7, 0.5, alt), I = sm(-1, 6, alt) * 0.82, warm = sm(2, 30, alt);
+      return {
+        alt, az, L: sunVector(alt, az), day, gold, night, up: I > 0.005,
+        amb: [mv(0.1, 0.5, day) + gold * 0.1, mv(0.12, 0.53, day) + gold * 0.04, mv(0.23, 0.6, day) - gold * 0.03],
+        sun: [I, I * mv(0.55, 0.95, warm), I * mv(0.28, 0.88, warm)],
+        sky: [mv(0.03, 0.55, day) + gold * 0.32, mv(0.05, 0.7, day) + gold * 0.08, mv(0.13, 0.9, day) + gold * 0.02],
+      };
+    }
+
+    // ---- 見え方 ----
+    // 画面の横 sx（右が正）と縦 sy（上が正）、カメラからの奥行き depth
+    function project(x, y, h) {
+      return { sx: (x - y) * R2, sy: (x + y) / 2 + h * R2, depth: (x + y) / 2 - h * R2 };
+    }
+    // 画面の点 (sx, sy) を通る視線の出発点（高さ hTop）
+    function rayOrigin(sx, sy, hTop) {
+      const s = 2 * (sy - hTop * R2), d = sx * SQ2;
+      return [(s + d) / 2, (s - d) / 2, hTop];
+    }
+    // 一番近い通りの中心線までの距離
+    function streetDist(v) {
+      const m = (((v - 6) % 12) + 12) % 12;
+      return Math.min(m, 12 - m);
+    }
+    // 地面の色: 車道・横断歩道・中央線・歩道・芝生・岸の遊歩道
+    function groundAlbedo(x, y, m, out) {
+      const ex = streetDist(x), ey = streetDist(y);
+      let r = 0.7, g = 0.68, b = 0.63;
+      if (ex < 1 || ey < 1) {
+        r = 0.34; g = 0.35; b = 0.37;
+        if (ey < 1 && ex >= 1) {
+          if (ex < 1.5) { if ((((y + 1) / 0.3) % 1) < 0.55 && ey < 0.92) { r = 0.86; g = 0.86; b = 0.83; } }
+          else if (ey < 0.06) { r = 0.88; g = 0.72; b = 0.2; }
+        } else if (ex < 1 && ey >= 1) {
+          if (ey < 1.5) { if ((((x + 1) / 0.3) % 1) < 0.55 && ex < 0.92) { r = 0.86; g = 0.86; b = 0.83; } }
+          else if (ex < 0.06) { r = 0.88; g = 0.72; b = 0.2; }
+        }
+      } else if (ex < 1.5 || ey < 1.5) { r = 0.75; g = 0.73; b = 0.69; }
+      else if (m === -1) { const n = 0.03 * Math.sin(x * 3.1) * Math.sin(y * 2.7); r = 0.4 + n; g = 0.57 + n; b = 0.3; }
+      else if (x < 1 || y < 1 || x > WORLD - 1 || y > WORLD - 1) { r = 0.72; g = 0.69; b = 0.62; }
+      out[0] = r; out[1] = g; out[2] = b;
+      return out;
+    }
+
+    // 高さの格子と木から、光線の計算に使う形をまとめる（木がかかるマスの一覧も作る）
+    function makeWorld(H, M, buildings, trees) {
+      let hi = GROUND;
+      for (let i = 0; i < H.length; i++) if (H[i] > hi) hi = H[i];
+      for (const t of trees) hi = Math.max(hi, t.z + t.r);
+      const cnt = new Int32Array(GN * GN + 1);
+      const each = (t, f) => {
+        const x0 = Math.max(0, Math.floor((t.x - t.r) / CELL)), x1 = Math.min(GN - 1, Math.floor((t.x + t.r) / CELL));
+        const y0 = Math.max(0, Math.floor((t.y - t.r) / CELL)), y1 = Math.min(GN - 1, Math.floor((t.y + t.r) / CELL));
+        for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) f(y * GN + x);
+      };
+      for (const t of trees) each(t, (c) => { cnt[c + 1]++; });
+      for (let i = 0; i < GN * GN; i++) cnt[i + 1] += cnt[i];
+      const idx = new Int32Array(cnt[GN * GN]), fill = cnt.slice(0, GN * GN);
+      trees.forEach((t, k) => each(t, (c) => { idx[fill[c]++] = k; }));
+      return { H, M, buildings, trees, tStart: cnt, tIdx: idx, maxH: hi, top: hi + 0.5 };
+    }
+
+    // 架空の街: 通りの間の街区を区画に分けて建物を建て、公園・岸・歩道に木を植える
+    function buildTown(seed) {
+      const R = rng(seed);
+      const H = new Float32Array(GN * GN).fill(GROUND), M = new Int32Array(GN * GN);
+      const buildings = [null], trees = [];
+      const PAL = [[0.94, 0.91, 0.86], [0.96, 0.96, 0.94], [0.85, 0.88, 0.9], [0.91, 0.83, 0.77], [0.81, 0.86, 0.82], [0.9, 0.85, 0.66], [0.79, 0.81, 0.85], [0.86, 0.77, 0.79]];
+      const TOWER = [[0.72, 0.76, 0.8], [0.6, 0.65, 0.7], [0.82, 0.83, 0.85], [0.68, 0.72, 0.7]];
+      const spans = [[2, 9]];
+      for (let k = 0; k < 4; k++) spans.push([(STREETS[k] + 1.5) / CELL, (STREETS[k + 1] - 1.5) / CELL]);
+      spans.push([(STREETS[4] + 1.5) / CELL, GN - 2]);
+      const tree = (x, y, r, z) => trees.push({ x, y, r, z, tr: 0.07, g: R() });
+      const cut = (a, b) => {
+        const n = b - a, k = n >= 16 && R() < 0.55 ? 3 : 2, out = [a];
+        for (let i = 1; i < k; i++) out.push(Math.round(a + (n * i) / k + (R() - 0.5) * 2.5));
+        out.push(b);
+        return out;
+      };
+      const last = spans.length - 1;
+      for (let bj = 0; bj <= last; bj++) for (let bi = 0; bi <= last; bi++) {
+        const [x0, x1] = spans[bi], [y0, y1] = spans[bj];
+        const edge = bi === 0 || bj === 0 || bi === last || bj === last, park = bi === 2 && bj === 1;
+        if (edge || park) {
+          for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) M[y * GN + x] = -1;
+          for (let ty = y0 * CELL + 1.4; ty <= y1 * CELL - 1.4 + 1e-9; ty += 3) {
+            for (let tx = x0 * CELL + 1.4; tx <= x1 * CELL - 1.4 + 1e-9; tx += 3) {
+              if (!park && R() < 0.2) continue;
+              const r = park ? 0.62 + R() * 0.3 : 0.55 + R() * 0.25;
+              tree(tx + (R() - 0.5) * 0.6, ty + (R() - 0.5) * 0.6, r, GROUND + 0.5 + r);
+            }
+          }
+          continue;
+        }
+        const xs = cut(x0, x1), ys = cut(y0, y1);
+        for (let a = 0; a < xs.length - 1; a++) for (let c = 0; c < ys.length - 1; c++) {
+          let lx0 = xs[a], lx1 = xs[a + 1], ly0 = ys[c], ly1 = ys[c + 1];
+          const cx = ((lx0 + lx1) * CELL) / 2, cy = ((ly0 + ly1) * CELL) / 2;
+          const tall = Math.max(0, 1 - Math.hypot(cx - 44, cy - 42) / 20);
+          let h = GROUND + 1.1 + R() * 2.1, col = PAL[Math.floor(R() * PAL.length)];
+          if (tall > 0.15 && R() < 0.35 + tall * 0.6) {
+            h += tall * (2.5 + R() * 6);
+            col = TOWER[Math.floor(R() * TOWER.length)];
+            if (tall > 0.45 && lx1 - lx0 > 6 && ly1 - ly0 > 6 && R() < 0.6) { lx0++; lx1--; ly0++; ly1--; }
+          }
+          const id = buildings.length, dk = 0.85 + R() * 0.08;
+          buildings.push({ id, h, wall: col, roof: R() < 0.4 ? [0.62, 0.6, 0.57] : [col[0] * dk, col[1] * dk, col[2] * dk], tower: h > GROUND + 4 });
+          for (let y = ly0; y < ly1; y++) for (let x = lx0; x < lx1; x++) { H[y * GN + x] = h; M[y * GN + x] = id; }
+        }
+      }
+      // 歩道の木（車の屋根より高い所に葉がある）
+      for (const c of STREETS) for (const side of [-1.25, 1.25]) for (let k = 0; k < 4; k++) {
+        for (let u = STREETS[k] + 3; u <= STREETS[k + 1] - 3 + 1e-9; u += 3) {
+          if (R() < 0.42) { const r = 0.42 + R() * 0.14; tree(u, c + side, r, GROUND + 1.2); }
+          if (R() < 0.42) { const r = 0.42 + R() * 0.14; tree(c + side, u, r, GROUND + 1.2); }
+        }
+      }
+      return makeWorld(H, M, buildings, trees);
+    }
+
+    // 木（葉の球と幹の円柱）と視線の交わり。今までより近ければ out を書き換える
+    function hitTree(tr, k, ox, oy, oz, out) {
+      const lx = ox - tr.x, ly = oy - tr.y, lz = oz - tr.z;
+      const b = lx * 0.5 + ly * 0.5 - lz * R2, c = lx * lx + ly * ly + lz * lz - tr.r * tr.r, disc = b * b - c;
+      if (disc >= 0) {
+        const t = -b - Math.sqrt(disc);
+        if (t > 0 && t < out.t) {
+          out.t = t; out.kind = 1; out.id = k; out.n = 4;
+          out.nx = (lx + 0.5 * t) / tr.r; out.ny = (ly + 0.5 * t) / tr.r; out.nz = (lz - R2 * t) / tr.r;
+        }
+      }
+      const b2 = lx * 0.5 + ly * 0.5, c2 = lx * lx + ly * ly - tr.tr * tr.tr, d2 = b2 * b2 - 0.5 * c2;
+      if (d2 >= 0) {
+        const t = (-b2 - Math.sqrt(d2)) / 0.5, z = oz - R2 * t;
+        if (t > 0 && t < out.t && z >= GROUND && z <= tr.z) {
+          out.t = t; out.kind = 2; out.id = k; out.n = 4;
+          out.nx = (lx + 0.5 * t) / tr.tr; out.ny = (ly + 0.5 * t) / tr.tr; out.nz = 0;
+        }
+      }
+    }
+
+    // 画面の点から視線を伸ばし、最初に当たる物を求める（高さの格子を1マスずつ進む）
+    //   out.t: 出発点からの距離（同じ画素どうしなら、小さいほどカメラに近い）
+    //   out.n: 0 上の面、1 西向きの壁、2 南向きの壁、4 木（向きは nx, ny, nz）
+    //   out.kind: 0 陸のマス（id はマスの番号）、1 木の葉、2 木の幹（id は木の番号）、3 海
+    function castRay(W, sx, sy, out) {
+      const hT = W.top, s = 2 * (sy - hT * R2), d = sx * SQ2;
+      const ox = (s + d) / 2, oy = (s - d) / 2, oz = hT;
+      const H = W.H, T = W.trees, ts = W.tStart, ti = W.tIdx, tD = CELL / 0.5;
+      let ix = Math.floor(ox / CELL), iy = Math.floor(oy / CELL);
+      let tx = ((ix + 1) * CELL - ox) / 0.5, ty = ((iy + 1) * CELL - oy) / 0.5, t0 = 0, axis = -1;
+      out.t = Infinity; out.kind = 3; out.n = 0; out.id = -1;
+      for (let guard = 0; guard < 4000; guard++) {
+        if (t0 >= out.t) break;
+        const t1 = Math.min(tx, ty);
+        const inside = ix >= 0 && iy >= 0 && ix < GN && iy < GN, cell = iy * GN + ix;
+        const hc = inside ? H[cell] : 0;
+        if (inside) for (let k = ts[cell]; k < ts[cell + 1]; k++) hitTree(T[ti[k]], ti[k], ox, oy, oz, out);
+        if (oz - t0 * R2 <= hc) {
+          if (t0 < out.t) { out.t = t0; out.n = axis === 0 ? 1 : 2; out.kind = inside ? 0 : 3; out.id = inside ? cell : -1; }
+          break;
+        }
+        if (oz - t1 * R2 <= hc) {
+          const th = (oz - hc) * SQ2;
+          if (th < out.t) { out.t = th; out.n = 0; out.kind = inside ? 0 : 3; out.id = inside ? cell : -1; }
+          break;
+        }
+        if (tx < ty) { ix++; t0 = tx; tx += tD; axis = 0; } else { iy++; t0 = ty; ty += tD; axis = 1; }
+      }
+      if (!(out.t < Infinity)) { out.t = oz * SQ2; out.kind = 3; out.n = 0; out.id = -1; }
+      out.x = ox + 0.5 * out.t; out.y = oy + 0.5 * out.t; out.h = oz - R2 * out.t;
+      return out;
+    }
+
+    // 点 (x, y, z) から太陽の方向 L へ伸ばした線が、建物か木に当たるか（当たれば影）
+    function shadowAt(W, x, y, z, L) {
+      const H = W.H, T = W.trees, ts = W.tStart, ti = W.tIdx;
+      let ix = Math.floor(x / CELL), iy = Math.floor(y / CELL);
+      const hl = Math.hypot(L[0], L[1]);
+      const dx = hl > 1e-6 ? L[0] / hl : 0, dy = hl > 1e-6 ? L[1] / hl : 0, slope = hl > 1e-6 ? L[2] / hl : 1e9;
+      const sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1;
+      const tdx = Math.abs(dx) > 1e-9 ? CELL / Math.abs(dx) : Infinity, tdy = Math.abs(dy) > 1e-9 ? CELL / Math.abs(dy) : Infinity;
+      let tx = Math.abs(dx) > 1e-9 ? (dx > 0 ? (ix + 1) * CELL - x : x - ix * CELL) / Math.abs(dx) : Infinity;
+      let ty = Math.abs(dy) > 1e-9 ? (dy > 0 ? (iy + 1) * CELL - y : y - iy * CELL) / Math.abs(dy) : Infinity;
+      let u = 0;
+      for (let guard = 0; guard < 400; guard++) {
+        if (ix < 0 || iy < 0 || ix >= GN || iy >= GN) return false;
+        const hz = z + u * slope;
+        if (hz > W.maxH) return false;
+        const cell = iy * GN + ix;
+        if (hz < H[cell] - 1e-4) return true;
+        for (let k = ts[cell]; k < ts[cell + 1]; k++) {
+          const tr = T[ti[k]];
+          const lx = x - tr.x, ly = y - tr.y, lz = z - tr.z;
+          const b = lx * L[0] + ly * L[1] + lz * L[2], c = lx * lx + ly * ly + lz * lz - tr.r * tr.r;
+          if (b < 0 && b * b - c >= 0) return true;
+        }
+        if (u > 45 || hl <= 1e-6) return false;
+        if (tx < ty) { ix += sx; u = tx; tx += tdx; } else { iy += sy; u = ty; ty += tdy; }
+      }
+      return false;
+    }
+
+    // 道のつながり: 車線ごとの道（交差点と交差点の間）と、交差点の中の動き（まっすぐ・右折）
+    function makeTraffic(seed) {
+      const links = [], nodes = [], N = STREETS.length;
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) nodes.push({ x: STREETS[i], y: STREETS[j], off: (i * 5 + j * 9) % CYCLE });
+      const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      const inbound = new Map(), outbound = new Map();
+      const road = (x0, y0, x1, y1, d, endNode, startNode) => {
+        const L = { id: links.length, kind: 'road', x0, y0, dx: d[0], dy: d[1], len: Math.hypot(x1 - x0, y1 - y0), node: endNode, axis: d[0] !== 0 ? 'ew' : 'ns', next: [], cars: [], entry: startNode < 0, exit: endNode < 0, turn: false, curve: null };
+        links.push(L);
+        return L;
+      };
+      DIRS.forEach((d, di) => {
+        const alongX = d[0] !== 0, sign = alongX ? d[0] : d[1];
+        for (let k = 0; k < N; k++) {
+          const lane = STREETS[k] + (alongX ? -0.5 * d[0] : 0.5 * d[1]);
+          const P = (u) => (alongX ? [u, lane] : [lane, u]);
+          const order = sign > 0 ? [0, 1, 2, 3, 4] : [4, 3, 2, 1, 0];
+          let pos = sign > 0 ? 0 : WORLD, prev = -1;
+          for (const m of order) {
+            const c = STREETS[m], end = c - sign * STOP, node = alongX ? k * N + m : m * N + k;
+            const a = P(pos), b = P(end), L = road(a[0], a[1], b[0], b[1], d, node, prev);
+            inbound.set(node + ',' + di, L);
+            if (prev >= 0) outbound.set(prev + ',' + di, L);
+            pos = c + sign * STOP; prev = node;
+          }
+          const a = P(pos), b = P(sign > 0 ? WORLD : 0), L = road(a[0], a[1], b[0], b[1], d, -1, prev);
+          outbound.set(prev + ',' + di, L);
+        }
+      });
+      nodes.forEach((nd, n) => {
+        DIRS.forEach((d, di) => {
+          const Lin = inbound.get(n + ',' + di);
+          const ex = Lin.x0 + Lin.dx * Lin.len, ey = Lin.y0 + Lin.dy * Lin.len;
+          const straight = outbound.get(n + ',' + di);
+          const rd = [d[1], -d[0]], ri = DIRS.findIndex((q) => q[0] === rd[0] && q[1] === rd[1]);
+          const right = outbound.get(n + ',' + ri);
+          const ms = { id: links.length, kind: 'move', x0: ex, y0: ey, dx: d[0], dy: d[1], len: 2 * STOP, node: -1, axis: Lin.axis, next: [straight.id], cars: [], entry: false, exit: false, turn: false, curve: null };
+          links.push(ms);
+          const p = [ex, ey, nd.x + rd[0] * 0.5 - d[0] * 0.5, nd.y + rd[1] * 0.5 - d[1] * 0.5, right.x0, right.y0];
+          const tab = [0];
+          let px = p[0], py = p[1], acc = 0;
+          for (let i = 1; i <= 24; i++) {
+            const u = i / 24, a = 1 - u;
+            const qx = a * a * p[0] + 2 * a * u * p[2] + u * u * p[4], qy = a * a * p[1] + 2 * a * u * p[3] + u * u * p[5];
+            acc += Math.hypot(qx - px, qy - py); tab.push(acc); px = qx; py = qy;
+          }
+          const mr = { id: links.length, kind: 'move', x0: ex, y0: ey, dx: 0, dy: 0, len: acc, node: -1, axis: Lin.axis, next: [right.id], cars: [], entry: false, exit: false, turn: true, curve: { p, tab } };
+          links.push(mr);
+          Lin.next = [ms.id, mr.id];
+        });
+      });
+      // 同じ道へ合流する、交差点の中の動きどうしを覚えておく（直進と、隣の向きからの右折）
+      const feeders = new Map();
+      for (const L of links) if (L.kind === 'move') { const k = L.next[0]; if (!feeders.has(k)) feeders.set(k, []); feeders.get(k).push(L.id); }
+      for (const L of links) if (L.kind === 'move') L.merge = feeders.get(L.next[0]).filter((id) => id !== L.id);
+      return { links, nodes, cars: [], entries: links.filter((L) => L.entry).map((L) => L.id), t: 0, rand: rng(seed), max: 100, target: 0, spawnAcc: 0, redRuns: 0, nextId: 1 };
+    }
+
+    // 道の上の位置 s から、地図の上の位置と向き
+    function posOnLink(L, s, out) {
+      if (!L.curve) { out.x = L.x0 + L.dx * s; out.y = L.y0 + L.dy * s; out.th = Math.atan2(L.dy, L.dx); return out; }
+      const p = L.curve.p, tab = L.curve.tab, n = tab.length - 1;
+      let i = 0;
+      while (i < n - 1 && tab[i + 1] < s) i++;
+      const f = Math.min(1, Math.max(0, (s - tab[i]) / Math.max(1e-9, tab[i + 1] - tab[i])));
+      const u = (i + f) / n, a = 1 - u;
+      out.x = a * a * p[0] + 2 * a * u * p[2] + u * u * p[4];
+      out.y = a * a * p[1] + 2 * a * u * p[3] + u * u * p[5];
+      out.th = Math.atan2(2 * a * (p[3] - p[1]) + 2 * u * (p[5] - p[3]), 2 * a * (p[2] - p[0]) + 2 * u * (p[4] - p[2]));
+      return out;
+    }
+    // 次の交差点での動き（7 割まっすぐ、3 割右折）と、その先の道を決める
+    function planNext(sim, c) {
+      const L = sim.links[c.link];
+      if (L.kind === 'road' && L.node >= 0) { const m = L.next[sim.rand() < 0.7 ? 0 : 1]; c.plan = [m, sim.links[m].next[0]]; }
+      else if (L.kind === 'move') c.plan = [L.next[0]];
+      else c.plan = [];
+    }
+    function addCar(sim, link, s, v, kind) {
+      const R = sim.rand, k = kind || (R() < 0.12 ? 'van' : 'car');
+      let w = R() * 100, col = VCOL[0][0];
+      for (const [cc, pp] of VCOL) { w -= pp; if (w < 0) { col = cc; break; } }
+      if (k === 'van' && R() < 0.7) col = [0.94, 0.94, 0.93];
+      const c = { id: sim.nextId++, link, s, v, a: 0, kind: k, len: k === 'van' ? 1.35 : 1.0, wid: k === 'van' ? 0.56 : 0.48, col, v0: IDM.v0 * (0.88 + R() * 0.2), plan: [], yd: null };
+      planNext(sim, c);
+      sim.cars.push(c);
+      const cs = sim.links[link].cars;
+      cs.push(c);
+      cs.sort((p, q) => p.s - q.s);
+      return c;
+    }
+
+    // 車の流れを dt 秒進める。hour は車の量を決める時刻
+    function stepTraffic(sim, dt, hour) {
+      const links = sim.links;
+      sim.t += dt;
+      const st = sim.nodes.map((n) => signalAt(sim.t, n.off));
+      for (const L of links) {
+        const cs = L.cars;
+        for (let k = 0; k < cs.length; k++) {
+          const c = cs[k];
+          let gap = Infinity, vl = 0;
+          const lead = cs[k + 1];
+          if (lead) { gap = lead.s - c.s - (lead.len + c.len) / 2; vl = lead.v; }
+          else {
+            let acc = L.len - c.s;
+            // 同じ道から別の向きへ進み始めたばかりの車も、交差点の入口では前の車として見る
+            if (L.kind === 'road' && L.node >= 0) {
+              for (const mid of L.next) {
+                if (mid === c.plan[0]) continue;
+                const f = links[mid].cars[0];
+                if (f && f.s < 1.8) { const g = acc + f.s - (f.len + c.len) / 2; if (g < gap) { gap = g; vl = f.v; } }
+              }
+            }
+            for (const pid of c.plan) {
+              const P = links[pid];
+              if (P.cars.length) { const f = P.cars[0], g = acc + f.s - (f.len + c.len) / 2; if (g < gap) { gap = g; vl = f.v; } break; }
+              acc += P.len;
+            }
+          }
+          // 合流: 相手の方が合流する所に近ければ、相手を前の車として見る（同じ近さなら番号の小さい方が先）
+          if (L.kind === 'move') {
+            const mine = L.len - c.s;
+            for (const mid of L.merge) {
+              const O = links[mid];
+              for (const o of O.cars) {
+                const rest = O.len - o.s;
+                if (rest < mine || (rest === mine && o.id < c.id)) { const g = mine - rest - (o.len + c.len) / 2; if (g < gap) { gap = g; vl = o.v; } }
+              }
+            }
+          }
+          if (L.kind === 'road' && L.node >= 0) {
+            const s = st[L.node][L.axis], dist = L.len - c.s;
+            if (s === 'g') c.yd = null;
+            else if (c.yd === null) c.yd = s === 'y' && !canStop(c.v, dist, IDM.b) ? 'go' : 'stop';
+            let stop = s !== 'g' && c.yd === 'stop';
+            // 先の道が詰まっていたら交差点に入らない
+            if (!stop && c.yd !== 'go' && dist < 3 && c.plan.length > 1) {
+              const O = links[c.plan[1]].cars[0];
+              if (O && O.s < O.len / 2 + c.len + 0.3 && O.v < 0.6) stop = true;
+            }
+            if (stop) { const g = dist - 0.05 + IDM.s0; if (g < gap) { gap = g; vl = 0; } }
+          }
+          let v0 = c.v0;
+          if (L.turn) v0 *= 0.45;
+          else if (c.plan.length && links[c.plan[0]].turn) v0 = Math.min(v0, c.v0 * 0.45 + 0.45 * (L.len - c.s));
+          c.a = Math.max(-9, Math.min(IDM.a, idm(c.v, v0, gap, c.v - vl, IDM)));
+        }
+      }
+      for (const c of sim.cars) {
+        c.v = Math.max(0, c.v + c.a * dt);
+        c.s += c.v * dt;
+        let L = links[c.link];
+        while (c.s >= L.len) {
+          if (L.exit || !c.plan.length) { c.dead = true; break; }
+          if (L.kind === 'road' && L.node >= 0 && st[L.node][L.axis] !== 'g' && c.yd !== 'go') sim.redRuns++;
+          c.s -= L.len; c.link = c.plan.shift(); c.yd = null; L = links[c.link];
+          if (!c.plan.length) planNext(sim, c);
+        }
+      }
+      sim.cars = sim.cars.filter((c) => !c.dead);
+      for (const L of links) L.cars.length = 0;
+      for (const c of sim.cars) links[c.link].cars.push(c);
+      for (const L of links) if (L.cars.length > 1) L.cars.sort((p, q) => p.s - q.s);
+      // 目安の台数より少なければ、街の端から車を入れる（1 秒に 10 台まで）
+      const target = Math.round(sim.max * demand(hour));
+      sim.target = target;
+      if (sim.cars.length < target) {
+        sim.spawnAcc += dt * 10;
+        while (sim.spawnAcc >= 1) {
+          sim.spawnAcc -= 1;
+          const E = links[sim.entries[Math.floor(sim.rand() * sim.entries.length)]], f = E.cars[0];
+          if (!f || f.s - f.len / 2 > 2.2) addCar(sim, E.id, 0.5, 1.6 + sim.rand() * 0.6);
+          if (sim.cars.length >= target) { sim.spawnAcc = 0; break; }
+        }
+      } else sim.spawnAcc = 0;
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const thumb = !!window.THUMB;
+    if (thumb) document.documentElement.classList.add('thumb');
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const cv = $('cv'), ctx = cv.getContext('2d');
+    const hourI = $('hour'), hourO = $('hourO'), nowB = $('now'), fastB = $('fast'), ghostI = $('ghost');
+    const town = buildTown(20261123);
+    const sim = makeTraffic(11);
+    sim.max = thumb ? 90 : 120;
+    const MAXPX = thumb ? 90000 : 420000;
+    const TT = town.top;
+
+    // 画面に入れる範囲（sy は上が大きい）
+    let syHi = WORLD;
+    for (let iy = 0; iy < GN; iy++) for (let ix = 0; ix < GN; ix++) {
+      const v = ((ix + iy + 2) * CELL) / 2 + town.H[iy * GN + ix] * R2;
+      if (v > syHi) syHi = v;
+    }
+    for (const t of town.trees) syHi = Math.max(syHi, (t.x + t.y) / 2 + (t.z + t.r) * R2);
+    const SX0 = -WORLD * R2 - 1.2, SX1 = WORLD * R2 + 1.2, SY0 = -1.4, SY1 = syHi + 0.8;
+
+    // サンフランシスコの今の時刻・UTC との差（時間）・1年の何日目
+    let fmt = null;
+    try {
+      fmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' });
+    } catch (e) { fmt = null; }
+    function sfNow() {
+      const d = new Date();
+      const utc = d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600;
+      if (fmt) {
+        try {
+          const q = {};
+          for (const p of fmt.formatToParts(d)) q[p.type] = p.value;
+          const hour = (Number(q.hour) % 24) + Number(q.minute) / 60 + Number(q.second) / 3600;
+          const off = ((hour - utc + 36) % 24) - 12;
+          const doy = dayOfYear(Number(q.year), Number(q.month), Number(q.day));
+          if (Number.isFinite(hour) && Number.isFinite(off) && Number.isFinite(doy)) return { hour, off, doy };
+        } catch (e) { /* 下の近似を使う */ }
+      }
+      return { hour: (((utc - 8) % 24) + 24) % 24, off: -8, doy: dayOfYear(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()) };
+    }
+    let tz = sfNow();
+    let mode = thumb ? (reduce ? 'manual' : 'fast') : 'live';
+    let hour = thumb ? 15.2 : tz.hour;
+    let view = 'pic', ghost = false;
+    function sunFor(h) {
+      return sunPosition(tz.doy, solarHour(h - tz.off, SF.lon, tz.doy), SF.lat);
+    }
+    function withMul(Sx) {
+      const a = Sx.amb[0] + Sx.amb[1] + Sx.amb[2], u = (Sx.sun[0] + Sx.sun[1] + Sx.sun[2]) * Math.max(0, Sx.L[2]);
+      Sx.shMul = a / Math.max(1e-6, a + u);
+      return Sx;
+    }
+
+    // ---- 画素の入れ物 ----
+    let BW = 0, BH = 0, scale = 1, offX = 0, offY = 0, dMin = 0, dSpan = 1;
+    let tB, xB, yB, zB, nB, kB, iB, nxB, nyB, nzB, sB, sBack, base, back, depthImg, zbuf, img, frameB;
+    let S = null, job = null;
+    const pxSx = (px) => SX0 + (px + 0.5 - offX) / scale;
+    const pySy = (py) => SY1 - (py + 0.5 - offY) / scale;
+    const sxPx = (sx) => (sx - SX0) * scale + offX - 0.5;
+    const syPy = (sy) => (SY1 - sy) * scale + offY - 0.5;
+    const c8 = (v) => (v <= 0 ? 0 : v >= 1 ? 255 : (v * 255 + 0.5) | 0);
+    const pack = (r, g, b) => (0xff000000 | (c8(b) << 16) | (c8(g) << 8) | c8(r)) >>> 0;
+    function mix(c0, c1, a) {
+      const k = 1 - a;
+      const r = ((c0 & 255) * k + (c1 & 255) * a) | 0, g = (((c0 >>> 8) & 255) * k + ((c1 >>> 8) & 255) * a) | 0, b = (((c0 >>> 16) & 255) * k + ((c1 >>> 16) & 255) * a) | 0;
+      return (0xff000000 | (b << 16) | (g << 8) | r) >>> 0;
+    }
+    function shadeFx(c0, mul, add) {
+      const r = Math.min(255, (c0 & 255) * mul + add * 255) | 0, g = Math.min(255, ((c0 >>> 8) & 255) * mul + add * 228) | 0, b = Math.min(255, ((c0 >>> 16) & 255) * mul + add * 160) | 0;
+      return (0xff000000 | (b << 16) | (g << 8) | r) >>> 0;
+    }
+    function depthCol(d, tint) {
+      const g = Math.max(0, Math.min(1, 1 - (d - dMin) / dSpan)), v = 0.1 + 0.9 * g;
+      return tint ? pack(v, v * 0.55, v * 0.16) : pack(v * 0.86, v * 0.92, v);
+    }
+
+    // 1画素ずつ視線を伸ばし、当たった物と奥行きを記録する
+    function geometry() {
+      const hit = { t: 0, x: 0, y: 0, h: 0, n: 0, kind: 0, id: 0, nx: 0, ny: 0, nz: 0 };
+      let lo = Infinity, hi = -Infinity;
+      for (let py = 0, p = 0; py < BH; py++) {
+        const sy = pySy(py);
+        for (let px = 0; px < BW; px++, p++) {
+          castRay(town, pxSx(px), sy, hit);
+          tB[p] = hit.t; xB[p] = hit.x; yB[p] = hit.y; zB[p] = hit.h; nB[p] = hit.n; kB[p] = hit.kind; iB[p] = hit.id;
+          if (hit.n === 4) { nxB[p] = hit.nx; nyB[p] = hit.ny; nzB[p] = hit.nz; }
+          const d = (hit.x + hit.y) / 2 - hit.h * R2;
+          if (d < lo) lo = d;
+          if (d > hi) hi = d;
+        }
+      }
+      dMin = lo; dSpan = Math.max(1e-6, hi - lo);
+      for (let p = 0; p < BW * BH; p++) depthImg[p] = depthCol((xB[p] + yB[p]) / 2 - zB[p] * R2, false);
+    }
+
+    function lampGlow(x, y) {
+      const ex = streetDist(x), ey = streetDist(y);
+      if (ex > 3.2 || ey > 3.2) return 0;
+      const a = ex - 1.3, b = ey - 1.3, f = Math.max(0, 1 - (a * a + b * b) / 4.4);
+      return f * f * 0.85;
+    }
+    // 記録した当たりの点に、太陽・空・夜の明かりの光を当てて色にする（行 r0〜r1）
+    function lightRows(Sx, r0, r1, out, sOut) {
+      const L = Sx.L, A = Sx.amb, U = Sx.sun, K = Sx.sky, night = Sx.night;
+      const M = town.M, B = town.buildings, T = town.trees, gc = [0, 0, 0];
+      for (let p = r0 * BW, end = r1 * BW; p < end; p++) {
+        const kind = kB[p], n = nB[p], x = xB[p], y = yB[p], z = zB[p];
+        let nx = 0, ny = 0, nz = 1;
+        if (n === 1) { nx = -1; nz = 0; } else if (n === 2) { ny = -1; nz = 0; } else if (n === 4) { nx = nxB[p]; ny = nyB[p]; nz = nzB[p]; }
+        let ar, ag, ab, er = 0, eg = 0, eb = 0, ao = 1, water = false, ground = false;
+        if (kind === 3) {
+          water = true;
+          const w = 0.025 * Math.sin(x * 1.7 + y * 2.3) + 0.02 * Math.sin(x * 4.1 - y * 3.3);
+          ar = 0.13 + w; ag = 0.27 + w; ab = 0.34 + w;
+        } else if (kind === 1) {
+          const g = T[iB[p]].g;
+          ar = 0.24 + g * 0.12; ag = 0.4 + g * 0.14; ab = 0.19 + g * 0.06; ao = 0.78 + 0.22 * nz;
+        } else if (kind === 2) {
+          ar = 0.32; ag = 0.24; ab = 0.17;
+        } else {
+          const m = M[iB[p]];
+          if (m > 0) {
+            const b = B[m];
+            if (n === 0) { ar = b.roof[0]; ag = b.roof[1]; ab = b.roof[2]; }
+            else {
+              ar = b.wall[0]; ag = b.wall[1]; ab = b.wall[2];
+              ao = 0.7 + 0.3 * Math.min(1, (z - GROUND) / 1.6);
+              const w = n === 1 ? y : x, fz = (z - GROUND) / 0.9, fl = Math.floor(fz), fw = w / 0.7, col = Math.floor(fw);
+              const a = fz - fl, c = fw - col;
+              if (fl >= 0 && a > 0.32 && a < 0.78 && c > 0.2 && c < 0.74 && z < b.h - 0.2) {
+                ar = ar * 0.45 + 0.08; ag = ag * 0.48 + 0.1; ab = ab * 0.5 + 0.15;
+                if (night > 0 && hash3(m, fl, col + n * 9973) < (b.tower ? 0.5 : 0.36)) { er = 0.95 * night; eg = 0.74 * night; eb = 0.42 * night; }
+              }
+            }
+          } else if (n !== 0) { ar = 0.5; ag = 0.48; ab = 0.44; ao = 0.8; }
+          else { groundAlbedo(x, y, m, gc); ar = gc[0]; ag = gc[1]; ab = gc[2]; ground = true; }
+        }
+        let ndl = nx * L[0] + ny * L[1] + nz * L[2], sh = 0;
+        if (Sx.up && ndl > 0) sh = shadowAt(town, x + nx * 0.02, y + ny * 0.02, z + nz * 0.02, L) ? 0 : 1;
+        else ndl = 0;
+        sOut[p] = sh;
+        let lr = A[0] * ao + U[0] * ndl * sh, lg = A[1] * ao + U[1] * ndl * sh, lb = A[2] * ao + U[2] * ndl * sh;
+        if (ground && night > 0.02) { const g = lampGlow(x, y) * night; lr += g; lg += g * 0.8; lb += g * 0.5; }
+        let r = ar * lr + er, g = ag * lg + eg, bl = ab * lb + eb;
+        if (water) { r = r * 0.6 + K[0] * 0.4; g = g * 0.6 + K[1] * 0.4; bl = bl * 0.6 + K[2] * 0.4; }
+        out[p] = pack(r, g, bl);
+      }
+    }
+    // 影の計算は重いので、時刻を変えたときは数フレームに分けて裏の入れ物に描き、できたら入れ替える
+    function runJob(budget) {
+      if (!job) return;
+      const t0 = performance.now();
+      while (job.row < BH && performance.now() - t0 < budget) {
+        const r1 = Math.min(BH, job.row + 6);
+        lightRows(job.S, job.row, r1, back, sBack);
+        job.row = r1;
+      }
+      if (job.row >= BH) {
+        const a = base; base = back; back = a;
+        const b = sB; sB = sBack; sBack = b;
+        S = job.S; job = null;
+      }
+    }
+
+    function setup() {
+      const cw = Math.max(1, cv.clientWidth), ch = Math.max(1, cv.clientHeight);
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      let w = Math.max(1, Math.round(cw * dpr)), h = Math.max(1, Math.round(ch * dpr));
+      const k = Math.min(1, Math.sqrt(MAXPX / (w * h)));
+      w = Math.max(1, Math.round(w * k)); h = Math.max(1, Math.round(h * k));
+      if (w === BW && h === BH) return;
+      BW = w; BH = h; cv.width = w; cv.height = h;
+      scale = Math.min(w / (SX1 - SX0), h / (SY1 - SY0));
+      offX = (w - (SX1 - SX0) * scale) / 2; offY = (h - (SY1 - SY0) * scale) / 2;
+      const n = w * h;
+      tB = new Float32Array(n); xB = new Float32Array(n); yB = new Float32Array(n); zB = new Float32Array(n);
+      nxB = new Float32Array(n); nyB = new Float32Array(n); nzB = new Float32Array(n);
+      nB = new Uint8Array(n); kB = new Uint8Array(n); iB = new Int32Array(n); sB = new Uint8Array(n); sBack = new Uint8Array(n);
+      base = new Uint32Array(n); back = new Uint32Array(n); depthImg = new Uint32Array(n); zbuf = new Float32Array(n);
+      img = ctx.createImageData(w, h); frameB = new Uint32Array(img.data.buffer);
+      geometry();
+      const sp = sunFor(hour);
+      S = withMul(lightState(sp.alt, sp.az));
+      lightRows(S, 0, BH, base, sB);
+      job = null;
+    }
+
+    // ---- 車と信号を1画素ずつ描く ----
+    let SLAB_F = 0;
+    // 視線（車の向きに回した座標）と箱 P[q..q+5] の交わり。入った面の番号を SLAB_F に入れる
+    function slab(ox, oy, oz, ix, iy, iz, P, q) {
+      let a = (P[q] - ox) * ix, b = (P[q + 1] - ox) * ix, tn, tf, f;
+      if (a < b) { tn = a; tf = b; f = 0; } else { tn = b; tf = a; f = 1; }
+      a = (P[q + 2] - oy) * iy; b = (P[q + 3] - oy) * iy;
+      if (a < b) { if (a > tn) { tn = a; f = 2; } if (b < tf) tf = b; } else { if (b > tn) { tn = b; f = 3; } if (a < tf) tf = a; }
+      a = (P[q + 4] - oz) * iz; b = (P[q + 5] - oz) * iz;
+      if (a < b) { if (a > tn) { tn = a; f = 4; } if (b < tf) tf = b; } else { if (b > tn) { tn = b; f = 5; } if (a < tf) tf = a; }
+      if (tn > tf || tf < 0) return -1;
+      SLAB_F = f;
+      return tn;
+    }
+    const oc = { alpha: 1, total: 0, seen: 0 };
+    // 箱の集まりを描く。奥行きの図（tB）より手前の画素だけを描き、ほかの車とは zbuf で前後を比べる
+    function drawBoxes(x, y, th, P, hmax, rr, paint) {
+      const cs = Math.cos(th), sn = Math.sin(th);
+      const sx0 = (x - y) * R2, sy0 = (x + y) / 2 + GROUND * R2;
+      const pxa = Math.max(0, Math.floor(sxPx(sx0 - rr))), pxb = Math.min(BW - 1, Math.ceil(sxPx(sx0 + rr)));
+      const pya = Math.max(0, Math.floor(syPy(sy0 + (rr + hmax) * R2))), pyb = Math.min(BH - 1, Math.ceil(syPy(sy0 - rr * R2)));
+      oc.total = 0; oc.seen = 0;
+      if (pxa > pxb || pya > pyb) return;
+      const dlx = 0.5 * cs + 0.5 * sn, dly = 0.5 * cs - 0.5 * sn, dlz = -R2;
+      const ix = 1 / (Math.abs(dlx) < 1e-9 ? 1e-9 : dlx), iy = 1 / (Math.abs(dly) < 1e-9 ? 1e-9 : dly), iz = 1 / dlz;
+      const oz = TT - GROUND;
+      for (let py = pya; py <= pyb; py++) {
+        const sxy = 2 * (pySy(py) - TT * R2);
+        for (let px = pxa; px <= pxb; px++) {
+          const d = pxSx(px) * SQ2, ox = (sxy + d) / 2 - x, oy = (sxy - d) / 2 - y;
+          const lx = ox * cs + oy * sn, ly = oy * cs - ox * sn;
+          let best = Infinity, bf = 0, bq = 0;
+          for (let q = 0; q < P.length; q += 6) {
+            const t = slab(lx, ly, oz, ix, iy, iz, P, q);
+            if (t >= 0 && t < best) { best = t; bf = SLAB_F; bq = q; }
+          }
+          if (best === Infinity) continue;
+          oc.total++;
+          const p = py * BW + px, front = best < tB[p] - 0.012;
+          if (front) { oc.seen++; if (best >= zbuf[p]) continue; zbuf[p] = best; }
+          else if (!ghost) continue;
+          const hx = lx + dlx * best, hy = ly + dly * best, hz = oz + dlz * best;
+          const col = view === 'depth'
+            ? depthCol((x + hx * cs - hy * sn + y + hx * sn + hy * cs) / 2 - (hz + GROUND) * R2, true)
+            : paint(bq, bf, hx, hy, hz, cs, sn);
+          frameB[p] = front ? (oc.alpha < 1 ? mix(frameB[p], col, oc.alpha) : col) : mix(frameB[p], col, 0.32);
+        }
+      }
+    }
+    let cur = null, curSig = 'r';
+    function paintCar(bq, bf, hx, hy, hz, cs, sn) {
+      const c = cur, L = S.L, A = S.amb, U = S.sun, night = S.night;
+      let nlx = 0, nly = 0, nlz = 0;
+      if (bf === 0) nlx = -1; else if (bf === 1) nlx = 1; else if (bf === 2) nly = -1; else if (bf === 3) nly = 1; else if (bf === 4) nlz = -1; else nlz = 1;
+      const nwx = nlx * cs - nly * sn, nwy = nlx * sn + nly * cs;
+      const ndl = S.up ? Math.max(0, nwx * L[0] + nwy * L[1] + nlz * L[2]) * c.sh : 0;
+      let ar = c.col[0], ag = c.col[1], ab = c.col[2], er = 0, eg = 0, eb = 0;
+      if ((bq > 0 && bf < 4) || (c.kind === 'van' && bf === 1 && hz > 0.38)) { ar = 0.12; ag = 0.15; ab = 0.2; }
+      else if (bq === 0 && bf < 2 && Math.abs(hy) > c.wid / 2 - 0.13 && hz > 0.12 && hz < 0.25) {
+        if (bf === 1) { const k = 0.2 + night * 1.1; er = k; eg = k * 0.93; eb = k * 0.7; }
+        else { const k = (c.a < -0.7 ? 0.85 : 0.12) + night * 0.6; er = k; eg = k * 0.1; eb = k * 0.08; }
+      }
+      const sp = bf === 5 ? 0.05 : 0;
+      return pack(ar * (A[0] + U[0] * ndl) + er + sp, ag * (A[1] + U[1] * ndl) + eg + sp, ab * (A[2] + U[2] * ndl) + eb + sp);
+    }
+    const LAMP = { g: [0.25, 1, 0.55], y: [1, 0.82, 0.15], r: [1, 0.2, 0.15] };
+    function paintSig(bq, bf) {
+      const A = S.amb, U = S.sun, up = S.up && bf === 5 ? Math.max(0, S.L[2]) : 0;
+      if (bq === 0) return pack(0.26 * (A[0] + U[0] * up), 0.27 * (A[1] + U[1] * up), 0.28 * (A[2] + U[2] * up));
+      const c = LAMP[curSig];
+      return pack(c[0] * 0.9 + 0.05, c[1] * 0.9 + 0.05, c[2] * 0.9 + 0.05);
+    }
+    function partsOf(c) {
+      const hl = c.len / 2, hw = c.wid / 2;
+      if (c.kind === 'van') return [-hl, hl, -hw, hw, 0.05, 0.62];
+      return [-hl, hl, -hw, hw, 0.05, 0.29, -0.3 * c.len, 0.17 * c.len, -hw * 0.84, hw * 0.84, 0.29, 0.46];
+    }
+    const SIGS = [];
+    sim.nodes.forEach((nd, k) => {
+      for (const [dx, dy, axis] of [[-1.3, -1.3, 'ew'], [1.3, 1.3, 'ew'], [1.3, -1.3, 'ns'], [-1.3, 1.3, 'ns']]) SIGS.push({ x: nd.x + dx, y: nd.y + dy, node: k, axis });
+    });
+    const SIG_PARTS = [-0.05, 0.05, -0.05, 0.05, 0, 1.08, -0.15, 0.15, -0.15, 0.15, 1.02, 1.45];
+
+    // 車の足元の影・日の影・夜のヘッドライトの照らす所を、地面の画素に足す
+    function groundFx(c) {
+      const x = c.px, y = c.py, cs = Math.cos(c.th), sn = Math.sin(c.th), hl = c.len / 2, hw = c.wid / 2;
+      let ox = 0, oy = 0;
+      const sunOn = S.up && c.sh > 0 && S.L[2] > 0.04, lamp = S.night > 0.15;
+      if (sunOn) {
+        const k = 0.32 / S.L[2];
+        ox = -S.L[0] * k; oy = -S.L[1] * k;
+        const m = Math.hypot(ox, oy);
+        if (m > 2.4) { ox *= 2.4 / m; oy *= 2.4 / m; }
+      }
+      let x0 = x - 0.8, x1 = x + 0.8, y0 = y - 0.8, y1 = y + 0.8;
+      if (sunOn) { x0 = Math.min(x0, x + ox - 0.8); x1 = Math.max(x1, x + ox + 0.8); y0 = Math.min(y0, y + oy - 0.8); y1 = Math.max(y1, y + oy + 0.8); }
+      if (lamp) {
+        const fx = x + cs * (hl + 1.4), fy = y + sn * (hl + 1.4);
+        x0 = Math.min(x0, fx - 1.5); x1 = Math.max(x1, fx + 1.5); y0 = Math.min(y0, fy - 1.5); y1 = Math.max(y1, fy + 1.5);
+      }
+      const pxa = Math.max(0, Math.floor(sxPx((x0 - y1) * R2))), pxb = Math.min(BW - 1, Math.ceil(sxPx((x1 - y0) * R2)));
+      const pya = Math.max(0, Math.floor(syPy((x1 + y1) / 2 + GROUND * R2))), pyb = Math.min(BH - 1, Math.ceil(syPy((x0 + y0) / 2 + GROUND * R2)));
+      for (let py = pya; py <= pyb; py++) {
+        for (let px = pxa, p = py * BW + pxa; px <= pxb; px++, p++) {
+          if (kB[p] !== 0 || nB[p] !== 0 || zB[p] > GROUND + 0.01) continue;
+          const wx = xB[p] - x, wy = yB[p] - y, lx = wx * cs + wy * sn, ly = wy * cs - wx * sn;
+          let mul = 1, add = 0;
+          if (Math.abs(lx) < hl + 0.07 && Math.abs(ly) < hw + 0.06) mul = 0.8;
+          if (sunOn && sB[p]) {
+            for (let f = 0; f <= 1.001; f += 0.25) {
+              const qx = wx - ox * f, qy = wy - oy * f, ax = qx * cs + qy * sn, ay = qy * cs - qx * sn;
+              if (Math.abs(ax) < hl && Math.abs(ay) < hw) { mul = Math.min(mul, S.shMul); break; }
+            }
+          }
+          if (lamp && lx > hl && lx < hl + 2.6) {
+            const w = 0.1 + (lx - hl) * 0.32;
+            if (Math.abs(ly) < w) add = S.night * 0.45 * (1 - (lx - hl) / 2.6) * (1 - Math.abs(ly) / w);
+          }
+          if (mul < 1 || add > 0) frameB[p] = shadeFx(frameB[p], mul, add);
+        }
+      }
+    }
+
+    let hidCount = 0;
+    const tmpP = { x: 0, y: 0, th: 0 };
+    function draw() {
+      frameB.set(view === 'depth' ? depthImg : base);
+      zbuf.set(tB);
+      for (const c of sim.cars) {
+        posOnLink(sim.links[c.link], c.s, tmpP);
+        c.px = tmpP.x; c.py = tmpP.y; c.th = tmpP.th;
+        c.sh = S.up && !shadowAt(town, c.px, c.py, GROUND + 0.5, S.L) ? 1 : 0;
+      }
+      if (view === 'pic') for (const c of sim.cars) groundFx(c);
+      hidCount = 0;
+      for (const c of sim.cars) {
+        cur = c;
+        const edge = Math.min(c.px, c.py, WORLD - c.px, WORLD - c.py);
+        oc.alpha = Math.max(0, Math.min(1, (edge - 0.3) / 1.6));
+        if (oc.alpha <= 0) continue;
+        if (!c.parts) c.parts = partsOf(c);
+        drawBoxes(c.px, c.py, c.th, c.parts, c.kind === 'van' ? 0.62 : 0.46, Math.hypot(c.len, c.wid) / 2 + 0.05, paintCar);
+        if (oc.total > 0 && oc.seen < oc.total * 0.4) hidCount++;
+      }
+      oc.alpha = 1;
+      const st = sim.nodes.map((n) => signalAt(sim.t, n.off));
+      for (const g of SIGS) { curSig = st[g.node][g.axis]; drawBoxes(g.x, g.y, 0, SIG_PARTS, 1.45, 0.25, paintSig); }
+      ctx.putImageData(img, 0, 0);
+    }
+
+    // ---- 表示の文字と操作 ----
+    const DIR = ['北', '北東', '東', '南東', '南', '南西', '西', '北西'];
+    function showHour() {
+      const m = Math.floor(hour * 60 + 1e-6) % 1440, h = Math.floor(m / 60), mi = m % 60;
+      hourO.textContent = String(h).padStart(2, '0') + ':' + String(mi).padStart(2, '0');
+      hourI.setAttribute('aria-valuetext', h + '時' + mi + '分');
+    }
+    function syncSlider() {
+      if (mode !== 'manual') hourI.value = String(Math.min(1435, Math.round((hour * 60) / 5) * 5 % 1440));
+      showHour();
+    }
+    function stats() {
+      $('carsO').textContent = String(sim.cars.length);
+      $('tgtO').textContent = '台（この時刻の目安 ' + sim.target + ' 台）';
+      $('altO').textContent = (S.alt < 0 ? '−' : '') + Math.abs(S.alt).toFixed(1) + '°';
+      $('azO').textContent = S.alt > -0.8 ? '方角は' + DIR[Math.round(S.az / 45) % 8] : '地平線の下（方角は' + DIR[Math.round(S.az / 45) % 8] + '）';
+      $('hidO').textContent = String(hidCount);
+      let n = 0;
+      for (const c of sim.cars) if (c.v < 0.05) n++;
+      $('stopO').textContent = String(n);
+    }
+    function setModeUI() {
+      nowB.setAttribute('aria-pressed', String(mode === 'live'));
+      fastB.setAttribute('aria-pressed', String(mode === 'fast'));
+    }
+    hourI.addEventListener('input', () => { mode = 'manual'; hour = Number(hourI.value) / 60; job = null; setModeUI(); showHour(); });
+    nowB.addEventListener('click', () => { mode = 'live'; tz = sfNow(); hour = tz.hour; job = null; setModeUI(); syncSlider(); });
+    fastB.addEventListener('click', () => { mode = mode === 'fast' ? 'manual' : 'fast'; setModeUI(); });
+    for (const r of document.querySelectorAll('input[name="view"]')) r.addEventListener('change', () => { if (r.checked) view = r.value; });
+    ghostI.addEventListener('change', () => { ghost = ghostI.checked; });
+
+    let prev = 0, acc = 0, lastStat = -1e9;
+    function frame(now) {
+      const dt = prev ? Math.min(0.1, (now - prev) / 1000) : 0;
+      prev = now;
+      if (mode === 'live') { tz = sfNow(); hour = tz.hour; }
+      else if (mode === 'fast') hour = (hour + dt / 3.2) % 24;
+      if (!job) {
+        const sp = sunFor(hour);
+        if (Math.abs(sp.alt - S.alt) > 0.3 || Math.abs(((sp.az - S.az + 540) % 360) - 180) > 0.8) job = { S: withMul(lightState(sp.alt, sp.az)), row: 0 };
+      }
+      runJob(thumb ? 9 : 7);
+      acc += dt;
+      let k = 0;
+      while (acc >= 1 / 30 && k < 4) { stepTraffic(sim, 1 / 30, hour); acc -= 1 / 30; k++; }
+      if (acc >= 1 / 30) acc = 0;
+      draw();
+      if (now - lastStat > 300) { lastStat = now; stats(); syncSlider(); }
+      requestAnimationFrame(frame);
+    }
+
+    for (let i = 0; i < 1350; i++) stepTraffic(sim, 1 / 30, hour);
+    setModeUI();
+    setup();
+    draw();
+    stats(); syncSlider();
+    let rsT = 0;
+    if ('ResizeObserver' in window) new ResizeObserver(() => { clearTimeout(rsT); rsT = setTimeout(() => { setup(); draw(); }, BW > 1 ? 150 : 0); }).observe(cv);
+    requestAnimationFrame(frame);
+  },
+});
