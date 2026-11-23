@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ドット絵のスキル 3 つで、パチンコの出玉グラフのゲームの絵を作った ― AI コーディングノート</title>
+<meta name="description" content="ドット絵の AI 用スキル pixelfx・Frostwind・CyberSprite を使って、パチンコの出玉グラフを眺めるゲーム『今日も打とーっと』の絵を全部作った記録。スキルごとの入れ方、最小の命令、自分の開発への組み込み方、良い点と癖、作った数と時間と費用。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='800'%3EAI%3C/text%3E%3Cpath d='M15 51H49' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<style>
+body { font-size: 0.9375rem; }
+.report { max-inline-size: 60rem; margin-inline: auto; padding-block: 2rem 5rem; }
+.report :is(p, ul, ol, .note, details) { max-inline-size: 44rem; }
+.report p, .report li { text-wrap: pretty; }
+.report a { overflow-wrap: anywhere; }
+.kicker { margin: 0; color: var(--ink-2); font-weight: 600; font-size: 0.875rem; }
+.report h1 { margin: 0.2em 0 0.4em; font: 800 clamp(1.6rem, 1.2rem + 1.6vw, 2.4rem)/1.3 var(--serif); text-wrap: balance; }
+.lede { font-size: 1.0625rem; }
+.report h2 { margin: 3.5rem 0 1rem; padding-top: 0.6em; border-top: 2px solid var(--ink); font: 700 clamp(1.25rem, 1.1rem + 0.6vw, 1.6rem)/1.4 var(--serif); text-wrap: balance; }
+.report h3 { margin: 2.2rem 0 0.6rem; font-size: 1.0625rem; }
+.report figure { margin: 1.5rem 0; }
+.report figure img { display: block; inline-size: 100%; block-size: auto; border-radius: var(--r); border: 1px solid var(--rule); background: #0b0a12; image-rendering: pixelated; }
+.report figcaption { margin-top: 0.4rem; color: var(--ink-2); font-size: 0.875rem; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: 1rem; margin: 1.5rem 0 0.4rem; }
+.pair figure { margin: 0; }
+.small { color: var(--ink-2); font-size: 0.875rem; }
+.note { margin: 1.5rem 0; padding: 1rem 1.2rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
+.note > :first-child { margin-top: 0; }
+.note > :last-child { margin-bottom: 0; }
+.table-wrap { overflow: auto; max-inline-size: 100%; margin: 1rem 0 1.5rem; container-type: inline-size; }
+@container (width < 34rem) {
+  .report table.stack, .report table.stack :is(caption, tbody, tr, th, td) { display: block; }
+  .report table.stack thead { display: none; }
+  .report table.stack tr { padding: 0.6em 0; border-bottom: 1px solid var(--rule); }
+  .report table.stack :is(th, td) { padding: 0.1em 0; border: 0; }
+  .report table.stack td[data-label]::before { content: attr(data-label) "　"; color: var(--ink-2); font-size: 0.8125rem; font-weight: 600; }
+}
+.report table { border-collapse: collapse; font-size: 0.9375rem; }
+.report caption { text-align: start; font-weight: 700; padding-bottom: 0.4rem; }
+.report th, .report td { padding: 0.45em 0.8em; border-bottom: 1px solid var(--rule); text-align: start; vertical-align: top; }
+.report thead th { border-bottom: 2px solid var(--ink-3); text-wrap: balance; }
+.report tbody th { font-weight: 600; }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.code { margin: 0.8rem 0 1.2rem; padding: 1rem 1.2rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); font: 0.8125rem/1.7 var(--mono); max-inline-size: 100%; overflow: auto; tab-size: 2; white-space: pre; }
+.steps { padding-inline-start: 1.4em; }
+.steps > li { margin: 0 0 1.4rem; max-inline-size: 44rem; }
+.steps > li > strong:first-child { display: block; margin-bottom: 0.3rem; }
+.demo { margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
+.demo-stage { display: grid; place-items: center; background: #0b0a12; border-radius: calc(var(--r) - 2px); }
+.demo canvas { inline-size: min(100%, 672px); aspect-ratio: 224 / 136; image-rendering: pixelated; cursor: pointer; }
+.demo canvas:focus-visible { outline: 3px solid var(--shu); outline-offset: 2px; }
+.demo-bar { display: flex; flex-wrap: wrap; gap: 0.6rem 1.2rem; align-items: center; margin-top: 0.8rem; font-size: 0.875rem; }
+.demo-bar output { font-weight: 800; font-size: 1.1rem; min-inline-size: 4em; text-shadow: 0 0 1px #000, 0 1px 0 #000; }
+.play-link { display: inline-block; margin: 0.4rem 0 0; padding: 0.5rem 1rem; border: 2px solid var(--ink); border-radius: var(--r); font-weight: 700; text-decoration: none; }
+.nw { white-space: nowrap; }
+.foot { margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--rule); color: var(--ink-2); font-size: 0.875rem; }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="report">
+<article>
+  <p class="kicker">実験レポート ・ 2026 年 11 月 24 日</p>
+  <h1>ドット絵のスキル 3 つで、パチンコの出玉グラフのゲームの絵を作った</h1>
+  <p class="lede">作者が見つけたドット絵の AI 用スキル 3 つ（pixelfx、Frostwind、CyberSprite）を使って、パチンコの出玉グラフを眺めるだけのゲーム『今日も打とーっと』の絵を全部作りました。スキルごとの入れ方・最小の命令・自分の開発への組み込み方と、使って分かった良い点と癖をまとめます。下の見本は、ゲームと同じ pixelfx の効果をこのページの中で動かしたものです。押すと、連チャンの色で「当たりの光」が出ます。</p>
+
+  <section class="demo" aria-labelledby="demo-h">
+    <h2 id="demo-h" class="visually-hidden" style="position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden">その場で動く見本</h2>
+    <div class="demo-stage"><canvas id="fx-demo" width="224" height="136" aria-label="押すと当たりの光が出る見本。後ろで金粉が舞う"></canvas></div>
+    <div class="demo-bar">
+      <output id="fx-chain" for="fx-demo">0 連</output>
+      <button type="button" id="fx-pause">一時停止</button>
+      <span class="small">押すたびに連チャン数が 1 つ増え、色が 白 → 黄 → 赤 → 紫 → 金 → 虹 と変わります。後ろの金粉は、このゲームのために pixelfx の作り方で足した効果です。</span>
+    </div>
+  </section>
+  <p><a class="play-link" href="../../dedama/">ゲーム『今日も打とーっと』を遊ぶ（音が出ます）</a></p>
+
+  <h2>結果のまとめ</h2>
+  <div class="table-wrap">
+  <table class="stack">
+    <caption>3 つのスキルで作ったもの</caption>
+    <thead><tr><th>スキル</th><th>このゲームで使った所</th><th>作った数</th><th>向いている用途</th></tr></thead>
+    <tbody>
+      <tr><th>pixelfx</th><td data-label="使った所">当たりの光・花火・紙吹雪・雨を、ゲームの中でコードのまま毎コマ描く。金粉を 1 つ新しく作った</td><td data-label="作った数">既存の効果 4 種を使用、新しい効果 1 種（180 コマの繰り返し、4 回描き直し）</td><td data-label="用途">ブラウザのゲームに光る効果を足す。ほかのエンジン向けにスプライトシートを書き出す</td></tr>
+      <tr><th>Frostwind</th><td data-label="使った所">開店待ちの列に並ぶ 5 人。絵の大きさを「1.70 m = 26 画素」の縮尺で決めた</td><td data-label="作った数">5 人 × 2 コマ（待つ・歩く）</td><td data-label="用途">現実の寸法と自然の法則から、筋の通ったドット絵の世界を組み立てる</td></tr>
+      <tr><th>CyberSprite</th><td data-label="使った所">主人公・顔・台・自動ドア・店の外と中・晩ごはん。図形の命令をスクリプトで作って流した</td><td data-label="作った数">36 枚（11 のプロジェクト、書き出した PNG は 12 個）、命令 2,320 個</td><td data-label="用途">決めたパレットだけで、エージェントが 1 画素ずつ正確に描く。画像の取り込みと色合わせ</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>かかった時間は、スキルを入れてからゲームと絵とレポートができるまで 約 1 時間 5 分。AI の費用は API の料金に換算して $22.20 です（下の「時間と費用」）。有料の API、画像生成のモデル、アカウントの作成は使っていません。</p>
+
+  <h2>元の投稿と入手先</h2>
+  <p>作者が示した入手先は 3 つです。X の投稿は、ブラウザで開かずに <code>api.fxtwitter.com</code> から本文を取得して読みました。</p>
+  <div class="table-wrap">
+  <table class="stack">
+    <thead><tr><th>スキル</th><th>紹介した投稿</th><th>入手先</th><th>ライセンス</th></tr></thead>
+    <tbody>
+      <tr><th>pixelfx</th><td data-label="投稿"><a href="https://x.com/BeyondTheBoxCN/status/2123400914149298423">BeyondTheBoxCN 氏（2026 年 11 月 19 日）</a>。244 種の効果がコードで作られていて、Claude Code のスキルも付く、という紹介</td><td data-label="入手先"><a href="https://github.com/patch-gg/pixelfx">patch-gg/pixelfx</a>（コミット 5294518）</td><td data-label="ライセンス">MIT（一部は Hugo Duprez 氏の Sprite Fusion の効果を元にしたもので、同じく MIT）</td></tr>
+      <tr><th>Frostwind</th><td data-label="投稿"><a href="https://x.com/marnold_mch/status/2123416870808363492">marnold_mch 氏（2026 年 11 月 19 日）</a>。エージェントが一貫したドット絵の世界を作れる「世界のコンパイラ」という紹介</td><td data-label="入手先"><a href="https://github.com/trinity-works/frostwind">trinity-works/frostwind</a>（コミット 537ed51）</td><td data-label="ライセンス">MIT</td></tr>
+      <tr><th>CyberSprite</th><td data-label="投稿">（作者が GitHub のリポジトリを直接示した）</td><td data-label="入手先"><a href="https://github.com/kokuren333/CyberSprite">kokuren333/CyberSprite</a>（コミット 6c7417e）</td><td data-label="ライセンス">Apache-2.0（試験用の生成画像の一部は対象外と NOTICE にある）</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>作ったゲームの画面</h2>
+  <p>主人公が「今日もパチンコ打とーっと」と言って店に走り込み、台を 1 つ選びます。あとは出玉グラフ（差玉の線）が伸びていくのを眺めるだけです。ゲーム内の 10:00〜22:00 を標準の速さで 3 分で遊び、閉店すると勝ち負けで晩ごはんが変わります。写真はどれも、ゲームの画面（384×216 のドット）を 2 倍にしたものです。</p>
+  <div class="pair">
+    <figure><img src="img/title.webp" width="768" height="432" alt="題名の画面。パチンコ屋ドル箱会館の前に、開店待ちの 5 人と主人公が立っている" loading="lazy"><figcaption>題名の画面。店と街は CyberSprite、並んでいる 5 人は Frostwind で描いた</figcaption></figure>
+    <figure><img src="img/entry-talk.webp" width="768" height="432" alt="10 時に自動ドアが開き、行列の人が入っていく。左から主人公が走ってきて、今日もパチンコ打とーっと、と言う" loading="lazy"><figcaption>10 時に開店。自動ドアの奥に店の中が見える</figcaption></figure>
+    <figure><img src="img/entry-dash.webp" width="768" height="432" alt="主人公が速度線を引いて自動ドアへ飛び込む" loading="lazy"><figcaption>勢いをつけて飛び込む</figcaption></figure>
+    <figure><img src="img/select.webp" width="768" height="432" alt="店の中に 6 台が並び、選んだ大仏の台が金の枠で囲まれている。下に台の仕様と今日の回転率" loading="lazy"><figcaption>台選び。6 台の題材も名前もオリジナル。下の札に確率・振り分け・今日の回転率とボーダーを出す</figcaption></figure>
+  </div>
+  <div class="pair">
+    <figure><img src="img/play-hit.webp" width="768" height="432" alt="出玉グラフの線の先に、光の輪と星が出ている。右にデータカウンター、下に主人公の顔と知らせ" loading="lazy"><figcaption>当たると線の先に pixelfx の光が出る。右はデータカウンター、左下は主人公の顔</figcaption></figure>
+    <figure><img src="img/play-gyaku.webp" width="768" height="432" alt="線が −10,000 を下回り、グラフの中に雨が降っている。主人公は涙を流している" loading="lazy"><figcaption>逆万発（−10,000 発）。悲しい曲が流れ始め、グラフの中に雨が降る</figcaption></figure>
+    <figure><img src="img/play-rainbow.webp" width="768" height="432" alt="線が虹色に変わりながら上へ伸び、20連の札と花火が出ている。主人公の目が金の星" loading="lazy"><figcaption>20 連を超えると線と札が虹色になる。主人公の目は金の星（脳汁）</figcaption></figure>
+    <figure><img src="img/play-wan.webp" width="768" height="432" alt="差玉が +10,000 を超え、紙吹雪と花火が出ている" loading="lazy"><figcaption>万発（+10,000 発）。ファンファーレと紙吹雪。2 万発・3 万発でも鳴る</figcaption></figure>
+  </div>
+  <figure><img src="img/page-play.webp" width="1280" height="760" alt="ブラウザのページ全体。ゲームの画面の下に、時間の速さの部品、一時停止、音のボタンが並ぶ" loading="lazy"><figcaption>ページ全体。時間の速さは 0.25〜8 倍。速さの部品は本物の <code>&lt;input type="range"&gt;</code> で、キーボードでも動かせる</figcaption></figure>
+  <div class="pair">
+    <figure><img src="img/exit-win.webp" width="768" height="432" alt="夜の店の前。主人公が跳ねて飛び出し、よっしゃー、寿司だ寿司、と言う" loading="lazy"><figcaption>22 時に閉店して飛び出す。夜の街は昼の絵のパレットを替えただけ</figcaption></figure>
+    <figure><img src="img/result-s.webp" width="768" height="432" alt="結果の画面。高級寿司屋で着物の女性 2 人がお酌をし、金粉が舞う。右に収支 +97,452 円とグラフ" loading="lazy"><figcaption>最上の晩ごはん（+50,000 円以上）は高級寿司。お酌の女性と金粉</figcaption></figure>
+    <figure><img src="img/result-a.webp" width="768" height="432" alt="結果の画面。焼肉とビール" loading="lazy"><figcaption>+15,000 円以上は焼肉</figcaption></figure>
+    <figure><img src="img/result-b.webp" width="768" height="432" alt="結果の画面。畳の部屋でカップラーメン" loading="lazy"><figcaption>±15,000 円未満は家でカップラーメン</figcaption></figure>
+    <figure><img src="img/result-c.webp" width="768" height="432" alt="結果の画面。裸電球の下でもやし炒め" loading="lazy"><figcaption>−40,000 円までは裸電球の下でもやし炒め</figcaption></figure>
+    <figure><img src="img/result-d.webp" width="768" height="432" alt="結果の画面。雨の夜、閉まった店の前のベンチで、青ざめた主人公が飴を 1 つ持っている" loading="lazy"><figcaption>逆万発の −40,000 円以下は、パチンコ屋でもらった飴</figcaption></figure>
+  </div>
+
+  <h2 id="try">すぐ試せる手順</h2>
+  <p>3 つとも、手元に取ってきて 1 つの命令で絵が出るところまでを書きます。命令は Windows の PowerShell で確かめました。Node.js、Python の <code>uv</code>、git が入っている前提です。</p>
+
+  <h3>pixelfx（光る効果をコードのまま使う）</h3>
+  <ol class="steps">
+    <li><strong>取ってきて、1 つ描く</strong>依存のパッケージは要りません。Node だけで動きます。
+<pre class="code">git clone https://github.com/patch-gg/pixelfx
+cd pixelfx
+node tools/list.mjs coin                    # 名前・説明で効果を探す
+node tools/render.mjs pickups/collect-burst # records/pickups/collect-burst/contact.png ができる
+node tools/render.mjs pickups/collect-burst --opts '{"palette":["#1e1206","#86520c","#f0b424","#fff6c4","#ffffff"]}'  # 色を替える</pre>
+    <code>contact.png</code> は、時間を追ったコマの一覧です。AI はこの 1 枚を画像として読んで、動きの良し悪しを判断します。</li>
+    <li><strong>Claude Code にスキルとして入れる</strong>Claude Code の中で次の 2 つを打つか、<code>skills/pixelfx</code> を <code>~/.claude/skills/</code> に写します。
+<pre class="code">/plugin marketplace add patch-gg/pixelfx
+/plugin install pixelfx@pixelfx</pre>
+    あとは「コインを拾った時のきらめきを 5 案作って、良い 2 つを見せて」のように頼みます。スキルの最後の節は、作ったゲームを Patch（patch.gg）で公開するよう勧めます。公開は外へ出す操作なので、このゲームでは行っていません。</li>
+    <li><strong>自分の画面に組み込む</strong><code>src/core</code> と使う効果のファイルを写して import します。上の見本はこの形で、ファイル全体は約 40 行です。
+<pre class="code">import { createFrame, clearFrame, createFx, composite } from './pixelfx/src/core/index.js';
+import * as burst from './pixelfx/src/fx/pickups/collect-burst.js';
+
+const frame = createFrame(224, 136), img = ctx.createImageData(224, 136);
+const fx = createFx(burst, { x: 112, y: 100, palette: ['#4a0d1e', '#d0263a', '#ff5a5f', '#ffd5b5', '#ffffff'] });
+function tick(dt) {
+  fx.update(dt);
+  clearFrame(frame);
+  fx.draw(frame);                        // 色の層と光の層へ描く
+  composite(frame, img.data, 0x120a0b);  // 背景の色の上に重ね、光を足す
+  ctx.putImageData(img, 0, 0);           // canvas は image-rendering: pixelated で拡大
+}</pre>
+    今の画面の上に重ねたい時は、<code>composite</code> の背景に <code>getImageData</code> の画素を渡します（このゲームの <a href="../../dedama/js/fx.mjs"><code>dedama/js/fx.mjs</code></a>）。</li>
+  </ol>
+
+  <h3>Frostwind（現実の寸法から人物を描く）</h3>
+  <ol class="steps">
+    <li><strong>取ってきて、人物のシートを描く</strong>人物の道具（<code>tools/person.mjs</code>）が要るのは <code>three</code> だけです。開発用の依存（Remotion・Playwright など）は入れずに済みます。
+<pre class="code">git clone https://github.com/trinity-works/frostwind
+cd frostwind
+npm ci --omit=dev          # three だけが入る
+node tools/person.mjs merchant
+# /tmp/frostwind-person/merchant.png ができる（Windows では今のドライブの直下、例: D:\tmp）</pre></li>
+    <li><strong>Claude Code にスキルとして入れる</strong>スキル 3 つ（<code>add-character</code>・<code>add-world</code>・<code>frame-check</code>）はリポジトリの <code>.claude/skills/</code> にあります。frostwind のフォルダで Claude Code を開くと読み込まれます。どれも Frostwind の中に人物や世界を足すための手順で、「表の行を足して、決まった検査を通す」形で書かれています。世界全体を見るには <code>npm install</code> と <code>npm run build</code> で <code>dist/frostwood.html</code> を作ります（このゲームでは作っていません）。</li>
+    <li><strong>自分の開発に組み込む</strong>人物を 1 コマずつ画素の配列で受け取れます。このゲームでは次の形で 5 人を描き、PNG にしてから CyberSprite に取り込みました（<a href="../../dedama/art/assets/folks.mjs"><code>dedama/art/assets/folks.mjs</code></a>）。
+<pre class="code">import { paintPerson } from './frostwind/src/people.js';
+import { resolveColour, writePng } from './frostwind/tools/resolve.mjs';
+
+// 向き 2 = 横向き。状態は idle / walk / run、コマの番号、視線
+const sp = paintPerson('merchant', 2, 0, 'idle', 'neutral');
+const rgba = Buffer.alloc(sp.w * sp.h * 4);
+for (let i = 0; i &lt; sp.w * sp.h; i++) {
+  if (!sp.occ[i]) continue;                 // 何も無い画素
+  const [r, g, b] = resolveColour(sp, i);   // 素材と光から色を決める
+  rgba.set([r, g, b, 255], i * 4);
+}
+writePng('merchant.png', rgba, sp.w, sp.h);</pre></li>
+  </ol>
+
+  <h3>CyberSprite（パレット番号で正確に描く）</h3>
+  <ol class="steps">
+    <li><strong>取ってきて、1 枚描く</strong>Python 3.12 以上と <code>uv</code> を使います。依存はロックファイルで固定されています。プロジェクトはフォルダで、書き出し先は命令を打った場所の下だけです。
+<pre class="code">git clone https://github.com/kokuren333/CyberSprite
+cd CyberSprite
+uv sync --locked
+uv run csp new hero --size 32x32                       # 既定のパレット cs-circuit-16
+uv run csp -p hero op rect layer=L1 frame=0 x=8 y=8 w=16 h=16 color=5 filled=true
+uv run csp -p hero op outline layer=L1 frame=0 color=1
+uv run csp -p hero validate
+uv run csp -p hero export image --out hero_x4.png --scale 4</pre>
+    どの命令も JSON を 1 つ返します。書き出しは、書いたファイルを読み直して画素を照合し、結果を <code>verified</code> に入れます。</li>
+    <li><strong>AI に使わせる</strong><code>skills/</code> の 5 冊（<code>draw-sprite</code>・<code>animate</code>・<code>tileset</code>・<code>import-convert</code>・<code>validate-export</code>）は、Claude Code のスキルの見出し（name・description）が無い手順書です。そのため自動では読み込まれません。「CyberSprite の skills/README.md を読んでから描いて」と頼むか、MCP のサーバーとしてつなぎます。
+<pre class="code">uv sync --extra mcp
+claude mcp add --transport stdio cybersprite -- uv --directory C:/repos/CyberSprite run --extra mcp python -m cybersprite.mcp --root C:/sprites</pre>
+    （このゲームでは MCP を使わず、CLI を呼びました。）</li>
+    <li><strong>自分の開発に組み込む</strong>図形の命令を JSON の配列にして <code>apply</code> に渡すと、1 回で描けます。このゲームの絵は全部この形です。色をパレットの名前で書ける小さな道具を作り、命令の配列を組み立てました（<a href="../../dedama/art/lib.mjs"><code>dedama/art/lib.mjs</code></a>）。
+<pre class="code">{"label": "hero", "ops": [
+  {"op": "line", "args": {"layer": "L1", "frame": 0, "x0": 15, "y0": 19, "x1": 18, "y1": 24, "color": 34, "brush": {"size": 3, "shape": "circle"}}},
+  {"op": "draw_rows", "args": {"layer": "L1", "frame": 0, "x": 13, "y": 3, "format": "sym",
+    "rows": ["..HHHHH.", ".HHHHHHH", "HHHHSSSH"], "legend": {"H": 5, "S": 15}, "skip_transparent": true}},
+  {"op": "outline", "args": {"layer": "L1", "frame": 0, "color": 1}}
+]}</pre>
+<pre class="code">uv run --project &lt;CyberSprite の場所&gt; csp -p hero apply ops.json</pre>
+    主人公の走る姿は、コマごとに関節の角度を決めて、手足を太い線で描きました。CyberSprite の手順書も、関節の座標から手足を描く命令はスクリプトで作ってよいと書いています。</li>
+  </ol>
+
+  <h2>スキルごとの使用感</h2>
+  <p>3 つは目的が違うので、比べて順位を付けることはしません。それぞれが得意な所と、使っていて手間がかかった所を書きます。</p>
+
+  <h3>pixelfx</h3>
+  <figure><img src="img/pixelfx-collect-burst.webp" width="1400" height="758" alt="collect-burst の contact sheet。白い光、輪、星が広がって消える 14 コマ" loading="lazy"><figcaption><code>render.mjs</code> が出す一覧（contact sheet）。当たりの光は、この効果の色を連チャンの色に替えて使った</figcaption></figure>
+  <ul>
+    <li><strong>良い点</strong>: 効果がただの JavaScript なので、写して import するだけで画面に出ます。色の段階（palette）を渡すだけで色を替えられるので、連チャン数ごとの色にそのまま使えました。<code>render.mjs</code> は 103 コマの一覧を 0.5 秒で描き、AI が自分で絵を見て直す作業が速く回ります。</li>
+    <li><strong>良い点</strong>: スキルの「下書き → 描く → 見る → 直す」の手順が具体的です。金粉は 4 回描き直しました。1 回目は粒が細かく白っぽく、星空に見えました。「粒を大きく、面は中間の金色、白は光った瞬間だけ」と直しています。検査（<code>check.mjs</code>）は「17 画素が画面の外に出ている」を見つけ、数字で知らせました。</li>
+    <li><strong>癖</strong>: 効果は 24×38 画素の人物に合わせた大きさで描かれています。花火（240×248）は、このゲームの画面（高さ 216）より大きく出ました。</li>
+    <li><strong>癖</strong>: 光の層を重ねるには、毎コマ画面の画素を読み直します（<code>getImageData</code>）。効果が無いコマでは何もしない作りにしました。</li>
+    <li><strong>気をつけた所</strong>: 強い白の光を 1 秒に何度も出すと、光に敏感な人に負担がかかります。当たりの光は 0.4 秒に 1 回、花火は 1.5 秒に 1 回までに絞りました。</li>
+    <li><strong>向く用途</strong>: canvas で描くブラウザのゲーム。ほかのエンジンでも、<code>--sheet</code> でスプライトシートと JSON を書き出せます。</li>
+  </ul>
+  <figure><img src="img/pixelfx-gold-dust.webp" width="1400" height="518" alt="新しく作った金粉の効果の一覧。金色の粒が落ちながら光る" loading="lazy"><figcaption>このゲームのために足した <code>ui/gold-dust</code>（6 秒で 1 周の繰り返し）。検査を通った 4 回目</figcaption></figure>
+
+  <h3>Frostwind</h3>
+  <figure><img src="img/frostwind-merchant-sheet.webp" width="1154" height="294" alt="Frostwind の人物の道具が出したシート。商人が 5 つの向きで、待つ・歩く・走るのコマ" loading="lazy"><figcaption><code>node tools/person.mjs merchant</code> の出力。5 つの向き × 待つ 6・歩く 8・走る 8 コマ（3 分の 1 に縮小）</figcaption></figure>
+  <div class="pair">
+    <figure><img src="img/folks-frostwind-raw.webp" width="800" height="120" alt="Frostwind から取り出した 5 人の横向きの姿。暗いコートの色" loading="lazy"><figcaption>Frostwind から取り出したままの 5 人</figcaption></figure>
+    <figure><img src="img/sheet-folks.webp" width="800" height="120" alt="CyberSprite の取り込みでゲームのパレットに合わせた 5 人" loading="lazy"><figcaption>CyberSprite の取り込み（<code>import_image</code>）でゲームのパレットに合わせ、縁取りを付けた</figcaption></figure>
+  </div>
+  <ul>
+    <li><strong>良い点</strong>: 大きさを「見た目で選ぶ」のではなく、現実の寸法から計算します。1.70 m の人が 26 画素なので、このゲームでは自販機を 38 画素（1.8 m）、自動ドアを 44 画素（2.9 m）、店を 140 画素（9 m）にしました。場面の中の物どうしの大きさがそろいます。</li>
+    <li><strong>良い点</strong>: 人物の道具はブラウザも画像も使わず、決まった値から毎回同じ画素を出します。待つ・歩く・走るのコマが、足の運びまで計算で決まっています。</li>
+    <li><strong>癖</strong>: 人物の服や体は、Frostwind の世界（北国の森・草原・沼・砂漠）の決まりに合わせて作られています。現代の服を着た主人公を作るには、服の描き方そのものをコードに足す必要がありました。今回は主人公を CyberSprite で描き、Frostwind の人はコート姿のまま「冬の朝の開店待ちの列」にしました。</li>
+    <li><strong>癖</strong>: 付属のスキル 3 つは、Frostwind の中に人物や世界を足すための手順です。絵を取り出して別のゲームで使う手順は書かれていないので、上のような小さな台本を自分で書きました。</li>
+    <li><strong>向く用途</strong>: Frostwind の中で、筋の通った 1 つの世界を育てること。別のゲームでは、縮尺の考え方と人物の道具を借りる使い方ができました。</li>
+  </ul>
+
+  <h3>CyberSprite</h3>
+  <div class="pair">
+    <figure><img src="img/sheet-street.webp" width="768" height="432" alt="昼の店の前の通り" loading="lazy"><figcaption>昼の店の前（命令 288 個）</figcaption></figure>
+    <figure><img src="img/sheet-street-night.webp" width="768" height="432" alt="同じ絵のパレットだけを替えた夜の通り。窓に明かりが点いている" loading="lazy"><figcaption>同じ絵のパレットを替えた夜。窓・電球・ネオンの色だけ明るいまま残した</figcaption></figure>
+  </div>
+  <figure><img src="img/sheet-machines.webp" width="1080" height="312" alt="6 台のパチンコ台。商店街のダイナマイト、ハムスター、夜行列車、海賊帽のカニ、大仏、花火とMAXの文字" loading="lazy"><figcaption>6 台（60×104）。共通の筐体に、台ごとの枠の色・飾り・液晶の絵（命令 343 個）</figcaption></figure>
+  <figure><img src="img/sheet-hero.webp" width="1248" height="96" alt="主人公の 13 コマ。走る 6、立つ 2、話す、跳ぶ 2、よろける、倒れる" loading="lazy"><figcaption>主人公（32×32 × 13 コマ）。関節の角度から手足を線で描いた</figcaption></figure>
+  <figure><img src="img/sheet-bust.webp" width="864" height="144" alt="主人公の顔の 6 表情。ふつう、まばたき、喜ぶ、脳汁、落ちこむ、絶望" loading="lazy"><figcaption>顔の 6 表情（48×48）。脳汁は金の星の目、絶望は青白い顔と口から抜ける魂</figcaption></figure>
+  <ul>
+    <li><strong>良い点</strong>: 画素はパレットの番号でしか持てません。そのため、昼と夜の街を 1 つの絵とパレット 2 つで作れました。どの絵も同じ 55 色だけを使うので、場面が変わっても色味がそろいます。</li>
+    <li><strong>良い点</strong>: 命令のたびに検証が走り、間違いを場所つきで返します。飴の場面では「行の幅がそろっていない（命令 84 番）」と返り、猫の絵の 1 行が 1 文字長いことがすぐ分かりました。</li>
+    <li><strong>良い点</strong>: 取り込みの仕組みで、Frostwind の人物の色をゲームのパレットに寄せられました。2 つのスキルを、画像のファイル 1 つでつなげます。</li>
+    <li><strong>癖</strong>: CLI は 1 回の呼び出しに約 2 秒かかります（Python と uv の起動）。そのため 1 枚の絵に、作る・描く・検証・書き出しで 11〜14 秒かかりました。命令を 1 回の <code>apply</code> にまとめると速くなります。</li>
+    <li><strong>癖</strong>: 行の流し込み（<code>draw_rows</code>）の「.」は、既定では下の絵を透明で消します。重ねて描く時は <code>skip_transparent: true</code> が要ります。塗っていない所は透明のまま残るので、空を地面まで塗り忘れると、背景に穴が空きます（街で 1 回起きた）。</li>
+    <li><strong>癖</strong>: 1.0 より前の開発版で、PyPI などへの配布はまだです。GUI（Circuit White）は追加の依存とビルドが要るので、今回は使っていません。</li>
+    <li><strong>向く用途</strong>: エージェントが、決めたパレットの中で 1 画素ずつ正確に描くこと。生成した画像をドット絵に直して取り込むこと。</li>
+  </ul>
+  <figure><img src="img/sheet-meal-s.webp" width="624" height="408" alt="高級寿司屋の絵。金箔の壁、のれん、板前さん、ネタケース、着物の女性 2 人、主人公" loading="lazy"><figcaption>晩ごはん S（208×136、命令 231 個）。1 回目は 3 人の胸から下が無く、カウンターの前に浮いて見えた。2 回目で椅子に座った脚と、床まで届く着物を描き足した</figcaption></figure>
+  <div class="pair">
+    <figure><img src="img/sheet-meal-b.webp" width="624" height="408" alt="畳の部屋でカップラーメンを食べる主人公。テレビの青い光" loading="lazy"><figcaption>晩ごはん B（命令 76 個）</figcaption></figure>
+    <figure><img src="img/sheet-meal-d.webp" width="624" height="408" alt="閉まった店の前のベンチで飴を持つ主人公と、通りすがりの猫" loading="lazy"><figcaption>晩ごはん D（命令 85 個）。雨はゲームの中で pixelfx が重ねる</figcaption></figure>
+  </div>
+
+  <h2>作った絵の数と、描き直した回数</h2>
+  <div class="table-wrap">
+  <table class="stack">
+    <thead><tr><th>絵</th><th>大きさ × コマ</th><th>スキル</th><th>命令の数</th><th>描き直し</th><th>直した所</th></tr></thead>
+    <tbody>
+      <tr><th>主人公</th><td data-label="大きさ" class="num">32×32 × 13</td><td data-label="スキル">CyberSprite</td><td data-label="命令" class="num">252</td><td data-label="描き直し" class="num">2 回</td><td data-label="直した所">上げた腕が頭に隠れた</td></tr>
+      <tr><th>顔</th><td data-label="大きさ" class="num">48×48 × 6</td><td data-label="スキル">CyberSprite</td><td data-label="命令" class="num">165</td><td data-label="描き直し" class="num">2 回</td><td data-label="直した所">絶望の白目と魂が肌に溶けた</td></tr>
+      <tr><th>台</th><td data-label="大きさ" class="num">60×104 × 6</td><td data-label="スキル">CyberSprite</td><td data-label="命令" class="num">343</td><td data-label="描き直し" class="num">1 回</td><td data-label="直した所">−</td></tr>
+      <tr><th>店の前（昼・夜）</th><td data-label="大きさ" class="num">384×216 × 2</td><td data-label="スキル">CyberSprite</td><td data-label="命令" class="num">288</td><td data-label="描き直し" class="num">2 回</td><td data-label="直した所">空の塗り残し</td></tr>
+      <tr><th>自動ドア</th><td data-label="大きさ" class="num">48×44 × 3</td><td data-label="スキル">CyberSprite</td><td data-label="命令" class="num">111</td><td data-label="描き直し" class="num">1 回</td><td data-label="直した所">−</td></tr>
+      <tr><th>店の中</th><td data-label="大きさ" class="num">384×216</td><td data-label="スキル">CyberSprite</td><td data-label="命令" class="num">574</td><td data-label="描き直し" class="num">3 回</td><td data-label="直した所">壁の塗り残し、描く順番</td></tr>
+      <tr><th>晩ごはん 5 場面</th><td data-label="大きさ" class="num">208×136 × 5</td><td data-label="スキル">CyberSprite</td><td data-label="命令" class="num">587</td><td data-label="描き直し" class="num">1〜2 回</td><td data-label="直した所">浮いた体、強すぎる網掛け、行の幅</td></tr>
+      <tr><th>開店待ちの 5 人</th><td data-label="大きさ" class="num">20×30 × 10</td><td data-label="スキル">Frostwind ＋ CyberSprite</td><td data-label="命令" class="num">取り込み 1</td><td data-label="描き直し" class="num">1 回</td><td data-label="直した所">−</td></tr>
+      <tr><th>金粉</th><td data-label="大きさ" class="num">224×136 × 180</td><td data-label="スキル">pixelfx</td><td data-label="命令" class="num">コード 1 本</td><td data-label="描き直し" class="num">4 回</td><td data-label="直した所">粒が細かい、白すぎる、光りすぎる、はみ出し</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>ゲームの絵のファイルは全部で 13 個、合わせて 60 KB です。台本を流せば全部作り直せます（<code>node dedama/art/build.mjs</code>、約 3 分）。</p>
+
+  <h2>ゲームの中身（出玉の計算）</h2>
+  <p>絵の実験ですが、ゲームの計算も確かめた数字を載せます。台ごとに、大当たり確率・確変・ST・時短・振り分け・1 ラウンドの出玉・回転率・電サポ・一種二種混合の小当たりを入れました。打ち出しは毎分 100 発、保留は 4 個までで、変動時間も入れています。テストは 57 個（計算 49、画面側 8）あり、長い試行の結果が仕様の理論値に合うかを確かめます。</p>
+  <div class="table-wrap">
+  <table class="stack">
+    <caption>4,000 時間分の試行の実測（台ごと）と、12 時間 × 2,000 日の勝ち負け</caption>
+    <thead><tr><th>台</th><th>大当たり確率（実測）</th><th>継続（実測 / 理論）</th><th>回転率（実測 / 仕様）</th><th>勝つ日</th><th>万発の日</th><th>逆万発の日</th></tr></thead>
+    <tbody><tr><th>P 商店街ダイナマイト<br><span class="small">ミドル・確変ループ</span></th><td data-label="大当たり確率" class="num">1/312.5（仕様 1/319.7）</td><td data-label="継続">確変 次回まで<br>時短 28.0% / 26.9%</td><td data-label="回転率" class="num">15.52 / 15.5</td><td data-label="勝つ日" class="num">40.2%</td><td data-label="万発の日" class="num">40.7%</td><td data-label="逆万発の日" class="num">60.8%</td></tr>
+      <tr><th>P あまえんぼハムスター<br><span class="small">甘デジ・ST＋時短</span></th><td data-label="大当たり確率" class="num">1/101.2（仕様 1/99.9）</td><td data-label="継続">ST 57.4% / 57.3%<br>時短 20.3% / 19.9%</td><td data-label="回転率" class="num">17.09 / 17</td><td data-label="勝つ日" class="num">36.2%</td><td data-label="万発の日" class="num">19.3%</td><td data-label="逆万発の日" class="num">39.2%</td></tr>
+      <tr><th>P 夜行列車ラッシュ<br><span class="small">ライトミドル・ST</span></th><td data-label="大当たり確率" class="num">1/199.6（仕様 1/199.8）</td><td data-label="継続">ST 77.6% / 77.9%<br>時短 38.8% / 39.5%</td><td data-label="回転率" class="num">17.54 / 17.5</td><td data-label="勝つ日" class="num">36.5%</td><td data-label="万発の日" class="num">30.5%</td><td data-label="逆万発の日" class="num">58.2%</td></tr>
+      <tr><th>P 宇宙海賊カニ船長<br><span class="small">ミドル・ST</span></th><td data-label="大当たり確率" class="num">1/315.5（仕様 1/319.7）</td><td data-label="継続">ST 80.5% / 80.8%<br>時短 27.2% / 26.9%</td><td data-label="回転率" class="num">17.03 / 17</td><td data-label="勝つ日" class="num">40.4%</td><td data-label="万発の日" class="num">44.1%</td><td data-label="逆万発の日" class="num">65.2%</td></tr>
+      <tr><th>P 大仏さまオールナイト<br><span class="small">一種二種混合</span></th><td data-label="大当たり確率" class="num">1/315.5（仕様 1/319.7）</td><td data-label="継続">RUSH 86.0% / 85.5%</td><td data-label="回転率" class="num">16.57 / 16.5</td><td data-label="勝つ日" class="num">39.6%</td><td data-label="万発の日" class="num">47.8%</td><td data-label="逆万発の日" class="num">72.3%</td></tr>
+      <tr><th>CR 昭和大花火 MAX<br><span class="small">旧 MAX・確変ループ</span></th><td data-label="大当たり確率" class="num">1/390.6（仕様 1/399.6）</td><td data-label="継続">確変 次回まで<br>時短 22.0% / 22.2%</td><td data-label="回転率" class="num">15.52 / 15.5</td><td data-label="勝つ日" class="num">41.6%</td><td data-label="万発の日" class="num">42.2%</td><td data-label="逆万発の日" class="num">63.7%</td></tr></tbody>
+  </table>
+  </div>
+  <p>どの台も、店の標準の回転率をボーダー（収支がとんとんになる回転率）の約 94% に置きました。現実の店と同じく、長く遊ぶと少し負けます。日によって釘（回転率）が ±1.5 回変わり、ボーダーを超える日もあります。台の名前と題材はすべて架空で、実在の機種とは関係ありません。</p>
+
+  <h2>時間と費用</h2>
+  <div class="table-wrap">
+  <table>
+    <caption>このゲームとレポートを作った係の時間と費用</caption>
+    <thead><tr><th>項目</th><th>値</th></tr></thead>
+    <tbody>
+      <tr><th>作る係</th><td>Claude Opus 5.5（Claude Code、1 つの会話）</td></tr>
+      <tr><th>スキルの入手から、出玉の計算とテストまで</th><td class="num">18 分</td></tr>
+      <tr><th>画面（7 つの場面・グラフ・音・記録）</th><td class="num">14 分</td></tr>
+      <tr><th>絵（3 つのスキル）</th><td class="num">21 分</td></tr>
+      <tr><th>通しの確かめ・写真・レポート</th><td class="num">11 分</td></tr>
+      <tr><th>AI の呼び出し</th><td class="num">162 回</td></tr>
+      <tr><th>出力のトークン</th><td class="num">294,977</td></tr>
+      <tr><th>費用（API 換算）</th><td class="num">$22.20</td></tr>
+      <tr><th>そのほかの費用</th><td>0 円（有料の API、画像生成のモデル、アカウントの作成は使っていない）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="small">費用は 2026 年 11 月の料金表（Opus 5.5: 入力 $4、1 時間のキャッシュの書き込み $8、キャッシュの読み込み $0.20、出力 $20、いずれも 100 万トークンあたり）で計算しました。読み込んだ文脈の大半はキャッシュの読み込み（約 5987 万 トークン）です。数えたのはレポートを書き終えた時点までです。</p>
+
+  <h2>分かったこと</h2>
+  <ul>
+    <li>3 つのスキルは、同じ「ドット絵」でも受け持つ所が違いました。pixelfx は動く効果、Frostwind は筋の通った世界の大きさと人物、CyberSprite は 1 画素ずつの正確な作画です。1 つのゲームで 3 つを分けて使うと、互いの足りない所を埋められました。</li>
+    <li>どのスキルも「描いた絵を AI が画像として見て直す」手順を持っています。pixelfx は一覧の画像、Frostwind は人物のシート、CyberSprite はプレビューと検証の結果です。今回の描き直しの多くは、この一覧を見て見つけました（体が浮いている、網掛けが強すぎる、など）。</li>
+    <li>AI が描く絵では、図形の命令をスクリプトで組み立てる形が向いていました。関節の角度、パレットの名前、繰り返しの模様をコードで書けるので、直す時も数字を 1 つ変えて流し直すだけで済みます。</li>
+    <li>スキルの外の手間もありました。Frostwind の絵を取り出す台本、CyberSprite の CLI を呼ぶ道具、pixelfx の効果を今の画面に重ねる部品は、自分で書いています。どれも 40〜120 行ほどで、このゲームのフォルダに入っています。</li>
+  </ul>
+
+  <h2>ソースコード</h2>
+  <ul>
+    <li>ゲーム: <a href="../../dedama/">dedama/</a>（遊べるページ）。出玉の計算は <a href="../../dedama/sim/sim.mjs"><code>dedama/sim/sim.mjs</code></a>、台の仕様は <a href="../../dedama/sim/machines.mjs"><code>machines.mjs</code></a>、テストは <code>tests/dedama-sim.test.mjs</code> と <code>tests/dedama-logic.test.mjs</code>。</li>
+    <li>絵の台本: <a href="../../dedama/art/"><code>dedama/art/</code></a>。<code>node dedama/art/build.mjs</code> で全部作り直せます（CyberSprite と Frostwind の場所は環境変数で替えられます）。</li>
+    <li>通しで遊ぶ台本: <code>dedama/tools/playthrough.mjs</code>（画面なしの Chrome、音なし）。台ごとの数字は <code>dedama/tools/stats.mjs</code>。</li>
+    <li>このページの見本: <a href="demo/hit.js"><code>demo/hit.js</code></a>。</li>
+    <li>GitHub: <a href="https://github.com/dikmri/ai-coding-notes">dikmri/ai-coding-notes</a></li>
+  </ul>
+
+  <p class="foot">pixelfx（MIT、Patch。一部は Hugo Duprez 氏の Sprite Fusion の効果を元にしたもの）、Frostwind（MIT、Trinity Labs）、CyberSprite（Apache-2.0、kokuren333 氏）の作者のみなさんに感謝します。使ったファイルは <code>dedama/vendor/pixelfx/</code> に、ライセンスと注意書きと一緒に置いています。</p>
+</article>
+</main>
+<script type="module" src="demo/hit.js"></script>
+</body>
+</html>

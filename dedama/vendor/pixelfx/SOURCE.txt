@@ -1,0 +1,1 @@
+取得元: https://github.com/patch-gg/pixelfx（コミット 5294518、2026-11-24 に写した。中身は変えていない）
