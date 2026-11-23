@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>今日も打とーっと ― AI コーディングノート</title>
+<meta name="description" content="パチンコの出玉グラフを眺めて一喜一憂するだけのゲーム。台ごとの確率・確変・ST・時短・振り分け・回転率を再現し、12 時間を 3 分で遊びます。絵はドット絵のスキルで作りました。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230b0a12'/%3E%3Cpath d='M1 12 4 10 6 11 9 5 11 6 15 2' stroke='%23ffd84a' stroke-width='2' fill='none'/%3E%3C/svg%3E">
+<style>
+:root { color-scheme: dark; --bg: #0b0a12; --ink: #ece8f4; --dim: #a9a1bb; --gold: #ffd84a; --line: #3d3550; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.7 system-ui, "Hiragino Sans", "Yu Gothic UI", sans-serif; }
+.wrap { max-inline-size: 72rem; margin-inline: auto; padding: 0.75rem 1rem 3rem; }
+.top { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: baseline; justify-content: space-between; }
+.top a { color: var(--dim); }
+h1 { margin: 0; font-size: 1.1rem; }
+#stage { display: grid; place-items: center; margin-block: 0.75rem; }
+#screen { display: block; image-rendering: pixelated; background: #000; inline-size: 384px; block-size: 216px; max-inline-size: 100%; cursor: pointer; }
+#controls { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: center; justify-content: center; min-block-size: 2.8rem; }
+#controls .note, #debug .note { color: var(--dim); font-size: 0.85rem; }
+button { font: inherit; color: var(--ink); background: #241f38; border: 2px solid #5a5070; border-radius: 0; padding: 0.3rem 0.9rem; cursor: pointer; box-shadow: inset -2px -2px 0 #14122a, inset 2px 2px 0 #3d3550; }
+button:hover { background: #2f2848; }
+button.primary { background: #6b1a2b; border-color: #ffd84a; color: #fff; box-shadow: inset -2px -2px 0 #3a0c16, inset 2px 2px 0 #a0283e; }
+button.primary:hover { background: #82203a; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+/* 時間の速さ（本物の range。modern-web-guidance の slider の形） */
+input[type="range"] {
+  --track: 0.5rem; --thumb: 1.1rem; --fill: #ffd84a; --rest: #3d3550;
+  --attr-min: 0; --attr-max: 5; --control-value: 2;
+  --progress: calc((var(--control-value) - var(--attr-min)) / (var(--attr-max) - var(--attr-min)) * 100%);
+  appearance: none; inline-size: min(14rem, 60vw); block-size: 2.2rem; margin: 0; background: transparent; cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track { block-size: var(--track); background: linear-gradient(to right, var(--fill) var(--progress), var(--rest) var(--progress)); border: 0; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; inline-size: var(--thumb); block-size: var(--thumb); margin-block-start: calc((var(--track) - var(--thumb)) / 2); background: #fff; border: 2px solid #0b0a12; border-radius: 0; }
+input[type="range"]::-moz-range-track { block-size: var(--track); background: var(--rest); border: 0; }
+input[type="range"]::-moz-range-progress { block-size: var(--track); background: var(--fill); }
+input[type="range"]::-moz-range-thumb { inline-size: var(--thumb); block-size: var(--thumb); background: #fff; border: 2px solid #0b0a12; border-radius: 0; }
+output { min-inline-size: 15rem; color: var(--dim); font-size: 0.9rem; }
+#debug { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; justify-content: center; margin-top: 0.75rem; padding: 0.5rem; border: 1px dashed #7a5a10; }
+#debug button { padding: 0.1rem 0.5rem; font-size: 0.85rem; }
+.about { max-inline-size: 46rem; margin: 2rem auto 0; color: var(--dim); font-size: 0.9rem; }
+.about h2 { color: var(--ink); font-size: 1rem; margin: 1.5rem 0 0.3rem; }
+.about a { color: #b5ecff; }
+.about ul { padding-inline-start: 1.2rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>今日も打とーっと</h1>
+    <a href="../">AI コーディングノート へ戻る</a>
+  </header>
+  <main>
+    <div id="stage"><canvas id="screen" width="384" height="216" aria-label="パチンコの出玉グラフのゲーム画面">出玉グラフのゲーム画面</canvas></div>
+    <div id="controls" aria-label="操作"></div>
+  </main>
+  <section class="about">
+    <h2>遊び方</h2>
+    <p>台を 1 つ選ぶと、あとは出玉グラフ（差玉の線）が伸びていくのを眺めるだけです。ゲーム内の 10:00〜22:00 を、標準の速さで 3 分で遊びます。速さは 0.25〜8 倍に変えられます。スペースで一時停止、← → で速さを変えられます。</p>
+    <p>当たると線が光り、連チャンが続くほど線の色が変わって、20 連で虹色になります。差玉 +10,000 発（万発）でファンファーレ、−10,000 発（逆万発）で悲しい曲が流れます。閉店すると、勝ち負けで晩ごはんが変わります。</p>
+    <h2>再現している仕組み</h2>
+    <p>大当たり確率、確変・ST・時短、振り分け、ラウンドごとの出玉、回転率、電サポ、一種二種混合の小当たりを、台ごとに計算しています。毎分 100 発の打ち出し、保留 4 個、変動時間も入れています。どの台も「店の標準の回転率」がボーダー（収支がとんとんになる回転率）の約 94% なので、長く遊ぶと少し負けます。日によって釘が変わり、ボーダーを超える日もあります。</p>
+    <p>台の名前と題材はすべて架空で、実在の機種とは関係ありません。ゲームの中のお金も架空です。本物のパチンコは 18 歳から、遊びすぎには気をつけて。</p>
+    <h2>使ったもの</h2>
+    <ul>
+      <li>ドット絵: <a href="https://github.com/kokuren333/CyberSprite">CyberSprite</a>（Apache-2.0）で描いた。開店待ちの人は <a href="https://github.com/trinity-works/frostwind">Frostwind</a>（MIT）の人物。</li>
+      <li>光る効果: <a href="https://github.com/patch-gg/pixelfx">pixelfx</a>（MIT、Patch。一部は Hugo Duprez 氏の Sprite Fusion の効果を元にしたもの）。金粉はこのゲームのために pixelfx の作り方で足した。</li>
+      <li>音: WebAudio で鳴らすオリジナルの曲と効果音。</li>
+      <li>作り方と使用感は <a href="../reports/pixel-skills/">実験レポート</a> にまとめています。</li>
+    </ul>
+  </section>
+</div>
+<script type="module" src="js/main.mjs"></script>
+</body>
+</html>
