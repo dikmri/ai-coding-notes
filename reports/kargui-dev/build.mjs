@@ -257,6 +257,8 @@ ${figure("apps/expenses", "家計簿の見本", "家計簿（<code>examples/expe
       ),
     popups: () => `${figure("linux/picker", "強調の色の欄の上に、彩度と明るさの面・色相の帯・番号の欄・16 色の見本が開いている", "色の選択。下に入りきらないので、欄の上に開く。", { flat: true })}
   ${figure("linux/menu", "家計簿の表の 2026-11-12 の行が選ばれ、その上に削除と書かれたメニューが開いている", "家計簿の見本の行を右クリックした所。行に付けたメニューが、押した位置に開く。", { flat: true })}`,
+    clipboard: () => `${figure("linux/clipboard", "左に kargui の設定の見本、右に端末。見本の名前の欄の realkbd を写し、端末に貼った realkbd が出ている", "kargui の名前の欄で写した文字を、SUPER＋Enter で開いた端末に Ctrl+Shift+V で貼った所（本物のキーボードと同じ道で AI が操作した）。", { flat: true })}
+  ${figure("linux/today", "家計簿の見本の日付の暦。2026 年 11 月で、23 日に丸が付いている", "家計簿の見本の暦。今日の丸が、地元の日付（11 月 23 日）に付く。", { flat: true })}`,
   },
   "07-fonts.html": {
     fonts: () => figure("fonts/lines", "複数行の入力欄が 3 つ並ぶ。左から UI の書体、等幅、BIZ UDP ゴシック。どれも同じ行の間で並んでいる", "同じ文を 3 つの書体で出した複数行の入力欄。左から UI の書体（Yu Gothic UI）、<code>.monospace()</code>（BIZ UD ゴシック）、<code>.font(Font::family(\"BIZ UDPGothic\"))</code>。試験台で撮った。", { flat: true }),
