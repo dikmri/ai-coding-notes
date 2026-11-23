@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 10 章 Linux の窓（Wayland） ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="0.2 の後の 6 つ目として、kargui が Linux（Wayland）で窓を開けるようにしました。検証用の Linux の PC と AI が画面を操作する道具、境目のファイルを 1 つ足すだけで窓を開く作り、作者の手の確かめの記録から見つけたタッチパッドの取りこぼしを紹介します。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 10 章</p>
+  <h1>Linux の窓（Wayland）</h1>
+  <p class="lede">0.2 の後の 6 つ目として、kargui が Linux で窓を開けるようにしました。今まで Linux では試験だけを走らせていて、<code>kargui::run</code> を呼ぶと「この OS では窓を開けない」というエラーを返していました。この章では、確かめるために用意した Linux の PC と、AI が画面を操作する道具を紹介します。続けて、OS の境目のファイルを 1 つ足すだけで窓を開く作りと、作者の手の確かめの記録から見つけた不具合を書きます。今回は最初の区切りで、日本語入力と OS のクリップボードはまだありません。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>Linux の確かめ用の PC と、AI が画面を撮って押す道具の組み方</li>
+      <li>Windows と同じ 1 フレームの処理を使い、境目のファイル 1 つで窓を開く作り</li>
+      <li>依存を 13 個に抑えた選び方と、1.5 倍の倍率でくっきり描く方法</li>
+      <li>タッチパッドの送りを捨てていた不具合と、記録に書いていない操作は確かめられないこと</li>
+      <li>Hyprland の押し続けと、浮かせた窓の大きさの決まり</li>
+    </ul>
+  </section>
+
+  <h2 id="machine">確かめ用の Linux の PC</h2>
+  <p>作者が中古のノート PC（第 6 世代の Core i5 の 2 コア、内蔵のグラフィック、メモリ 16 GB、画面 1920×1080）を用意しました。作者の好みで、Debian 13 の最小構成に Hyprland（窓を敷き詰める Wayland の合成）を入れ、Omarchy に似た見た目に組みました。画面は 1.5 倍で使います。Windows の PC から SSH でつなぎ、AI（Claude）が組み立て・試験・操作をすべて行います。</p>
+  <p>AI が画面を確かめるために、小さな道具 <code>hypr-ai</code> を作りました。Hyprland は、画面を撮る・カーソルを動かす・文字を打つ操作を、許可の画面なしで外から行えます。撮った画面を AI が見て、押す位置を決めます。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-tool">
+    <table>
+      <caption id="t-tool">AI が画面を操作する道具 hypr-ai</caption>
+      <thead><tr><th scope="col">操作</th><th scope="col">使った仕組み</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">画面を撮る</th><td data-label="使った仕組み">grim（Wayland の画面を PNG にする）</td></tr>
+        <tr><th scope="row">カーソルを動かす</th><td data-label="使った仕組み">Hyprland の命令（撮った画面の画素を、倍率 1.5 で割って渡す）</td></tr>
+        <tr><th scope="row">押す・2 回押す</th><td data-label="使った仕組み">wlrctl（Wayland の仮想のマウス）</td></tr>
+        <tr><th scope="row">押したまま動かす・ホイール</th><td data-label="使った仕組み">ydotool（OS の入力の仕組みに、本物と同じマウスを足す）</td></tr>
+        <tr><th scope="row">文字を打つ・キーを押す</th><td data-label="使った仕組み">wtype（日本語も打てる。日本語入力は通らない）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>操作は 1 行ずつ記録に残します。作者に確かめてもらう前に、AI がこの道具で一通り操作し、明らかな不具合を先に直しました。</p>
+
+  <h2 id="design">境目のファイルを 1 つ足す</h2>
+  <p>kargui では、OS を呼ぶ所をいくつかのファイルにまとめています。1 フレームの処理（入力を部品に渡す・描く物の一覧を作る）は <code>Runtime</code> にあり、Windows の窓と試験台が同じ物を使います。そこで Linux の窓は、新しいファイル <code>wayland.rs</code> の 1 つで作りました。Wayland の知らせを kargui の入力に直して <code>Runtime</code> に渡し、できた描く物の一覧を、Windows と同じ CPU の描き方で絵にします。</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 300" role="img" aria-labelledby="dw-title dw-desc">
+      <title id="dw-title">Linux の窓の流れ</title>
+      <desc id="dw-desc">Wayland の合成から、ポインター・キー・大きさ・倍率の知らせが wayland.rs に届く。wayland.rs はそれを kargui の入力に直し、Windows と同じ Runtime で 1 フレームを回す。cpu_frame が変わった所だけを描き、共有メモリの 2 枚の絵の空いている方に写して、合成に渡す。待つのは poll の 1 か所で、Wayland の接続・ほかのスレッドから起こす知らせ・時間の 3 つを待つ。</desc>
+      <defs>
+        <marker id="ah10" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrow-head"/></marker>
+      </defs>
+      <rect class="box-soft" x="10" y="20" width="200" height="74" rx="10"/>
+      <text class="label" x="26" y="48">Wayland の合成</text>
+      <text class="sub" x="26" y="70">Hyprland・GNOME・KDE</text>
+      <text class="sub" x="26" y="86">など</text>
+      <rect class="box" x="260" y="20" width="200" height="74" rx="10"/>
+      <text class="label" x="276" y="48">wayland.rs</text>
+      <text class="sub" x="276" y="70">知らせを kargui の入力に</text>
+      <text class="sub" x="276" y="86">直す（物理ピクセル）</text>
+      <rect class="box" x="510" y="20" width="200" height="74" rx="10"/>
+      <text class="label" x="526" y="48">Runtime</text>
+      <text class="sub" x="526" y="70">1 フレームを回す</text>
+      <text class="sub" x="526" y="86">（Windows と同じ）</text>
+      <rect class="box" x="510" y="150" width="200" height="74" rx="10"/>
+      <text class="label" x="526" y="178">cpu_frame</text>
+      <text class="sub" x="526" y="200">変わった所だけ描く</text>
+      <text class="sub" x="526" y="216">（Windows と同じ）</text>
+      <rect class="box" x="260" y="150" width="200" height="74" rx="10"/>
+      <text class="label" x="276" y="178">共有メモリの絵 2 枚</text>
+      <text class="sub" x="276" y="200">合成が読み終えた方に</text>
+      <text class="sub" x="276" y="216">写して渡す</text>
+      <rect class="box-soft" x="10" y="150" width="200" height="74" rx="10"/>
+      <text class="label" x="26" y="178">poll で待つ</text>
+      <text class="sub" x="26" y="200">接続・起こす知らせ・</text>
+      <text class="sub" x="26" y="216">時間（タイマー・押し続け）</text>
+      <path class="arrow" d="M212 57 H257" marker-end="url(#ah10)"/>
+      <path class="arrow" d="M462 57 H507" marker-end="url(#ah10)"/>
+      <path class="arrow" d="M610 96 V147" marker-end="url(#ah10)"/>
+      <path class="arrow" d="M508 187 H463" marker-end="url(#ah10)"/>
+      <path class="arrow" d="M258 170 L212 96" marker-end="url(#ah10)"/>
+      <text class="sub" x="30" y="262">ポインター・キー・大きさ・倍率の知らせ（上の矢印）と、絵の受け渡し（左下の矢印）。</text>
+    </svg>
+    <figcaption>Linux の窓の流れ。新しく書いたのは wayland.rs だけで、1 フレームの処理と描き方は Windows と同じ物を使う。</figcaption>
+  </figure>
+
+  <h3>依存は 13 個増えた</h3>
+  <p>Wayland と話す道具には、よく使われる smithay-client-toolkit（winit や COSMIC も使う）があります。ただ、依存が 57 個になり、組み立てる時に Linux の開発用の部品（libxkbcommon-dev と pkg-config）が要ります。使う人の PC にその部品が無いと、<code>cargo build</code> が失敗します。kargui は Windows でも Win32 を直接呼び、境目を薄く自分で書いているので、Linux も低い層の道具を直接使いました。キー配列を読む libxkbcommon は、動く時に読み込む形（xkbcommon-dl）にしたので、組み立てに開発用の部品は要りません。</p>
+  <!-- gen:deps -->
+<figure class="bars" id="c-deps">
+    <figcaption><span class="bars-title">Wayland の窓に要る依存の数</span><span class="bars-hint">少ないほど軽い。Linux で cargo tree で数えた</span></figcaption>
+    <div class="bar-rows">
+      <div class="bar-row" data-v="old"><span class="bar-name">smithay-client-toolkit を使う形</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">57 個（開発用の部品が要る）</span></span></div>
+      <div class="bar-row" data-v="new"><span class="bar-name">今回の形（低い層を直接）</span><span class="bar-track"><span class="bar" style="--w: 56.1%"></span><span class="bar-val">32 個（kargui に増えたのは 13 個）</span></span></div>
+    </div>
+  </figure>
+<!-- /gen:deps -->
+  <p>kargui の Linux の依存は 62 個から 75 個になりました。Windows の依存は変わりません。</p>
+
+  <h3>1.5 倍の倍率で、くっきり描く</h3>
+  <p>Wayland の窓は、論理の大きさ（1.5 倍なら 1260×670）で並びます。整数の倍率しか知らないアプリは、2 倍で描いた絵を合成に縮めてもらうか、1 倍で描いた絵を引き伸ばしてもらうので、字がぼやけます。kargui は、合成が「1.5 倍で描いてほしい」と知らせる仕組み（fractional-scale）を受け、物理ピクセル（1890×1005）で描きます。描いた絵を論理の大きさに合わせて置く仕組み（viewporter）で渡すので、合成は拡大も縮小もしません。部品の大きさと文字は、Windows の 150% の画面と同じ計算で決まります。</p>
+  <!-- gen:settings -->
+<figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/linux/settings-dark.webp"><img src="img/linux/settings-light.webp" alt="Linux の Hyprland の上の、kargui の設定の見本の窓。名前の欄に kargui テストと打ってあり、テーマ・書体・文字の大きさ・強調の色などが並ぶ" width="1200" height="640" loading="lazy" decoding="async"></picture><figcaption>Linux の検証機（Hyprland、1.5 倍）で開いた設定の見本。物理ピクセル 1890×1005 で描いている（画面を撮って窓の部分を切り出した。暗い表示の時は、見本のテーマをダークにした写真）。</figcaption></figure>
+<!-- /gen:settings -->
+
+  <h2 id="works">動いた所</h2>
+  <p>AI が操作して確かめた後、作者にノート PC で 2 回触ってもらいました。入力欄に打つ・2 回押しで単語・3 回押しで全部、Ctrl+A・C・V、Tab、テーマ、つまみ、色の選択、帯を引っ張って送る、リンク、窓の大きさの変化、閉じる。どれも Windows と同じ動きでした。</p>
+  <!-- gen:split -->
+<figure class="shot flat"><picture><img src="img/linux/split-light.webp" alt="左に端末、右に kargui の設定の見本が並び、見本は半分の幅に縮んで中身が並び直している" width="1200" height="645" loading="lazy" decoding="async"></picture><figcaption>隣に端末を開くと、Hyprland が画面を 2 つに分け、kargui の窓は論理 624×670 に狭まる。中身は Windows と同じく並び直す。</figcaption></figure>
+<!-- /gen:split -->
+  <!-- gen:popups -->
+<figure class="shot flat"><picture><img src="img/linux/picker-light.webp" alt="強調の色の欄の上に、彩度と明るさの面・色相の帯・番号の欄・16 色の見本が開いている" width="760" height="706" loading="lazy" decoding="async"></picture><figcaption>色の選択。下に入りきらないので、欄の上に開く。</figcaption></figure>
+  <figure class="shot flat"><picture><img src="img/linux/menu-light.webp" alt="家計簿の表の 2026-11-12 の行が選ばれ、その上に削除と書かれたメニューが開いている" width="900" height="360" loading="lazy" decoding="async"></picture><figcaption>家計簿の見本の行を右クリックした所。行に付けたメニューが、押した位置に開く。</figcaption></figure>
+<!-- /gen:popups -->
+
+  <h2 id="fixes">作者の手の確かめで見つかったこと</h2>
+  <p>1 回目の記録には、エラーや失敗の行が 1 つもありませんでした。ところが、作者に頼んだ操作のうち 4 つ（タッチパッドの送り・キーの押し続け・右クリック・3 回押し）は、記録からは「試していない」のか「動かなかった」のかを区別できませんでした。そこで、AI が検証機で同じ操作を試し、記録に書く項目を足して、作者にもう一度試してもらいました。</p>
+
+  <h3>1. タッチパッドで送っても、中身が動いていなかった</h3>
+  <p>1 回目の記録には、帯を引っ張って送った跡はありましたが、ホイールの記録は 0 件でした。作りを見直すと、タッチパッドの送りを捨てうる所がありました。Wayland のポインターの知らせは、1 つのまとまり（frame）の中に「源（ホイールか指か）」と「量」が入って届きます。最初の作りは、源が先に届く前提で、量が届いた時に指かどうかを決めていました。決まりの上では、まとまりの中の順番は保証されていません。量が先に届くと、指の送りを捨てていました。</p>
+  <p>直した後は、まとまりの終わり（frame）まで源と量をためてから決めます。ホイールなら 1 刻みを 96 ピクセル（Windows と同じ）、タッチパッドなら量に倍率を掛けた物理ピクセルを送ります。送るたびに源と量を記録に書くようにしました。2 回目の確かめでは、タッチパッドの指の送りが 175 回届き、上下の両方向に送れました。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい作り方: まとまりの中の知らせの順番を前提にする</span>
+    <p>Wayland のポインターは、1 つの動きをいくつかの知らせに分けて送り、最後に frame を送ります。frame より前の知らせの順番は決まっていません。源・量・刻みのように、組み合わせて意味が決まる知らせは、frame まで待ってからまとめて扱ってください。</p>
+  </div>
+
+  <h3>2. キーの押し続けは、Hyprland が繰り返していた</h3>
+  <p>1 回目の記録では、左右の矢印が 0.14〜0.19 秒のばらばらな間隔で届いていました。押し続けが効かず、作者が押し直したのかもしれません。AI が左矢印を 1.2 秒押し続けて試すと、押した知らせが最初の 243 ms 後から 25 ms おきに届きました。これは Hyprland に設定した押し続けの値（待ち 250 ms、1 秒に 40 回）と同じで、繰り返しを作っていたのは Hyprland でした。kargui はその知らせを 1 回ずつのキーとして受け、カーソルを動かしていました。作者の矢印の間隔はばらばらで、1 回ずつ押した跡と読めます。2 回目の確かめでは、押し続けで左に 37 回、右に 34 回動きました。</p>
+  <p>kargui にも、自分で繰り返す仕組みを入れています。GNOME のように、押し続けの値だけを伝えて繰り返しはアプリに任せる合成のためです。Hyprland では、押した知らせが来るたびに kargui の待ちがやり直されるので、二重に繰り返すことはありません。</p>
+
+  <h3>3. 浮かせた窓が、画面いっぱいになった</h3>
+  <p>窓の大きさを確かめるため、作業場 9 を「窓を浮かせる」規則にして、設定の見本（560×520 を頼む）を開きました。ところが窓は画面いっぱい（1280×720）になりました。記録に足した知らせの中身を見ると、Hyprland は最初の知らせに「敷き詰めた窓（tiled）」の状態と画面いっぱいの大きさを付けて送っていました。敷き詰め・最大化・全画面の時は、言われた大きさに従うのが Wayland の作法です。同じ作業場で開いた端末も画面いっぱいになったので、kargui の不具合ではなく Hyprland の動きでした。それ以外の最初の勧めの大きさは使わず、アプリが頼んだ大きさにする形にしました（GNOME などで Windows と同じ動きにするため）。</p>
+
+  <h3>4. 右クリックのメニューが出なかったのは、頼み方の誤り</h3>
+  <p>作者に「入力欄を右クリックしてメニューが出るか見る」と頼みましたが、kargui の右クリックのメニューは、アプリが付けた部品の上でだけ開く作りです。設定の見本の入力欄には付いていないので、出ないのが正しい動きでした（Windows でも同じ）。2 回目は、行に「削除」のメニューが付いた家計簿の見本で試してもらい、開いて押せることを確かめました。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 記録に書いていない操作は、確かめられない</span>
+    <p>作者からの知らせは「試しました」だけで、どこがおかしかったかは記録から読み取ります（第 7 章）。最初の作りは、タッチパッドの送り・押し続けの繰り返し・左以外のボタンを記録に書いていませんでした。その結果、作者が試したのに動かなかったのか、試していないのかを区別できませんでした。新しい入力の道を作る時は、その道を通った跡が 1 行でも記録に残るようにしてから、作者に渡します。</p>
+  </div>
+
+  <h2 id="weight">軽さ</h2>
+  <p>設定の見本は、窓を作ってから最初の絵を出すまで 44 ms でした。作者の 1 回目の確かめの間、入力で描き直した 310 回は、中央が 4.96 ms、9 割が 7.22 ms 以内でした（そのうち絵を描く部分は中央 3.23 ms）。描く広さは 1890×1005 の物理ピクセルで、1 字打つごとの描き直しは変わった所だけなので 1.6〜2.0 ms です。合成へ渡す絵は毎回全体を写します（約 7.6 MB）。2 枚の絵を交互に使うので、変わった所だけを写すと、もう一方の絵が古いまま残るからです。</p>
+
+  <h2 id="next">次の区切り</h2>
+  <p>次は、OS のクリップボード（ほかのアプリとの写しと貼り付け）、地元の日付と時刻、明暗の設定です。その後に日本語入力（fcitx5）、読み上げ、ファイルのダイアログ、2 つ目からの窓、GNOME の題の帯、X11 の順に足します。利用者の多い GNOME でも、窓ができたところで一度確かめます。</p>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="09-rich-text.html">← 第 9 章 書式付きの文字</a>
+    <a href="./">目次 →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>
