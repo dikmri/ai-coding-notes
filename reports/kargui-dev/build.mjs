@@ -142,7 +142,7 @@ const CHAPTERS = [
   { href: "07-fonts.html", no: "第 7 章", title: "書体", text: "Font の 3 つの形と書体の探し方、入力欄の書体が 1 フレーム遅れて伝わる理由、作者の記録から見つけた行の間の不具合。", thumb: "fonts/lines" },
   { href: "08-pickers.html", no: "第 8 章", title: "色と時刻の選択", text: "時刻をます目にした理由、濃淡の面を絵で描く方法、作者の記録から見つけた打つ途中の番号と、引っ張っても選べない入力欄。", thumb: "pickers/time" },
   { href: "09-rich-text.html", no: "第 9 章", title: "書式付きの文字", text: "範囲を表示だけにした理由、1 つの段落として並べて部分ごとに色を付ける仕組み、見えないコードの背景と Linux で落ちた試験。", thumb: "rich/sample" },
-  { href: "10-linux.html", no: "第 10 章", title: "Linux の窓（Wayland）", text: "検証用の Linux の PC と AI が画面を操作する道具、境目のファイル 1 つで窓を開く作り、作者の記録から見つけたタッチパッドの取りこぼし。", thumb: "linux/settings" },
+  { href: "10-linux.html", no: "第 10 章", title: "Linux の窓（Wayland）", text: "検証用の Linux の PC と AI が画面を操作する道具、境目のファイル 1 つで窓を開く作り、タッチパッドの取りこぼし、後から足したクリップボードと日本語入力。", thumb: "linux/settings" },
 ];
 
 function chapters() {
@@ -259,6 +259,27 @@ ${figure("apps/expenses", "家計簿の見本", "家計簿（<code>examples/expe
   ${figure("linux/menu", "家計簿の表の 2026-11-12 の行が選ばれ、その上に削除と書かれたメニューが開いている", "家計簿の見本の行を右クリックした所。行に付けたメニューが、押した位置に開く。", { flat: true })}`,
     clipboard: () => `${figure("linux/clipboard", "左に kargui の設定の見本、右に端末。見本の名前の欄の realkbd を写し、端末に貼った realkbd が出ている", "kargui の名前の欄で写した文字を、SUPER＋Enter で開いた端末に Ctrl+Shift+V で貼った所（本物のキーボードと同じ道で AI が操作した）。", { flat: true })}
   ${figure("linux/today", "家計簿の見本の日付の暦。2026 年 11 月で、23 日に丸が付いている", "家計簿の見本の暦。今日の丸が、地元の日付（11 月 23 日）に付く。", { flat: true })}`,
+    ime: () =>
+      figure(
+        "linux/ime-candidates",
+        "家計簿の見本のメモ欄に、下線付きのとうきょうが打ってあり、その真下に Tabキーで選択・東京・東京都・東京駅と並んだ候補の窓が開いている",
+        "家計簿の見本のメモ欄で「とうきょう」と打った所。変換中の文字に下線が付き、Mozc の候補の窓が文字の真下に出る（AI が本物のキーボードと同じ道で打った）。",
+        { flat: true },
+      ),
+    clauses: () =>
+      figure(
+        "linux/ime-clauses",
+        "メモ欄が上下に 2 つ。どちらも東京明日は東京に行くと書かれている。上は明日はに太い下線、下は東京にに太い下線が付いている",
+        "上は「明日は」を変換している所、下は → で「東京に」へ移った所。太い下線が今変換している文節で、先頭の「東京」は確定済みの文字。上では「東京に行く」が 1 本の細い下線になる。",
+        { flat: true },
+      ),
+    workspace: () =>
+      figure(
+        "linux/ime-workspace",
+        "メモ欄に soraumi そら うみ と書かれ、うみにだけ下線が付き、その下に海の候補が出ている",
+        "「そら」と打った途中で別の作業場へ移り、戻ってから「うみ」と打った所。「そら」は確定して残り、「うみ」は新しい変換になる（先頭の soraumi は、前の試しで入った文字）。",
+        { flat: true },
+      ),
   },
   "07-fonts.html": {
     fonts: () => figure("fonts/lines", "複数行の入力欄が 3 つ並ぶ。左から UI の書体、等幅、BIZ UDP ゴシック。どれも同じ行の間で並んでいる", "同じ文を 3 つの書体で出した複数行の入力欄。左から UI の書体（Yu Gothic UI）、<code>.monospace()</code>（BIZ UD ゴシック）、<code>.font(Font::family(\"BIZ UDPGothic\"))</code>。試験台で撮った。", { flat: true }),
