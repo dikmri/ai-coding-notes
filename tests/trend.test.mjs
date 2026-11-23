@@ -2002,3 +2002,183 @@ test('小さな街: 夕方の混む時刻に 2 分動かしても、同じ道の
   assert.equal(sim.redRuns, 0);
   for (const c of sim.cars) assert.ok(c.v >= 0 && c.v < X.IDM.v0 * 1.2);
 });
+
+// ---- 小さなブラウザエンジン（Ladybird のアルファ版）----
+const ENGINE = 'tr-20261124-tiny-engine';
+const ENGINE_NAMES = ['parseHTML', 'parseCSS', 'parseSelector', 'matchSel', 'styleTree', 'layoutDoc', 'paintList', 'collapseMargins', 'UA_CSS'];
+// 偽の文字: 1 文字 10px、上の高さ 12px・下の深さ 4px
+const FAKE_M = { width: (font, t) => [...t].length * 10, metrics: () => ({ asc: 12, desc: 4 }) };
+let engineX = null;
+function engine(html, css = '', width = 200, M = FAKE_M) {
+  const X = engineX || (engineX = trendCore(ENGINE, ENGINE_NAMES));
+  const pr = X.parseHTML(html);
+  X.styleTree(pr.root, [X.parseCSS(X.UA_CSS, 'ua'), X.parseCSS(css, 'author')], {});
+  const L = X.layoutDoc(pr.root, width, M);
+  const all = [];
+  const walk = (n) => { for (const k of n.children) if (k.type === 'el') { all.push(k); walk(k); } };
+  walk(pr.root);
+  const byId = (id) => all.find((e) => e.attrs.id === id);
+  return { X, pr, L, byId, box: (id) => L.C.byNode.get(byId(id)) };
+}
+const lineTexts = (b) => b.lines.map((L) => L.runs.map((r) => r.text).join(''));
+
+test('小さなエンジン: p の中で div が始まると先に p を閉じ、li は前の li を閉じる', () => {
+  const { pr } = engine('<p>a<div>b</div><ul><li>1<li>2</ul>');
+  const tags = pr.root.children.filter((k) => k.type === 'el').map((k) => k.tag);
+  assert.equal(tags.join(','), 'p,div,ul');
+  const ul = pr.root.children.find((k) => k.tag === 'ul');
+  assert.equal(ul.children.filter((k) => k.type === 'el').map((k) => k.tag).join(','), 'li,li');
+  assert.equal(pr.notes.fixes, 3);
+});
+
+test('小さなエンジン: 文字参照を戻し、class・id・style 以外の属性と知らない要素を記録する', () => {
+  const { pr } = engine('<p class="x" onclick="evil()" id=q>&lt;b&gt; &amp; &#x41;&#66;&nbsp;</p><foo>z</foo><img src="a.png">');
+  const [p, foo, img] = pr.root.children;
+  assert.equal(p.children[0].text, '<b> & AB' + String.fromCharCode(160));
+  assert.equal(p.attrs.class, 'x');
+  assert.equal(p.attrs.id, 'q');
+  assert.equal(p.attrs.onclick, undefined);
+  assert.ok(pr.notes.attrs.has('onclick'));
+  assert.equal(foo.tag, 'span');
+  assert.equal(foo.orig, 'foo');
+  assert.equal(img.tag, '#skip');
+});
+
+test('小さなエンジン: 選択子の詳しさ、子と子孫の違い、扱えない規則は捨てる', () => {
+  const { X, byId } = engine('<div id=a><section><p id=deep>x</p></section><p id=kid>y</p></div>');
+  assert.equal(X.parseSelector('#main p.note:first-child').spec.join(','), '1,2,1');
+  assert.equal(X.parseSelector('a:hover'), null);
+  assert.equal(X.parseSelector('div + p'), null);
+  const child = X.parseSelector('div > p'), desc = X.parseSelector('div p');
+  assert.equal(X.matchSel(byId('kid'), child), true);
+  assert.equal(X.matchSel(byId('deep'), child), false);
+  assert.equal(X.matchSel(byId('deep'), desc), true);
+  const r = X.parseCSS('@media (min-width: 1px) { p { color: red } } p, q:hover { color: blue } div > p { color: green }', 'author');
+  assert.equal(r.rules.length, 1);
+  assert.equal(r.bad.length, 2);
+});
+
+test('小さなエンジン: 詳しさ・style 属性・!important の順で値が決まり、読めない値は次の候補を使う', () => {
+  const css = 'p { color: #555; } .note { color: red; } #main p { color: blue; } .imp { color: purple !important; } p.w { width: 50px; } p.w { width: oops; }';
+  const { byId } = engine('<div id="main"><p id=a class="note">1</p><p id=b class="note" style="color: green">2</p><p id=c class="note imp" style="color: green">3</p><p id=d class="w">4</p></div>', css);
+  assert.equal(byId('a').cs.color, 'blue');
+  assert.equal(byId('b').cs.color, 'green');
+  assert.equal(byId('c').cs.color, 'purple');
+  assert.equal(byId('d').cs.width.px, 50);
+});
+
+test('小さなエンジン: em と smaller は親の文字の大きさから、bolder は親の太さから決まる。枠の幅は整数の画素にする', () => {
+  const { byId } = engine('<div><p id=p>x<b id=b>y</b><small id=s>z</small></p></div><h1>t<b id=hb>u</b></h1><p id=t1 style="border:0.5px solid">a</p><p id=t2 style="border:2.7px solid">b</p><p id=t3 style="border-width:3px">c</p>', 'div { font-size: 20px } p { font-size: 1.5em; margin: 1em 0 }');
+  assert.equal(byId('p').cs['font-size'], 30);
+  assert.equal(byId('p').cs['margin-top'].px, 30);
+  assert.ok(Math.abs(byId('s').cs['font-size'] - 25) < 1e-9);
+  assert.equal(byId('b').cs['font-weight'], 700);
+  assert.equal(byId('hb').cs['font-weight'], 900);
+  assert.equal(byId('t1').cs['border-top-width'], 1);
+  assert.equal(byId('t2').cs['border-left-width'], 2);
+  assert.equal(byId('t3').cs['border-top-width'], 0);   // 線の種類が none なので幅は 0
+});
+
+test('小さなエンジン: 隣り合う上下の余白は大きい方だけ使い、負の余白は足す', () => {
+  const { X, box } = engine('<div id=a style="margin-bottom:30px;height:10px"></div><div id=b style="margin-top:20px;height:10px"></div><div id=c style="margin-top:-12px;height:10px"></div>');
+  assert.equal(box('a').y, 0);
+  assert.equal(box('b').y, 40);
+  assert.equal(box('c').y, 38);
+  assert.equal(X.collapseMargins([30, 20, -5, -12]), 18);
+});
+
+test('小さなエンジン: 親に上の枠も内側の余白もないと子の余白が親の外へ出る。内側の余白か flow-root で止まる', () => {
+  let r = engine('<div id=w style="margin-top:10px"><p id=c style="margin-top:24px;height:5px"></p></div>');
+  assert.equal(r.box('w').y, 24);
+  assert.equal(r.box('c').y, 24);
+  assert.equal(r.box('w').h, 5);
+  r = engine('<div id=w style="margin-top:10px;padding-top:1px"><p id=c style="margin-top:24px;height:5px"></p></div>');
+  assert.equal(r.box('w').y, 10);
+  assert.equal(r.box('c').y, 35);
+  r = engine('<div id=w style="margin-top:10px;display:flow-root"><p id=c style="margin-top:24px;height:5px"></p></div>');
+  assert.equal(r.box('w').y, 10);
+  assert.equal(r.box('c').y, 34);
+});
+
+test('小さなエンジン: 中身のない箱は上と下の余白が重なって通り抜ける', () => {
+  const { box } = engine('<div id=a style="height:10px;margin-bottom:10px"></div><div id=e style="margin:20px 0 28px"></div><div id=b style="height:10px;margin-top:8px"></div>');
+  assert.equal(box('e').h, 0);
+  assert.equal(box('e').y, 30);   // 下に枠があるとしたときの位置: 10 + 重なった余白 max(10, 20)
+  assert.equal(box('b').y, 38);
+});
+
+test('小さなエンジン: 幅の決まった箱は左右の auto の余白で寄せ、max-width で幅を抑える', () => {
+  const { box } = engine('<div id=a style="width:100px;margin:0 auto;height:1px"></div><div id=b style="max-width:50px;margin-left:auto;height:1px"></div>', '', 300);
+  assert.equal(box('a').x, 100);
+  assert.equal(box('b').x, 250);
+  assert.equal(box('b').w, 50);
+});
+
+test('小さなエンジン: 英語は空白で折り返し、行の高さは文字の上下に行の高さとの差の半分を足す', () => {
+  const { box } = engine('<p id=p style="margin:0">aaa bbb ccc</p>', '', 75);
+  const b = box('p');
+  assert.equal(lineTexts(b).join('|'), 'aaa bbb|ccc');
+  assert.equal(b.lines[0].h, 24);
+  assert.equal(b.lines[0].base, 16);
+  assert.equal(b.h, 48);
+});
+
+test('小さなエンジン: 塊の幅は文字の並びの先頭から測るので、隣の文字との詰め具合が行の幅に入る', () => {
+  // 偽の字形: 「V」と空白が並ぶと 2px 詰まる。1 つずつ足すと 50px、続けて測ると 48px
+  const KERN_M = { width: (font, t) => [...t].length * 10 - 2 * (t.split('V ').length - 1), metrics: () => ({ asc: 12, desc: 4 }) };
+  const { box } = engine('<p id=p style="margin:0">AV AV</p>', '', 48, KERN_M);
+  assert.equal(lineTexts(box('p')).join('|'), 'AV AV');
+  assert.equal(box('p').lines[0].w, 48);
+});
+
+test('小さなエンジン: 日本語は1文字ずつ区切るが、「、」や閉じかっこを行の頭に、開きかっこを行の終わりに置かない', () => {
+  let r = engine('<p id=p style="margin:0">あいう、えお</p>', '', 30);
+  assert.equal(lineTexts(r.box('p')).join('|'), 'あい|う、え|お');
+  r = engine('<p id=p style="margin:0">「あいう」</p>', '', 20);
+  assert.equal(lineTexts(r.box('p')).join('|'), '「あ|い|う」');
+});
+
+test('小さなエンジン: 行の終わりの全角の閉じかっこは、そのままでは入らないときだけ半分の幅にする', () => {
+  let r = engine('<p id=p style="margin:0">あいう）</p>', '', 35);
+  assert.equal(lineTexts(r.box('p')).join('|'), 'あいう）');
+  assert.equal(r.box('p').lines[0].w, 35);
+  r = engine('<p id=p style="margin:0">あいう）</p>', '', 50);
+  assert.equal(r.box('p').lines[0].w, 40);
+});
+
+test('小さなエンジン: 前の記号と並んで詰まった開きかっこは、行の頭に来ると元の幅に戻る', () => {
+  // 偽の字形: 「。「」と並ぶと 5px 詰まる（「「」が半分になる）
+  const PAIR_M = { width: (font, t) => [...t].length * 10 - 5 * (t.split('。「').length - 1), metrics: () => ({ asc: 12, desc: 4 }) };
+  const { box } = engine('<p id=p style="margin:0">あ。「い</p>', '', 25, PAIR_M);
+  assert.equal(lineTexts(box('p')).join('|'), 'あ。|「い');
+  assert.equal(box('p').lines[1].w, 20);
+});
+
+test('小さなエンジン: text-align で行の左の位置が変わる', () => {
+  const { box } = engine('<p id=c style="margin:0;text-align:center">abc</p><p id=r style="margin:0;text-align:right">abc</p>', '', 100);
+  assert.equal(box('c').lines[0].runs[0].x, 35);
+  assert.equal(box('r').lines[0].runs[0].x, 70);
+});
+
+test('小さなエンジン: 2 行にまたがる inline の箱は 2 つに分かれ、左の枠は最初、右の枠は最後にだけ付く', () => {
+  const { L, byId } = engine('<p id=p style="margin:0">aa <span id=s style="padding:0 5px;border:1px solid red">bb cc</span></p>', '', 60);
+  const fr = L.C.frags.get(byId('s'));
+  assert.equal(fr.length, 2);
+  assert.equal(fr[0].x, 30);
+  assert.equal(fr[0].w, 26);
+  assert.equal(fr[0].first, true);
+  assert.equal(fr[0].last, false);
+  assert.equal(fr[1].x, 0);
+  assert.equal(fr[1].w, 26);
+  assert.equal(fr[1].last, true);
+  assert.equal(fr[1].y, 27);
+  assert.equal(fr[0].h, 18);
+});
+
+test('小さなエンジン: block の背景を全部塗ってから、行の中身（inline の背景と文字）を描く', () => {
+  const { X, L } = engine('<div style="background:#eee;padding:4px"><p style="background:#fcc">x <b style="background:#ff0">y</b></p></div>');
+  const list = X.paintList(L);
+  assert.equal(list.map((c) => c.op).join(','), 'rect,rect,rect,text,text');
+  assert.equal(list[0].color, '#eee');
+  assert.equal(list[2].color, '#ff0');
+});

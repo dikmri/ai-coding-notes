@@ -11626,3 +11626,1416 @@ dekiru.add({
     requestAnimationFrame(frame);
   },
 });
+
+dekiru.add({
+  id: 'tr-20261124-tiny-engine', c: 'trend', lv: 3, date: '2026-11-24',
+  t: 'HTML と CSS を読んで箱を並べ、canvas に描く小さなブラウザエンジンを一から作る（Ladybird のアルファ版）',
+  y: 'えいちてぃーえむえるとしーえすえすをよんではこをならべきゃんばすにかくちいさなぶらうざえんじんをいちからつくる',
+  tags: ['Ladybird', 'ブラウザエンジン', 'CSS のカスケード', '余白の重なり', 'Shadow DOM', 'Canvas'],
+  d: '2026年11月23日、独自のエンジンを持つブラウザ Ladybird がアルファ版になり、macOS と Linux 向けの配布を始めた。Hacker News では取得した時点で 1081 点・271 件のコメント、X の公式の告知（fxtwitter で確認）はいいね 5974 件を集めていた。告知では、エンジンは既存のエンジンを分けて持ってきたもの（フォーク）ではなく一から作ったもので、アルファ版なので動かないサイトもあると書いている。この見本では、ブラウザが画面を描くまでの段階を JavaScript で一から作る。HTML を読んで DOM の木を作り（p の中で div が始まると先に p を閉じる、li が続くと前の li を閉じる、などの決まりを含む）、CSS を読んで、選択子の詳しさ（詳細度）・書いた順・!important・style 属性の順で値を決め、em や % を px に直す。次に箱を上から並べ（隣り合う上下の余白の重なり、親と最初の子の余白の重なり、中身のない箱の通り抜け、display: flow-root で重なりが止まる所を含む）、行を折り返し（英語は空白で、日本語は1文字ずつ区切り、「、」「。」や小さな「っ」を行の頭に置かない）、背景と枠を先に全部塗ってから文字を書く順で canvas に描く。同じ DOM を Shadow DOM の中に作ってこのブラウザにも描かせ、要素ごとの箱の位置と大きさを getBoundingClientRect と比べて、1 px 以内で合った数を出す。HTML の木の形も、このブラウザの読み方（template 要素）と比べる。絵の上で箱を指すと、両方の絵に余白・枠・内側の余白・中身を色分けして重ね、どの規則が勝ったかを出す。再現できていない所: 扱える要素は div・p・見出し・リスト・span・b・code など 30 種類ほどで、表・画像・フォームは描かない（知らない要素は span として扱う）。CSS は display の block・inline・list-item・flow-root・none と、余白・枠・背景色・角の丸み・幅と高さ・max-width・box-sizing・文字の大きさと太さと斜体・行の高さ・text-align・下線だけで、float・position・flex・grid・inline-block・vertical-align・@media は扱わない。選択子は型・class・id・子孫・子・:first-child・:last-child だけ。入れ子を間違えた HTML を直す処理（adoption agency）、inline の中に block がある場合、行の折り返しの細かい規則（Unicode の UAX #14 の全部）は入れていない。作った PC の Chrome で、4つの見本とかっこの多い文を、幅 160〜640 px で 4 px ずつ変えて比べたところ、4598 個の箱がすべて 1 px 以内で合った。ただし、行の高さの丸め方、行の終わりの閉じかっこを半分の幅にする所、行の頭の開きかっこを元の幅に戻す所は、その Chrome の動きを測って合わせた。ほかのブラウザや書体では、合う数が減ることがある。Ladybird の実際のコード（C++ の LibWeb）は読んでおらず、写してもいない。',
+  p: 'ブラウザは「HTML を読む → style を決める → 箱を並べる → 描く」を順に進める。style を決める段階では、同じ要素に当たる規則どうしで選択子の詳しさ（id の数、class と疑似クラスの数、要素名の数の順）を比べ、同じなら後に書いた方が勝つ。style 属性はどの選択子より強く、!important はさらにその上に来る。読めない値の宣言は、無かったものとして次の候補を使う。箱を並べる段階で間違えやすいのが上下の余白の重なり（margin collapsing）で、隣り合う余白は足さずに、正の余白の最大と負の余白の最小を足す。親に上の枠も内側の余白もなければ、子の上の余白は親の外へ出る。この見本では、位置がまだ決まらない余白と箱をためておき、枠か文字が出てきた所でまとめて位置を決める。行の高さは、文字の上の高さと下の深さを整数に丸め、line-height との差の半分（上は切り捨て）を上下に足して決める。文字の幅は canvas の measureText で測る。1文字ずつ測って足すと隣の文字との詰め具合が入らず、境目の行で改行の位置が変わる。そこで、段落の文字を先頭から測り、前の塊までの幅を引く。canvas の textRendering を optimizeLegibility にしないと、「べて」「って」のような仮名の組が詰まらない。「。「」のように記号が並ぶと後ろのかっこが半分の幅に詰まるが、行の頭に来たかっこは元の幅に戻す。行の終わりの閉じかっこは、そのままでは入らないときだけ半分の幅にする。',
+  refs: [
+    { title: 'Ladybird is now in alpha（Andreas Kling、2026-11-23）', url: 'https://ladybird.org/posts/alpha/' },
+    { title: 'Hacker News: Ladybird is now in alpha（2026-11-23）', url: 'https://news.ycombinator.com/item?id=50614249' },
+    { title: 'X: @ladybirdbrowser「Ladybird is now in alpha」（2026-11-23）', url: 'https://x.com/ladybirdbrowser/status/2124895696516202969' },
+    { title: 'CSS 2.1: Collapsing margins', url: 'https://www.w3.org/TR/CSS21/box.html#collapsing-margins' },
+    { title: 'HTML Standard: Parsing HTML documents', url: 'https://html.spec.whatwg.org/multipage/parsing.html' },
+  ],
+  html: `<div class="app">
+  <div class="bar">
+    <label class="ctl"><span class="nm">見本</span><select id="sample">
+      <option value="article">記事</option>
+      <option value="margin">余白の重なり</option>
+      <option value="ja">日本語の折り返し</option>
+      <option value="cascade">どの規則が勝つか</option>
+    </select></label>
+    <label class="ctl wide"><span class="nm">幅</span><input type="range" id="width" min="160" max="640" step="1" value="400"><output id="widthO" for="width">400px</output></label>
+    <label class="chk"><input type="checkbox" id="outline">箱と行の枠を見せる</label>
+    <button type="button" id="play">描く順に再生</button>
+  </div>
+  <div class="eds">
+    <label class="ed"><span class="nm">HTML（書き換えるとすぐ描き直す）</span><textarea id="srcH" spellcheck="false" rows="10"></textarea></label>
+    <label class="ed"><span class="nm">CSS</span><textarea id="srcC" spellcheck="false" rows="10"></textarea></label>
+  </div>
+  <div class="panes">
+    <figure class="pane"><figcaption>自作のエンジン（canvas に描いた絵）<span id="stepO" class="step"></span></figcaption>
+      <div class="paper" id="mineP"><canvas id="cv" role="img" aria-label="自作のエンジンが canvas に描いた絵。となりの、このブラウザが描いた絵と同じ内容"></canvas><canvas id="ov1" class="ov" aria-hidden="true"></canvas></div></figure>
+    <figure class="pane"><figcaption>このブラウザ（同じ DOM と CSS）</figcaption>
+      <div class="paper" id="realP"><div id="host"></div><canvas id="ov2" class="ov" aria-hidden="true"></canvas></div></figure>
+  </div>
+  <div class="stats">
+    <div class="stat"><span>位置と大きさが合った箱</span><b id="matchO">-</b><span id="matchS">1 px 以内</span></div>
+    <div class="stat"><span>要素 / 行 / 描く命令</span><b id="countO">-</b><span id="countS"></span></div>
+    <div class="stat"><span>かかった時間</span><b id="timeO">-</b><span id="timeS"></span></div>
+    <div class="stat"><span>HTML の木の形</span><b id="treeO">-</b><span id="treeS">このブラウザの読み方と比べる</span></div>
+  </div>
+  <p class="info" id="info" aria-live="polite">絵の上で箱を指すと、両方の絵に余白（橙）・枠（黄）・内側の余白（緑）・中身（青）を重ねる。押すと、その要素の style の決まり方を下に出す。</p>
+  <details open><summary>選んだ要素の style（どの規則が勝ったか）</summary><div id="casc" class="casc"></div></details>
+  <details><summary>DOM の木</summary><pre id="domO"></pre></details>
+  <details><summary>箱と行</summary><pre id="boxO"></pre></details>
+  <details><summary>描く命令（この順に canvas へ描く）</summary><pre id="listO"></pre></details>
+  <details><summary>このブラウザとずれた箱</summary><pre id="diffO"></pre></details>
+  <p class="small" id="noteO"></p>
+</div>`,
+  css: `:root { color-scheme: light; --bg: #f3f1ec; --fg: #23211d; --mut: #625d53; --line: #d4cec2; --panel: #fffdf8; --acc: #2f5f9e; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    .app { box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; padding: 10px; max-inline-size: 1400px; margin-inline: auto; }
+    .bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+    .ctl { display: flex; align-items: center; gap: 6px; min-inline-size: 0; }
+    .ctl.wide { flex: 1 1 220px; }
+    .nm { font-size: 12px; color: var(--mut); white-space: nowrap; }
+    .ctl input { flex: 1 1 120px; min-inline-size: 0; margin: 4px 0; }
+    .ctl output { min-inline-size: 3.6em; font-variant-numeric: tabular-nums; font-weight: 600; }
+    input { accent-color: var(--acc); }
+    select { font: inherit; font-size: 13px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--fg); }
+    .chk { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+    button { font: inherit; font-size: 13px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--fg); cursor: pointer; }
+    button:hover { border-color: var(--mut); }
+    :is(input, button, select, textarea):focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+    .eds { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 8px; }
+    .ed { display: flex; flex-direction: column; gap: 2px; min-inline-size: 0; }
+    textarea { box-sizing: border-box; inline-size: 100%; font: 12.5px/1.45 ui-monospace, Consolas, monospace; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--fg); resize: vertical; }
+    .panes { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+    .pane { margin: 0; min-inline-size: 0; max-inline-size: 100%; display: flex; flex-direction: column; gap: 4px; }
+    .pane figcaption { font-size: 12px; color: var(--mut); display: flex; flex-wrap: wrap; gap: 4px 10px; }
+    .step { font-variant-numeric: tabular-nums; }
+    .paper { position: relative; overflow: auto; max-inline-size: 100%; max-block-size: 75vh; border: 1px solid var(--line); background: #fff; }
+    .paper canvas { display: block; }
+    .ov { position: absolute; inset-block-start: 0; inset-inline-start: 0; pointer-events: none; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 6px; }
+    .stat { min-inline-size: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; display: flex; flex-direction: column; }
+    .stat span { font-size: 11px; color: var(--mut); line-height: 1.35; overflow-wrap: anywhere; }
+    .stat b { font-size: 20px; line-height: 1.25; font-variant-numeric: tabular-nums; }
+    .info { margin: 0; font-size: 13px; min-block-size: 1.6em; overflow-wrap: anywhere; }
+    details { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; }
+    summary { cursor: pointer; font-size: 13px; }
+    pre { margin: 6px 0; font: 12px/1.45 ui-monospace, Consolas, monospace; white-space: pre; overflow: auto; max-block-size: 320px; }
+    .casc { display: flex; flex-direction: column; gap: 6px; padding-block: 6px; font: 12px/1.5 ui-monospace, Consolas, monospace; }
+    .casc .ch { margin: 0; font-weight: 600; }
+    .rule { border-inline-start: 3px solid var(--line); padding-inline-start: 8px; }
+    .rule.author { border-color: #c98b3c; }
+    .rule.inline { border-color: #3c8f5a; }
+    .rule .sel { color: var(--acc); }
+    .rule .org { color: var(--mut); font-family: system-ui, sans-serif; font-size: 11px; margin-inline-start: 6px; }
+    .decl { padding-inline-start: 1.5em; }
+    .decl.won { font-weight: 700; }
+    .decl.lost { text-decoration: line-through; color: var(--mut); }
+    .decl.unsup, .decl.bad { color: #9a5a1c; }
+    .fin { margin: 0; padding: 6px 8px; background: #f4efe4; border-radius: 6px; max-block-size: none; }
+    .small { font-size: 12px; color: var(--mut); margin: 0; overflow-wrap: anywhere; }
+    .thumb .bar, .thumb .eds, .thumb .stats, .thumb .info, .thumb details, .thumb .small, .thumb figcaption, .thumb .pane + .pane { display: none; }
+    .thumb .app { padding: 0; max-inline-size: none; }
+    .thumb .paper { border: 0; max-block-size: none; overflow: hidden; }
+    html.thumb, .thumb body { overflow: hidden; }`,
+  core() {
+    // ブラウザエンジンの4つの段階（HTML を読む・style を決める・箱を並べる・描く命令を作る）を、DOM を使わない関数で書く。
+    // 文字の幅と高さだけは外から受け取る: M.width(font, text) → 幅、M.metrics(font) → { asc, desc }
+    const OK_TAGS = new Set(['div', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'section', 'article', 'header', 'footer', 'main', 'nav', 'aside', 'blockquote', 'hr', 'br', 'span', 'b', 'strong', 'i', 'em', 'a', 'code', 'small', 'u', 's', 'mark']);
+    const VOID_TAGS = new Set(['br', 'hr', 'img', 'input', 'meta', 'link', 'wbr', 'source', 'area', 'col', 'embed', 'track', 'base']);
+    // p の中でこれらが始まると、先に p を閉じる（HTML の読み方の決まり）
+    const CLOSE_P = new Set(['div', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'section', 'article', 'header', 'footer', 'main', 'nav', 'aside', 'blockquote', 'hr']);
+    const HEADS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
+    // li が始まったとき、前の li を探してさかのぼるのをやめる要素（div と p は通り抜ける）
+    const LI_STOP = new Set(['ul', 'ol', 'section', 'article', 'header', 'footer', 'main', 'nav', 'aside', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
+    const ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0', copy: '©', hellip: '…', middot: '·' };
+
+    function decodeEnt(s) {
+      return s.replace(/&(#[xX][0-9a-fA-F]+|#\d+|[a-zA-Z]+);/g, (m, k) => {
+        if (k[0] === '#') {
+          const n = k[1] === 'x' || k[1] === 'X' ? parseInt(k.slice(2), 16) : parseInt(k.slice(1), 10);
+          return n > 0 && n < 0x110000 ? String.fromCodePoint(n) : m;
+        }
+        return ENT[k] === undefined ? m : ENT[k];
+      });
+    }
+
+    // ---- 1. HTML を読んで DOM の木を作る ----
+    function parseHTML(src) {
+      const root = { type: 'el', tag: '#root', orig: '#root', attrs: {}, children: [], up: null, depth: 0 };
+      const stack = [root];
+      const notes = { tags: new Set(), attrs: new Set(), fixes: 0 };
+      const cur = () => stack[stack.length - 1];
+      const openAt = (t) => { for (let k = stack.length - 1; k > 0; k--) if (stack[k].orig === t) return k; return -1; };
+      // k 番目より上を閉じる。implied なら全部が「書かれていない閉じタグ」
+      const popTo = (k, implied) => { const n = stack.length - k; notes.fixes += implied ? n : n - 1; stack.length = k; };
+      const addText = (s) => {
+        if (!s) return;
+        const t = decodeEnt(s), c = cur(), last = c.children[c.children.length - 1];
+        if (last && last.type === 'text') last.text += t;
+        else c.children.push({ type: 'text', text: t, up: c });
+      };
+      const startTag = (tag, attrs) => {
+        if (tag === 'li') {
+          for (let q = stack.length - 1; q > 0; q--) {
+            const t = stack[q].orig;
+            if (t === 'li') { popTo(q, true); break; }
+            if (LI_STOP.has(t)) break;
+          }
+        }
+        if (CLOSE_P.has(tag)) { const k = openAt('p'); if (k > 0) popTo(k, true); }
+        if (HEADS.has(tag) && HEADS.has(cur().orig)) popTo(stack.length - 1, true);
+        const known = OK_TAGS.has(tag), isVoid = VOID_TAGS.has(tag);
+        if (!known) notes.tags.add(tag);
+        const c = cur();
+        const e = { type: 'el', tag: known ? tag : (isVoid ? '#skip' : 'span'), orig: tag, attrs, children: [], up: c, depth: c.depth + 1 };
+        c.children.push(e);
+        if (!isVoid) stack.push(e);
+      };
+      const TAG = /<(\/?)([a-zA-Z][a-zA-Z0-9-]*)((?:\s+[^\s"'>\/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*)\s*\/?>/y;
+      const ATTR = /([^\s"'>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+      let i = 0;
+      while (i < src.length) {
+        const lt = src.indexOf('<', i);
+        if (lt < 0) { addText(src.slice(i)); break; }
+        addText(src.slice(i, lt));
+        if (src.startsWith('<!--', lt)) { const e = src.indexOf('-->', lt + 4); i = e < 0 ? src.length : e + 3; continue; }
+        if (src[lt + 1] === '!' || src[lt + 1] === '?') { const e = src.indexOf('>', lt); i = e < 0 ? src.length : e + 1; continue; }
+        TAG.lastIndex = lt;
+        const m = TAG.exec(src);
+        if (!m) { addText('<'); i = lt + 1; continue; }
+        i = TAG.lastIndex;
+        const tag = m[2].toLowerCase();
+        if (m[1]) {
+          if (tag === 'br') { startTag('br', {}); continue; }
+          if (tag === 'p' && openAt('p') < 0) { const c = cur(); c.children.push({ type: 'el', tag: 'p', orig: 'p', attrs: {}, children: [], up: c, depth: c.depth + 1 }); notes.fixes++; continue; }
+          let k = -1;
+          if (HEADS.has(tag)) { for (let q = stack.length - 1; q > 0; q--) if (HEADS.has(stack[q].orig)) { k = q; break; } }
+          else k = openAt(tag);
+          if (k > 0) popTo(k, false);
+          else notes.fixes++;   // 開いていない要素の閉じタグは捨てる
+          continue;
+        }
+        const attrs = {};
+        ATTR.lastIndex = 0;
+        let a;
+        while ((a = ATTR.exec(m[3]))) {
+          const k = a[1].toLowerCase();
+          if (k === 'class' || k === 'id' || k === 'style') { if (!(k in attrs)) attrs[k] = decodeEnt(a[2] ?? a[3] ?? a[4] ?? ''); }
+          else notes.attrs.add(k);
+        }
+        startTag(tag, attrs);
+      }
+      return { root, notes };
+    }
+
+    // ---- 2. CSS を読む ----
+    // かっこと引用符の外にある区切りで分ける（sep が ' ' なら空白で分ける）
+    function splitTop(s, sep) {
+      const out = [];
+      let depth = 0, q = '', start = 0;
+      for (let k = 0; k < s.length; k++) {
+        const ch = s[k];
+        if (q) { if (ch === q) q = ''; continue; }
+        if (ch === '"' || ch === "'") q = ch;
+        else if (ch === '(') depth++;
+        else if (ch === ')') depth--;
+        else if (depth === 0 && (sep === ' ' ? /\s/.test(ch) : ch === sep)) { out.push(s.slice(start, k)); start = k + 1; }
+      }
+      out.push(s.slice(start));
+      return out.map((x) => x.trim()).filter(Boolean);
+    }
+    const SEL_RE = /^(\*|[a-zA-Z][a-zA-Z0-9-]*)?((?:[.#]-?[A-Za-z_\u00a0-\uffff][\w\u00a0-\uffff-]*|:(?:first-child|last-child))*)/;
+    // 選択子を、右から順に照らし合わせる部品の列にする。扱えない書き方なら null
+    function parseSelector(text) {
+      const parts = [];
+      let s = text.trim(), comb = '';
+      while (s) {
+        const m = SEL_RE.exec(s);
+        if (!m || !m[0]) return null;
+        const c = { comb, tag: m[1] && m[1] !== '*' ? m[1].toLowerCase() : '', ids: [], cls: [], ps: [] };
+        for (const q of m[2].match(/[.#]-?[A-Za-z_\u00a0-\uffff][\w\u00a0-\uffff-]*|:[\w-]+/g) || []) {
+          if (q[0] === '#') c.ids.push(q.slice(1));
+          else if (q[0] === '.') c.cls.push(q.slice(1));
+          else c.ps.push(q.slice(1));
+        }
+        parts.push(c);
+        s = s.slice(m[0].length);
+        if (!s) break;
+        const w = /^\s*(>)?\s*/.exec(s);
+        if (!w[0]) return null;
+        comb = w[1] ? '>' : ' ';
+        s = s.slice(w[0].length);
+        if (!s) return null;
+      }
+      if (!parts.length) return null;
+      let a = 0, b = 0, c = 0;
+      for (const p of parts) { a += p.ids.length; b += p.cls.length + p.ps.length; if (p.tag) c++; }
+      return { text: text.trim().replace(/\s+/g, ' '), parts, spec: [a, b, c] };
+    }
+    function cmpSpec(x, y) { return x[0] - y[0] || x[1] - y[1] || x[2] - y[2]; }
+    function matchCompound(e, c) {
+      if (!e || e.type !== 'el' || e.tag === '#root') return false;
+      if (c.tag && c.tag !== e.tag) return false;
+      for (const id of c.ids) if (e.attrs.id !== id) return false;
+      if (c.cls.length) {
+        const have = (e.attrs.class || '').split(/\s+/);
+        for (const x of c.cls) if (!have.includes(x)) return false;
+      }
+      if (c.ps.length) {
+        const sib = e.up ? e.up.children.filter((k) => k.type === 'el') : [e];
+        for (const p of c.ps) {
+          if (p === 'first-child' && sib[0] !== e) return false;
+          if (p === 'last-child' && sib[sib.length - 1] !== e) return false;
+        }
+      }
+      return true;
+    }
+    function matchSel(e, sel) {
+      const P = sel.parts;
+      const at = (k, node) => {
+        if (!matchCompound(node, P[k])) return false;
+        if (k === 0) return true;
+        if (P[k].comb === '>') return at(k - 1, node.up);
+        for (let a = node.up; a; a = a.up) if (at(k - 1, a)) return true;
+        return false;
+      };
+      return at(P.length - 1, e);
+    }
+    function parseDecls(body) {
+      const out = [];
+      for (const part of splitTop(body, ';')) {
+        const c = part.indexOf(':');
+        if (c < 1) continue;
+        const prop = part.slice(0, c).trim().toLowerCase();
+        let value = part.slice(c + 1).trim(), important = false;
+        const im = /!\s*important\s*$/i.exec(value);
+        if (im) { important = true; value = value.slice(0, im.index).trim(); }
+        if (value) out.push({ prop, value, important });
+      }
+      return out;
+    }
+    // 規則の列にする。@ で始まる規則と、扱えない選択子を含む規則は捨てて bad に記録する
+    function parseCSS(src, origin) {
+      const s = src.replace(/\/\*[\s\S]*?\*\//g, '');
+      const rules = [], bad = [];
+      let i = 0;
+      while (i < s.length) {
+        const ob = s.indexOf('{', i);
+        if (ob < 0) break;
+        let head = s.slice(i, ob);
+        const sc = head.lastIndexOf(';');
+        if (sc >= 0) head = head.slice(sc + 1);
+        head = head.trim();
+        let depth = 1, j = ob + 1;
+        while (j < s.length && depth) { if (s[j] === '{') depth++; else if (s[j] === '}') depth--; j++; }
+        const body = s.slice(ob + 1, depth ? j : j - 1);
+        i = j;
+        if (head[0] === '@') { bad.push(head.split(/\s/)[0]); continue; }
+        const sels = splitTop(head, ',').map(parseSelector);
+        if (!sels.length || sels.some((x) => !x)) { bad.push(head); continue; }
+        rules.push({ sels, decls: parseDecls(body), origin });
+      }
+      return { rules, bad };
+    }
+
+    // ---- 3. style を決める ----
+    const SIDES = ['top', 'right', 'bottom', 'left'];
+    const SUP = new Set(['display', 'color', 'background-color', 'font-size', 'font-weight', 'font-style', 'font-family', 'line-height', 'text-align', 'text-decoration', 'list-style-type', 'width', 'height', 'max-width', 'box-sizing', 'border-radius']);
+    for (const s of SIDES) { SUP.add('margin-' + s); SUP.add('padding-' + s); for (const k of ['width', 'style', 'color']) SUP.add('border-' + s + '-' + k); }
+    const BORDER_STYLES = /^(none|hidden|solid|dashed|dotted|double|groove|ridge|inset|outset)$/i;
+    const BG_KW = new Set(['none', 'repeat', 'no-repeat', 'repeat-x', 'repeat-y', 'space', 'round', 'top', 'left', 'right', 'bottom', 'center', 'fixed', 'scroll', 'local', 'cover', 'contain', 'auto', 'padding-box', 'border-box', 'content-box']);
+    const four = (v) => { const t = splitTop(v, ' '); if (t.length < 1 || t.length > 4) return null; const [a, b = a, c = a, d = b] = t; return [a, b, c, d]; };
+    // まとめて書く指定（margin や border）を、1つずつの指定に分ける
+    function expand(prop, value) {
+      const v = value.trim();
+      if (prop === 'margin' || prop === 'padding') { const t = four(v); return t ? t.map((x, k) => [prop + '-' + SIDES[k], x]) : [[prop, v]]; }
+      if (prop === 'border-width' || prop === 'border-style' || prop === 'border-color') {
+        const t = four(v), kind = prop.slice(7);
+        return t ? t.map((x, k) => ['border-' + SIDES[k] + '-' + kind, x]) : [[prop, v]];
+      }
+      if (prop === 'border' || /^border-(top|right|bottom|left)$/.test(prop)) {
+        const sides = prop === 'border' ? SIDES : [prop.slice(7)];
+        let w = 'medium', st = 'none', co = 'currentcolor';
+        for (const t of splitTop(v, ' ')) {
+          if (BORDER_STYLES.test(t)) st = t.toLowerCase();
+          else if (/^(thin|medium|thick)$/i.test(t) || /^-?(\d+\.?\d*|\.\d+)(px|em|rem|pt)?$/i.test(t)) w = t;
+          else co = t;
+        }
+        if (v.toLowerCase() === 'none' || v === '0') { w = '0'; st = 'none'; }
+        const out = [];
+        for (const s of sides) out.push(['border-' + s + '-width', w], ['border-' + s + '-style', st], ['border-' + s + '-color', co]);
+        return out;
+      }
+      if (prop === 'background') {
+        const t = splitTop(v, ' ');
+        let co = 'transparent';
+        for (const x of t) if (/^(#|rgba?\(|hsla?\(|oklch\(|oklab\(|lab\(|lch\(|color\()/i.test(x) || (/^[a-z]+$/i.test(x) && !BG_KW.has(x.toLowerCase()))) co = x;
+        return [['background-color', co]];
+      }
+      if (prop === 'border-radius') return [['border-radius', splitTop(v.split('/')[0], ' ')[0] || v]];
+      if (prop === 'text-decoration-line') return [['text-decoration', v]];
+      return [[prop, v]];
+    }
+    const KW_FS = { 'xx-small': 9, 'x-small': 10, small: 13, medium: 16, large: 18, 'x-large': 24, 'xx-large': 32, 'xxx-large': 48 };
+    // 長さを読む: { px } か { pct } か 'auto'。読めなければ null
+    function lenOf(v, fs) {
+      if (v === 'auto') return 'auto';
+      const m = /^(-?(?:\d+\.?\d*|\.\d+))(px|em|rem|%|pt)?$/.exec(v);
+      if (!m) return null;
+      const n = parseFloat(m[1]), u = m[2] || '';
+      if (!u) return n === 0 ? { px: 0 } : null;
+      if (u === 'px') return { px: n };
+      if (u === 'em') return { px: n * fs };
+      if (u === 'rem') return { px: n * 16 };
+      if (u === 'pt') return { px: n * 4 / 3 };
+      return { pct: n };
+    }
+    function fsOf(v, pfs) {
+      if (KW_FS[v]) return KW_FS[v];
+      if (v === 'smaller') return pfs / 1.2;
+      if (v === 'larger') return pfs * 1.2;
+      const L = lenOf(v, pfs);
+      if (!L || L === 'auto') return null;
+      const px = 'pct' in L ? L.pct / 100 * pfs : L.px;
+      return px >= 0 ? px : null;
+    }
+    function fwOf(v, pfw) {
+      if (v === 'normal') return 400;
+      if (v === 'bold') return 700;
+      if (v === 'bolder') return pfw < 350 ? 400 : pfw < 550 ? 700 : 900;
+      if (v === 'lighter') return pfw < 100 ? pfw : pfw < 550 ? 100 : pfw < 750 ? 400 : 700;
+      const n = Number(v);
+      return n >= 1 && n <= 1000 ? n : null;
+    }
+    const INHERITED = new Set(['color', 'font-size', 'font-weight', 'font-style', 'font-family', 'line-height', 'text-align', 'list-style-type']);
+    const INIT_ALL = { display: 'inline', color: '#000', 'background-color': 'transparent', 'font-size': 16, 'font-weight': 400, 'font-style': 'normal', 'font-family': 'serif', 'line-height': 'normal', 'text-align': 'left', 'text-decoration': [], 'list-style-type': 'disc', width: 'auto', height: 'auto', 'max-width': 'none', 'box-sizing': 'content-box', 'border-radius': 0 };
+    for (const s of SIDES) { INIT_ALL['margin-' + s] = { px: 0 }; INIT_ALL['padding-' + s] = { px: 0 }; INIT_ALL['border-' + s + '-width'] = 3; INIT_ALL['border-' + s + '-style'] = 'none'; INIT_ALL['border-' + s + '-color'] = 'currentcolor'; }
+    const PROP_ORDER = ['font-size', ...Object.keys(INIT_ALL).filter((p) => p !== 'font-size')];
+    // 1つの値を計算済みの値にする。読めない値なら null（その宣言は無かったことになる）
+    function computeOne(prop, raw, ps, cs, opt) {
+      const v = raw.trim(), lv = v.toLowerCase();
+      if (lv === 'inherit') return ps[prop];
+      if (lv === 'initial') return INIT_ALL[prop];
+      if (lv === 'unset') return INHERITED.has(prop) ? ps[prop] : INIT_ALL[prop];
+      const fs = cs['font-size'];
+      switch (prop) {
+        case 'display': return /^(block|inline|list-item|flow-root|none)$/.test(lv) ? lv : null;
+        case 'color': return lv === 'currentcolor' ? ps.color : (opt.isColor(v) ? v : null);
+        case 'background-color': return opt.isColor(v) ? v : null;
+        case 'font-size': return fsOf(lv, ps['font-size']);
+        case 'font-weight': return fwOf(lv, ps['font-weight']);
+        case 'font-style': return /^(normal|italic|oblique)$/.test(lv) ? (lv === 'normal' ? 'normal' : 'italic') : null;
+        case 'font-family': return /^[^;{}!]+$/.test(v) ? v : null;
+        case 'line-height': {
+          if (lv === 'normal') return 'normal';
+          if (/^(\d+\.?\d*|\.\d+)$/.test(lv)) return { num: parseFloat(lv) };
+          const L = lenOf(lv, fs);
+          if (!L || L === 'auto') return null;
+          const px = 'pct' in L ? L.pct / 100 * fs : L.px;
+          return px >= 0 ? { px } : null;
+        }
+        case 'text-align': return { left: 'left', start: 'left', right: 'right', end: 'right', center: 'center', justify: 'left' }[lv] || null;
+        case 'text-decoration': {
+          if (lv === 'none') return [];
+          const t = lv.split(/\s+/).filter((x) => /^(underline|line-through|overline)$/.test(x));
+          return t.length ? t : null;
+        }
+        case 'list-style-type': return /^(disc|circle|square|decimal|none)$/.test(lv) ? lv : null;
+        case 'box-sizing': return /^(content-box|border-box)$/.test(lv) ? lv : null;
+        case 'width': case 'height': { const L = lenOf(lv, fs); return L && (L === 'auto' || 'pct' in L || L.px >= 0) ? L : null; }
+        case 'max-width': { if (lv === 'none') return 'none'; const L = lenOf(lv, fs); return L && L !== 'auto' && ('pct' in L || L.px >= 0) ? L : null; }
+        case 'border-radius': { const L = lenOf(lv, fs); return L && L !== 'auto' && !('pct' in L) && L.px >= 0 ? L.px : null; }
+      }
+      if (prop.startsWith('margin-')) return lenOf(lv, fs);
+      if (prop.startsWith('padding-')) { const L = lenOf(lv, fs); return L && L !== 'auto' && ('pct' in L || L.px >= 0) ? L : null; }
+      if (/^border-\w+-width$/.test(prop)) {
+        const n = { thin: 1, medium: 3, thick: 5 }[lv];
+        if (n !== undefined) return n;
+        const L = lenOf(lv, fs);
+        return L && L !== 'auto' && !('pct' in L) && L.px >= 0 ? L.px : null;
+      }
+      if (/^border-\w+-style$/.test(prop)) return BORDER_STYLES.test(lv) ? lv : null;
+      if (/^border-\w+-color$/.test(prop)) return lv === 'currentcolor' ? 'currentcolor' : (opt.isColor(v) ? v : null);
+      return null;
+    }
+    const UA_CSS = `
+div, p, h1, h2, h3, h4, h5, h6, ul, ol, section, article, header, footer, main, nav, aside, blockquote, hr { display: block }
+li { display: list-item }
+p { margin: 1em 0 }
+h1 { font-size: 2em; margin: .67em 0; font-weight: bold }
+h2 { font-size: 1.5em; margin: .83em 0; font-weight: bold }
+h3 { font-size: 1.17em; margin: 1em 0; font-weight: bold }
+h4 { margin: 1.33em 0; font-weight: bold }
+h5 { font-size: .83em; margin: 1.67em 0; font-weight: bold }
+h6 { font-size: .67em; margin: 2.33em 0; font-weight: bold }
+ul, ol { margin: 1em 0; padding-left: 40px }
+ol { list-style-type: decimal }
+ul ul, ul ol, ol ul, ol ol { margin-top: 0; margin-bottom: 0 }
+ul ul, ol ul { list-style-type: circle }
+blockquote { margin: 1em 40px }
+b, strong { font-weight: bolder }
+i, em { font-style: italic }
+code { font-family: monospace }
+small { font-size: smaller }
+u { text-decoration: underline }
+s { text-decoration: line-through }
+mark { background-color: yellow; color: black }
+hr { color: gray; border-style: inset; border-width: 1px; margin: .5em auto }`;
+    function rootStyle(opt) {
+      const cs = Object.assign({}, INIT_ALL);
+      for (const s of SIDES) cs['border-' + s + '-width'] = 0;
+      return Object.assign(cs, { display: 'flow-root', color: opt.color, 'font-family': 'sans-serif', 'line-height': { num: 1.5 } });
+    }
+    // 木の全部の要素に、当たった規則（matched）と計算済みの値（cs）を付ける
+    function styleTree(root, sheets, opt) {
+      opt = Object.assign({ isColor: (v) => v.length > 0, dpr: 1, color: '#222' }, opt);
+      const all = [];
+      for (const sh of sheets) for (const r of sh.rules) all.push(r);
+      root.cs = rootStyle(opt); root.matched = []; root.deco = [];
+      const styleNode = (e, ps, pdeco) => {
+        if (e.type !== 'el') return;
+        const cand = new Map(), matched = [];
+        const add = (p, item, key) => { let L = cand.get(p); if (!L) cand.set(p, (L = [])); L.push({ item, key }); };
+        const take = (m, decls, lvlOf, spec, ri) => decls.forEach((d, di) => {
+          for (const [p, v] of expand(d.prop, d.value)) {
+            const item = { p, v, imp: d.important, ok: SUP.has(p), won: false, bad: false };
+            m.decls.push(item);
+            if (item.ok) add(p, item, [lvlOf(d.important), spec[0], spec[1], spec[2], ri, di]);
+          }
+        });
+        all.forEach((r, ri) => {
+          let best = null;
+          for (const s of r.sels) if (matchSel(e, s) && (!best || cmpSpec(s.spec, best.spec) > 0)) best = s;
+          if (!best) return;
+          const m = { origin: r.origin, sel: best.text, spec: best.spec, ri, decls: [] };
+          matched.push(m);
+          // 強さの段: ブラウザ既定 0、作者 1、style 属性 2、作者の !important 3、style 属性の !important 4
+          take(m, r.decls, (imp) => (r.origin === 'ua' ? (imp ? 5 : 0) : (imp ? 3 : 1)), best.spec, ri);
+        });
+        if (e.attrs.style) {
+          const m = { origin: 'style', sel: 'style 属性', spec: null, ri: all.length, decls: [] };
+          matched.push(m);
+          take(m, parseDecls(e.attrs.style), (imp) => (imp ? 4 : 2), [0, 0, 0], all.length);
+        }
+        for (const L of cand.values()) L.sort((x, y) => { for (let k = 0; k < 6; k++) if (x.key[k] !== y.key[k]) return y.key[k] - x.key[k]; return 0; });
+        const cs = {};
+        for (const p of PROP_ORDER) {
+          let val, got = false;
+          for (const c of cand.get(p) || []) {
+            const r = computeOne(p, c.item.v, ps, cs, opt);
+            if (r === null || r === undefined) { c.item.bad = true; continue; }
+            val = r; c.item.won = true; got = true; break;
+          }
+          cs[p] = got ? val : (INHERITED.has(p) ? ps[p] : INIT_ALL[p]);
+        }
+        if (e.tag === '#skip') cs.display = 'none';
+        for (const s of SIDES) {
+          // 枠の線: 線の種類が none なら幅は 0。幅は画面の画素の整数倍に切り捨て、0 より大きく 1 より細い線は 1 にする
+          const st = cs['border-' + s + '-style'];
+          let w = st === 'none' || st === 'hidden' ? 0 : cs['border-' + s + '-width'];
+          if (w > 0) w = w < 1 ? 1 : Math.floor(w * opt.dpr + 1e-6) / opt.dpr;
+          cs['border-' + s + '-width'] = w;
+          if (cs['border-' + s + '-color'] === 'currentcolor') cs['border-' + s + '-color'] = cs.color;
+        }
+        e.cs = cs; e.matched = matched;
+        e.deco = pdeco.concat(cs['text-decoration'].map((line) => ({ line, color: cs.color })));
+        for (const k of e.children) styleNode(k, cs, e.deco);
+      };
+      for (const k of root.children) styleNode(k, root.cs, root.deco);
+      return root;
+    }
+
+    // ---- 4. 箱を並べる ----
+    const fontOf = (cs) => (cs['font-style'] === 'italic' ? 'italic ' : '') + cs['font-weight'] + ' ' + cs['font-size'] + 'px ' + cs['font-family'];
+    // 文字の上の高さ A と下の深さ D（整数に丸める）
+    const fontBox = (cs, M) => { const fm = M.metrics(fontOf(cs)); return { A: Math.round(fm.asc), D: Math.round(fm.desc) }; };
+    const round64 = (v) => Math.round(v * 64) / 64;
+    function lhPx(cs, fb) {
+      const lh = cs['line-height'];
+      if (lh === 'normal') return fb.A + fb.D;
+      return round64('num' in lh ? lh.num * cs['font-size'] : lh.px);
+    }
+    function sideVals(cs, base, cw) {
+      return SIDES.map((s) => { const L = cs[base + '-' + s]; return L === 'auto' ? 'auto' : ('pct' in L ? L.pct / 100 * cw : L.px); });
+    }
+    const borders = (cs) => SIDES.map((s) => cs['border-' + s + '-width']);
+    // 重なる余白: 正の余白の最大と負の余白の最小を足す
+    function collapseMargins(list) { let pos = 0, neg = 0; for (const m of list) { if (m > pos) pos = m; if (m < neg) neg = m; } return pos + neg; }
+    // F は1つの流れ（block formatting context）。y は次の箱の枠の上の位置、pos・neg はたまっている余白、waiting は位置を待っている箱
+    function addMargin(F, v) { if (v > F.pos) F.pos = v; if (v < F.neg) F.neg = v; }
+    function resolveF(F) {
+      F.y += F.pos + F.neg; F.pos = 0; F.neg = 0;
+      for (const w of F.waiting) w.y = F.y;
+      F.waiting.length = 0;
+      return F.y;
+    }
+    const isBlockLevel = (n) => n.type === 'el' && (n.cs.display === 'block' || n.cs.display === 'list-item' || n.cs.display === 'flow-root');
+    // 子を「block の箱」と「行に並べる中身のまとまり」に分ける
+    function flowKids(node) {
+      const out = [];
+      let run = null;
+      for (const k of node.children) {
+        if (k.type === 'el' && k.cs.display === 'none') continue;
+        if (isBlockLevel(k)) { run = null; out.push({ kind: 'block', node: k }); }
+        else { if (!run) { run = { kind: 'inline', nodes: [] }; out.push(run); } run.nodes.push(k); }
+      }
+      return out;
+    }
+    function flowChildren(node, lb, cx, cw, F, C) {
+      const kids = flowKids(node);
+      if (kids.length === 1 && kids[0].kind === 'inline') { layoutLines(kids[0].nodes, node, cx, cw, F, lb, C); return; }
+      for (const k of kids) {
+        if (k.kind === 'block') { lb.kids.push(layoutBlock(k.node, cx, cw, F, C)); continue; }
+        // block と文字が混ざると、文字のまとまりは名前のない箱（匿名の箱）に入る
+        const an = { anon: true, node, x: cx, y: 0, w: cw, h: 0, m: [0, 0, 0, 0], b: [0, 0, 0, 0], p: [0, 0, 0, 0], kids: [], lines: [] };
+        layoutLines(k.nodes, node, cx, cw, F, an, C);
+        if (an.lines.length) {
+          const last = an.lines[an.lines.length - 1];
+          an.y = an.lines[0].y; an.h = last.y + last.h - an.y;
+          lb.kids.push(an);
+        }
+      }
+    }
+    function layoutBlock(node, x0, cw, F, C) {
+      const cs = node.cs;
+      const m = sideVals(cs, 'margin', cw), p = sideVals(cs, 'padding', cw), b = borders(cs);
+      const hb = p[1] + p[3] + b[1] + b[3];
+      const bbox = cs['box-sizing'] === 'border-box';
+      const useW = (L) => { const v = 'pct' in L ? L.pct / 100 * cw : L.px; return Math.max(0, bbox ? v - hb : v); };
+      // 幅: auto なら残りを全部使う。決まっていれば、左右の auto の余白で残りを分ける
+      let w = cs.width === 'auto' ? null : useW(cs.width);
+      if (cs['max-width'] !== 'none') {
+        const mx = useW(cs['max-width']);
+        const autoW = cw - (m[3] === 'auto' ? 0 : m[3]) - (m[1] === 'auto' ? 0 : m[1]) - hb;
+        if (w === null ? autoW > mx : w > mx) w = mx;
+      }
+      let ml = m[3], mr = m[1];
+      if (w === null) {
+        if (ml === 'auto') ml = 0;
+        if (mr === 'auto') mr = 0;
+        w = Math.max(0, cw - ml - mr - hb);
+      } else {
+        const rest = cw - w - hb, fl = ml === 'auto' ? 0 : ml, fr = mr === 'auto' ? 0 : mr;
+        if (rest - fl - fr < 0) { ml = fl; mr = rest - ml; }
+        else if (ml === 'auto' && mr === 'auto') { ml = rest / 2; mr = rest - ml; }
+        else if (ml === 'auto') ml = rest - mr;
+        else mr = rest - ml;
+      }
+      const mt = m[0] === 'auto' ? 0 : m[0], mb = m[2] === 'auto' ? 0 : m[2];
+      const lb = { node, x: x0 + ml, y: F.y, w: w + hb, h: 0, m: [mt, mr, mb, ml], b, p, kids: [], lines: [] };
+      C.byNode.set(node, lb);
+      const cx = lb.x + b[3] + p[3];
+      const hL = cs.height;
+      let hSpec = null;
+      if (hL !== 'auto' && !('pct' in hL)) hSpec = Math.max(0, bbox ? hL.px - p[0] - p[2] - b[0] - b[2] : hL.px);
+      addMargin(F, mt);
+      if (cs.display === 'flow-root') {
+        // 新しい流れを作る箱: 中の余白は外へ出ず、外の余白とも重ならない
+        lb.y = resolveF(F);
+        const F2 = { y: lb.y + b[0] + p[0], pos: 0, neg: 0, waiting: [] };
+        flowChildren(node, lb, cx, w, F2, C);
+        resolveF(F2);
+        lb.h = b[0] + p[0] + (hSpec !== null ? hSpec : F2.y - (lb.y + b[0] + p[0])) + p[2] + b[2];
+        F.y = lb.y + lb.h;
+        addMargin(F, mb);
+        return lb;
+      }
+      // 上に枠か内側の余白があれば、ここで位置が決まる。なければ最初の子と余白を重ねるために待つ
+      if (b[0] > 0 || p[0] > 0) { lb.y = resolveF(F); F.y = lb.y + b[0] + p[0]; }
+      else F.waiting.push(lb);
+      flowChildren(node, lb, cx, w, F, C);
+      const waiting = F.waiting.includes(lb);
+      if (hSpec !== null) {
+        if (waiting) resolveF(F);
+        F.pos = 0; F.neg = 0; resolveF(F);   // 高さを決めた箱からは、中の最後の余白は外へ出ない
+        lb.h = b[0] + p[0] + hSpec + p[2] + b[2];
+        F.y = lb.y + lb.h;
+      } else if (b[2] > 0 || p[2] > 0) {
+        if (waiting) resolveF(F);
+        resolveF(F);
+        lb.h = F.y + p[2] + b[2] - lb.y;
+        F.y = lb.y + lb.h;
+      } else if (waiting) {
+        // 中身も枠もない箱: 上の余白と下の余白が重なって通り抜ける。
+        // 位置は「下に枠があるとしたときの位置」（自分の下の余白を足す前）にする（CSS 2.1 の決まり）
+        lb.h = 0;
+        lb.y = F.y + F.pos + F.neg;
+        F.waiting.splice(F.waiting.indexOf(lb), 1);
+      } else {
+        lb.h = F.y - lb.y;       // 最後の子の下の余白は、この箱の下の余白と重なる
+      }
+      addMargin(F, mb);
+      return lb;
+    }
+
+    // ---- 行に並べる ----
+    const NO_START = new Set([...'、。，．,.・：；？！!?)]）］｝〕〉》」』】〙〗〟’”ー…‥ぁぃぅぇぉっゃゅょゎゕゖァィゥェォッャュョヮヵヶㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々ゝゞヽヾ']);
+    const NO_END = new Set([...'(（[［｛〔〈《「『【〘〖〝‘“']);
+    const isCJK = (ch) => /[\u2e80-\u30ff\u3400-\u9fff\uf900-\ufaff\uff00-\uffef]/.test(ch);
+    function flatten(nodes, chain, out) {
+      for (const n of nodes) {
+        if (n.type === 'text') { out.push({ t: 'text', text: n.text, st: chain.length ? chain[chain.length - 1].cs : null, chain }); continue; }
+        if (n.cs.display === 'none') continue;
+        if (n.tag === 'br') { out.push({ t: 'br' }); continue; }
+        out.push({ t: 'open', node: n });
+        flatten(n.children, chain.concat([n]), out);
+        out.push({ t: 'close', node: n });
+      }
+    }
+    // 行の材料（atom）を作る。空白をまとめ、区切ってよい位置（bb: この前で改行してよい）を決め、幅を測る
+    function makeAtoms(items, M, cw, ownerCs) {
+      const atoms = [];
+      let prevSpace = true, afterSpace = false, prevCh = '';
+      for (const it of items) {
+        if (it.t === 'br') { atoms.push({ kind: 'br', w: 0, bb: false }); prevSpace = true; afterSpace = false; prevCh = ''; continue; }
+        if (it.t === 'open' || it.t === 'close') {
+          const s = it.t === 'open' ? 3 : 1, cs = it.node.cs;
+          const mv = sideVals(cs, 'margin', cw)[s], pv = sideVals(cs, 'padding', cw)[s];
+          atoms.push({ kind: it.t, node: it.node, w: (mv === 'auto' ? 0 : mv) + cs['border-' + SIDES[s] + '-width'] + pv, bb: false });
+          continue;
+        }
+        const st = it.st || ownerCs, font = fontOf(st);
+        const text = it.text.replace(/[ \t\n\r\f]+/g, ' ');
+        // 塊の幅は、この文字の並びの先頭から塊の終わりまでを測って、前の塊までの幅を引く。
+        // 1つずつ測って足すと、隣の文字との詰め具合が入らず、1行で 1 px ほど長くなることがある
+        let acc = '', accW = 0;
+        const widthOf = (s) => { acc += s; const w = M.width(font, acc), d = w - accW; accW = w; return d; };
+        let k = 0;
+        while (k < text.length) {
+          const ch = text[k];
+          if (ch === ' ') {
+            if (!prevSpace) { atoms.push({ kind: 'space', text: ' ', st, chain: it.chain, w: widthOf(' '), bb: false }); afterSpace = true; }
+            prevSpace = true; k++;
+            continue;
+          }
+          // 日本語は1文字ずつ、英語は空白か日本語の文字までを1つの塊にする
+          let j = k + 1;
+          if (!isCJK(ch)) while (j < text.length && text[j] !== ' ' && !isCJK(text[j])) j++;
+          const word = text.slice(k, j);
+          let bb = afterSpace;
+          if (!bb && prevCh) bb = !NO_START.has(ch) && !NO_END.has(prevCh) && (isCJK(ch) || isCJK(prevCh));
+          const at = { kind: 'text', text: word, st, chain: it.chain, w: widthOf(word), bb };
+          // 開きかっこは、前の記号と並ぶと半分の幅に詰まる。行の頭に来たときは元の幅に戻すので、元の幅も覚えておく
+          if (NO_END.has(word)) at.full = M.width(font, word);
+          atoms.push(at);
+          prevCh = word[word.length - 1]; prevSpace = false; afterSpace = false; k = j;
+        }
+      }
+      // inline の箱の始まりは、すぐ後の文字と一緒に次の行へ送る
+      for (let k = atoms.length - 2; k >= 0; k--) if (atoms[k].kind === 'open' && atoms[k + 1].bb) { atoms[k].bb = true; atoms[k + 1].bb = false; }
+      return atoms;
+    }
+    // 行の終わりにぶら下がる空白の幅（行の幅に数えない）
+    function hangW(list) {
+      let w = 0;
+      for (let k = list.length - 1; k >= 0; k--) {
+        const a = list[k];
+        if (a.kind === 'space') w += a.w;
+        else if (a.kind !== 'close' && a.kind !== 'br') break;
+      }
+      return w;
+    }
+    // 行の終わりに来た全角の閉じかっこや句読点は、そのままでは入らないときだけ半分の幅にする（text-spacing-trim の normal）
+    const CLOSE_FW = new Set([...'）」』】〕〉》〙〗〟］｝']);
+    function endTrim(list) {
+      for (let k = list.length - 1; k >= 0; k--) {
+        const a = list[k];
+        if (a.kind === 'space' || a.kind === 'close' || a.kind === 'br') continue;
+        return a.kind === 'text' && CLOSE_FW.has(a.text) ? a : null;
+      }
+      return null;
+    }
+    // 区切ってよい位置で塊に分け、入るだけ詰めて行にする（貪欲法）
+    function breakLines(atoms, maxW) {
+      const segs = [];
+      let s = null;
+      for (const a of atoms) {
+        if (!s || a.bb) { s = { atoms: [], w: 0 }; segs.push(s); }
+        s.atoms.push(a); s.w += a.w;
+        if (a.kind === 'br') s = null;
+      }
+      const lines = [];
+      let line = { atoms: [], w: 0 };
+      const flush = () => { lines.push(line); line = { atoms: [], w: 0 }; };
+      // 1/64 px までのはみ出しは入ったものとする（Chrome は長さを 1/64 px 単位で持つ）
+      const lim = maxW + 1 / 64;
+      // 行の頭に来た開きかっこは、前の記号と並んで詰まった分を元に戻す
+      const restoreStart = (sg) => {
+        const a = sg.atoms.find((x) => x.kind !== 'open');
+        if (a && a.full && a.full > a.w + 1e-6) { sg.w += a.full - a.w; a.w = a.full; }
+      };
+      for (const sg of segs) {
+        if (line.atoms.length) {
+          const need = line.w + sg.w - hangW(sg.atoms), t = endTrim(sg.atoms);
+          if (need > lim && !(t && need - t.w / 2 <= lim)) { flush(); restoreStart(sg); }
+        }
+        for (const a of sg.atoms) line.atoms.push(a);
+        line.w += sg.w;
+        if (sg.atoms[sg.atoms.length - 1].kind === 'br') flush();
+      }
+      if (line.atoms.length) lines.push(line);
+      for (const L of lines) {
+        L.hang = hangW(L.atoms);
+        const t = endTrim(L.atoms);
+        L.trim = t && L.w - L.hang > lim ? t.w / 2 : 0;
+        L.trimAtom = L.trim ? t : null;
+      }
+      return lines;
+    }
+    function layoutLines(nodes, owner, cx, cw, F, holder, C) {
+      const M = C.M, items = [];
+      flatten(nodes, [], items);
+      const lines = breakLines(makeAtoms(items, M, cw, owner.cs), cw);
+      const align = owner.cs['text-align'];
+      const openStack = [];
+      const pushFrag = (node, x1, x2, first, last, line) => {
+        const cs = node.cs, fb = fontBox(cs, M), p = sideVals(cs, 'padding', cw), b = borders(cs);
+        const f = { node, x: x1, y: line.base - fb.A - p[0] - b[0], w: Math.max(0, x2 - x1), h: fb.A + fb.D + p[0] + p[2] + b[0] + b[2], first, last, p, b };
+        line.frags.push(f);
+        if (!C.frags.has(node)) C.frags.set(node, []);
+        C.frags.get(node).push(f);
+      };
+      for (const L of lines) {
+        const content = L.atoms.some((a) => a.kind === 'text' || a.kind === 'br' || ((a.kind === 'open' || a.kind === 'close') && a.w > 0));
+        if (!content) {
+          for (const a of L.atoms) { if (a.kind === 'open') openStack.push(a.node); else if (a.kind === 'close') openStack.splice(openStack.lastIndexOf(a.node), 1); }
+          continue;
+        }
+        const y0 = resolveF(F);
+        // 行の高さ: 箱そのもの（支柱）と、行にある inline の箱の、文字の上下に行の高さとの差の半分を足して一番大きいもの
+        let above = 0, below = 0;
+        const addBox = (cs) => {
+          const fb = fontBox(cs, M), lead = lhPx(cs, fb) - (fb.A + fb.D), ha = Math.floor(lead / 2);
+          above = Math.max(above, fb.A + ha); below = Math.max(below, fb.D + lead - ha);
+        };
+        addBox(owner.cs);
+        const seen = new Set(openStack);
+        for (const a of L.atoms) { if (a.kind === 'open') seen.add(a.node); else if (a.chain) for (const n of a.chain) seen.add(n); }
+        for (const n of seen) addBox(n.cs);
+        const tw = L.w - L.hang - L.trim;
+        const off = Math.max(0, align === 'center' ? (cw - tw) / 2 : align === 'right' ? cw - tw : 0);
+        let x = cx + off;
+        const line = { x, y: y0, w: tw, h: above + below, base: y0 + above, runs: [], frags: [] };
+        const starts = new Map();
+        for (const n of openStack) starts.set(n, { x, first: false });
+        let run = null;
+        for (const a of L.atoms) {
+          if (a.kind === 'open') {
+            const ml = sideVals(a.node.cs, 'margin', cw)[3];
+            starts.set(a.node, { x: x + (ml === 'auto' ? 0 : ml), first: true });
+            openStack.push(a.node); x += a.w; run = null;
+          } else if (a.kind === 'close') {
+            const mr = sideVals(a.node.cs, 'margin', cw)[1], s0 = starts.get(a.node) || { x, first: false };
+            pushFrag(a.node, s0.x, x + a.w - (mr === 'auto' ? 0 : mr), s0.first, true, line);
+            starts.delete(a.node); openStack.splice(openStack.lastIndexOf(a.node), 1); x += a.w; run = null;
+          } else if (a.kind === 'text' || a.kind === 'space') {
+            const aw = a === L.trimAtom ? a.w - L.trim : a.w;   // 半分の幅にした閉じかっこ
+            if (run && run.st === a.st && run.chain === a.chain) { run.text += a.text; run.w += aw; }
+            else { run = { x, base: line.base, text: a.text, w: aw, st: a.st, chain: a.chain }; line.runs.push(run); }
+            x += aw;
+          }
+        }
+        for (const n of openStack) { const s0 = starts.get(n); pushFrag(n, s0.x, x - L.hang, s0.first, false, line); }
+        // ぶら下がった空白は描かない
+        for (let k = line.runs.length - 1, left = L.hang; k >= 0 && left > 0.001; k--) {
+          const r = line.runs[k], t = r.text.replace(/ +$/, '');
+          if (t === r.text) break;
+          const cut = r.text.length - t.length, ws = cut ? (r.w / r.text.length) * cut : 0;
+          r.text = t; r.w -= Math.min(ws, left); left -= ws;
+          if (t) break;
+        }
+        holder.lines.push(line);
+        C.lines++;
+        F.y = y0 + line.h;
+      }
+    }
+    // 根（幅 width の箱。新しい流れを作る）から全部を並べる
+    function layoutDoc(root, width, M) {
+      const C = { M, lines: 0, byNode: new Map(), frags: new Map() };
+      const lb = { node: root, x: 0, y: 0, w: width, h: 0, m: [0, 0, 0, 0], b: [0, 0, 0, 0], p: [0, 0, 0, 0], kids: [], lines: [] };
+      const F = { y: 0, pos: 0, neg: 0, waiting: [] };
+      C.byNode.set(root, lb);
+      flowChildren(root, lb, 0, width, F, C);
+      resolveF(F);
+      lb.h = F.y;
+      return { box: lb, C };
+    }
+
+    // ---- 5. 描く命令の列を作る ----
+    function label(n) {
+      if (!n || n.tag === '#root') return '根';
+      let s = n.tag === 'span' && n.orig !== 'span' ? n.orig : n.tag;
+      if (n.attrs.id) s += '#' + n.attrs.id;
+      if (n.attrs.class) s += '.' + n.attrs.class.trim().split(/\s+/).join('.');
+      return s;
+    }
+    function firstLine(lb) {
+      if (lb.lines.length) return lb.lines[0];
+      for (const k of lb.kids) { const f = firstLine(k); if (f) return f; }
+      return null;
+    }
+    function boxDeco(cs, x, y, w, h, b, why, list) {
+      const r = Math.max(0, Math.min(cs['border-radius'], w / 2, h / 2));
+      const bg = cs['background-color'];
+      if (bg && !/^transparent$/i.test(bg) && w > 0 && h > 0) list.push({ op: 'rect', x, y, w, h, color: bg, r, why });
+      if (b.some((v) => v > 0)) list.push({ op: 'border', x, y, w, h, bw: b.slice(), bc: SIDES.map((s) => cs['border-' + s + '-color']), bs: SIDES.map((s) => cs['border-' + s + '-style']), r, why });
+    }
+    function paintList(layout) {
+      const list = [];
+      // CSS の描く順: まず block の箱の背景と枠を木の順に全部塗り、そのあとで行の中身（inline の背景・文字・線）を描く
+      const bg = (lb) => {
+        if (!lb.anon && lb.node.tag !== '#root') boxDeco(lb.node.cs, lb.x, lb.y, lb.w, lb.h, lb.b, label(lb.node), list);
+        for (const k of lb.kids) bg(k);
+      };
+      const fg = (lb) => {
+        if (!lb.anon && lb.node.cs.display === 'list-item' && lb.node.cs['list-style-type'] !== 'none') {
+          const cs = lb.node.cs, t = cs['list-style-type'], fs = cs['font-size'], L = firstLine(lb);
+          const base = L ? L.base : lb.y + lb.b[0] + lb.p[0] + Math.round(fs * 0.9);
+          const cx = lb.x + lb.b[3] + lb.p[3];
+          if (t === 'decimal') {
+            const n = lb.node.up.children.filter((k) => k.type === 'el' && k.cs.display === 'list-item').indexOf(lb.node) + 1;
+            list.push({ op: 'text', x: cx - fs * 0.28, y: base, text: n + '.', font: fontOf(cs), color: cs.color, align: 'right', why: label(lb.node) + ' の番号' });
+          } else list.push({ op: 'dot', x: cx - fs * 0.55, y: base - fs * 0.3, r: fs * 0.17, kind: t, color: cs.color, why: label(lb.node) + ' の印' });
+        }
+        for (const L of lb.lines) {
+          const fr = L.frags.slice().sort((a, b) => a.node.depth - b.node.depth);
+          for (const f of fr) boxDeco(f.node.cs, f.x, f.y, f.w, f.h, [f.b[0], f.last ? f.b[1] : 0, f.b[2], f.first ? f.b[3] : 0], label(f.node), list);
+          for (const r of L.runs) {
+            if (!r.text.trim()) continue;
+            const owner = r.chain[r.chain.length - 1] || lb.node, fs = r.st['font-size'];
+            list.push({ op: 'text', x: r.x, y: r.base, text: r.text, font: fontOf(r.st), color: r.st.color, why: label(owner) });
+            for (const d of owner.deco || []) {
+              const t = Math.max(1, Math.round(fs / 16));
+              const y = d.line === 'underline' ? r.base + Math.max(1, Math.round(fs * 0.1)) : d.line === 'line-through' ? r.base - Math.round(fs * 0.3) : r.base - Math.round(fs * 0.85);
+              list.push({ op: 'line', x: r.x, y, w: r.w, t, color: d.color, kind: d.line, why: label(owner) });
+            }
+          }
+        }
+        for (const k of lb.kids) fg(k);
+      };
+      bg(layout.box);
+      fg(layout.box);
+      return list;
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const thumb = !!window.THUMB;
+    if (thumb) document.documentElement.classList.add('thumb');
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const cv = $('cv'), ctx = cv.getContext('2d'), ov1 = $('ov1'), ov2 = $('ov2'), host = $('host');
+    const srcH = $('srcH'), srcC = $('srcC'), sampleS = $('sample'), widthI = $('width'), widthO = $('widthO'), outlineI = $('outline'), playB = $('play');
+    const infoP = $('info'), stepO = $('stepO'), cascD = $('casc');
+
+    const SAMPLES = {
+      article: {
+        h: `<article class="card">
+  <h1>Ladybird がアルファ版に</h1>
+  <p class="lead">独自の<b>エンジン</b>を持つブラウザが、<a class="link">macOS と Linux</a> 向けに配布を始めた。</p>
+  <p>ブラウザは HTML を読んで <code>DOM</code> の木を作り、CSS で style を決め、箱を並べてから描く。</p>
+  <blockquote>A new engine, written from scratch.</blockquote>
+  <ul>
+    <li>HTML を読む</li>
+    <li>style を決める</li>
+    <li>箱を並べて描く</li>
+  </ul>
+  <hr>
+  <p class="foot"><small>2026-11-23 公開</small></p>
+</article>`,
+        c: `.card { margin: 12px; padding: 14px 18px; border: 1px solid #d9d2c3; border-radius: 10px; background: #fffaf0; }
+h1 { font-size: 22px; line-height: 1.3; margin: 0 0 8px; color: #8a3b12; }
+.lead { margin-top: 0; font-size: 15px; }
+.link { color: #1d5fa8; text-decoration: underline; }
+code { background: #efe7d6; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+blockquote { margin: 10px 0; padding: 6px 12px; border-left: 4px solid #e0a35b; background: #fbf1df; font-style: italic; }
+ul { margin: 8px 0; padding-left: 22px; }
+li { margin: 2px 0; }
+hr { border: 0; border-top: 1px dashed #c9bfae; margin: 10px 0; }
+.foot { margin: 0; text-align: right; color: #7a7266; }`,
+        pick: 1,
+      },
+      margin: {
+        h: `<div class="a">上の箱（下の余白 30px）</div>
+<div class="b">下の箱（上の余白 20px）。間は 50px ではなく 30px</div>
+<div class="wrap">
+  <p class="c">親に上の枠も内側の余白もないと、子の上の余白（24px）が親の外へ出る</p>
+</div>
+<div class="empty"></div>
+<div class="d">中身のない箱は、上と下の余白が重なって通り抜ける</div>
+<div class="wrap fr">
+  <p class="c">display: flow-root の親は、子の余白を外へ出さない</p>
+</div>
+<div class="e">負の余白（-12px）は、正の余白の最大に足す</div>`,
+        c: `div { background: #e8f0fb; border: 1px solid #9db7dd; padding: 4px 8px; }
+.a { margin-bottom: 30px; }
+.b { margin-top: 20px; }
+.wrap { margin-top: 16px; padding: 0 8px; border: 0; background: #fdf0d8; }
+.c { margin: 24px 0; background: #fff; border: 1px dashed #d6a24a; padding: 4px 6px; }
+.empty { margin: 20px 0 28px; padding: 0; border: 0; }
+.d { margin-top: 8px; }
+.fr { display: flow-root; }
+.e { margin-top: -12px; background: #f6e3ef; }`,
+        pick: 3,
+      },
+      ja: {
+        h: `<p>ブラウザは、日本語の文を1文字ずつ区切れるものとして扱う。ただし「、」や「。」、閉じかっこ、小さな「っ」は行の頭に置かない。</p>
+<p>English words break only at spaces: <b>supercalifragilistic</b> と、日本語と English が混ざった行。</p>
+<p class="c">text-align: center で真ん中にそろえる</p>
+<p class="r">右にそろえる。長い行は折り返して、それぞれの行を右にそろえる。</p>
+<p>A&nbsp;B&nbsp;C&nbsp;D&nbsp;E&nbsp;F は &amp;nbsp; でつないだので、途中で折り返さない。</p>`,
+        c: `p { margin: 0 0 10px; padding: 6px 8px; background: #f2f5ef; border-left: 3px solid #86a873; font-size: 15px; line-height: 1.7; }
+.c { text-align: center; }
+.r { text-align: right; }
+b { color: #a2401f; }`,
+        pick: 1,
+      },
+      cascade: {
+        h: `<div id="main">
+  <p class="note">この文の色は、どの規則で決まる？</p>
+  <p class="note" style="color: #2d7a3e">style 属性は、id の選択子より強い。</p>
+  <p class="note imp">!important は style 属性より強い。</p>
+  <p>class のない p は、#main p の色になる。</p>
+</div>`,
+        c: `p { color: #555; padding: 6px 10px; margin: 6px 0; border: 2px solid #ccc; }
+.note { color: #b3261e; border-color: #e6a19b; }
+#main p { color: #1d4fa0; }
+#main .note { border-style: dashed; }
+p.note:first-child { background: #fff3c4; }
+.imp { color: #7b2cbf !important; }
+p { font-weight: bold; }`,
+        pick: 2,
+      },
+    };
+
+    // 文字の幅と高さは、この canvas の measureText で測る（このブラウザと同じ字形を使う）。
+    // textRendering が 'auto' のままだと「べて」「って」のような仮名の組の字詰めがかからず、DOM の文字より少し長くなる
+    let ctxFont = '';
+    const setFont = (f) => {
+      if (ctxFont === f) return;
+      ctx.font = f;
+      if ('textRendering' in ctx) ctx.textRendering = 'optimizeLegibility';
+      ctxFont = f;
+    };
+    const wCache = new Map(), fCache = new Map();
+    const M = {
+      width(font, text) {
+        const key = font + '|' + text;
+        let v = wCache.get(key);
+        if (v === undefined) { setFont(font); v = ctx.measureText(text).width; wCache.set(key, v); }
+        return v;
+      },
+      metrics(font) {
+        let v = fCache.get(font);
+        if (!v) {
+          setFont(font);
+          const t = ctx.measureText('x'), fs = parseFloat((/([\d.]+)px/.exec(font) || [0, 16])[1]);
+          v = { asc: t.fontBoundingBoxAscent ?? fs * 0.9, desc: t.fontBoundingBoxDescent ?? fs * 0.25 };
+          fCache.set(font, v);
+        }
+        return v;
+      },
+    };
+    const isColor = (v) => { try { return CSS.supports('color', v); } catch (e) { return v.length > 0; } };
+    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+
+    // このブラウザ側: Shadow DOM の中に同じ木を作る。外の CSS は届かず、作者の CSS は外へ漏れない
+    const shadow = host.attachShadow({ mode: 'open' });
+    const hostSheet = new CSSStyleSheet(), userSheet = new CSSStyleSheet();
+    hostSheet.replaceSync(':host { all: initial; display: flow-root; font: 16px/1.5 sans-serif; color: #222; background: #fff; text-align: left; }');
+    shadow.adoptedStyleSheets = [hostSheet, userSheet];
+
+    let dom = null, laid = null, list = [], realOf = new Map(), mineOf = new Map(), notes = null, uaSheet = null;
+    let W = 400, H = 1, shown = Infinity, sel = null, hov = null, selIdx = 0, playing = 0;
+    const times = { parse: 0, style: 0, layout: 0, paint: 0 };
+    const f1 = (v) => String(Math.round(v * 10) / 10);
+    const f2 = (v) => String(Math.round(v * 100) / 100);
+
+    function buildReal() {
+      realOf = new Map(); mineOf = new Map();
+      const frag = document.createDocumentFragment();
+      const walk = (n, out) => {
+        for (const k of n.children) {
+          if (k.type === 'text') { out.append(document.createTextNode(k.text)); continue; }
+          if (k.tag === '#skip') continue;
+          const el = document.createElement(k.tag);   // 決めた名前の要素か span だけを作る
+          for (const a of ['class', 'id', 'style']) if (k.attrs[a] != null) el.setAttribute(a, k.attrs[a]);
+          realOf.set(k, el); mineOf.set(el, k);
+          out.append(el);
+          walk(k, el);
+        }
+      };
+      walk(dom, frag);
+      shadow.replaceChildren(frag);
+    }
+    const elementsOf = (n, out = []) => { for (const k of n.children) if (k.type === 'el') { out.push(k); elementsOf(k, out); } return out; };
+
+    function parseAll() {
+      const t0 = performance.now();
+      const pr = parseHTML(srcH.value);
+      const t1 = performance.now();
+      if (!uaSheet) uaSheet = parseCSS(UA_CSS, 'ua');
+      const au = parseCSS(srcC.value, 'author');
+      styleTree(pr.root, [uaSheet, au], { isColor, dpr, color: '#222' });
+      const t2 = performance.now();
+      dom = pr.root; notes = { html: pr.notes, css: au.bad };
+      times.parse = t1 - t0; times.style = t2 - t1;
+      buildReal();
+      try { userSheet.replaceSync(srcC.value); } catch (e) { userSheet.replaceSync(''); }
+      const els = elementsOf(dom);
+      sel = els[Math.min(selIdx, els.length - 1)] || null;
+      hov = null;
+      compareTree();
+      relayout();
+      showCascade();
+      showNotes();
+      dumpDom();
+    }
+
+    function relayout() {
+      W = Number(widthI.value);
+      widthO.textContent = W + 'px';
+      const t0 = performance.now();
+      laid = layoutDoc(dom, W, M);
+      const t1 = performance.now();
+      list = paintList(laid);
+      const t2 = performance.now();
+      times.layout = t1 - t0; times.paint = t2 - t1;
+      H = Math.max(1, Math.min(8000, Math.ceil(laid.box.h)));
+      for (const c of [cv, ov1]) {
+        c.width = Math.max(1, Math.round(W * dpr)); c.height = Math.max(1, Math.round(H * dpr));
+        c.style.width = W + 'px'; c.style.height = H + 'px';
+      }
+      ctxFont = '';
+      host.style.width = W + 'px';
+      draw();
+      if (!thumb) { compare(); stats(); dumpBoxes(); dumpList(); }
+      overlays();
+    }
+
+    // ---- 描く命令を canvas で実行する ----
+    function strokeSide(x1, y1, x2, y2, w, color, style) {
+      ctx.strokeStyle = color; ctx.lineWidth = w;
+      ctx.setLineDash(style === 'dashed' ? [w * 3, w * 2] : style === 'dotted' ? [w, w] : []);
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    function drawBorder(c) {
+      const [t, r, b, l] = c.bw, same = c.bw.every((v) => v === t) && c.bc.every((v) => v === c.bc[0]) && c.bs.every((v) => v === c.bs[0]);
+      if (same && c.r > 0 && ctx.roundRect) {
+        ctx.strokeStyle = c.bc[0]; ctx.lineWidth = t;
+        ctx.setLineDash(c.bs[0] === 'dashed' ? [t * 3, t * 2] : c.bs[0] === 'dotted' ? [t, t] : []);
+        ctx.beginPath(); ctx.roundRect(c.x + t / 2, c.y + t / 2, Math.max(0, c.w - t), Math.max(0, c.h - t), Math.max(0, c.r - t / 2)); ctx.stroke();
+        ctx.setLineDash([]);
+        return;
+      }
+      const solid = (s) => s !== 'dashed' && s !== 'dotted';
+      const quad = (pts, color) => { ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(pts[0], pts[1]); for (let k = 2; k < pts.length; k += 2) ctx.lineTo(pts[k], pts[k + 1]); ctx.closePath(); ctx.fill(); };
+      const { x, y, w, h } = c;
+      if (t > 0) { if (solid(c.bs[0])) quad([x, y, x + w, y, x + w - r, y + t, x + l, y + t], c.bc[0]); else strokeSide(x, y + t / 2, x + w, y + t / 2, t, c.bc[0], c.bs[0]); }
+      if (r > 0) { if (solid(c.bs[1])) quad([x + w, y, x + w, y + h, x + w - r, y + h - b, x + w - r, y + t], c.bc[1]); else strokeSide(x + w - r / 2, y, x + w - r / 2, y + h, r, c.bc[1], c.bs[1]); }
+      if (b > 0) { if (solid(c.bs[2])) quad([x, y + h, x + w, y + h, x + w - r, y + h - b, x + l, y + h - b], c.bc[2]); else strokeSide(x, y + h - b / 2, x + w, y + h - b / 2, b, c.bc[2], c.bs[2]); }
+      if (l > 0) { if (solid(c.bs[3])) quad([x, y, x + l, y + t, x + l, y + h - b, x, y + h], c.bc[3]); else strokeSide(x + l / 2, y, x + l / 2, y + h, l, c.bc[3], c.bs[3]); }
+    }
+    function exec(c) {
+      if (c.op === 'rect') {
+        ctx.fillStyle = c.color;
+        if (c.r > 0 && ctx.roundRect) { ctx.beginPath(); ctx.roundRect(c.x, c.y, c.w, c.h, c.r); ctx.fill(); }
+        else ctx.fillRect(c.x, c.y, c.w, c.h);
+      } else if (c.op === 'border') drawBorder(c);
+      else if (c.op === 'text') {
+        setFont(c.font); ctx.fillStyle = c.color; ctx.textAlign = c.align || 'left'; ctx.textBaseline = 'alphabetic';
+        ctx.fillText(c.text, c.x, c.y);
+        ctx.textAlign = 'left';
+      } else if (c.op === 'line') { ctx.fillStyle = c.color; ctx.fillRect(c.x, c.y, c.w, c.t); }
+      else if (c.op === 'dot') {
+        ctx.fillStyle = c.color; ctx.strokeStyle = c.color; ctx.lineWidth = 1;
+        if (c.kind === 'square') ctx.fillRect(c.x - c.r, c.y - c.r, c.r * 2, c.r * 2);
+        else { ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2); if (c.kind === 'circle') ctx.stroke(); else ctx.fill(); }
+      }
+    }
+    function draw() {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+      const n = Math.min(list.length, shown);
+      for (let i = 0; i < n; i++) exec(list[i]);
+      if (outlineI.checked || thumb) {
+        ctx.save(); ctx.lineWidth = 1;
+        const walk = (lb) => {
+          if (!lb.anon && lb.node.tag !== '#root') { ctx.strokeStyle = 'rgba(40,90,200,.7)'; ctx.setLineDash([]); ctx.strokeRect(lb.x + 0.5, lb.y + 0.5, Math.max(0, lb.w - 1), Math.max(0, lb.h - 1)); }
+          ctx.strokeStyle = 'rgba(214,51,132,.55)'; ctx.setLineDash([3, 2]);
+          for (const L of lb.lines) ctx.strokeRect(L.x + 0.5, L.y + 0.5, Math.max(0, L.w - 1), Math.max(0, L.h - 1));
+          for (const k of lb.kids) walk(k);
+        };
+        walk(laid.box);
+        ctx.restore();
+      }
+      stepO.textContent = '描く命令 ' + n + ' / ' + list.length;
+    }
+
+    // ---- 箱の色分け（余白・枠・内側の余白・中身） ----
+    function modelMine(node) {
+      const lb = laid.C.byNode.get(node);
+      if (lb) return [{ x: lb.x, y: lb.y, w: lb.w, h: lb.h, m: lb.m, b: lb.b, p: lb.p }];
+      return (laid.C.frags.get(node) || []).map((f) => ({ x: f.x, y: f.y, w: f.w, h: f.h, m: [0, 0, 0, 0], b: [f.b[0], f.last ? f.b[1] : 0, f.b[2], f.first ? f.b[3] : 0], p: [f.p[0], f.last ? f.p[1] : 0, f.p[2], f.first ? f.p[3] : 0] }));
+    }
+    function modelReal(node) {
+      const el = realOf.get(node);
+      if (!el) return [];
+      const hr = host.getBoundingClientRect(), cs = getComputedStyle(el);
+      const px = (p) => parseFloat(cs.getPropertyValue(p)) || 0;
+      const m = SIDES.map((s) => px('margin-' + s)), b = SIDES.map((s) => px('border-' + s + '-width')), p = SIDES.map((s) => px('padding-' + s));
+      if (cs.display === 'inline') {
+        const rs = [...el.getClientRects()];
+        return rs.map((r, i) => ({ x: r.left - hr.left, y: r.top - hr.top, w: r.width, h: r.height, m: [0, 0, 0, 0], b: [b[0], i === rs.length - 1 ? b[1] : 0, b[2], i === 0 ? b[3] : 0], p: [p[0], i === rs.length - 1 ? p[1] : 0, p[2], i === 0 ? p[3] : 0] }));
+      }
+      const r = el.getBoundingClientRect();
+      return [{ x: r.left - hr.left, y: r.top - hr.top, w: r.width, h: r.height, m, b, p }];
+    }
+    function paintModel(c, boxes, w, h) {
+      c.width = Math.max(1, Math.round(w * dpr)); c.height = Math.max(1, Math.round(h * dpr));
+      c.style.width = w + 'px'; c.style.height = h + 'px';
+      const g = c.getContext('2d');
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      for (const q of boxes) {
+        const m = q.m.map((v) => Math.max(0, v));
+        const layers = [
+          [q.x - m[3], q.y - m[0], q.w + m[1] + m[3], q.h + m[0] + m[2], 'rgba(246,158,74,.45)'],
+          [q.x, q.y, q.w, q.h, 'rgba(250,214,90,.6)'],
+          [q.x + q.b[3], q.y + q.b[0], q.w - q.b[1] - q.b[3], q.h - q.b[0] - q.b[2], 'rgba(120,190,100,.5)'],
+          [q.x + q.b[3] + q.p[3], q.y + q.b[0] + q.p[0], q.w - q.b[1] - q.b[3] - q.p[1] - q.p[3], q.h - q.b[0] - q.b[2] - q.p[0] - q.p[2], 'rgba(90,150,220,.5)'],
+        ];
+        for (const [x, y, ww, hh, col] of layers) {
+          if (ww <= 0 || hh <= 0) continue;
+          g.clearRect(x, y, ww, hh); g.fillStyle = col; g.fillRect(x, y, ww, hh);
+        }
+      }
+    }
+    function overlays() {
+      const node = thumb ? null : (hov || sel);
+      paintModel(ov1, node ? modelMine(node) : [], W, H);
+      paintModel(ov2, node && !thumb ? modelReal(node) : [], W, Math.max(1, host.offsetHeight));
+    }
+    const rectOf = (boxes) => {
+      if (!boxes.length) return null;
+      let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+      for (const q of boxes) { x1 = Math.min(x1, q.x); y1 = Math.min(y1, q.y); x2 = Math.max(x2, q.x + q.w); y2 = Math.max(y2, q.y + q.h); }
+      return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+    };
+    const rectText = (r) => r ? '(' + f1(r.x) + ', ' + f1(r.y) + ') ' + f1(r.w) + '×' + f1(r.h) : 'なし';
+    function describeNode(node) {
+      const a = rectOf(modelMine(node)), b = rectOf(modelReal(node));
+      const d = a && b ? Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y), Math.abs(a.x + a.w - b.x - b.w), Math.abs(a.y + a.h - b.y - b.h)) : null;
+      return '<' + label(node) + '>  自作 ' + rectText(a) + '  このブラウザ ' + rectText(b) + (d === null ? '' : '  ずれ ' + f2(d) + ' px');
+    }
+
+    // ---- このブラウザとの比べ ----
+    let diffRows = [];
+    function compare() {
+      const hr = host.getBoundingClientRect();
+      diffRows = [];
+      for (const k of elementsOf(dom)) {
+        if (k.tag === 'br' || k.tag === '#skip') continue;
+        let hidden = false;
+        for (let a = k; a && a.tag !== '#root'; a = a.up) if (a.cs.display === 'none') hidden = true;
+        if (hidden) continue;
+        const mine = rectOf(modelMine(k)), el = realOf.get(k);
+        if (!mine || !el) continue;
+        const r = el.getBoundingClientRect();
+        const rr = { x: r.left - hr.left, y: r.top - hr.top, w: r.width, h: r.height };
+        const d = Math.max(Math.abs(mine.x - rr.x), Math.abs(mine.y - rr.y), Math.abs(mine.x + mine.w - rr.x - rr.w), Math.abs(mine.y + mine.h - rr.y - rr.h));
+        diffRows.push({ k, mine, rr, d });
+      }
+      const ok = diffRows.filter((r) => r.d <= 1).length, worst = diffRows.reduce((s, r) => Math.max(s, r.d), 0);
+      $('matchO').textContent = ok + ' / ' + diffRows.length;
+      $('matchS').textContent = '1 px 以内（一番大きいずれ ' + f2(worst) + ' px）';
+      const rows = diffRows.slice().sort((a, b) => b.d - a.d).filter((r) => r.d > 0.01).slice(0, 40);
+      $('diffO').textContent = rows.length ? rows.map((r) => f2(r.d).padStart(6) + ' px  <' + label(r.k) + '>  自作 ' + rectText(r.mine) + '  このブラウザ ' + rectText(r.rr)).join('\n') : 'ずれた箱はない（0.01 px より大きいずれなし）';
+    }
+    function compareTree() {
+      const tpl = document.createElement('template');
+      tpl.innerHTML = srcH.value;   // template の中身は動かない（画像も読まず、スクリプトも動かない）
+      const a = [], b = [];
+      const wa = (n, d) => { for (const k of n.children) { a.push(d + ':' + k.localName); wa(k, d + 1); } };
+      const wb = (n, d) => { for (const k of n.children) if (k.type === 'el') { b.push(d + ':' + k.orig); wb(k, d + 1); } };
+      wa(tpl.content, 0); wb(dom, 0);
+      let k = 0;
+      while (k < a.length && k < b.length && a[k] === b[k]) k++;
+      if (k === a.length && k === b.length) { $('treeO').textContent = '同じ'; $('treeS').textContent = '要素 ' + a.length + ' 個の並びと深さが、このブラウザの読み方と同じ'; }
+      else { $('treeO').textContent = '違う'; $('treeS').textContent = (k + 1) + ' 番目の要素から違う（このブラウザ ' + (a[k] || 'なし') + '、自作 ' + (b[k] || 'なし') + '。数字は深さ）'; }
+    }
+    function stats() {
+      $('countO').textContent = elementsOf(dom).length + ' / ' + laid.C.lines + ' / ' + list.length;
+      $('countS').textContent = '箱 ' + laid.C.byNode.size + ' 個（根を含む）';
+      const total = times.parse + times.style + times.layout + times.paint;
+      $('timeO').textContent = f2(total) + ' ms';
+      $('timeS').textContent = 'HTML ' + f2(times.parse) + ' / style ' + f2(times.style) + ' / 並べる ' + f2(times.layout) + ' / 描く命令 ' + f2(times.paint);
+    }
+    function showNotes() {
+      const out = [];
+      if (notes.html.tags.size) out.push('扱わない要素: ' + [...notes.html.tags].join('、') + '（span として扱うか、描かない）');
+      if (notes.html.attrs.size) out.push('使わない属性: ' + [...notes.html.attrs].join('、'));
+      if (notes.html.fixes) out.push('書かれていない閉じタグなどを ' + notes.html.fixes + ' か所で補った');
+      if (notes.css.length) out.push('読まなかった CSS の規則: ' + notes.css.join('、'));
+      const props = new Set();
+      for (const e of elementsOf(dom)) for (const m of e.matched) for (const d of m.decls) if (!d.ok) props.add(d.p);
+      if (props.size) out.push('この見本では使わない指定: ' + [...props].join('、'));
+      $('noteO').textContent = out.join('。') + (out.length ? '。' : '');
+    }
+    function dumpDom() {
+      const out = [];
+      const walk = (n, d) => {
+        for (const k of n.children) {
+          if (k.type === 'text') { const t = k.text.replace(/\s+/g, ' '); if (t.trim()) out.push('  '.repeat(d) + '"' + (t.length > 48 ? t.slice(0, 48) + '…' : t) + '"'); continue; }
+          out.push('  '.repeat(d) + '<' + label(k) + '>' + (k.orig !== k.tag ? '（' + k.orig + ' は' + (k.tag === '#skip' ? '描かない' : ' span として扱う') + '）' : ''));
+          walk(k, d + 1);
+        }
+      };
+      walk(dom, 0);
+      $('domO').textContent = out.join('\n');
+    }
+    function dumpBoxes() {
+      const out = [];
+      const walk = (lb, d) => {
+        const ind = '  '.repeat(d);
+        if (lb.anon) out.push(ind + '（名前のない箱）  x=' + f2(lb.x) + ' y=' + f2(lb.y) + ' w=' + f2(lb.w) + ' h=' + f2(lb.h));
+        else if (lb.node.tag === '#root') out.push('根  幅 ' + f2(lb.w) + '  高さ ' + f2(lb.h));
+        else out.push(ind + label(lb.node) + '  x=' + f2(lb.x) + ' y=' + f2(lb.y) + ' w=' + f2(lb.w) + ' h=' + f2(lb.h) + '  外の余白 ' + lb.m.map(f2).join(' '));
+        lb.lines.forEach((L, i) => out.push(ind + '  行' + (i + 1) + '  y=' + f2(L.y) + ' 高さ ' + f2(L.h) + ' 基準線 ' + f2(L.base) + '  「' + L.runs.map((r) => r.text).join('').slice(0, 32) + '」'));
+        for (const k of lb.kids) walk(k, d + 1);
+      };
+      walk(laid.box, 0);
+      $('boxO').textContent = out.join('\n');
+    }
+    function describeCmd(c) {
+      if (c.op === 'rect') return '背景を塗る  ' + c.why + '  (' + f1(c.x) + ', ' + f1(c.y) + ') ' + f1(c.w) + '×' + f1(c.h) + '  ' + c.color;
+      if (c.op === 'border') return '枠を描く  ' + c.why + '  幅 ' + c.bw.map(f2).join(' ') + '  ' + c.bs[0];
+      if (c.op === 'text') return '文字を書く  ' + c.why + '  (' + f1(c.x) + ', ' + f1(c.y) + ')  「' + (c.text.length > 24 ? c.text.slice(0, 24) + '…' : c.text) + '」  ' + c.font;
+      if (c.op === 'line') return '線を引く  ' + c.why + '  ' + c.kind;
+      return '印を描く  ' + c.why;
+    }
+    function dumpList() {
+      $('listO').textContent = list.slice(0, 400).map((c, i) => String(i + 1).padStart(3) + '. ' + describeCmd(c)).join('\n') + (list.length > 400 ? '\n…' : '');
+    }
+
+    // ---- 選んだ要素の style の決まり方 ----
+    function showCascade() {
+      cascD.replaceChildren();
+      const node = sel;
+      if (!node) { cascD.textContent = '要素がない'; return; }
+      const head = document.createElement('p');
+      head.className = 'ch';
+      head.textContent = '<' + label(node) + '> に当たった規則（強い順）';
+      cascD.append(head);
+      const rank = (m) => (m.origin === 'style' ? 2 : m.origin === 'author' ? 1 : 0);
+      const ms = node.matched.slice().sort((a, b) => rank(b) - rank(a) || (a.spec && b.spec ? cmpSpec(b.spec, a.spec) : 0) || b.ri - a.ri);
+      const ORG = { style: 'style 属性', author: '作者の CSS', ua: 'ブラウザの既定の CSS' };
+      for (const m of ms) {
+        const box = document.createElement('div');
+        box.className = 'rule ' + (m.origin === 'style' ? 'inline' : m.origin);
+        const s = document.createElement('div');
+        s.className = 'sel';
+        s.textContent = m.sel;
+        const o = document.createElement('span');
+        o.className = 'org';
+        o.textContent = ORG[m.origin] + (m.spec ? '  詳しさ ' + m.spec.join(',') : '');
+        s.append(o);
+        box.append(s);
+        for (const d of m.decls) {
+          const row = document.createElement('div');
+          row.className = 'decl ' + (!d.ok ? 'unsup' : d.bad ? 'bad' : d.won ? 'won' : 'lost');
+          row.textContent = d.p + ': ' + d.v + (d.imp ? ' !important' : '') + (!d.ok ? '（この見本では使わない）' : d.bad ? '（読めない値）' : d.won ? '  ← 勝ち' : '');
+          box.append(row);
+        }
+        cascD.append(box);
+      }
+      if (!ms.length) { const p = document.createElement('p'); p.className = 'ch'; p.textContent = '当たった規則はない（値は親から受け継ぐか、初めの値）'; cascD.append(p); }
+      const cs = node.cs, L = (v) => (v === 'auto' ? 'auto' : 'pct' in v ? v.pct + '%' : f2(v.px) + 'px');
+      const lh = cs['line-height'];
+      const fin = document.createElement('pre');
+      fin.className = 'fin';
+      fin.textContent = '決まった値\n' + [
+        'display: ' + cs.display,
+        'color: ' + cs.color + '   background-color: ' + cs['background-color'],
+        'font: ' + fontOf(cs) + '   line-height: ' + (lh === 'normal' ? 'normal' : 'num' in lh ? lh.num : f2(lh.px) + 'px'),
+        'margin: ' + SIDES.map((s) => L(cs['margin-' + s])).join(' ') + '   padding: ' + SIDES.map((s) => L(cs['padding-' + s])).join(' '),
+        'border-width: ' + SIDES.map((s) => f2(cs['border-' + s + '-width'])).join(' ') + '   width: ' + L(cs.width) + '   height: ' + L(cs.height),
+      ].join('\n');
+      cascD.append(fin);
+    }
+
+    // ---- 指したときと押したとき ----
+    function hitMine(x, y) {
+      let best = null, area = Infinity;
+      for (const [node, fr] of laid.C.frags) for (const f of fr) if (x >= f.x && x <= f.x + f.w && y >= f.y && y <= f.y + f.h && f.w * f.h < area) { best = node; area = f.w * f.h; }
+      if (best) return best;
+      const walk = (lb) => {
+        if (!lb.anon && lb.node.tag !== '#root' && x >= lb.x && x <= lb.x + lb.w && y >= lb.y && y <= lb.y + lb.h) best = lb.node;
+        for (const k of lb.kids) walk(k);
+      };
+      walk(laid.box);
+      return best;
+    }
+    const nodeFromEvent = (ev) => {
+      if (ev.currentTarget === $('mineP')) { const r = cv.getBoundingClientRect(); return hitMine(ev.clientX - r.left, ev.clientY - r.top); }
+      for (const t of ev.composedPath()) { const n = mineOf.get(t); if (n) return n; if (t === host) break; }
+      return null;
+    };
+    for (const pane of [$('mineP'), $('realP')]) {
+      pane.addEventListener('pointermove', (ev) => {
+        const n = nodeFromEvent(ev);
+        if (n === hov) return;
+        hov = n; overlays();
+        if (!playing) infoP.textContent = n ? describeNode(n) : '';
+      });
+      pane.addEventListener('pointerleave', () => { hov = null; overlays(); });
+      pane.addEventListener('click', (ev) => {
+        const n = nodeFromEvent(ev);
+        if (!n) return;
+        sel = n; selIdx = elementsOf(dom).indexOf(n);
+        showCascade(); overlays();
+        infoP.textContent = describeNode(n);
+      });
+    }
+
+    // ---- 操作 ----
+    function loadSample(key) {
+      const s = SAMPLES[key] || SAMPLES.article;
+      srcH.value = s.h; srcC.value = s.c; selIdx = s.pick;
+      parseAll();
+    }
+    let editT = 0;
+    for (const ta of [srcH, srcC]) ta.addEventListener('input', () => { clearTimeout(editT); editT = setTimeout(parseAll, 200); });
+    sampleS.addEventListener('change', () => loadSample(sampleS.value));
+    let rf = 0;
+    widthI.addEventListener('input', () => { if (!rf) rf = requestAnimationFrame(() => { rf = 0; relayout(); }); });
+    outlineI.addEventListener('change', draw);
+    playB.addEventListener('click', () => {
+      if (playing) { cancelAnimationFrame(playing); playing = 0; shown = Infinity; playB.textContent = '描く順に再生'; draw(); return; }
+      const N = list.length, dur = reduce ? 0 : Math.min(7000, 800 + N * 70), t0 = performance.now();
+      playB.textContent = '止める';
+      const step = (now) => {
+        const k = dur ? Math.min(N, Math.floor((now - t0) / dur * N) + 1) : N;
+        shown = k; draw();
+        if (list[k - 1]) infoP.textContent = k + '. ' + describeCmd(list[k - 1]);
+        if (k < N) playing = requestAnimationFrame(step);
+        else { playing = 0; shown = Infinity; playB.textContent = '描く順に再生'; draw(); }
+      };
+      playing = requestAnimationFrame(step);
+    });
+
+    // 最初の幅: 2つの絵が横に並ぶなら半分ずつ、並ばなければ全部の幅
+    const avail = $('mineP').closest('.panes').clientWidth;
+    if (thumb) W = Math.max(160, Math.round(innerWidth || 400));
+    else if (avail > 0) W = Math.round(Math.max(160, Math.min(460, avail >= 2 * 300 + 14 ? (avail - 14) / 2 - 2 : avail - 2)));
+    widthI.max = String(Math.max(640, W));
+    widthI.value = String(W);
+    loadSample('article');
+
+    // 一覧の小さな絵: 描く順に描いてから、幅を伸び縮みさせて行の折り返しを見せる
+    if (thumb && !reduce) {
+      const Wmax = W;
+      let t0 = 0;
+      shown = 0;
+      const tick = (now) => {
+        if (!t0) t0 = now;
+        const t = (now - t0) / 1000;
+        shown = t < 1.6 ? Math.floor(t / 1.6 * list.length) : Infinity;
+        const w = Math.round(Wmax * (0.68 + 0.32 * Math.cos(Math.max(0, t - 2) * 0.9)));
+        if (w !== Number(widthI.value)) { widthI.value = String(w); relayout(); } else draw();
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
+  },
+});
