@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 11 章 0.3.0 の仕上げと、作者の手の確かめ ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="0.3.0 で区切った範囲、片付けた 6 つの宿題、部品を 1 つずつ見せる見本、X11 の IBus を紹介します。後半では、作者の 5 回の手の確かめで見つかった不具合（引くと幅が増え続けるつまみ、押せないスクロールの棒、二重に見えた棒、消える焦点）の原因と直し方を書きます。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 11 章</p>
+  <h1>0.3.0 の仕上げと、作者の手の確かめ</h1>
+  <p class="lede">第 10 章の Linux の窓が X11 まで入ったところで、作者が 0.3.0 で区切ると決めました。この章では、0.3.0 の前に片付けた 6 つの宿題、部品を 1 つずつ見せる見本、X11 の IBus を紹介します。後半では、作者が見本で 5 回試した記録から見つけた不具合を書きます。引くと幅が増え続けるつまみ、押せないスクロールの棒、二重に見えた棒、消える焦点の 4 つです。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>0.3.0 に入れた物と、後に回した物</li>
+      <li>6 つの宿題（パスワードの欄の日本語入力、数の押し続け、キーボードで列の幅、文字で飛ぶ、GPU の画像、clippy の注意）</li>
+      <li>X11 の日本語入力で、fcitx5 がいない時に IBus を使う作り</li>
+      <li>動かない側の端を考えずにつまみを置くと、幅が増え続ける理由</li>
+      <li>幅いっぱいの行が、スクロールの棒を覆っていた理由</li>
+      <li>入れ物の中の一覧をスクロールすると、古いつまみの絵が残った理由</li>
+      <li>何も無い所を押した時の焦点を、ウェブの決まりからデスクトップの決まりに変えた理由</li>
+    </ul>
+  </section>
+
+  <h2 id="scope">0.3.0 の範囲</h2>
+  <p>0.2.0 の後の作業は、第 5 章から第 10 章に書いてきました。作者は、Linux の窓が X11 まで入った所で区切り、宿題と見本を足して 0.3.0 にすると決めました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-scope">
+    <table>
+      <caption id="t-scope">0.3.0 に入れた物と、後に回した物</caption>
+      <thead><tr><th scope="col">区分</th><th scope="col">中身</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">0.2.0 の後に足した物</th><td data-label="中身">ドラッグ＆ドロップ、動き、書体、色と時刻の選択、書式付きの文字（第 5 章〜第 9 章）、Linux の窓（第 10 章）</td></tr>
+        <tr><th scope="row">0.3.0 の前に足した物</th><td data-label="中身">狭い表の列のずれの直し、6 つの宿題、部品の見本（<code>examples/gallery</code>）、X11 の IBus（この章）</td></tr>
+        <tr><th scope="row">後に回した物（0.4 の候補）</th><td data-label="中身">ドッキング、Windows の題の帯の作り替え、トレイ、通知、ハイコントラスト、多言語、本物の Xorg、macOS</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="homework">6 つの宿題</h2>
+  <p>宿題の前に、第 10 章の終わりに書いた表の列のずれを直しました（b1c2253）。狭い窓で名前の列が中身より狭くなると、名前の長い行だけ後ろの列が右へずれていました。今は、升より広い文字を升の端で切るので、後ろの列は見出しの下に残ります。見出しの升も同じです。</p>
+  <p>宿題は、0.2 の後の作業の途中で「後で直す」と書き留めていた物です。どれも小さい変更ですが、使う人が気づきやすい所です。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-homework">
+    <table>
+      <caption id="t-homework">片付けた 6 つの宿題</caption>
+      <thead><tr><th scope="col">宿題</th><th scope="col">したこと</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">パスワードの欄の日本語入力</th><td data-label="したこと">パスワードの欄に焦点がある間は、日本語入力を切る（Windows・Wayland・X11）。打った文字は、日本語入力の変換や学習に送られない。Windows の標準のパスワードの欄と同じ</td></tr>
+        <tr><th scope="row">数の入力の押し続け</th><td data-label="したこと">小さいボタンを押したままにすると、すぐに 1 つ進み、400 ms 後から 60 ms ごとに進む。押していた時間で数えるので、フレームが遅れても遅くならない</td></tr>
+        <tr><th scope="row">キーボードで列の幅</th><td data-label="したこと">表の見出しに焦点を置き、Shift+→ で 10 広く、Shift+← で 10 狭くする。並べ替えない表でも、幅を変えられる列があれば見出しに焦点を置ける</td></tr>
+        <tr><th scope="row">文字で飛ぶ</th><td data-label="したこと"><code>List::type_ahead</code> と <code>Table::type_ahead</code>。打った文字で始まる次の行へ飛ぶ。見えない行は作らないので、行の文字はアプリが渡す</td></tr>
+        <tr><th scope="row">GPU の画像</th><td data-label="したこと">Direct3D 11 の道で、画像を描くようにした（前は抜けていた）。CPU の道と撮り比べて、色が 24 段より違う画素は 0</td></tr>
+        <tr><th scope="row">clippy の注意</th><td data-label="したこと">Windows と Linux の両方で 0 にした（2571f69）。以後は 0 を保つ</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="gallery">部品の見本</h2>
+  <p><code>examples/gallery</code> は、部品を 1 つずつ見せる見本です。左の一覧で部品を選ぶと、右にその部品のページが出ます。ページは 22 枚あり、どのページもふつうの状態と押せない状態を並べ、使う関数の名前を見出しの下に出します。左の一覧は、文字を打つとその文字で始まるページへ飛べます。</p>
+  <!-- gen:gallery -->
+<figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/v030/gallery-table-dark.webp"><img src="img/v030/gallery-table-light.webp" alt="部品の見本の表のページ。左に部品の一覧があり表が選ばれている。右の表は都市・人口・地方の 3 列で、都市の見出しに上向きの矢印があり、名古屋・大阪・札幌・東京・福岡の順に並んでいる。人口と地方の列の左の端に縦の線がある" width="1520" height="940" loading="lazy" decoding="async"></picture><figcaption>見本の「表」のページ。都市の見出しを押して並べ替え、Shift+→ を 3 回押して都市を広げた所（人口の列が 30 狭くなった）。人口と地方のつまみ（縦の線）は、列の左の端にある。760×470 の窓を試験台で 2 倍で撮った。</figcaption></figure>
+<!-- /gen:gallery -->
+  <p>始めのページは環境変数 <code>GALLERY_PAGE</code> で、GPU の道は <code>--renderer gpu</code> で選べます。作者の手の確かめは、この見本で行いました。</p>
+
+  <h2 id="ibus">X11 の日本語入力に IBus を足した</h2>
+  <p>第 10 章の X11 の窓は、日本語入力に fcitx5 だけを使っていました。Linux の配布物には、IBus を標準にしている物も多くあります。そこで 0.3.0 では、fcitx5 がいない時に IBus を使うようにしました。</p>
+  <ul>
+    <li>頼みと知らせの型を 2 つの日本語入力で共通にし、会話のバス（D-Bus）に今いる方を選ぶ。D-Bus の起動の仕組みで立ち上げることはしない</li>
+    <li>両方いれば fcitx5 を選ぶ。<code>XMODIFIERS=@im=ibus</code> の時だけ IBus を先にする</li>
+    <li>IBus には、ポータル（<code>org.freedesktop.portal.IBus</code>）を通して入力の文脈を作る</li>
+    <li>変換中の文字の文節は、IBus が送る文字の属性（背景か 2 本の下線の範囲）から作る。ibus-mozc が実際に送った形を試験にした</li>
+  </ul>
+  <div class="pitfall">
+    <span class="box-title">落とし穴: fcitx5 は IBus のふりをする</span>
+    <p>fcitx5 は、IBus 向けに作られたアプリのために、IBus と同じ名前を D-Bus に出しています。名前があるかだけで IBus がいると決めると、fcitx5 を IBus として使ってしまいます。kargui は、IBus の名前の持ち主が fcitx5 と同じなら、IBus がいるとは数えません。</p>
+  </div>
+  <p>確かめは、検証用の Linux の PC の XWayland で、IBus 1.5.32 と ibus-mozc、fcitx5 と Mozc の両方で行いました。AI が打つ道具の wtype は仮のキー配列を使うので、キーの番号で文字を決める ibus-mozc では「１２１３…」と数字になりました。本物のキーボードでは起きないので、IBus の確かめは本物のキーボードと同じ道で打つ ydotool に替えました。</p>
+
+  <h2 id="hand">作者の手の確かめ（5 回）</h2>
+  <p>0.3.0 の準備（825bed7）の後、作者が見本で手の確かめをしました。作者は手順どおりに操作するだけで、AI が記録を読んで異常を探します（<a href="03-apps.html#hand">第 3 章</a>）。直すと次の確かめで別の不具合が見つかる、という形で 5 回続きました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-hand">
+    <table>
+      <caption id="t-hand">5 回の手の確かめ（11 月 24 日、日本時間）</caption>
+      <thead><tr><th scope="col">回と時刻</th><th scope="col">記録から見つかったこと</th><th scope="col">直した記録</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">1 回目（10 時 3 分）</th><td data-label="記録から見つかったこと">パスワード・押し続け・GPU の画像・IBus は期待どおり。数字で飛べない。列の幅が変わらない（手順の誤り）。調べる途中で、引くと幅が増え続けるつまみと、Linux のテンキーも見つけた</td><td data-label="直した記録">deca574</td></tr>
+        <tr><th scope="row">2 回目（19 時 25 分）</th><td data-label="記録から見つかったこと">一覧の棒を押すと行が選ばれる。遠くへスクロールすると数字で飛べない。作者から「棒が二重に見える」「棒を引けない場面がある」と質問</td><td data-label="直した記録">deca574</td></tr>
+        <tr><th scope="row">3 回目（19 時 45 分）</th><td data-label="記録から見つかったこと">入力欄の棒の上で、ポインターが I の形のまま（作者の指摘）。棒の右の端の 1 画素外を押すと、焦点が外れる</td><td data-label="直した記録">deca574</td></tr>
+        <tr><th scope="row">4 回目（19 時 59 分）</th><td data-label="記録から見つかったこと">直した所は期待どおり。一覧から離れた何も無い所を押すと、焦点が外れる（決まりどおりの動き。作者に相談した）</td><td data-label="直した記録">3a17431</td></tr>
+        <tr><th scope="row">5 回目（20 時 33 分）</th><td data-label="記録から見つかったこと">焦点の決まりを変えた後の確かめ。一覧・入力欄・日本語入力・パスワードの欄とも期待どおり</td><td data-label="直した記録">なし</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい手順: 操作が効く前提を確かめずに書く</span>
+    <p>1 回目で列の幅が変わらなかったのは、AI が書いた手順の誤りでした。手順は「都市の見出しを押して Shift+→」でしたが、都市は残りの幅を使う列（<code>.fill()</code>）で、当時の kargui は fill の列の幅を Shift+←→ で変えませんでした。手順を書く時は、その操作が効く前提（幅を決めた列か、など）を先に確かめてください。今は fill の列でも、隣の列との境が動きます。</p>
+  </div>
+
+  <h3 id="grip">引くと、幅が増え続けるつまみ</h3>
+  <p>手順の誤りを調べる途中で、もっと大きな不具合が見つかりました。見本と <code>examples/files</code> の表で、列のつまみを引くと、ポインターを動かした分より大きく幅が増え続けます。試験台では、120 の列を 20 引いただけで 200 になり、離すと 460 になりました。</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 330" role="img" aria-labelledby="gr-title gr-desc">
+      <title id="gr-title">fill の列より右の列の、つまみの位置</title>
+      <desc id="gr-desc">都市（fill）・人口・地方の 3 列の見出し。直す前は、人口のつまみが右の端にある。人口を広げると左の端が左へ動き、右の端のつまみは動かないので、ポインターとの距離が変わらず、毎フレーム同じ距離を足す。直した後は、つまみを左の端に置き、右の端からポインターまでの長さを幅にする。</desc>
+      <defs>
+        <marker id="ah11a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrow-head"/></marker>
+        <marker id="ah11b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="loop-head"/></marker>
+      </defs>
+      <text class="label" x="20" y="24">直す前</text>
+      <rect class="box-soft" x="20" y="36" width="440" height="44"/>
+      <rect class="box" x="460" y="36" width="140" height="44"/>
+      <rect class="box" x="600" y="36" width="100" height="44"/>
+      <text class="label" x="36" y="63">都市（fill）</text>
+      <text class="label" x="476" y="63">人口</text>
+      <text class="label" x="616" y="63">地方</text>
+      <rect class="loop-head" x="596" y="32" width="8" height="52" rx="2"/>
+      <text class="loop-text" x="546" y="104">つまみ（右の端）は動かない</text>
+      <path class="loop" d="M458 92 H398" marker-end="url(#ah11b)"/>
+      <text class="sub" x="206" y="104">広げると、左の端が動く</text>
+      <text class="sub" x="36" y="134">ポインターとつまみの距離が変わらないので、フレームごとに同じ距離を幅に足し続ける</text>
+      <text class="label" x="20" y="194">直した後</text>
+      <rect class="box-soft" x="20" y="206" width="440" height="44"/>
+      <rect class="box" x="460" y="206" width="140" height="44"/>
+      <rect class="box" x="600" y="206" width="100" height="44"/>
+      <text class="label" x="36" y="233">都市（fill）</text>
+      <text class="label" x="476" y="233">人口</text>
+      <text class="label" x="616" y="233">地方</text>
+      <rect class="arrow-head" x="456" y="202" width="8" height="52" rx="2"/>
+      <rect class="arrow-head" x="596" y="202" width="8" height="52" rx="2"/>
+      <path class="arrow" d="M600 268 H462" marker-end="url(#ah11a)"/>
+      <text class="sub" x="470" y="288">幅 = 右の端からポインターまで</text>
+      <text class="sub" x="36" y="314">fill の列より右の列は、つまみを左の端に置く。つまみはポインターについて来る</text>
+    </svg>
+    <figcaption>見本の表の 3 列。fill の列の右では、列の右の端が窓に止まっている（地方の列の幅も決まっているため）。</figcaption>
+  </figure>
+  <p>原因は、つまみの位置と、動かない側の端の組み合わせでした。</p>
+  <ol>
+    <li>kargui は、どの列もつまみを右の端に置き、ポインターとつまみの距離を幅に足していた。</li>
+    <li>fill の列が左にある表では、右の列の右の端が動かない。広げると、左の端の方が左へ動く。</li>
+    <li>つまみは右の端にあるので動かず、ポインターとの距離も変わらない。そのため、毎フレーム同じ距離を足し続けた。</li>
+  </ol>
+  <p>直し方は 2 つです。fill の列より右の列は、つまみを左の端に置きます。幅は、動かない側の端（右の端）からポインターまでの長さで決めます。もう 1 つは、押した位置（<code>press_at</code>）を覚え、そこからのずれでつまみを動かすことです。1 回のフレームで押す・動かす・離すが届くと、押した時のつまみの位置が分からず、ずれが 0 になってしまうからです。</p>
+
+  <h3 id="digits">数字で飛べない、テンキーが矢印としても届く</h3>
+  <p>文字で飛ぶ処理は、キーを文字にする所が A〜Z だけを扱っていました。見本の一覧の行は「0 行目」「1 行目」…なので、一度も飛べませんでした。数字も文字にし、NumLock を入れたテンキーの数字も、上の段の数字と同じキーにしました。</p>
+  <p>Linux では、もう 1 つ不具合がありました。テンキーのキーは、修飾の無い段（段 0）の記号が KP_Left などの矢印です。kargui は段 0 の記号でキーを決めていたので、NumLock を入れたテンキーの 4 は、← のキーとしても届きました。入力欄で「abc」の後にテンキーの 4 を打つと、字の位置が動いてから 4 が入り、「a4bc」になりました。今は、NumLock を入れた時の今の記号が数字なら、数字のキーとして届けます。</p>
+
+  <h3 id="bar">押せない棒と、I の形のポインター</h3>
+  <p>2 回目の記録では、作者が一覧の右端の棒（x=864〜869）を 4 回押していました。ところが、棒をつかんだ記録は無く、押した先は行でした。作者からも「棒を引けない場面がある」と質問がありました。</p>
+  <ol>
+    <li>選べる一覧の行は、行全体を押せる当たりを持っている。行は一覧の幅いっぱいなので、右端の棒を覆っている。</li>
+    <li>kargui は、部品の当たりの中なら部品を先にする決まりだった。行の右端のボタンが棒にかかっても押せるようにするためだった。</li>
+    <li>そのため、棒の上を押すと行が選ばれ、棒は押せなかった。複数行の入力欄も、欄そのものの当たりが中の棒を覆っていた。</li>
+  </ol>
+  <p>直し方は、棒の幅を全部覆う当たりは棒に譲る、という決まりです。棒に一部だけかかる部品（行の右端のボタンなど）は、今までどおり部品を先にします。</p>
+  <p>3 回目では、作者から「入力欄の棒の上でも、ポインターが文字を打つ時の I の形のまま」と指摘がありました。ポインターの形は、Windows・Wayland・X11 の 3 か所に同じ判定が別々に書いてあり、どれも棒を見ていませんでした。判定を <code>Context::pointer_shape</code> の 1 か所にまとめ、棒の上では矢印にしました。同じ記録で、棒の右の端から 1 画素外を押して、何も無い所を押したことになった所も見つかりました。つまみの左には 4 画素の押せる余白があり、右は部品の端で切れていたので、右にも 4 画素の余白を付けました。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 「ここに何があるか」は 1 か所で決める</span>
+    <p>押した時の行き先、ポインターの形、乗った部品の色は、どれも「この位置に何があるか」で決まります。別々に書くと、1 つを直しても残りがずれます。今回は押した時の行き先だけを先に直したので、ポインターの形が取り残されました。今は、押した時・形・乗った部品の 3 つとも、棒の判定を先に見ます。</p>
+  </div>
+
+  <h3 id="ghost">二重に見えた棒</h3>
+  <p>2 回目の確かめの途中で、作者から次の質問がありました。「スクロールバーが二重に見える所が多かった。見本の問題か、フレームワークの問題か、判断がつかない」。調べた結果は、フレームワークの不具合でした。</p>
+  <ul>
+    <li>見本の 22 ページを試験台で描くと、棒が 2 本並ぶページはなかった（見本の作りの問題ではない）。</li>
+    <li>記録では、一覧をスクロールした時に、前の絵をずらして使う描画（<code>blits=1</code>）が 221 回使われていた。</li>
+  </ul>
+  <!-- gen:ghost -->
+<div class="pair">
+  <figure class="shot flat"><picture><img src="img/v030/ghost-before-light.webp" alt="直す前。30 行目から 36 行目が見える一覧の右端に、灰色のつまみが 3 つ縦に並んでいる" width="700" height="470" loading="lazy" decoding="async"></picture><figcaption>直す前。入れ物の中の一覧を下へ 10 回、上へ 2 回動かした所。本物のつまみは一番上の 1 つで、下の 2 つは古いつまみの絵（直した 1 行を戻した写しを、試験台で 2 倍で撮った）。</figcaption></figure>
+  <figure class="shot flat"><picture><img src="img/v030/ghost-after-light.webp" alt="直した後。同じ一覧の右端に、灰色のつまみが 1 つだけある" width="700" height="470" loading="lazy" decoding="async"></picture><figcaption>直した後。同じ操作で、つまみは 1 つだけ。全部描き直した絵と 1 画素も違わない。</figcaption></figure>
+</div>
+<!-- /gen:ghost -->
+  <p>CPU の道は、スクロールの位置だけが変わった時、前の絵をずらして使います（<a href="01-frame.html#paint">第 1 章</a>の「変わった所だけを描く」）。描き直すのは、新しく見えた帯と、中身が変わった所だけです。一覧の上に重なって描く物（つまみなど）は、ずらすと崩れるので、ずらした先も描き直します。この「重なる物」の集め方に、穴がありました。</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 300" role="img" aria-labelledby="gh-title gh-desc">
+      <title id="gh-title">一覧のつまみが描かれる層</title>
+      <desc id="gh-desc">窓の層の中に、見本のページの入れ物の層があり、その中に一覧の層がある。一覧のつまみは、一覧の切り取りを出た後に描くので、入れ物の層の物になる。直す前は、窓の層の物だけを一覧に重なる物として数えていたので、つまみが数えられず、ずらした古いつまみが残った。直した後は、一覧の層以外のすべての層の物を数える。</desc>
+      <rect class="box" x="10" y="10" width="700" height="280" rx="10"/>
+      <text class="label" x="26" y="36">窓（スクロールしない層）</text>
+      <text class="sub" x="26" y="56">直す前は、ここにある物だけを「一覧に重なる物」に数えた</text>
+      <rect class="box-soft" x="40" y="72" width="640" height="200" rx="10"/>
+      <text class="label" x="56" y="98">見本のページの入れ物（スクロールする層）</text>
+      <rect class="box" x="70" y="112" width="480" height="140" rx="8"/>
+      <text class="label" x="86" y="138">一覧（スクロールする層）</text>
+      <text class="sub" x="86" y="164">0 行目</text>
+      <text class="sub" x="86" y="190">1 行目</text>
+      <text class="sub" x="86" y="216">2 行目</text>
+      <rect class="loop-head" x="530" y="124" width="8" height="36" rx="4"/>
+      <path class="loop" d="M600 150 H546"/>
+      <text class="loop-text" x="560" y="180">一覧のつまみは</text>
+      <text class="loop-text" x="560" y="198">入れ物の層に描く</text>
+      <text class="sub" x="560" y="224">（一覧の切り取りを</text>
+      <text class="sub" x="560" y="242">出た後に描くため）</text>
+    </svg>
+    <figcaption>直した後は、一覧の層以外のすべての層の物を「一覧に重なる物」に数える。</figcaption>
+  </figure>
+  <ol>
+    <li>「重なる物」を集める処理は、窓に止まっている層（スクロールしない層）の物だけを見ていた。</li>
+    <li>一覧のつまみは、一覧の切り取りを出た後に描く。見本では一覧がスクロールする入れ物の中にあるので、つまみは入れ物の層の物になる。</li>
+    <li>そのため、つまみは重なる物に数えられず、一覧の絵と一緒にずれた古いつまみが描き直されずに残った。見本はどのページも入れ物の中にあるので、あちこちで起きた。</li>
+  </ol>
+  <p>直し方は、外側のスクロールする層の物も、重なる物として数えることです。直した後も、一覧を動かす時は絵をずらす道を通り、描き直すのは小さな帯だけです。試験は、入れ物の中の一覧を上下に動かすたびに、変わった所だけ描いた絵と全部描き直した絵が 1 画素も違わないことを確かめます。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい試験: 入れ子の形を試さない</span>
+    <p>変わった所だけ描く仕組みには、11 月 21 日の「つまみが何個も出た」不具合の時から、全部描き直した絵と比べる試験がありました。ところが、その試験の一覧は窓に直に置いた物だけで、入れ物の中の一覧はありませんでした。重なりや層を扱う仕組みは、入れ子の形でも試してください。実際のアプリでは、一覧はたいてい何かの入れ物の中にあります。</p>
+  </div>
+
+  <h3 id="focus">消える焦点</h3>
+  <p>焦点が消えて、数字で飛べなくなった所が 2 つありました。1 つは不具合で、もう 1 つは kargui の決まりそのものでした。</p>
+  <p>1 つ目は、行を選んでからホイールで遠くへスクロールした後です。一覧は、見えている行と上下 1 行ずつしか作りません。焦点は選んだ行の部品にあるので、その行が作られないと、焦点の置き場所が消えます。そのため、矢印・文字・Tab が一覧に届きませんでした。今は、選んだ行は見えない所にあっても作ります。</p>
+  <p>2 つ目は、一覧から離れた何も無い所を押した後です。kargui は、焦点を持てる部品が無い所を押すと、焦点を外していました。ウェブのページと同じ決まりです。一方、Windows の標準の部品・GTK・Qt は、何も無い所を押しても焦点を残します。どちらにするかは作者と相談し、デスクトップの決まりに変えました（3a17431）。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-focus">
+    <table>
+      <caption id="t-focus">押した時の焦点の決まり</caption>
+      <thead><tr><th scope="col">押した所</th><th scope="col">前の決まり（ウェブと同じ）</th><th scope="col">今の決まり（デスクトップと同じ）</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">焦点を持てる部品</th><td data-label="前の決まり（ウェブと同じ）">その部品へ移す</td><td data-label="今の決まり（デスクトップと同じ）">その部品へ移す</td></tr>
+        <tr><th scope="row">何も無い所</th><td data-label="前の決まり（ウェブと同じ）">焦点を外す</td><td data-label="今の決まり（デスクトップと同じ）">前の部品に残す</td></tr>
+        <tr><th scope="row">文字（ラベル）など、焦点を持たない部品</th><td data-label="前の決まり（ウェブと同じ）">焦点を外す</td><td data-label="今の決まり（デスクトップと同じ）">前の部品に残す</td></tr>
+        <tr><th scope="row">ダイアログや浮き出しの中の空いた所</th><td data-label="前の決まり（ウェブと同じ）">中に残す（ここだけ例外）</td><td data-label="今の決まり（デスクトップと同じ）">前の部品に残す（窓の本体と同じ扱い）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>入力欄に焦点がある時に何も無い所を押しても、字の位置と日本語入力はそのまま残り、続けて打てます。5 回目の確かめで、一覧・入力欄・日本語入力・パスワードの欄のどれも、この決まりどおりに動きました。焦点を残した時は、記録に <code>focus.kept</code> の行が出ます。</p>
+
+  <h2 id="numbers">数</h2>
+  <p>0.2.0 から 0.3.0 の最後の記録（3a17431）までの記録は 33 個です。手の確かめの直し（deca574 と 3a17431）で、試験（<code>crates/kargui/src</code> の <code>#[test]</code> の数）は 247 から 256 に増えました。最後の確かめでは、Windows で試験 246 個と説明の例 672 個、Linux で試験 254 個がすべて通りました（OS ごとに、その OS だけの試験があるので数が違います）。clippy の注意は、両方の OS で 0 です。</p>
+
+  <h2 id="next">この後</h2>
+  <p>0.3.0 の記録は、作者の「送って」で GitHub の main に入りました（<a href="https://github.com/dikmri/kargui">github.com/dikmri/kargui</a>）。crates.io に出すのと版の札（タグ）を付けるのは、今までどおり作者がします。後に回した物（ドッキング・トレイ・通知・ハイコントラスト・多言語・macOS など）は、0.4 の候補です。</p>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="10-linux.html">← 第 10 章 Linux の窓（Wayland と X11）</a>
+    <a href="./">目次 →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>
