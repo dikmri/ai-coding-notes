@@ -17,6 +17,8 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.7 syste
 h1 { margin: 0; font-size: 1.1rem; }
 #stage { display: grid; place-items: center; margin-block: 0.75rem; }
 #screen { display: block; image-rendering: pixelated; background: #000; inline-size: 384px; block-size: 216px; max-inline-size: 100%; cursor: pointer; }
+/* 見えないが読み上げられる（台を選び直したときの知らせ） */
+.visually-hidden { position: absolute; inline-size: 1px; block-size: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 #controls { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: center; justify-content: center; min-block-size: 2.8rem; }
 #controls .note, #debug .note { color: var(--dim); font-size: 0.85rem; }
 button { font: inherit; color: var(--ink); background: #241f38; border: 2px solid #5a5070; border-radius: 0; padding: 0.3rem 0.9rem; cursor: pointer; box-shadow: inset -2px -2px 0 #14122a, inset 2px 2px 0 #3d3550; }
@@ -54,6 +56,7 @@ output { min-inline-size: 15rem; color: var(--dim); font-size: 0.9rem; }
   <main>
     <div id="stage"><canvas id="screen" width="384" height="216" aria-label="パチンコの出玉グラフのゲーム画面">出玉グラフのゲーム画面</canvas></div>
     <div id="controls" aria-label="操作"></div>
+    <p id="status" class="visually-hidden" role="status" aria-live="polite"></p>
   </main>
   <section class="about">
     <h2>遊び方</h2>

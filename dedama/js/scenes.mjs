@@ -136,7 +136,11 @@ export function makeScenes(G) {
       const n = (i + MACHINES.length) % MACHINES.length;
       if (n < this.offset) this.offset = n;
       else if (n >= this.offset + SHOWN) this.offset = n - SHOWN + 1;
-      if (n !== G.machineIndex) { G.machineIndex = n; sfx('blip'); log('ui.select', { machine: MACHINES[n].id, offset: this.offset }); }
+      if (n !== G.machineIndex) {
+        G.machineIndex = n; sfx('blip'); log('ui.select', { machine: MACHINES[n].id, offset: this.offset });
+        const m = MACHINES[n];
+        G.announce?.(`${n + 1}/${MACHINES.length} 台目 ${m.name}（${m.type}）。${m.spec[0]}。今日の回りは千円で約 ${this.rpk[n]} 回`);
+      }
     },
     key(e) {
       if (e.key === 'ArrowLeft') { this.pick(G.machineIndex - 1); return true; }
