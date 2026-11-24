@@ -2182,3 +2182,101 @@ test('小さなエンジン: block の背景を全部塗ってから、行の中
   assert.equal(list[0].color, '#eee');
   assert.equal(list[2].color, '#ff0');
 });
+
+// ---- トラックパッドの振動で話す Nospeaker の仕組み ----
+const HAPTIC = 'tr-20261124-haptic-voice';
+const hv = () => trendCore(HAPTIC, ['kanaToMora', 'planSpeech', 'synthesize', 'levinson', 'autocorr', 'polyRoots', 'pitchOf', 'analyse', 'planMotor', 'renderMotor', 'spectrogram', 'median', 'rng']);
+
+test('振動で話す: かなを拍に分ける（拗音・促音・長音・カタカナ・読めない字）', () => {
+  const { kanaToMora } = hv();
+  const r = kanaToMora('きゃっと、カー漢。');
+  assert.deepEqual(Array.from(r.morae, (m) => m.c + (m.v || '')), ['kya', 'Q', 'to', 'P', 'ka', 'L', 'P']);
+  assert.deepEqual(Array.from(r.skipped), ['漢']);
+  assert.equal(r.morae[3].end, '、');
+  assert.deepEqual(Array.from(kanaToMora('しゃ ちゅ にょ ふぁ').morae, (m) => m.c + m.v), ['sha', 'chu', 'nyo', 'fa']);
+});
+
+test('振動で話す: レビンソン・ダービンの方法で、2 次の自己回帰の係数を取り戻す', () => {
+  const { levinson, autocorr, rng } = hv();
+  const R = rng(5), n = 20000, x = new Float64Array(n);
+  for (let i = 2; i < n; i++) x[i] = 1.3 * x[i - 1] - 0.6 * x[i - 2] + (R() - 0.5);
+  const { a } = levinson(autocorr(x, 2), 2);
+  assert.ok(Math.abs(a[1] + 1.3) < 0.03, String(a[1]));
+  assert.ok(Math.abs(a[2] - 0.6) < 0.03, String(a[2]));
+});
+
+test('振動で話す: 多項式の根を全部求める（実数の根と複素数の根）', () => {
+  const { polyRoots } = hv();
+  // (z − 0.5)(z² − 0.6z + 0.73) の根は 0.5 と 0.3 ± 0.8i
+  const roots = polyRoots([1, -1.1, 1.03, -0.365]).map((z) => [z.re, z.im]).sort((p, q) => p[1] - q[1]);
+  const want = [[0.3, -0.8], [0.5, 0], [0.3, 0.8]];
+  roots.forEach((z, i) => assert.ok(Math.hypot(z[0] - want[i][0], z[1] - want[i][1]) < 1e-9, JSON.stringify(z)));
+});
+
+test('振動で話す: 規則で合成した母音を分析すると、設計した共鳴と声の高さが出る', () => {
+  const { kanaToMora, planSpeech, synthesize, analyse, median } = hv();
+  const want = { 'あ': [750, 1200], 'い': [300, 2250], 'う': [340, 1350], 'え': [480, 1900], 'お': [480, 850] };
+  for (const [v, [f1, f2]] of Object.entries(want)) {
+    const wav = synthesize(planSpeech(kanaToMora(v + 'ーーー').morae, { f0: 120 }), 16000);
+    const fr = analyse(wav, 16000).frames.filter((f) => f.voiced && f.level > 0.5);
+    assert.ok(fr.length > 30, v);
+    const m1 = median(fr.map((f) => f.F[0])), m2 = median(fr.map((f) => f.F[1])), p = median(fr.map((f) => f.f0));
+    assert.ok(Math.abs(m1 - f1) < f1 * 0.12, `${v} F1 ${m1}`);
+    assert.ok(Math.abs(m2 - f2) < f2 * 0.08, `${v} F2 ${m2}`);
+    assert.ok(p > 100 && p < 140, `${v} f0 ${p}`);
+  }
+});
+
+test('振動で話す: 声の高さは周期の 2 倍のずれを選ばない', () => {
+  const { pitchOf } = hv();
+  const x = new Float64Array(400);
+  for (let i = 0; i < 400; i++) x[i] = Math.sin(2 * Math.PI * 125 * i / 16000) + 0.6 * Math.sin(2 * Math.PI * 250 * i / 16000 + 1);
+  const r = pitchOf(x, 16000);
+  assert.ok(Math.abs(r.f0 - 125) < 1.5, String(r.f0));
+  assert.ok(r.r > 0.9);
+});
+
+test('振動で話す: 有声は声の周期ごと、無声は 4 ms ごとに命令を出し、強さの合計は 1', () => {
+  const { planMotor } = hv();
+  const fr = (t, o) => ({ t, level: 0.8, voiced: false, f0: 0, F: [700, 1200, 2600], A: [3, 1, 0.5], ...o });
+  const frames = [];
+  for (let i = 0; i < 30; i++) frames.push(fr(0.0125 + i * 0.01, i < 10 ? { voiced: true, f0: 125 } : i < 20 ? {} : { level: 0 }));
+  const { acts } = planMotor({ hop: 0.01, dur: 0.31, frames }, { tones: 2 });
+  const voice = acts.filter((a) => a.kind === 'voice'), hiss = acts.filter((a) => a.kind === 'hiss');
+  assert.ok(voice.length >= 12 && voice.length <= 14, String(voice.length));
+  for (const a of voice) {
+    assert.ok(Math.abs(a.dur - 0.008) < 1e-12);
+    assert.deepEqual(Array.from(a.tones, (q) => q.hz), [700, 1200]);
+    assert.ok(Math.abs(a.tones[0].amp + a.tones[1].amp - 1) < 1e-12);
+    assert.ok(Math.abs(a.tones[1].amp / a.tones[0].amp - 1.8 / 3) < 1e-12);   // F2 は 1.8 倍して配る
+  }
+  assert.ok(hiss.length >= 23 && hiss.length <= 27, String(hiss.length));
+  for (const a of hiss) {
+    assert.equal(a.tones.length, 3);
+    for (const q of a.tones) assert.ok(q.hz >= 2700 && q.hz <= 4300);
+  }
+  assert.ok(acts.every((a) => a.t < 0.215));   // 音の無いフレームでは命令を出さない
+  assert.equal(planMotor({ hop: 0.01, dur: 0.31, frames }, { tones: 1 }).acts.filter((a) => a.kind === 'voice')[0].tones.length, 1);
+  assert.equal(planMotor({ hop: 0.01, dur: 0.31, frames }, { hiss: false }).acts.filter((a) => a.kind === 'hiss').length, 0);
+});
+
+test('振動で話す: 鳴らし直すと命令の始まりで位相が 0 に戻り、鳴らし直さないと続く', () => {
+  const { renderMotor } = hv();
+  const plan = { total: 0.02, acts: [0, 0.008].map((t) => ({ t, dur: 0.008, level: 1, kind: 'voice', tones: [{ hz: 700, amp: 1 }] })) };
+  const sr = 16000, i0 = 128, w = 2 * Math.PI * 700 / sr;
+  const a = renderMotor(plan, sr, { restart: true }), b = renderMotor(plan, sr, { restart: false });
+  assert.ok(Math.abs(a[i0]) < 1e-6 && Math.abs(a[i0 + 1] - Math.sin(w)) < 1e-6);
+  assert.ok(Math.abs(b[i0] - Math.sin(w * i0)) < 1e-6);
+  assert.ok(Math.max(...a.map(Math.abs)) <= 1 + 1e-9);
+});
+
+test('振動で話す: 周波数の図で 1 kHz の正弦波は 1 kHz の列が一番強い', () => {
+  const { spectrogram } = hv();
+  const x = new Float32Array(4000);
+  for (let i = 0; i < x.length; i++) x[i] = Math.sin(2 * Math.PI * 1000 * i / 16000);
+  const sp = spectrogram(x, 16000, 4500);
+  assert.equal(sp.bins, 144);
+  let best = 0;
+  for (let b = 0; b < sp.bins; b++) if (sp.db[b] > sp.db[best]) best = b;
+  assert.equal(best, 32);
+});
