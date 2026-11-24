@@ -1,10 +1,12 @@
 // 『今日も打とーっと』の入口。画面の大きさ、毎コマの更新、操作の部品（DOM）、確かめ用の窓（?debug=1）。
 import { makeScenes, W, H } from './scenes.mjs';
+import { makePages } from './pages.mjs';
+import { STORE_KEY, parseStore, serializeStore, addVisit, visitRecord, hitRows } from './record.mjs';
 import { FxLayer } from './fx.mjs';
 import { loadArt } from './art.mjs';
 import { initAudio, setSound, soundOn, startAmbient, stopAmbient, stopSad } from './audio.mjs';
 import { log, watchErrors, logFile } from './log.mjs';
-import { SPEEDS, speedInfo, mealTier } from './logic.mjs';
+import { SPEEDS, speedInfo, mealTier, todayRpk } from './logic.mjs';
 import { createSession, YEN_PER_BALL } from '../sim/sim.mjs';
 import { MACHINES } from '../sim/machines.mjs';
 import { Graph } from './graph.mjs';
@@ -25,7 +27,28 @@ const G = {
 };
 // canvas の中身は読み上げられないので、選び直した台を見えない status で知らせる（ページを開いた直後は知らせない）
 G.announce = (text) => { if (status) status.textContent = text; };
-const S = makeScenes(G);
+// ---- 累計の記録（このブラウザの localStorage だけに残す。外へは送らない） ----
+G.records = {
+  read() {
+    let text = null;
+    try { text = localStorage.getItem(STORE_KEY); } catch (err) { log('record.read', {}, `error: ${err.message}`); return []; }
+    const list = parseStore(text);
+    log('record.read', { bytes: text ? text.length : 0, visits: list.length });
+    return list;
+  },
+  add(rec) {
+    const list = addVisit(this.read(), rec);
+    try {
+      localStorage.setItem(STORE_KEY, serializeStore(list));
+      log('record.add', { visits: list.length, m: rec.m, yen: rec.yen, ev: rec.ev, hist: rec.hist?.length ?? 0 });
+    } catch (err) { log('record.add', { visits: list.length }, `error: ${err.message}`); }
+    return list;
+  },
+  clear() {
+    try { localStorage.removeItem(STORE_KEY); log('record.clear', {}); } catch (err) { log('record.clear', {}, `error: ${err.message}`); }
+  },
+};
+const S = { ...makeScenes(G), ...makePages(G) };
 
 G.go = (name) => {
   G.scene?.leave?.();
@@ -36,10 +59,21 @@ G.go = (name) => {
 };
 G.startPlay = (machine, rpk, seed = params.has('seed') ? Number(params.get('seed')) : (Math.random() * 2 ** 31) >>> 0) => {
   const session = createSession({ machine: machine.id, seed, rpk });
-  G.play = { machine, rpk, seed, session, graph: null };
+  G.play = { machine, rpk, seed, session, graph: null, real: true };
   G.paused = false; G.speedOverride = null;
   log('play.start', { machine: machine.id, rpk, seed, day: G.daySeed });
   G.go('play');
+};
+G.openHistory = () => {
+  const P = G.play;
+  G.history = { rows: hitRows(P.session.events), title: P.machine.name, sub: '本日', back: 'result', page: 0 };
+  G.returnFocus = 'btn-history';
+  G.go('history');
+};
+G.openTotal = (back) => {
+  G.totalBack = back;
+  G.returnFocus = 'btn-total';
+  G.go('total');
 };
 G.shake = (dur, amp) => { if (!matchMedia('(prefers-reduced-motion: reduce)').matches) { G.shakeT = dur; G.shakeAmp = amp; } };
 
@@ -50,11 +84,13 @@ function button(id, text, onClick, cls = '') {
   b.addEventListener('click', () => { log('ui.click', { id }); onClick(); });
   return b;
 }
-G.controls = (kind) => {
+// focusId: 場面を入れ替えたあと、操作の部品にフォーカスを置き直す（押したボタンが消えてフォーカスが迷子にならないように）
+G.controls = (kind, focusId = null) => {
+  const hadFocus = bar.contains(document.activeElement);
   bar.replaceChildren();
   bar.dataset.kind = kind;
   if (kind === 'title') {
-    bar.append(button('btn-start', '店に行く', () => { initAudio(); G.go('entry'); }, 'primary'), el('span', { class: 'note' }, '音が出ます'));
+    bar.append(button('btn-start', '店に行く', () => { initAudio(); G.go('entry'); }, 'primary'), button('btn-total', '累計データ', () => G.openTotal('title')), el('span', { class: 'note' }, '音が出ます'));
   } else if (kind === 'skip') {
     bar.append(button('btn-skip', 'とばす', () => G.scene.skip?.()));
   } else if (kind === 'select') {
@@ -67,9 +103,23 @@ G.controls = (kind) => {
     bar.append(lab, range, out, button('btn-pause', '一時停止', () => G.togglePause()), soundButton());
     G.updateSpeedText(true);
   } else if (kind === 'result') {
-    bar.append(button('btn-again', 'もう一度（台を選ぶ）', () => { initAudio(); startAmbient(); G.go('select'); }, 'primary'), button('btn-title', 'はじめから', () => G.go('title')), soundButton());
+    bar.append(button('btn-again', 'もう一度（台を選ぶ）', () => { initAudio(); startAmbient(); G.go('select'); }, 'primary'), button('btn-history', '大当り履歴', () => G.openHistory()), button('btn-total', '累計データ', () => G.openTotal('result')), button('btn-title', 'はじめから', () => G.go('title')), soundButton());
+  } else if (kind === 'history' || kind === 'total') {
+    bar.append(button('btn-prev', '← 前のページ', () => G.scene.turn(-1)), button('btn-next', '次のページ →', () => G.scene.turn(1)), button('btn-back', '戻る', () => G.scene.back(), 'primary'));
+    if (kind === 'total') bar.append(button('btn-clear', '記録を消す', () => G.scene.clear(), 'danger'));
+    G.updatePager();
   }
+  // 置き直すのは、履歴・累計のページと、そこから戻ったときだけ（ほかの場面で動かすと、Enter が場面ではなくボタンに届く）
+  if (hadFocus && (focusId || kind === 'history' || kind === 'total')) (document.getElementById(focusId ?? '') ?? document.getElementById('btn-back'))?.focus();
   if (DEBUG) debugPanel();
+};
+// 端のページでは押せないことを aria-disabled で知らせる（disabled にするとフォーカスが外れるので使わない）
+G.updatePager = () => {
+  const sc = G.scene;
+  for (const [id, ok] of [['btn-prev', sc?.page > 0], ['btn-next', sc?.page < sc?.pages - 1]]) {
+    const b = document.getElementById(id);
+    if (b) b.setAttribute('aria-disabled', String(!ok));
+  }
 };
 function soundButton() {
   const b = button('btn-sound', soundOn() ? '音: あり' : '音: なし', () => { setSound(!soundOn()); b.textContent = soundOn() ? '音: あり' : '音: なし'; });
@@ -123,6 +173,19 @@ function showResult(tier) {
   log('debug.result', { tier, seed: got.seed, sa: got.ses.state.sa });
   G.go('result');
 }
+// 確かめ用: 本物の計算で 1 日ずつ遊んだことにして累計に足す（台は順番、回転率は日ごとの釘）
+function addFakeVisits(n) {
+  const t0 = performance.now();
+  for (let i = 0; i < n; i++) {
+    const m = MACHINES[i % MACHINES.length], day = G.daySeed - n + i, rpk = todayRpk(m, day);
+    const seed = (Math.random() * 2 ** 31) >>> 0;
+    const session = createSession({ machine: m.id, seed, rpk });
+    session.advanceTo(Infinity);
+    G.records.add(visitRecord({ machine: m, rpk, seed, session, day }, Date.now() - (n - i) * 3600000));
+  }
+  log('debug.fakeVisits', { n, ms: Math.round(performance.now() - t0) });
+  if (G.sceneName === 'total') G.go('total');
+}
 function debugPanel() {
   let p = document.getElementById('debug');
   if (!p) { p = el('div', { id: 'debug' }); bar.after(p); }
@@ -133,6 +196,8 @@ function debugPanel() {
   add('×64', () => { if (G.play) { G.speedOverride = 64; G.updateSpeedText(true); log('debug.speed', { mult: 64 }); } });
   add('閉店 1 分前', () => { if (G.play && G.sceneName === 'play') { const s = G.play.session; s.advanceTo(Math.max(s.state.t, s.endT - 60)); log('debug.jump', { t: s.state.t }); } });
   for (const t of ['S', 'A', 'B', 'C', 'D']) add(`結果 ${t}`, () => showResult(t));
+  add('累計 +20 回', () => addFakeVisits(20));
+  add('累計を空に', () => { G.records.clear(); if (G.sceneName === 'total') { G.totalView = { page: 0, sel: 0 }; G.go('total'); } });
   p.append(el('span', { class: 'note' }, `日 ${G.daySeed}${G.play ? ` / 種 ${G.play.seed}` : ''} / 記録 ${logFile ? 'logs/app.log' : 'コンソールだけ'}`));
 }
 

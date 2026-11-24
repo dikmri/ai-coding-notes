@@ -1,4 +1,4 @@
-// パチンコ台 10 種（60×104 × 10）。共通の筐体に、台ごとの枠の色・上の飾り・液晶の絵。題材はすべてオリジナル。
+// パチンコ台 14 種（60×104 × 14）。共通の筐体に、台ごとの枠の色・上の飾り・液晶の絵。題材はすべてオリジナル。
 const THEMES = [
   { id: 'dynamite', main: 'org1', dark: 'org0', light: 'org2', board: 'gold3', crest: 'red2' },
   { id: 'hamster', main: 'pnk1', dark: 'pur1', light: 'white', board: 'pale2', crest: 'gold2' },
@@ -11,6 +11,11 @@ const THEMES = [
   { id: 'laundry', main: 'sky0', dark: 'blu0', light: 'sky2', board: 'night1', crest: 'blu4' },
   { id: 'yokozuna', main: 'brn1', dark: 'brn0', light: 'brn2', board: 'brn3', crest: 'pur1' },
   { id: 'maneki', main: 'red2', dark: 'red0', light: 'red3', board: 'gold3', crest: 'gold2' },
+  // 2026-11-24 に足した 4 台（その 2）
+  { id: 'wanko', main: 'red1', dark: 'red0', light: 'red2', board: 'brn3', crest: 'red2' },
+  { id: 'wanko2', main: 'gold1', dark: 'gold0', light: 'gold2', board: 'pale2', crest: 'red2' },
+  { id: 'udezumo', main: 'blu1', dark: 'blu0', light: 'blu2', board: 'pale1', crest: 'gold2' },
+  { id: 'udezumo2', main: 'pur1', dark: 'pur0', light: 'pur2', board: 'pale0', crest: 'gold2' },
 ];
 
 function cabinet(d, t) {
@@ -74,6 +79,17 @@ function crest(d, t, i) {
     d.rect(8, 11, 3, 3, 'grn2').rect(49, 11, 3, 3, 'white').rect(20, 11, 3, 3, 'red2').rect(37, 11, 3, 3, 'blu2');
   } else if (t.id === 'maneki') { // 小判が 4 枚
     for (const x of [9, 20, 31, 42]) d.oval(x, 5, 9, 8, c).oval(x + 1, 6, 7, 6, 'gold3', false).line(x + 3, 8, x + 5, 8, 'gold0').line(x + 3, 10, x + 5, 10, 'gold0');
+  } else if (t.id === 'wanko') { // 積み上がった空のお椀（高さの違う 4 列）
+    [[8, 2], [19, 3], [30, 4], [41, 3]].forEach(([x, n]) => {
+      for (let k = 0; k < n; k++) { const y = 10 - k * 2; d.oval(x, y, 10, 4, c).line(x + 1, y, x + 8, y, 'ink').px(x + 2, y + 2, 'red3'); }
+    });
+  } else if (t.id === 'wanko2') { // 山盛りのそばのお椀と、きらきら
+    d.oval(20, 8, 20, 6, c).line(20, 9, 39, 9, 'ink').oval(23, 3, 14, 7, 'brn2').line(25, 5, 34, 5, 'brn1').line(24, 7, 35, 7, 'brn1').px(29, 3, 'grn2').px(31, 4, 'grn3');
+    for (const [x, y] of [[10, 6], [14, 10], [46, 6], [50, 10]]) d.px(x, y, 'white').px(x - 1, y, 'gold2').px(x + 1, y, 'gold2').px(x, y - 1, 'gold2').px(x, y + 1, 'gold2');
+  } else if (t.id === 'udezumo' || t.id === 'udezumo2') { // 真ん中に優勝カップ、左右に赤い幕
+    d.rect(26, 5, 8, 5, c).px(25, 6, c).px(34, 6, c).px(25, 7, c).px(34, 7, c).rect(29, 10, 2, 2, 'gold1').rect(27, 12, 6, 2, 'gold1').px(28, 6, 'white');
+    d.rect(7, 7, 15, 4, 'red2').line(7, 10, 21, 10, 'red1').rect(38, 7, 15, 4, 'red2').line(38, 10, 52, 10, 'red1');
+    if (t.id === 'udezumo2') for (const x of [12, 17, 43, 48]) d.px(x, 8, 'gold3');
   }
 }
 
@@ -173,6 +189,37 @@ function lcd(d, t) {
     d.px(X + 14, Y + 10, 'pnk0').px(X + 13, Y + 11, 'ink').px(X + 15, Y + 11, 'ink');
     R(8, 13, 13, 2, 'red2'); d.oval(X + 12, Y + 14, 4, 4, 'gold2');
     d.oval(X + 9, Y + 17, 11, 7, 'gold2').oval(X + 10, Y + 18, 9, 5, 'gold3', false).line(X + 12, Y + 20, X + 17, Y + 20, 'gold0');
+  } else if (t.id === 'wanko') { // 小さいお椀から、大きいお椀へそばが飛び込む。右に速さの線
+    R(0, 0, 30, 26, 'gold3'); R(0, 19, 30, 7, 'brn2'); R(0, 19, 30, 1, 'brn3');
+    d.oval(X + 1, Y + 3, 9, 5, 'red2').line(X + 1, Y + 3, X + 9, Y + 3, 'ink').px(X + 3, Y + 4, 'red3');
+    for (const [x, y] of [[9, 4], [10, 5], [11, 5], [12, 6], [13, 7], [14, 8], [14, 9], [15, 10], [11, 4], [12, 5], [14, 7], [15, 9]]) d.px(X + x, Y + y, 'brn1');
+    d.oval(X + 7, Y + 12, 18, 10, 'red2').oval(X + 7, Y + 10, 18, 5, 'ink').oval(X + 9, Y + 11, 14, 3, 'brn2');
+    d.line(X + 10, Y + 12, X + 21, Y + 12, 'brn1').px(X + 12, Y + 16, 'red3').px(X + 13, Y + 17, 'red3');
+    d.line(X + 24, Y + 1, X + 19, Y + 10, 'brn0').line(X + 26, Y + 1, X + 21, Y + 10, 'brn0');
+    for (const [x, y] of [[11, 7], [12, 6], [17, 7], [18, 6]]) d.px(X + x, Y + y, 'white');
+    for (const [y, l] of [[3, 3], [6, 4], [15, 3]]) R(29 - l, y, l, 1, 'white');
+  } else if (t.id === 'wanko2') { // 大盛りのお椀と LT の星
+    R(0, 0, 30, 26, 'sky1'); R(0, 21, 30, 5, 'brn2'); R(0, 21, 30, 1, 'brn3');
+    d.oval(X + 5, Y + 15, 20, 9, 'red2').oval(X + 5, Y + 14, 20, 4, 'ink');
+    d.oval(X + 7, Y + 4, 16, 13, 'brn2');
+    for (const y of [7, 10, 13]) d.line(X + 9, Y + y, X + 20, Y + y, 'brn1');
+    d.px(X + 14, Y + 4, 'grn2').px(X + 16, Y + 5, 'grn3').px(X + 12, Y + 6, 'grn2');
+    d.poly([[X + 25, Y + 1], [X + 26, Y + 4], [X + 29, Y + 4], [X + 27, Y + 6], [X + 28, Y + 9], [X + 25, Y + 7], [X + 22, Y + 9], [X + 23, Y + 6], [X + 21, Y + 4], [X + 24, Y + 4]], 'gold2');
+    d.px(X + 25, Y + 5, 'white').px(X + 3, Y + 3, 'white').px(X + 4, Y + 9, 'white');
+  } else if (t.id === 'udezumo' || t.id === 'udezumo2') { // 台の上でがっちり組んだ 2 本の腕
+    const two = t.id === 'udezumo2';
+    R(0, 0, 30, 26, two ? 'pur0' : 'night1');
+    if (two) { d.line(X + 3, Y + 1, X + 6, Y + 6, 'gold2').line(X + 6, Y + 6, X + 4, Y + 7, 'gold2').line(X + 4, Y + 7, X + 8, Y + 13, 'gold2'); d.rows(X + 23, Y + 1, ['GGG', '..G', 'GGG', 'G..', 'GGG'], { G: 'gold2' }); }
+    else { d.oval(X + 8, Y + 0, 14, 8, 'night0'); for (const [x, y] of [[3, 3], [26, 5], [24, 2]]) d.px(X + x, Y + y, 'white'); }
+    R(0, 21, 30, 5, 'brn2'); R(0, 21, 30, 1, 'brn3');
+    // 肘を台につき、前腕を立てて上で手を組む（左は赤い袖、右は青い袖）
+    R(0, 17, 9, 4, 'skin3'); R(0, 16, 3, 6, 'red2');
+    R(21, 17, 9, 4, 'skin2'); R(27, 16, 3, 6, 'blu2');
+    d.poly([[X + 6, Y + 21], [X + 11, Y + 21], [X + 15, Y + 10], [X + 11, Y + 8]], 'skin3').line(X + 7, Y + 20, X + 11, Y + 9, 'skin4');
+    d.poly([[X + 24, Y + 21], [X + 19, Y + 21], [X + 15, Y + 10], [X + 19, Y + 8]], 'skin2').line(X + 23, Y + 20, X + 19, Y + 9, 'skin3');
+    d.oval(X + 10, Y + 3, 10, 8, 'skin4').line(X + 12, Y + 5, X + 17, Y + 5, 'skin2').line(X + 12, Y + 7, X + 17, Y + 7, 'skin2').px(X + 15, Y + 9, 'skin2');
+    for (const [x0, y0, x1, y1] of [[9, 4, 7, 2], [21, 4, 23, 2], [15, 3, 15, 0]]) d.line(X + x0, Y + y0, X + x1, Y + y1, two ? 'org2' : 'gold2');
+    d.px(X + 8, Y + 12, 'blu3').px(X + 22, Y + 12, 'blu3');
   }
 }
 

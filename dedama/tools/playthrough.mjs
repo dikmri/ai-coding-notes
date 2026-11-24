@@ -45,6 +45,7 @@ async function clickEl(sel) {
   await page.click(r.x, r.y);
   return true;
 }
+const clickId = (id) => clickEl(`#${id}`);
 // 場面の時間を止めて写す（入店・退店の途中など）
 async function freezeShot(scene, t, name) {
   await waitFor(`G.sceneName === '${scene}' && G.scene.t >= ${t}`, 12000, 20);
@@ -136,6 +137,25 @@ try {
   await shot('15-result');
   const res = await E('return { tier: G.scene.tier, yen: G.scene.yen };');
   note('結果の収支は差玉 × 4 円', res.yen === fin.sa * 4, `${res.yen} 円（差玉 ${fin.sa}）、段階 ${res.tier}`);
+  // 2026-11-24: 大当り履歴と累計データ（本物のクリックで開く）
+  const rec = await E('const l = G.records.read(); return { n: l.length, yen: l.at(-1)?.yen, ev: l.at(-1)?.ev, hist: l.at(-1)?.hist?.length, hits: G.play.session.state.hitsTotal, resets: G.play.session.events.filter((e) => e.type === "reset").length };');
+  note('結果の画面で 1 回分を累計に残す', rec.n === 1 && rec.yen === res.yen && rec.hist === rec.hits + rec.resets && Number.isFinite(rec.ev), JSON.stringify(rec));
+  await clickId('btn-history');
+  note('大当り履歴を開く', await waitFor("G.sceneName === 'history'", 3000));
+  const hist = await E('return { rows: G.scene.rows.length, pages: G.scene.pages, first: G.scene.rows[0] };');
+  note('大当り履歴: 1 行 1 回で、何回転目かが入る', hist.rows === rec.hist && hist.first?.spins > 0 && !!hist.first?.kind, JSON.stringify(hist).slice(0, 200));
+  await shot('15b-history');
+  if (hist.pages > 1) { await clickId('btn-next'); await sleep(200); note('大当り履歴: 次のページ', (await E('return G.scene.page;')) === 1); }
+  await clickId('btn-back');
+  note('大当り履歴から結果へ戻る', await waitFor("G.sceneName === 'result'", 3000));
+  await clickId('btn-total');
+  note('累計データを開く', await waitFor("G.sceneName === 'total' && G.scene.sum.visits === 1", 3000));
+  await shot('15c-total');
+  await page.key('ArrowRight'); await sleep(150); await page.key('ArrowRight'); await sleep(150);
+  note('累計データ: 来店の記録のページまで送れる', (await E('return G.scene.page;')) === 2);
+  await shot('15d-total-visits');
+  await page.key('Escape');
+  note('累計データから結果へ戻る', await waitFor("G.sceneName === 'result'", 3000));
   // 晩ごはんの 5 段階（確かめ用の窓口で、その段階になる日を探して結果の画面を出す）
   for (const t of ['S', 'A', 'B', 'C', 'D']) {
     await E(`D.showResult('${t}');`);
@@ -148,11 +168,11 @@ try {
   await E("G.go('select');");
   await waitFor("G.sceneName === 'select'", 3000);
   const before = await E('return G.machineIndex;');
-  for (let i = 0; i <= before; i++) { await page.key('ArrowLeft'); await sleep(120); } // 左端から回り込んで 10 台目へ
+  for (let i = 0; i <= before; i++) { await page.key('ArrowLeft'); await sleep(120); } // 左端から回り込んで 14 台目へ
   const sel = await E('return { i: G.machineIndex, offset: D.S.select.offset, n: D.MACHINES.length, id: D.MACHINES[G.machineIndex].id };');
-  note('台選び: 10 台目まで並びを送れる', sel.n === 10 && sel.i === 9 && sel.offset === 4, JSON.stringify(sel));
+  note('台選び: 14 台目まで並びを送れる', sel.n === 14 && sel.i === 13 && sel.offset === 8, JSON.stringify(sel));
   await sleep(300);
-  await shot('17-select-10');
+  await shot('17-select-14');
   // 早いうちに見たい出来事が起きる種を探して、その日で打つ
   const playUntil = async (id, want, label, name, msgRe) => {
     const seed = await E(`return import('/dedama/sim/sim.mjs').then(({ createSession }) => {
@@ -170,6 +190,9 @@ try {
   };
   await playUntil('yokozuna', "e.type === 'hit' && e.fromKey === 'lt'", '横綱: 大一番に勝って LT の当たりが出る', '18-yokozuna-lt', /大一番 勝ち/);
   await playUntil('maneki', "e.type === 'reset'", '招き猫: 空振り（ST リセット）の知らせが出る', '19-maneki-reset', /空振り/);
+  // 2026-11-24 に足した 4 台（その 2）: LT のある 2 台
+  await playUntil('wanko2', "e.type === 'hit' && e.fromKey === 'lt'", 'わんこそば 大盛りライト: LT の当たりが出る', '20-wanko2-lt', /→ LT/);
+  await playUntil('udezumo2', "e.type === 'hit' && e.fromKey === 'lt'", '腕ずもう 2: LT の当たりが出る', '21-udezumo2-lt', /→ LT/);
   // 記録
   await sleep(1200);
   const errors = page.consoleErrors.filter((e) => !/404|Failed to load resource/.test(e));
@@ -180,6 +203,8 @@ try {
   note('記録: 場面・操作・当たり・音が残る', count(/dedama\.scene\.enter/) >= 6 && count(/dedama\.ui\./) >= 5 && count(/dedama\.sim\.hit/) >= 10 && count(/dedama\.sound\.play/) >= 5,
     `scene ${count(/scene\.enter/)}・ui ${count(/dedama\.ui\./)}・hit ${count(/sim\.hit/)}・sound ${count(/sound\.play/)}・fanfare ${count(/"name":"fanfare"/)}・sad ${count(/audio\.sad/)}`);
   note('記録: 例外が無い', count(/result=exception|dedama\.exception/) === 0);
+  note('記録: 累計に足した行と、履歴・累計のページを開いた行が残る', count(/dedama\.record\.add/) >= 1 && count(/dedama\.scene\.history/) >= 1 && count(/dedama\.scene\.total/) >= 1 && count(/dedama\.ui\.page/) >= 1,
+    `record.add ${count(/record\.add/)}・history ${count(/scene\.history/)}・total ${count(/scene\.total/)}・page ${count(/ui\.page/)}`);
 } catch (e) {
   note('台本が最後まで動く', false, String(e.stack || e).slice(0, 400));
 } finally {
