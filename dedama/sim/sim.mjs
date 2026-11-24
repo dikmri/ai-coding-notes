@@ -142,7 +142,7 @@ export function createSession({ machine, seed = 1, hours = GAME_HOURS, rpk = nul
     if (hit) sp.hits++;
     state.spinsTotal++;
     state.spinsSinceHit++;
-    spin = { end: state.t + dur, hit, from: mode, fromKey: state.modeKey, table: cur.table ?? (mode === 'normal' ? 'heso' : 'den'), spinAt: state.t };
+    spin = { end: state.t + dur, hit, from: mode, fromKey: state.modeKey, fromLabel: state.modeLabel, table: cur.table ?? (mode === 'normal' ? 'heso' : 'den'), spinAt: state.t };
   }
 
   function onEntry() {
@@ -172,22 +172,25 @@ export function createSession({ machine, seed = 1, hours = GAME_HOURS, rpk = nul
       if (rounds === 0 && !m.tokkaku && s.from !== 'normal') {
         // ST リセット（出玉なし）: 大当たりにも連チャンにも数えず、次の状態を最初の回数から始める
         stats.resets++;
-        events.push({ type: 'reset', t: state.t, spinAt: s.spinAt, from: s.from, fromKey: s.fromKey, chain: state.chain, next: next.mode, nextKey: modeKey(next), nextLabel: modeLabel(next), label: modeLabel(next), spins: next.spins ?? null });
+        events.push({ type: 'reset', t: state.t, sa: state.sa, spinsTotal: state.spinsTotal, spinAt: s.spinAt, from: s.from, fromKey: s.fromKey, fromLabel: s.fromLabel, chain: state.chain, next: next.mode, nextKey: modeKey(next), nextLabel: modeLabel(next), label: modeLabel(next), spins: next.spins ?? null });
         enterMode(next);
         pushSample();
         return;
       }
       const tk = rounds === 0 ? m.tokkaku : null;
-      const nRounds = tk ? tk.rounds : rounds, pr = tk ? tk.perRound : perRound;
+      // 1R の出玉は表ごとに変えられる（perBallBy: { 表の名前: 賞球 }。ヘソと右打ちでアタッカーが違う台）
+      const nRounds = tk ? tk.rounds : rounds, pr = tk ? tk.perRound : m.perBallBy?.[s.table] != null ? m.count * (m.perBallBy[s.table] - 1) : perRound;
       state.chain = s.from === 'normal' ? 1 : state.chain + 1;
       if (state.chain > state.maxChain) state.maxChain = state.chain;
       if (s.from === 'normal') state.firstHits++;
       state.hitsTotal++;
+      const spinsTotal = state.spinsTotal;
       state.spinsSinceHit = 0;
       const hs = (stats.hits[s.table] ??= { n: 0, payout: 0 });
       hs.n++;
       hs.payout += nRounds * pr;
-      events.push({ type: 'hit', t: state.t, sa: state.sa, spinAt: s.spinAt, from: s.from, fromKey: s.fromKey, route, table: s.table, chain: state.chain, rounds: nRounds, tokkaku: !!tk, payout: nRounds * pr, next: next.mode, nextKey: modeKey(next), nextLabel: modeLabel(next) });
+      // spinsTotal（その時の総回転数）・fromLabel・nextSpins・then は大当り履歴の表に使う
+      events.push({ type: 'hit', t: state.t, sa: state.sa, spinsTotal, spinAt: s.spinAt, from: s.from, fromKey: s.fromKey, fromLabel: s.fromLabel, route, table: s.table, chain: state.chain, rounds: nRounds, tokkaku: !!tk, payout: nRounds * pr, next: next.mode, nextKey: modeKey(next), nextLabel: modeLabel(next), nextSpins: next.spins ?? null, thenLabel: next.then ? modeLabel(next.then) : null, thenSpins: next.then?.spins ?? null });
       entry = null; // 大当たり中はヘソを狙わない
       bonus = { nextAt: state.t + T.open, phase: 'open', left: nRounds, perRound: pr, next };
       state.inBonus = true; state.bonusRounds = nRounds; state.bonusRoundsLeft = nRounds;

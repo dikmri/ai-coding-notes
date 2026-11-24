@@ -9,16 +9,17 @@ import { drawText, textWidth, signed, comma } from './pixtext.mjs';
 import { art, frame, HERO, BUST } from './art.mjs';
 import { sfx, startSad, stopSad, startAmbient, stopAmbient } from './audio.mjs';
 import { log } from './log.mjs';
+import { roundsText, totals, visitRecord } from './record.mjs';
 
 export const W = 384, H = 216, GROUND = 176, DOOR_X = 226, DOOR_W = 48;
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // ---- 共通の描き方 ----
-function clockText(t) {
+export function clockText(t) {
   const m = Math.floor(Math.min(t, 43200) / 60) + 600;
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 }
-function panel(ctx, x, y, w, h, fill = '#14122a', border = '#5a5070') {
+export function panel(ctx, x, y, w, h, fill = '#14122a', border = '#5a5070') {
   ctx.fillStyle = border; ctx.fillRect(x, y, w, h);
   ctx.fillStyle = fill; ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
 }
@@ -121,7 +122,7 @@ export function makeScenes(G) {
     skip() { G.go('select'); },
   };
 
-  // 台は横に 6 台ずつ見せ、選んだ台が見えるように並びを送る（台は 10 台）
+  // 台は横に 6 台ずつ見せ、選んだ台が見えるように並びを送る（台は 14 台）
   const SHOWN = 6;
   S.select = {
     enter() {
@@ -177,7 +178,7 @@ export function makeScenes(G) {
         const x = 12 + k * 60, y = 34, sel = i === G.machineIndex;
         const lift = sel ? -2 - Math.round(Math.sin(this.t * 4)) : 0;
         if (!frame(ctx, 'machines', i, x, y + lift)) {
-          panel(ctx, x + 2, y + lift, 56, 104, '#1a1626', ['#d0263a', '#ff9a2e', '#1a4f8c', '#1f6b3a', '#c8a020', '#b24ad6', '#3aa55a', '#5fa8e8', '#9c6a3c', '#ff5a5f'][i]);
+          panel(ctx, x + 2, y + lift, 56, 104, '#1a1626', ['#d0263a', '#ff9a2e', '#1a4f8c', '#1f6b3a', '#c8a020', '#b24ad6', '#3aa55a', '#5fa8e8', '#9c6a3c', '#ff5a5f', '#8c1a2b', '#c8a020', '#2f86d0', '#6c2a8c'][i % 14]);
           drawText(ctx, MACHINES[i].name.replace(/^(P|CR) /, '').slice(0, 4), x + 30, y + 40 + lift, { size: 10, color: '#ffffff', align: 'center' });
         }
         if (sel) {
@@ -266,7 +267,7 @@ export function makeScenes(G) {
       const P = G.play;
       const color = chainColor(e.chain, G.clock * 0.5);
       // 10R を何回も続けて払い出す当たり（20R 以上で 10 の倍数）は「10R×2」のように書く
-      const kind = e.tokkaku ? '突確' : e.rounds > 16 && e.rounds % 10 === 0 ? `10R×${e.rounds / 10}` : `${e.rounds}R`;
+      const kind = e.tokkaku ? '突確' : roundsText(e.rounds);
       const next = e.nextLabel;
       const head = e.fromKey === 'battle' ? (e.nextKey === 'lt' ? '大一番 勝ち！！' : '大一番 負け……') : '大当たり！';
       this.say(`${clockText(e.t)} ${head} ${kind}${e.payout ? `（約 ${comma(e.payout)} 発）` : ''} → ${next}${e.chain >= 2 ? `  ${chainLabel(e.chain)}` : ''}`, color);
@@ -407,14 +408,22 @@ export function makeScenes(G) {
   S.result = {
     enter() {
       const P = G.play, st = P.session.state;
+      const first = !P.resultSeen;
+      P.resultSeen = true;
       this.t = 0;
       this.yen = st.sa * YEN_PER_BALL; this.tier = mealTier(this.yen); this.meal = MEALS[this.tier];
-      G.controls('result');
+      // 本当に遊んだ日だけ累計に残す（確かめ用の「結果 S〜D」は残さない）
+      if (first && P.real) P.record = visitRecord({ ...P, day: G.daySeed }, Date.now());
+      const list = first && P.real ? G.records.add(P.record) : G.records.read();
+      this.sum = totals(list, MACHINES);
+      this.ev = P.record?.ev ?? null;
+      G.controls('result', first ? null : G.returnFocus);
       this.mealFx = new FxLayer(208, 136, 8, 8); // 金粉・紙吹雪・雨は晩ごはんの絵の中だけ
       if (this.tier === 'S') { this.mealFx.spawn('goldDust', 104, 132); this.mealFx.spawn('confetti', 104, 132); }
       if (this.tier === 'D') this.mealFx.spawn('rain', 104, 136, { density: 0.8 });
+      if (!first) return;
       if (this.tier === 'S' || this.tier === 'A') sfx('fanfare', 0); else if (this.tier === 'D') sfx('lose');
-      log('result', { machine: P.machine.id, yen: this.yen, sa: st.sa, invest: st.invest, hits: st.hitsTotal, first: st.firstHits, maxChain: st.maxChain, tier: this.tier, spins: st.spinsTotal });
+      log('result', { ev: this.ev, visits: this.sum.visits, totalYen: this.sum.yen, totalEv: this.sum.ev, machine: P.machine.id, yen: this.yen, sa: st.sa, invest: st.invest, hits: st.hitsTotal, first: st.firstHits, maxChain: st.maxChain, tier: this.tier, spins: st.spinsTotal });
     },
     leave() { G.fx.clear(); this.mealFx?.clear(); },
     update(dt) { this.t += dt; this.mealFx.update(dt); },
@@ -433,10 +442,18 @@ export function makeScenes(G) {
       // 右: 収支
       drawText(ctx, '本日の収支', 226, 10, { size: 12, color: '#d6d0e0' });
       drawText(ctx, `${signed(this.yen)} 円`, 378, 28, { size: 20, color: this.yen >= 0 ? '#ffd84a' : '#63c6ff', align: 'right', bold: true, outline: '#0b0a12' });
-      drawText(ctx, '差玉', 226, 60, { size: 10, color: '#7e7593' }); drawText(ctx, `${signed(st.sa)} 発`, 378, 60, { size: 10, color: '#ffffff', align: 'right' });
-      drawText(ctx, '投資', 226, 74, { size: 10, color: '#7e7593' }); drawText(ctx, `${comma(st.invest)} 円`, 378, 74, { size: 10, color: '#ffffff', align: 'right' });
-      drawText(ctx, '持ち玉の換金', 226, 88, { size: 10, color: '#7e7593' }); drawText(ctx, `${comma(st.mochi * YEN_PER_BALL)} 円`, 378, 88, { size: 10, color: '#ffffff', align: 'right' });
-      drawText(ctx, '最高', 226, 102, { size: 10, color: '#7e7593' }); drawText(ctx, `${signed(st.maxSa)} / 最低 ${signed(st.minSa)}`, 378, 102, { size: 10, color: '#ffffff', align: 'right' });
+      // 右の列の行（12 画素おき）。期待値は本当に遊んだ日だけ、累計はこのブラウザに残した全部の来店
+      const rows = [
+        ['差玉', `${signed(st.sa)} 発`],
+        ['投資・回収', `${comma(st.invest)}・${comma(st.mochi * YEN_PER_BALL)} 円`],
+        ['最高・最低', `${signed(st.maxSa)}・${signed(st.minSa)}`],
+        ...(this.ev != null ? [['期待値', `${signed(this.ev)} 円`, '#ff8a8a']] : []),
+        [`累計（${this.sum.visits} 回）`, `${signed(this.sum.yen)} 円`, this.sum.yen > 0 ? '#ffd84a' : this.sum.yen < 0 ? '#63c6ff' : '#ffffff'],
+      ];
+      rows.forEach(([k, v, color], i) => {
+        drawText(ctx, k, 226, 54 + i * 12, { size: 10, color: '#7e7593' });
+        drawText(ctx, v, 378, 54 + i * 12, { size: 10, color: color ?? '#ffffff', align: 'right' });
+      });
       drawText(ctx, P.machine.name, 226, 118, { size: 10, color: '#d6d0e0' }); // グラフの見出しは台の名前
       drawMini(ctx, P.graph, 226, 132, 152, 66, G.clock);
     },

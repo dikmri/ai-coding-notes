@@ -30,14 +30,24 @@ const SPEC = {
     heso: [[40, 10], [40, 10], [20, 2]], battle: [[50, 50], [50, 10]], lt: [[25, 50], [51, 10], [24, 10]], perRound: 10 * 14 },
   maneki: { normal: 349.9, rpk: 15, border: 16.0, modes: { st: 99.9 }, enter: 0.55,
     heso: [[10, 20], [45, 10], [45, 10]], den: [[25, 40], [55, 10], [6, 2], [14, 0]], perRound: 10 * 14 },
+  // 2026-11-24 に足した 4 台（その 2）。RUSH の回数は時短 ＋ 残り保留 1 個。perRoundBy は表ごとの 1R の出玉（ヘソと右打ちでアタッカーが違う台）
+  wanko: { normal: 319.68, rpk: 19, border: 20.2, modes: { st: 2.06 }, enter: 0.602,
+    heso: [[60.2, 6], [39.8, 6]], den: [[20, 9], [80, 3]], perRound: 10 * 10 },
+  wanko2: { normal: 129.7, rpk: 16.5, border: 17.8, modes: { st: 2.44, lt: 2.44, last: 2.44 }, enter: 0.56,
+    heso: [[56, 3], [44, 3]], den: [[80, 3], [18, 9], [2, 9]], lt: [[80, 3], [20, 9]], perRound: 10 * 7 },
+  udezumo: { normal: 199.8, rpk: 20, border: 21.1, modes: { st: 1.58 }, enter: 0.5,
+    heso: [[50, 4], [50, 4]], den: [[8, 9], [8, 6], [84, 3]], perRound: 10 * 6 },
+  udezumo2: { normal: 199.5, rpk: 17, border: 18.1, modes: { st: 1.71, lt: 1.71, encho: 1.71 }, enter: 0.6,
+    heso: [[60, 6], [40, 6]], den: [[3, 10], [3, 10], [94, 2]], lt: [[6, 10], [91.5, 2], [2.5, 2]], perRound: 10 * 6, perRoundBy: { heso: 10 * 9 } },
 };
 const cont = (oneIn, n) => 1 - (1 - 1 / oneIn) ** n;
 const ROUTES = ['heso', 'den', 'battle', 'lt'];
 // 出玉のある当たりだけの平均（ST リセットの行は除く）
 const payRows = (spec, route) => spec[route].filter(([, r]) => r > 0 || spec.tokkaku);
+const perRoundOf = (spec, route) => spec.perRoundBy?.[route] ?? spec.perRound;
 const avgPay = (spec, route) => {
   const t = payRows(spec, route);
-  return t.reduce((a, [w, r]) => a + w * (r === 0 ? spec.tokkaku : r * spec.perRound), 0) / t.reduce((a, [w]) => a + w, 0);
+  return t.reduce((a, [w, r]) => a + w * (r === 0 ? spec.tokkaku : r * perRoundOf(spec, route)), 0) / t.reduce((a, [w]) => a + w, 0);
 };
 // 電サポの種類ごとの「次が当たる」割合の理論値
 const THEORY = {
@@ -51,6 +61,12 @@ const THEORY = {
   laundry: { st: cont(95.3, 130) },
   yokozuna: { battle: 1, lt: 1 }, // 1 回転で毎回当たる。続くかどうかは振り分けの表で決まる（別のテスト）
   maneki: { st: cont(99.9, 144) },
+  wanko: { st: cont(2.06, 4) },
+  // LT は 6 回を LT の表で回し、外れたらラスト 1 回（RUSH の表）
+  wanko2: { st: cont(2.44, 4), lt: cont(2.44, 6), last: cont(2.44, 1) },
+  udezumo: { st: cont(1.58, 3) },
+  // LT は 101 回あるので必ず当たる（続くかは LT の表で決まる）。延長戦は 1 回だけ
+  udezumo2: { st: cont(1.71, 3), lt: 1, encho: cont(1.71, 1) },
 };
 
 // 割合 p の n 回の試行で、観測 k が許す幅（4σ）に入るか
@@ -118,7 +134,7 @@ for (const id of Object.keys(SPEC)) {
       const want = avgPay(sp, route), got = h.payout / h.n;
       // 振り分けの抽選の揺れ: 出玉の分散から 4σ
       const t = payRows(sp, route), tw = t.reduce((a, [w]) => a + w, 0);
-      const pay = (r) => (r === 0 ? sp.tokkaku : r * sp.perRound);
+      const pay = (r) => (r === 0 ? sp.tokkaku : r * perRoundOf(sp, route));
       const vr = t.reduce((a, [w, r]) => a + (w / tw) * (pay(r) - want) ** 2, 0);
       const tol = 4 * Math.sqrt(vr / h.n) + 1;
       assert.ok(Math.abs(got - want) <= tol, `${id} ${route}: 平均 ${got.toFixed(1)}、理論 ${want.toFixed(1)}（±${tol.toFixed(1)}）`);
@@ -309,4 +325,63 @@ test('回転率を変えて遊べる（今日の釘）', () => {
   const rpk = s.stats.normal.entries / (s.stats.normal.net / 250);
   assert.equal(s.rpk, 21);
   assert.ok(Math.abs(rpk - 21) / 21 < 0.02, `${rpk.toFixed(2)} 回転/千円`);
+});
+
+// ---- 大当り履歴の表に使う出来事の中身 ----
+test('大当たりと ST リセットの出来事: その時の総回転数・当たった時の状態の名前・次の状態の回数を持つ', () => {
+  const ham = createSession({ machine: 'hamster', seed: 3 });
+  ham.advanceTo(Infinity);
+  const hits = ham.events.filter((e) => e.type === 'hit');
+  assert.ok(hits.length > 10, `大当たり ${hits.length} 回`);
+  let prev = 0;
+  for (const e of hits) {
+    assert.ok(e.spinsTotal > prev, '総回転数は当たりごとに増える');
+    prev = e.spinsTotal;
+    assert.ok(['通常', 'ST', '時短'].includes(e.fromLabel), `当たった時の状態 ${e.fromLabel}`);
+    // 甘デジは毎回 ST 8 回 ＋ 時短 22 回
+    assert.equal(e.nextSpins, 8);
+    assert.equal(e.thenLabel, '時短');
+    assert.equal(e.thenSpins, 22);
+  }
+  assert.ok(prev <= ham.state.spinsTotal);
+  assert.ok(hits.some((e) => e.fromLabel === '通常') && hits.some((e) => e.fromLabel === 'ST'), '通常時と ST 中の当たりがある');
+
+  const rs = createSession({ machine: FIX_RESET_MACHINE, seed: 9, hours: 100 });
+  rs.advanceTo(Infinity);
+  const resets = rs.events.filter((e) => e.type === 'reset');
+  assert.ok(resets.length > 3, `リセット ${resets.length} 回`);
+  for (const e of resets) {
+    assert.ok(Number.isInteger(e.spinsTotal) && e.spinsTotal > 0, 'リセットも総回転数を持つ');
+    assert.equal(e.fromLabel, 'RUSH');
+    assert.equal(typeof e.sa, 'number', 'リセットの時の差玉');
+  }
+  // 当たらない状態から戻る大当たり（確変・突確）
+  const hb = createSession({ machine: 'hanabi', seed: 11, hours: 200 });
+  hb.advanceTo(Infinity);
+  const tk = hb.events.find((e) => e.type === 'hit' && e.tokkaku);
+  assert.ok(tk, '突確がある');
+  assert.equal(tk.next, 'kakuhen');
+  assert.equal(tk.nextSpins, null, '確変は回数を持たない');
+});
+
+test('udezumo2: ヘソの当たりは 1R 90 発、右打ちの当たりは 1R 60 発（表ごとの 1R の出玉）', () => {
+  const ev = longRun('udezumo2').events.filter((e) => e.type === 'hit');
+  const heso = ev.filter((e) => e.table === 'heso'), right = ev.filter((e) => e.table !== 'heso');
+  assert.ok(heso.length > 100 && right.length > 1000, `ヘソ ${heso.length}・右打ち ${right.length}`);
+  assert.ok(heso.every((e) => e.rounds === 6 && e.payout === 540), 'ヘソは 6R 540 発');
+  assert.ok(right.every((e) => e.payout === e.rounds * 60), '右打ちは 1R 60 発');
+  // LT の 2.5% は延長戦（1 回だけ）。延長戦で当たれば RUSH の表で次を決める
+  const lt = ev.filter((e) => e.fromKey === 'lt');
+  near(lt.filter((e) => e.nextKey === 'encho').length, lt.length, 0.025, 'LT の終わり（延長戦へ）');
+  const encho = ev.filter((e) => e.fromKey === 'encho');
+  assert.ok(encho.length > 20 && encho.every((e) => e.table === 'den'), `延長戦の当たり ${encho.length} 回は RUSH の表`);
+});
+
+test('wanko2: LT を 6 回外すと、ラスト 1 回は RUSH の表で回る', () => {
+  const s = longRun('wanko2');
+  const ends = s.events.filter((e) => e.type === 'modeEnd' && e.key === 'lt');
+  assert.ok(ends.length > 20, `LT の終わり ${ends.length} 回`);
+  assert.ok(ends.every((e) => e.result === 'next' && e.toKey === 'last' && e.toLabel === 'ラスト'), 'LT の後はラスト');
+  const last = s.events.filter((e) => e.type === 'hit' && e.fromKey === 'last');
+  assert.ok(last.length > 5 && last.every((e) => e.table === 'den'), `ラストの当たり ${last.length} 回は RUSH の表`);
 });
