@@ -20,10 +20,23 @@ const SPEC = {
     heso: [[50, 3], [50, 3]], den: [[100, 10]], perRound: 10 * 14 },
   hanabi: { normal: 399.6, rpk: 15.5, border: 16.4, modes: { kakuhen: 39.9, jitan: 399.6 }, jitan: 100,
     heso: [[45, 16], [15, 0], [40, 16]], den: [[45, 16], [15, 0], [40, 16]], perRound: 10 * 14, tokkaku: 2 * 10 },
+  // 2026-11-24 に足した 4 台（作者が挙げた実在の台の公表スペックを参考）。enter は初当たりから電サポへ入る割合。
+  // 振り分けのラウンド数 0 は ST リセット（出玉なし。大当たりに数えない）
+  sushi: { normal: 229.95, rpk: 18, border: 19.0, modes: { st: 69.35, st4500: 69.35 }, enter: 0.51,
+    heso: [[1, 3], [50, 3], [49, 3]], den: [[5.5, 30], [26.9, 20], [43.8, 10], [23.8, 0]], perRound: 10 * 14 },
+  laundry: { normal: 199.9, rpk: 15.5, border: 16.7, modes: { st: 95.3 }, enter: 0.255,
+    heso: [[25, 10], [0.5, 2], [24.5, 10], [50, 2]], den: [[97, 20], [3, 40]], perRound: 10 * 14 },
+  yokozuna: { normal: 349.99, rpk: 16, border: 17.2, modes: { battle: 1, lt: 1 }, enter: 0.4,
+    heso: [[40, 10], [40, 10], [20, 2]], battle: [[50, 50], [50, 10]], lt: [[25, 50], [51, 10], [24, 10]], perRound: 10 * 14 },
+  maneki: { normal: 349.9, rpk: 15, border: 16.0, modes: { st: 99.9 }, enter: 0.55,
+    heso: [[10, 20], [45, 10], [45, 10]], den: [[25, 40], [55, 10], [6, 2], [14, 0]], perRound: 10 * 14 },
 };
 const cont = (oneIn, n) => 1 - (1 - 1 / oneIn) ** n;
+const ROUTES = ['heso', 'den', 'battle', 'lt'];
+// 出玉のある当たりだけの平均（ST リセットの行は除く）
+const payRows = (spec, route) => spec[route].filter(([, r]) => r > 0 || spec.tokkaku);
 const avgPay = (spec, route) => {
-  const t = spec[route];
+  const t = payRows(spec, route);
   return t.reduce((a, [w, r]) => a + w * (r === 0 ? spec.tokkaku : r * spec.perRound), 0) / t.reduce((a, [w]) => a + w, 0);
 };
 // 電サポの種類ごとの「次が当たる」割合の理論値
@@ -34,6 +47,10 @@ const THEORY = {
   crab: { st: cont(99.4, 163), jitan: cont(319.7, 100) },
   daibutsu: { rush: 1 - (1 - 1 / 7.4 - 1 / 319.7) ** 13 },
   hanabi: { kakuhen: 1, jitan: cont(399.6, 100) },
+  sushi: { st: cont(69.35, 100), st4500: cont(69.35, 4500) },
+  laundry: { st: cont(95.3, 130) },
+  yokozuna: { battle: 1, lt: 1 }, // 1 回転で毎回当たる。続くかどうかは振り分けの表で決まる（別のテスト）
+  maneki: { st: cont(99.9, 144) },
 };
 
 // 割合 p の n 回の試行で、観測 k が許す幅（4σ）に入るか
@@ -55,7 +72,7 @@ function longRun(id) {
   return long.get(id);
 }
 
-test('台は仕様書の 6 種類で、名前・型・回転率・確率が仕様と同じ', () => {
+test(`台は仕様書の ${Object.keys(SPEC).length} 種類で、名前・型・回転率・確率が仕様と同じ`, () => {
   assert.deepEqual(MACHINES.map((m) => m.id), Object.keys(SPEC));
   for (const m of MACHINES) {
     const sp = SPEC[m.id];
@@ -87,24 +104,30 @@ for (const id of Object.keys(SPEC)) {
     const st = longRun(id).stats;
     for (const [mode, p] of Object.entries(THEORY[id])) {
       const ep = st.episodes[mode];
-      if (p === 1) { assert.ok(ep.n > 100, `${id} ${mode} の回数`); assert.equal(ep.hit, ep.n, `${id} ${mode} は次回まで続く`); }
+      // 必ず当たる状態（確変・1/1・回数が多い ST）は、回数が少なくても全部当たることを確かめる
+      if (p === 1) { assert.ok(ep.n >= 10, `${id} ${mode} の回数 ${ep.n}`); assert.equal(ep.hit, ep.n, `${id} ${mode} は必ず当たる`); }
       else near(ep.hit, ep.n, p, `${id} ${mode} の継続`);
     }
   });
 
   test(`${id}: 1 回の大当たりの平均出玉が振り分けの理論値`, () => {
     const st = longRun(id).stats;
-    for (const route of ['heso', 'den']) {
+    for (const route of ROUTES.filter((r) => sp[r])) {
       const h = st.hits[route];
-      assert.ok(h.n > 50, `${id} ${route} の当たりが少ない（${h.n}）`);
+      assert.ok(h && h.n > 50, `${id} ${route} の当たりが少ない（${h?.n}）`);
       const want = avgPay(sp, route), got = h.payout / h.n;
       // 振り分けの抽選の揺れ: 出玉の分散から 4σ
-      const t = sp[route], tw = t.reduce((a, [w]) => a + w, 0);
+      const t = payRows(sp, route), tw = t.reduce((a, [w]) => a + w, 0);
       const pay = (r) => (r === 0 ? sp.tokkaku : r * sp.perRound);
       const vr = t.reduce((a, [w, r]) => a + (w / tw) * (pay(r) - want) ** 2, 0);
       const tol = 4 * Math.sqrt(vr / h.n) + 1;
       assert.ok(Math.abs(got - want) <= tol, `${id} ${route}: 平均 ${got.toFixed(1)}、理論 ${want.toFixed(1)}（±${tol.toFixed(1)}）`);
     }
+  });
+
+  if (sp.enter != null) test(`${id}: 初当たりの ${(sp.enter * 100).toFixed(1)}% が電サポ（RUSH・LT・大一番）へ入る`, () => {
+    const first = longRun(id).events.filter((e) => e.type === 'hit' && e.from === 'normal');
+    near(first.filter((e) => e.next !== 'normal').length, first.length, sp.enter, `${id} の突入`);
   });
 
   test(`${id}: 回転率が 1,000 円あたり ${sp.rpk} 回転`, () => {
@@ -113,10 +136,21 @@ for (const id of Object.keys(SPEC)) {
     assert.ok(Math.abs(rpk - sp.rpk) / sp.rpk < 0.02, `${id}: ${rpk.toFixed(2)} 回転/千円`);
   });
 
-  test(`${id}: 等価のボーダーが ${sp.border} 回転（試行から計算した値と 4% 以内）`, () => {
+  test(`${id}: 等価のボーダーが ${sp.border} 回転（試行から計算した値と 4% か 4σ の大きい方の幅）`, () => {
     const s = longRun(id);
     const border = (250 * s.stats.spins.normal.n) / (s.state.sa + s.stats.normal.net);
-    assert.ok(Math.abs(border - sp.border) / sp.border < 0.04, `${id}: 計算 ${border.toFixed(2)}、仕様 ${sp.border}`);
+    // 初当たりから通常に戻るまでの 1 回分の出玉（連チャンの長さで大きくばらつく）から、ボーダーの相対誤差を見積もる
+    const gains = [];
+    let start = null;
+    for (const e of s.events) {
+      if (e.type === 'hit' && e.from === 'normal') start = e.sa;
+      else if (e.type === 'modeEnd' && e.result === 'out' && start != null) { gains.push(e.sa - start); start = null; }
+    }
+    const mean = gains.reduce((a, b) => a + b, 0) / gains.length;
+    const sd = Math.sqrt(gains.reduce((a, b) => a + (b - mean) ** 2, 0) / (gains.length - 1));
+    const tol = Math.max(0.04, (4 * sd) / (mean * Math.sqrt(gains.length)));
+    assert.ok(gains.length > 1000, `${id}: 初当たり ${gains.length} 回`);
+    assert.ok(Math.abs(border - sp.border) / sp.border < tol, `${id}: 計算 ${border.toFixed(2)}、仕様 ${sp.border}（±${(tol * 100).toFixed(1)}%）`);
   });
 
   test(`${id}: 通常時は 1 時間に 200〜330 回転（現実の目安）`, () => {
@@ -125,6 +159,27 @@ for (const id of Object.keys(SPEC)) {
     assert.ok(perHour >= 200 && perHour <= 330, `${id}: ${perHour.toFixed(0)} 回転/時`);
   });
 }
+
+test('yokozuna: 大一番は 50% で勝って LT、LT は 76% で続く', () => {
+  const ev = longRun('yokozuna').events.filter((e) => e.type === 'hit');
+  const battle = ev.filter((e) => e.fromKey === 'battle'), lt = ev.filter((e) => e.fromKey === 'lt');
+  near(battle.filter((e) => e.nextKey === 'lt').length, battle.length, 0.5, '大一番の勝ち');
+  near(lt.filter((e) => e.nextKey === 'lt').length, lt.length, 0.76, 'LT の継続');
+  near(lt.filter((e) => e.rounds === 50).length, lt.length, 0.25, 'LT の 7,500 発');
+  assert.ok(battle.every((e) => e.nextKey === 'lt' ? e.rounds === 50 : e.rounds === 10), '大一番は勝てば 50R、負ければ 10R');
+});
+
+test('ST リセットのある台: 出玉なしの当たりは数えず、RUSH・LT を最初の回数から続ける', () => {
+  for (const [id, share, spins] of [['sushi', 0.238, 100], ['maneki', 0.14, 144]]) {
+    const s = longRun(id);
+    const fromDen = s.events.filter((e) => (e.type === 'hit' || e.type === 'reset') && e.from !== 'normal');
+    const resets = fromDen.filter((e) => e.type === 'reset');
+    near(resets.length, fromDen.length, share, `${id} のリセットの割合`);
+    assert.equal(s.stats.resets, resets.length);
+    assert.ok(resets.every((e) => e.next === 'st'), `${id} リセットのあとも ST`);
+    assert.equal(MACHINES.find((m) => m.id === id).den.find((r) => r[1] === 0)[2].spins, spins);
+  }
+});
 
 test('同じ種なら同じ 1 日になり、違う種なら違う 1 日になる', () => {
   const run = (seed) => { const s = createSession({ machine: 'crab', seed }); s.advanceTo(Infinity); return s; };
@@ -184,6 +239,68 @@ test('少しずつ進めても、一度に進めても同じ結果になる', ()
   b.advanceTo(Infinity);
   assert.equal(a.state.sa, b.state.sa);
   assert.equal(a.events.length, b.events.length);
+});
+
+// ---- 状態ごとの確率・振り分け・表示名（LT のように 1 回転で決着する状態）と、出玉なしの ST リセット ----
+// 実在の台に合わせた設定とは別の、テスト用の台で確かめる
+const NORMAL = { mode: 'normal' };
+const FIX_LT = { mode: 'st', spins: 1, p: 1, table: 'lt', key: 'lt', label: 'LT' };
+const FIX_LT_MACHINE = {
+  id: 'fix-lt', name: 'テスト台 LT', type: 'テスト', blurb: 'テスト', normal: 40, rpk: 18, border: 99, count: 10, perBall: 15,
+  heso: [[50, 10, FIX_LT], [50, 2, NORMAL]],
+  lt: [[60, 10, FIX_LT], [40, 5, NORMAL]],
+  den: [[100, 10, NORMAL]],
+};
+const FIX_ST = { mode: 'st', spins: 30, label: 'RUSH' };
+const FIX_RESET_MACHINE = {
+  id: 'fix-reset', name: 'テスト台 リセット', type: 'テスト', blurb: 'テスト', normal: 40, high: 20, rpk: 18, border: 99, count: 10, perBall: 15,
+  heso: [[100, 3, FIX_ST]],
+  den: [[50, 10, FIX_ST], [50, 0, FIX_ST]], // 0R は出玉なしで ST を最初に戻す（突確の設定が無い台）
+};
+
+test('状態ごとの確率と振り分け: LT は毎回当たり、LT の表で次を決める', () => {
+  const s = createSession({ machine: FIX_LT_MACHINE, seed: 5, hours: 2000 });
+  s.advanceTo(Infinity);
+  const st = s.stats;
+  assert.ok(st.spins.lt.n > 1000, `LT の回転 ${st.spins.lt.n}`);
+  assert.equal(st.spins.lt.hits, st.spins.lt.n, 'LT は 1/1');
+  const fromLt = s.events.filter((e) => e.type === 'hit' && e.fromKey === 'lt');
+  near(fromLt.filter((e) => e.nextKey === 'lt').length, fromLt.length, 0.6, 'LT の継続');
+  assert.equal(st.hits.lt.n, fromLt.length, '当たりは表の名前ごとに数える');
+  near(fromLt.filter((e) => e.rounds === 10).length, fromLt.length, 0.6, 'LT の表の 10R');
+  const first = s.events.filter((e) => e.type === 'hit' && e.fromKey === 'normal');
+  near(first.filter((e) => e.nextKey === 'lt').length, first.length, 0.5, '初当たりの LT 突入');
+  const toLt = s.events.find((e) => e.type === 'bonusEnd' && e.nextKey === 'lt');
+  assert.equal(toLt.nextLabel, 'LT', '表示名');
+  assert.equal(toLt.spins, 1);
+});
+
+test('ST リセット: 出玉なしで ST の回数が最初に戻り、大当たりと連チャンには数えない', () => {
+  const s = createSession({ machine: FIX_RESET_MACHINE, seed: 9, hours: 600 });
+  const resets = [];
+  let lastChain = 0, lastHits = 0;
+  // 出来事を 1 つずつ見るため、少しずつ進める
+  for (let t = 0; !s.done; t += 5) {
+    const before = s.events.length;
+    s.advanceTo(t);
+    for (const e of s.events.slice(before)) {
+      if (e.type === 'hit') { lastChain = e.chain; lastHits++; }
+      if (e.type === 'reset') {
+        resets.push(e);
+        assert.equal(e.chain, lastChain, 'リセットで連チャン数は変わらない');
+        assert.equal(s.state.hitsTotal, lastHits, 'リセットは大当たりに数えない');
+        // 同じ時刻に次の変動が始まっていれば 1 回減っている
+        if (s.state.mode === 'st' && !s.state.inBonus && s.state.t === e.t) assert.ok(s.state.modeLeft >= 29, `ST は 30 回に戻る（残り ${s.state.modeLeft}）`);
+      }
+    }
+  }
+  assert.ok(resets.length > 50, `リセット ${resets.length} 回`);
+  assert.ok(resets.every((e) => e.label === 'RUSH'), 'リセットの表示名');
+  assert.equal(s.events.filter((e) => e.type === 'hit' && e.payout === 0).length, 0, '出玉 0 の大当たりは無い');
+  // 出玉の平均は 10R だけ（リセットは数えない）
+  assert.equal(s.stats.hits.den.payout / s.stats.hits.den.n, 10 * 10 * 14);
+  // 継続（リセットも次につながる）: 1/20 を 30 回で
+  near(s.stats.episodes.st.hit, s.stats.episodes.st.n, cont(20, 30), 'ST の継続（リセット込み）');
 });
 
 test('回転率を変えて遊べる（今日の釘）', () => {

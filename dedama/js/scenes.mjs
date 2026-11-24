@@ -1,7 +1,7 @@
 // 場面: 題名 → 入店 → 台選び → 打つ → 閉店 → 退店 → 結果。
 // 画面は 384×216 のドット。時間の単位は、場面の中は実時間の秒、出玉の計算はゲーム内の秒。
 import { MACHINES } from '../sim/machines.mjs';
-import { createSession, YEN_PER_BALL, MODE_LABEL } from '../sim/sim.mjs';
+import { createSession, YEN_PER_BALL } from '../sim/sim.mjs';
 import { chainColor, chainLabel, mealTier, MEALS, SPEEDS, BASE_SPEED, todayRpk, milestoneCross } from './logic.mjs';
 import { Graph } from './graph.mjs';
 import { rampFrom, FxLayer } from './fx.mjs';
@@ -121,17 +121,22 @@ export function makeScenes(G) {
     skip() { G.go('select'); },
   };
 
+  // 台は横に 6 台ずつ見せ、選んだ台が見えるように並びを送る（台は 10 台）
+  const SHOWN = 6;
   S.select = {
     enter() {
       this.t = 0;
       G.controls('select');
       this.rpk = MACHINES.map((m) => todayRpk(m, G.daySeed));
+      this.offset = Math.min(Math.max(0, G.machineIndex - SHOWN + 1), MACHINES.length - SHOWN);
       log('scene.select.rpk', Object.fromEntries(MACHINES.map((m, i) => [m.id, this.rpk[i]])));
     },
     update(dt) { this.t += dt; },
     pick(i) {
       const n = (i + MACHINES.length) % MACHINES.length;
-      if (n !== G.machineIndex) { G.machineIndex = n; sfx('blip'); log('ui.select', { machine: MACHINES[n].id }); }
+      if (n < this.offset) this.offset = n;
+      else if (n >= this.offset + SHOWN) this.offset = n - SHOWN + 1;
+      if (n !== G.machineIndex) { G.machineIndex = n; sfx('blip'); log('ui.select', { machine: MACHINES[n].id, offset: this.offset }); }
     },
     key(e) {
       if (e.key === 'ArrowLeft') { this.pick(G.machineIndex - 1); return true; }
@@ -141,8 +146,10 @@ export function makeScenes(G) {
     },
     click(x, y) {
       if (y >= 34 && y < 34 + 104) {
-        const i = Math.floor((x - 12) / 60);
-        if (i >= 0 && i < MACHINES.length) { if (i === G.machineIndex) this.decide(); else this.pick(i); }
+        if (x < 12 && this.offset > 0) { this.pick(this.offset - 1); return; } // 左端の ◀
+        if (x >= 12 + SHOWN * 60 && this.offset + SHOWN < MACHINES.length) { this.pick(this.offset + SHOWN); return; } // 右端の ▶
+        const k = Math.floor((x - 12) / 60), i = this.offset + k;
+        if (k >= 0 && k < SHOWN && i < MACHINES.length) { if (i === G.machineIndex) this.decide(); else this.pick(i); }
       }
     },
     decide() {
@@ -153,13 +160,20 @@ export function makeScenes(G) {
     },
     draw(ctx) {
       if (!frame(ctx, 'parlor', 0, 0, 0)) { ctx.fillStyle = '#2a2438'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = '#4a0d1e'; ctx.fillRect(0, 138, W, 78); }
-      drawText(ctx, 'どの台にする？', 8, 4, { size: 12, color: '#ffffff', outline: '#0b0a12' });
+      drawText(ctx, `どの台にする？ ${G.machineIndex + 1}/${MACHINES.length}`, 8, 4, { size: 12, color: '#ffffff', outline: '#0b0a12' });
       drawText(ctx, '← → で選んで Enter', W - 8, 4, { size: 10, color: '#d6d0e0', outline: '#0b0a12', align: 'right' });
-      for (let i = 0; i < MACHINES.length; i++) {
-        const x = 12 + i * 60, y = 34, sel = i === G.machineIndex;
+      // 並びの外にも台があるときの ◀ ▶
+      ctx.fillStyle = (this.t % 1) < 0.6 ? '#ffd84a' : '#c8a020';
+      for (let k = 0; k < 4; k++) {
+        if (this.offset > 0) ctx.fillRect(3 + k, 86 - k, 1, 1 + k * 2);
+        if (this.offset + SHOWN < MACHINES.length) ctx.fillRect(W - 4 - k, 86 - k, 1, 1 + k * 2);
+      }
+      for (let k = 0; k < SHOWN && this.offset + k < MACHINES.length; k++) {
+        const i = this.offset + k;
+        const x = 12 + k * 60, y = 34, sel = i === G.machineIndex;
         const lift = sel ? -2 - Math.round(Math.sin(this.t * 4)) : 0;
         if (!frame(ctx, 'machines', i, x, y + lift)) {
-          panel(ctx, x + 2, y + lift, 56, 104, '#1a1626', ['#d0263a', '#ff9a2e', '#1a4f8c', '#1f6b3a', '#c8a020', '#b24ad6'][i]);
+          panel(ctx, x + 2, y + lift, 56, 104, '#1a1626', ['#d0263a', '#ff9a2e', '#1a4f8c', '#1f6b3a', '#c8a020', '#b24ad6', '#3aa55a', '#5fa8e8', '#9c6a3c', '#ff5a5f'][i]);
           drawText(ctx, MACHINES[i].name.replace(/^(P|CR) /, '').slice(0, 4), x + 30, y + 40 + lift, { size: 10, color: '#ffffff', align: 'center' });
         }
         if (sel) {
@@ -222,16 +236,22 @@ export function makeScenes(G) {
       for (; this.evIndex < ev.length; this.evIndex++) {
         const e = ev[this.evIndex];
         if (e.type === 'hit') this.onHit(e);
-        else if (e.type === 'bonusEnd') {
-          const sp = e.spins ? ` ${e.spins} 回` : '';
-          if (e.next !== 'normal') this.say(`${clockText(e.t)} ${MODE_LABEL[e.next]}${e.next === 'kakuhen' ? '（次の当たりまで）' : sp} 突入`, chainColor(Math.max(1, e.chain), G.clock * 0.5));
-          log('sim.bonusEnd', { t: Math.round(e.t), next: e.next, spins: e.spins, chain: e.chain });
+        else if (e.type === 'reset') {
+          // ST リセット（出玉なし）: 大当たりではないが、RUSH・LT の回数が最初に戻る
+          this.say(`${clockText(e.t)} 空振り（出玉なし）→ ${e.nextLabel} ${e.spins} 回に戻る`, '#d6d0e0');
+          sfx('blip');
+          log('sim.reset', { t: Math.round(e.t), from: e.fromKey, next: e.nextKey, chain: e.chain, sa: P.session.state.sa });
+        } else if (e.type === 'bonusEnd') {
+          // 1 回転で決着する状態（大一番・LT）は回数を言わない
+          const sp = e.spins && e.spins > 1 ? ` ${e.spins} 回` : '';
+          if (e.next !== 'normal') this.say(`${clockText(e.t)} ${e.nextLabel}${e.next === 'kakuhen' ? '（次の当たりまで）' : sp} 突入`, chainColor(Math.max(1, e.chain), G.clock * 0.5));
+          log('sim.bonusEnd', { t: Math.round(e.t), next: e.nextKey, spins: e.spins, chain: e.chain });
         } else if (e.type === 'modeEnd') {
           if (e.result === 'out') {
-            this.say(`${clockText(e.t)} ${e.mode === 'bonus' ? '通常へ' : `${MODE_LABEL[e.mode]} 終了……通常へ`}${e.chain >= 2 ? `（${e.chain} 連で終わり）` : ''}`, '#a9a1bb');
+            this.say(`${clockText(e.t)} ${e.mode === 'bonus' ? '通常へ' : `${e.label} 終了……通常へ`}${e.chain >= 2 ? `（${e.chain} 連で終わり）` : ''}`, '#a9a1bb');
             if (e.chain >= 2) { this.face = P.session.state.sa >= 0 ? 'happy' : 'sad'; this.faceUntil = G.clock + 1.2; }
-          } else this.say(`${clockText(e.t)} ${MODE_LABEL[e.mode]} 終了、${MODE_LABEL[e.to]} へ`, '#d6d0e0');
-          log('sim.modeEnd', { t: Math.round(e.t), mode: e.mode, result: e.result, to: e.to, chain: e.chain });
+          } else this.say(`${clockText(e.t)} ${e.label} 終了、${e.toLabel} へ`, '#d6d0e0');
+          log('sim.modeEnd', { t: Math.round(e.t), mode: e.key ?? e.mode, result: e.result, to: e.toKey, chain: e.chain });
         } else if (e.type === 'cash') {
           if (e.invest % 10000 === 0) this.say(`${clockText(e.t)} 投資 ${comma(e.invest)} 円`, '#ff9a9a');
           log('sim.cash', { t: Math.round(e.t), invest: e.invest });
@@ -241,10 +261,12 @@ export function makeScenes(G) {
     onHit(e) {
       const P = G.play;
       const color = chainColor(e.chain, G.clock * 0.5);
-      const kind = e.tokkaku ? '突確' : `${e.rounds}R`;
-      const next = e.next === 'normal' ? '通常' : MODE_LABEL[e.next];
-      this.say(`${clockText(e.t)} 大当たり！ ${kind}${e.payout ? `（約 ${comma(e.payout)} 発）` : ''} → ${next}${e.chain >= 2 ? `  ${chainLabel(e.chain)}` : ''}`, color);
-      log('sim.hit', { t: Math.round(e.t), chain: e.chain, rounds: e.rounds, payout: e.payout, from: e.from, next: e.next, sa: P.session.state.sa });
+      // 10R を何回も続けて払い出す当たり（20R 以上で 10 の倍数）は「10R×2」のように書く
+      const kind = e.tokkaku ? '突確' : e.rounds > 16 && e.rounds % 10 === 0 ? `10R×${e.rounds / 10}` : `${e.rounds}R`;
+      const next = e.nextLabel;
+      const head = e.fromKey === 'battle' ? (e.nextKey === 'lt' ? '大一番 勝ち！！' : '大一番 負け……') : '大当たり！';
+      this.say(`${clockText(e.t)} ${head} ${kind}${e.payout ? `（約 ${comma(e.payout)} 発）` : ''} → ${next}${e.chain >= 2 ? `  ${chainLabel(e.chain)}` : ''}`, color);
+      log('sim.hit', { t: Math.round(e.t), chain: e.chain, rounds: e.rounds, payout: e.payout, from: e.fromKey, next: e.nextKey, sa: P.session.state.sa });
       this.face = e.chain >= 5 ? 'joy' : 'happy'; this.faceUntil = G.clock + 1.5;
       sfx('hit', e.chain);
       // 光る効果は 0.4 秒に 1 回まで（1 秒に 3 回より多く光らせない）
@@ -314,7 +336,7 @@ export function makeScenes(G) {
         ['初当り', `${st.firstHits}`],
         ['連チャン', st.chain ? `${st.chain}` : '−'],
         ['最高', `${st.maxChain} 連`],
-        ['状態', st.inBonus ? `${st.bonusRounds - st.bonusRoundsLeft}/${st.bonusRounds}R` : MODE_LABEL[st.mode]],
+        ['状態', st.inBonus ? `${st.bonusRounds - st.bonusRoundsLeft}/${st.bonusRounds}R` : st.modeLabel],
         ['残り', st.mode === 'kakuhen' ? '次回まで' : st.mode !== 'normal' ? `${st.modeLeft} 回` : `${st.spinsSinceHit} 回転`],
         ['投資', `${comma(st.invest)}円`],
       ];

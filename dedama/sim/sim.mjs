@@ -31,7 +31,14 @@ export function makeRng(seed) {
 // 1 回成功するまでの試行回数（成功の確率 p）
 const geometric = (rng, p) => 1 + Math.floor(Math.log(1 - rng()) / Math.log(1 - p));
 
-const HIGH_MODES = new Set(['kakuhen', 'st', 'jitan', 'rush']);
+export const MODE_LABEL = { normal: '通常', kakuhen: '確変', st: 'ST', jitan: '時短', rush: 'RUSH' };
+// 状態の決まり: mode（normal・kakuhen・st・jitan・rush）に加えて、次を持てる
+//   p     … 1 回転の当たり確率の分母（無ければ mode ごとの台の確率）
+//   table … 当たったときの振り分けの表の名前（無ければ通常時は heso、電サポ中は den）
+//   key   … 記録（stats）の名前（無ければ mode）。label … 画面の表示名（無ければ MODE_LABEL）
+export const modeKey = (md) => md.key ?? md.mode;
+export const modeLabel = (md) => md.label ?? MODE_LABEL[md.mode];
+const NORMAL_MODE = { mode: 'normal' };
 
 export function createSession({ machine, seed = 1, hours = GAME_HOURS, rpk = null } = {}) {
   const m = typeof machine === 'string' ? machineById(machine) : machine;
@@ -44,17 +51,21 @@ export function createSession({ machine, seed = 1, hours = GAME_HOURS, rpk = nul
 
   const blank = () => ({ n: 0, hits: 0 });
   const stats = {
+    // 状態の key ごと。台に無い状態は 0 のまま（使った key は後から足す）
     spins: { normal: blank(), kakuhen: blank(), st: blank(), jitan: blank(), rush: blank() },
     episodes: { kakuhen: { n: 0, hit: 0 }, st: { n: 0, hit: 0 }, jitan: { n: 0, hit: 0 }, rush: { n: 0, hit: 0 } },
+    // 振り分けの表の名前ごと（出玉のある大当たりだけ。ST リセットは数えない）
     hits: { heso: { n: 0, payout: 0 }, den: { n: 0, payout: 0 } },
+    resets: 0,
     normal: { entries: 0, net: 0, time: 0 },
   };
   const state = {
-    t: 0, sa: 0, mochi: 0, invest: 0, mode: 'normal', modeLeft: 0, hold: 0, chain: 0, maxChain: 0,
+    t: 0, sa: 0, mochi: 0, invest: 0, mode: 'normal', modeKey: 'normal', modeLabel: MODE_LABEL.normal, modeLeft: 0, hold: 0, chain: 0, maxChain: 0,
     spinsTotal: 0, spinsSinceHit: 0, hitsTotal: 0, firstHits: 0, maxSa: 0, minSa: 0, inBonus: false, bonusRoundsLeft: 0, bonusRounds: 0,
   };
   const events = [];
   const samples = [[0, 0, 0]];
+  let cur = NORMAL_MODE;    // 今の状態（mode と、確率・表・名前の決まり）
   let then = null;          // 今の電サポを使い切った後に続く状態
   let spin = null;          // { end, hit, from, spinAt }
   let entry = null;         // { at, L }
@@ -79,22 +90,26 @@ export function createSession({ machine, seed = 1, hours = GAME_HOURS, rpk = nul
     if (state.sa < state.minSa) state.minSa = state.sa;
   }
 
+  function setMode(next) {
+    cur = next;
+    state.mode = next.mode; state.modeKey = modeKey(next); state.modeLabel = modeLabel(next);
+  }
   function enterMode(next) {
-    state.mode = next.mode;
+    setMode(next);
     then = next.then || null;
     if (next.mode === 'normal') {
       state.modeLeft = 0;
-      if (state.chain) events.push({ type: 'modeEnd', t: state.t, mode: 'bonus', result: 'out', chain: state.chain });
+      if (state.chain) events.push({ type: 'modeEnd', t: state.t, sa: state.sa, mode: 'bonus', result: 'out', chain: state.chain });
       state.chain = 0;
     } else {
       state.modeLeft = next.mode === 'kakuhen' ? Infinity : next.spins;
     }
   }
   function endEpisode(result) {
-    const kind = state.mode;
-    if (!HIGH_MODES.has(kind)) return;
-    stats.episodes[kind].n++;
-    if (result === 'hit') stats.episodes[kind].hit++;
+    if (state.mode === 'normal') return;
+    const ep = (stats.episodes[state.modeKey] ??= { n: 0, hit: 0 });
+    ep.n++;
+    if (result === 'hit') ep.hit++;
   }
 
   function maybeShoot() {
@@ -108,7 +123,8 @@ export function createSession({ machine, seed = 1, hours = GAME_HOURS, rpk = nul
     if (mode === 'normal') { if (state.hold === 0) return; state.hold--; }
     else if (state.hold > 0) state.hold--; // 電サポ中は残っているヘソの保留から回す
     let p;
-    if (mode === 'normal' || mode === 'jitan') p = 1 / m.normal;
+    if (cur.p) p = 1 / cur.p;
+    else if (mode === 'normal' || mode === 'jitan') p = 1 / m.normal;
     else if (mode === 'rush') p = 1 / m.normal + 1 / m.koatari;
     else p = 1 / m.high;
     const hit = rng() < p;
@@ -121,11 +137,12 @@ export function createSession({ machine, seed = 1, hours = GAME_HOURS, rpk = nul
       pushSample();
     }
     if (mode !== 'normal' && mode !== 'kakuhen') state.modeLeft--;
-    stats.spins[mode].n++;
-    if (hit) stats.spins[mode].hits++;
+    const sp = (stats.spins[state.modeKey] ??= blank());
+    sp.n++;
+    if (hit) sp.hits++;
     state.spinsTotal++;
     state.spinsSinceHit++;
-    spin = { end: state.t + dur, hit, from: mode, spinAt: state.t };
+    spin = { end: state.t + dur, hit, from: mode, fromKey: state.modeKey, table: cur.table ?? (mode === 'normal' ? 'heso' : 'den'), spinAt: state.t };
   }
 
   function onEntry() {
@@ -147,11 +164,19 @@ export function createSession({ machine, seed = 1, hours = GAME_HOURS, rpk = nul
     if (s.hit) {
       const route = s.from === 'normal' ? 'heso' : 'den';
       if (s.from !== 'normal') endEpisode('hit');
-      const table = m[route];
+      const table = m[s.table];
       let u = rng() * table.reduce((a, [w]) => a + w, 0);
       let pick = table[table.length - 1];
       for (const row of table) { if (u < row[0]) { pick = row; break; } u -= row[0]; }
       const [, rounds, next] = pick;
+      if (rounds === 0 && !m.tokkaku && s.from !== 'normal') {
+        // ST リセット（出玉なし）: 大当たりにも連チャンにも数えず、次の状態を最初の回数から始める
+        stats.resets++;
+        events.push({ type: 'reset', t: state.t, spinAt: s.spinAt, from: s.from, fromKey: s.fromKey, chain: state.chain, next: next.mode, nextKey: modeKey(next), nextLabel: modeLabel(next), label: modeLabel(next), spins: next.spins ?? null });
+        enterMode(next);
+        pushSample();
+        return;
+      }
       const tk = rounds === 0 ? m.tokkaku : null;
       const nRounds = tk ? tk.rounds : rounds, pr = tk ? tk.perRound : perRound;
       state.chain = s.from === 'normal' ? 1 : state.chain + 1;
@@ -159,9 +184,10 @@ export function createSession({ machine, seed = 1, hours = GAME_HOURS, rpk = nul
       if (s.from === 'normal') state.firstHits++;
       state.hitsTotal++;
       state.spinsSinceHit = 0;
-      stats.hits[route].n++;
-      stats.hits[route].payout += nRounds * pr;
-      events.push({ type: 'hit', t: state.t, spinAt: s.spinAt, from: s.from, route, chain: state.chain, rounds: nRounds, tokkaku: !!tk, payout: nRounds * pr, next: next.mode });
+      const hs = (stats.hits[s.table] ??= { n: 0, payout: 0 });
+      hs.n++;
+      hs.payout += nRounds * pr;
+      events.push({ type: 'hit', t: state.t, sa: state.sa, spinAt: s.spinAt, from: s.from, fromKey: s.fromKey, route, table: s.table, chain: state.chain, rounds: nRounds, tokkaku: !!tk, payout: nRounds * pr, next: next.mode, nextKey: modeKey(next), nextLabel: modeLabel(next) });
       entry = null; // 大当たり中はヘソを狙わない
       bonus = { nextAt: state.t + T.open, phase: 'open', left: nRounds, perRound: pr, next };
       state.inBonus = true; state.bonusRounds = nRounds; state.bonusRoundsLeft = nRounds;
@@ -173,11 +199,11 @@ export function createSession({ machine, seed = 1, hours = GAME_HOURS, rpk = nul
       endEpisode('out');
       if (then) {
         const nx = then;
-        events.push({ type: 'modeEnd', t: state.t, mode: state.mode, result: 'next', to: nx.mode });
+        events.push({ type: 'modeEnd', t: state.t, mode: state.mode, key: state.modeKey, label: state.modeLabel, result: 'next', to: nx.mode, toKey: modeKey(nx), toLabel: modeLabel(nx) });
         enterMode(nx);
       } else {
-        events.push({ type: 'modeEnd', t: state.t, mode: state.mode, result: 'out', chain: state.chain });
-        state.mode = 'normal'; state.modeLeft = 0; state.chain = 0; then = null;
+        events.push({ type: 'modeEnd', t: state.t, sa: state.sa, mode: state.mode, key: state.modeKey, label: state.modeLabel, result: 'out', chain: state.chain });
+        setMode(NORMAL_MODE); state.modeLeft = 0; state.chain = 0; then = null;
         pushSample();
       }
     }
@@ -196,7 +222,7 @@ export function createSession({ machine, seed = 1, hours = GAME_HOURS, rpk = nul
     // エンディングが終わった
     bonus = null;
     state.inBonus = false;
-    events.push({ type: 'bonusEnd', t: state.t, next: b.next.mode, spins: b.next.spins ?? null, chain: state.chain });
+    events.push({ type: 'bonusEnd', t: state.t, next: b.next.mode, nextKey: modeKey(b.next), nextLabel: modeLabel(b.next), spins: b.next.spins ?? null, chain: state.chain });
     enterMode(b.next);
     pushSample();
   }
@@ -236,5 +262,3 @@ export function createSession({ machine, seed = 1, hours = GAME_HOURS, rpk = nul
 
   return S;
 }
-
-export const MODE_LABEL = { normal: '通常', kakuhen: '確変', st: 'ST', jitan: '時短', rush: 'RUSH' };
