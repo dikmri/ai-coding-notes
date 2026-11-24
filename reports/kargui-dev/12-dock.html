@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 12 章 ドッキング ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="0.4 の 1 つ目として、パネルをタブのまとまりに入れて並べ替えられるドッキングを足しました。4 つの見本を調べて決めた形、並べ方の木をアプリが持つ作り、キーボードと読み上げでの操作を紹介します。後半では、小さな的に落とす形で作ったところ、作者の手の確かめで的が見つけにくく重なって落とせなかったこと、記録を足して原因を確かめ、ポインターのいる場所で決める形に変えたことを書きます。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 12 章</p>
+  <h1>ドッキング</h1>
+  <p class="lede">0.4 の 1 つ目として、ドッキングを足しました。パネルをタブのまとまりに入れて並べ、利用者がタブを引っ張って並べ替えられる部品です。開発の道具のように、利用者が自分の使いやすい並べ方にするアプリに向いています。この章では、4 つの見本を調べて決めた形と、並べ方の木をアプリが持つ作りを紹介します。後半では、小さな的に落とす形で作ったところ、作者の手の確かめでうまく落とせなかったことと、記録を足して原因を確かめ、落とし方を変えたことを書きます。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>0.3.0 の後に、ドッキングを最初に作った理由</li>
+      <li>見本の 4 つ（Dear ImGui・egui_dock・Qt・Visual Studio の流れの AvalonDock）から学んだこと</li>
+      <li>まとまりを番号ではなくパネルで指すと、編集で指す先がずれない理由</li>
+      <li>マウスを使わずに、メニューとキーボードでパネルを動かす方法</li>
+      <li>小さな的を狙わせる形が、手の確かめでうまくいかなかった理由と、ポインターのいる場所で決める形</li>
+    </ul>
+  </section>
+
+  <h2 id="why">最初にドッキングを作った理由</h2>
+  <p>0.3.0 の後に回した物は、ドッキング・Windows の題の帯の作り替え・トレイ・通知・ハイコントラスト・多言語・本物の Xorg・macOS でした。計画書の「ほかの部品の土台になる物を先にする」に従うと、大きな部品のドッキングが先で、アプリの仕組み（題の帯・トレイ・通知など）が後になります。ドッキングが使う土台（引っ張って落とす・複数の窓・仕切り・タブ）は、0.3.0 までにそろっていました。</p>
+
+  <!-- gen:layout -->
+<figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dock/layout-dark.webp"><img src="img/dock/layout-light.webp" alt="左に Files のまとまり、右上に Editor と Notes のタブのまとまり、右下に Output のまとまり。どのタブの横にも小さな閉じるボタンがある" width="1200" height="720" loading="lazy" decoding="async"></picture><figcaption><code>ui.dock(&amp;mut dock).grow().closable()</code> で並べたパネル（600×360 の窓を試験台で 2 倍で撮った）。まとまりの間の線が仕切り。</figcaption></figure>
+<!-- /gen:layout -->
+
+  <h2 id="research">見本の 4 つから学んだこと</h2>
+  <p>ドッキングを持つ 4 つを調べました。どれも「分割の木の葉がタブのまとまり」という形で、パネルはアプリが決めた名前で呼び、中身はアプリが毎フレーム描きます。違いが出たのは、次の所です。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-research">
+    <table>
+      <caption id="t-research">見本ごとの違いと、kargui の選び方</caption>
+      <thead><tr><th scope="col">考えたこと</th><th scope="col">見本で分かったこと</th><th scope="col">kargui の選び方</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">木の持ち方</th><td data-label="見本で分かったこと">egui_dock は配列の番号で親子を持つので、編集で番号がずれ、深さに応じて配列が大きくなる。落ちる不具合の報告もある</td><td data-label="kargui の選び方">入れ子の形の 2 分木。まとまりは、中のパネルで指す</td></tr>
+        <tr><th scope="row">落とす先</th><td data-label="見本で分かったこと">どれも、まとまりの 4 方向に分けるか、真ん中でタブにする。全体の外側の端もある</td><td data-label="kargui の選び方">同じ 9 か所。どこに落ちるかを薄く塗って見せる</td></tr>
+        <tr><th scope="row">閉じる</th><td data-label="見本で分かったこと">egui_dock は、アプリが閉じるのを止められる</td><td data-label="kargui の選び方">kargui は閉じたいパネルを知らせるだけで、外すかどうかはアプリが決める</td></tr>
+        <tr><th scope="row">キーボード</th><td data-label="見本で分かったこと">ライブラリの 4 つは、キーボードでパネルを動かせない。動かせるのは Visual Studio と VS Code のアプリだけ</td><td data-label="kargui の選び方">タブのメニューとキーで、マウスと同じことができる</td></tr>
+        <tr><th scope="row">別の窓に出す</th><td data-label="見本で分かったこと">どれも浮かせて出せる。OS の別の窓に出す物は、Wayland では窓の位置を読めず、出した窓の位置を戻せない</td><td data-label="kargui の選び方">2 段目に回す（Windows と X11 が先）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="api">書き方</h2>
+  <p>並べ方は <code>Dock&lt;K&gt;</code> が持ちます。<code>K</code> はパネルを指すアプリの値で、例えば <code>enum</code> です。<code>ui.dock(&amp;mut dock)</code> に毎フレーム同じ <code>Dock</code> を渡すと、kargui が利用者の操作に合わせて書き換えます。</p>
+  <pre><code>let mut dock = Dock::new([Panel::Editor]);
+dock.insert(Panel::Files, DockTo::Edge { side: DockSide::Left, share: 0.25 });
+dock.insert(Panel::Output, DockTo::Split { of: Panel::Editor, side: DockSide::Bottom, share: 0.3 });
+
+// 毎フレーム
+if let Some(p) = ui.dock(&amp;mut dock).grow().closable().show(title, |ui, p| { /* 中身 */ }) {
+    dock.remove(&amp;p); // 閉じるボタンは知らせるだけ。外すかはアプリが決める
+}</code></pre>
+  <p>まとまりは、番号ではなく中のパネルで指します（<code>DockTo::Split { of: Panel::Editor, .. }</code> は「Editor のいるまとまり」）。ほかのパネルが動いても、指す先は変わりません。空になったまとまりは消え、隣のまとまりがその広さを取ります。マウスで落とした時・メニュー・キーボードの 3 つとも、同じ <code>Dock::insert</code> を通ります。</p>
+  <p>並べ方は文字で保存し、次の起動で戻せます。知らない名前（アプリから無くなったパネル）は捨て、空になったまとまりは畳みます。</p>
+  <pre><code>kargui-dock 1
+split h 0.2500
+tabs 0 1
+panel Files
+split v 0.7000
+tabs 0 1
+panel Editor
+tabs 0 1
+panel Output</code></pre>
+
+  <h2 id="keyboard">マウスを使わない操作</h2>
+  <p>見本の 4 つのライブラリには、キーボードでパネルを動かす手段がありませんでした。kargui では、タブの右クリックのメニュー（Shift+F10 でも開く）と次のキーで、マウスと同じことができます。読み上げソフトには、まとまりごとにタブの並び・タブ・タブの中身として伝わり、仕切りは位置を百分率で伝えます。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-keys">
+    <table>
+      <caption id="t-keys">ドッキングのキー</caption>
+      <thead><tr><th scope="col">キー</th><th scope="col">働き</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">←・→・Home・End（タブに焦点）</th><td data-label="働き">まとまりの中でタブを選ぶ</td></tr>
+        <tr><th scope="row">Ctrl+Tab・Ctrl+PageDown</th><td data-label="働き">次のタブ（Shift か PageUp で前）</td></tr>
+        <tr><th scope="row">Ctrl+Shift+PageUp・PageDown</th><td data-label="働き">タブを前（後ろ）へ並べ替える</td></tr>
+        <tr><th scope="row">F6・Shift+F6</th><td data-label="働き">次（前）のまとまりのタブへ焦点を移す</td></tr>
+        <tr><th scope="row">Delete</th><td data-label="働き">閉じる（<code>.closable()</code> の時）</td></tr>
+        <tr><th scope="row">メニュー</th><td data-label="働き">新しいまとまりへ（左・右・上・下）、別のまとまりへ、閉じる</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="targets">最初の形: 小さな的に落とす</h2>
+  <p>最初は、Dear ImGui や Visual Studio と同じく、引っ張っている間に小さな四角の的を出す形にしました。ポインターの下のまとまりの真ん中に 5 つ（タブにする・左・右・上・下に分ける）、全体の外側に 4 つです。的に乗ると、落ちる所を薄く塗ります。</p>
+  <p>作る途中で、試験台の絵を見て 3 つ直しました。閉じるボタンが枠付きで重く見えたので、ツールバーと同じく枠を描かない形にしました。外側の上の的は見出しの帯に重なって見出しを隠していたので、帯の下へずらしました。落ちる所の薄い塗りは、濃い青で埋まっていました。枠付きの四角を描く関数（<code>boxed</code>）は枠の色で外側を塗ってから内側を重ねるので、内側を半透明にすると枠の色が透けたためです。塗りと枠を別々に描くようにしました。</p>
+
+  <h2 id="hand">作者の手の確かめ: 的に 1 回も落とせなかった</h2>
+  <p>見本の 23 ページ目「ドッキング」で、作者が手の確かめをしました。仕切り・Esc での取り消し・キー・メニュー・保存と読み戻し・閉じるは、記録の上で期待どおりでした。ところが、手順の「メモを、編集のまとまりの十字の右の的に落とす」と「出力を、全体の左の端の的に落とす」が、記録に 1 回もありませんでした。作者は 9 回引っ張り、1 回は Esc で取り消して、残りの 8 回はすべて見出しの帯の上（y=102〜110）で離していました。</p>
+  <p>引っ張っている間にポインターがどこを通ったかは、記録に残していませんでした。そのため、的が描かれていなかったのか、見つけにくかったのかを決められません。推測で直さず、2 つのことをしました。</p>
+  <ol>
+    <li>見本と同じく、スクロールする入れ物の中のドッキングでタブを引っ張る試験を足し、変わった所だけ描いた絵と全部描き直した絵を比べた。1 画素も違わず、的は描けていた。</li>
+    <li>引っ張っている間、ポインターの下のまとまりと落とす先が変わるたびに 1 行残す記録（<code>dock.zone</code>）を足し、作者に同じ 2 つの手順をもう一度頼んだ。</li>
+  </ol>
+  <p>2 回目の記録で、原因が分かりました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-zone">
+    <table>
+      <caption id="t-zone">2 回目の記録（dock.zone）で分かったこと</caption>
+      <thead><tr><th scope="col">手順</th><th scope="col">ポインターが通った所</th><th scope="col">結果</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">メモを編集の右へ</th><td data-label="ポインターが通った所">見出しの帯のすぐ下（y=150 まで）しか動かず、近くにあった外側の上の的に何度も乗った。十字の的（中身の真ん中）には届いていない</td><td data-label="結果">1 回は外側の上の的で離し、メモが全体の上の端へ動いた</td></tr>
+        <tr><th scope="row">出力を全体の左の端へ</th><td data-label="ポインターが通った所">左の端の的を 14 秒狙った。狭いまとまりの十字の左の的と外側の左の的が重なり、1 画素動くたびに入れ替わった</td><td data-label="結果">最後は十字の左の的で離した</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>原因は、小さな的を狙わせる形そのものでした。</p>
+  <ul>
+    <li>十字の的はまとまりの真ん中にしか出ないので、見出しの帯の近くにあるポインターから遠い。</li>
+    <li>外側の的と十字の的が同じ形でまとまりの中に混ざって出るので、どれが何か分からない。</li>
+    <li>狭いまとまりでは、十字の的と外側の的が重なる。</li>
+  </ul>
+
+  <h2 id="regions">変えた形: ポインターのいる場所で決める</h2>
+  <p>的を狙わせるのをやめ、VS Code と同じく、ポインターのいる場所で落とす先を決める形に変えました。どこに落ちるかは、常に薄い塗りで見せます。</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 360" role="img" aria-labelledby="rg-title rg-desc">
+      <title id="rg-title">落とす先の決め方</title>
+      <desc id="rg-desc">ドッキング全体の外側に幅 20 画素の帯があり、そこに落とすと全体の外側に置く。まとまりの見出しの帯の上ではタブの間に入れる。まとまりの中身の真ん中ではタブにし、中身の端から 4 分の 1 までは近い側に分ける。角は近い方の辺になる。</desc>
+      <rect class="box" x="10" y="10" width="700" height="340" rx="8"/>
+      <rect class="box-warn" x="40" y="40" width="640" height="280" rx="4"/>
+      <text class="loop-text" x="22" y="31">全体の端の帯（20 画素）→ 全体の外側に置く</text>
+      <rect class="box-soft" x="60" y="60" width="600" height="36"/>
+      <text class="label" x="76" y="84">見出しの帯 → タブの間に入れる</text>
+      <rect class="box" x="60" y="96" width="600" height="204"/>
+      <rect class="box-soft" x="210" y="147" width="300" height="102"/>
+      <path class="arrow" d="M60 96 L210 147 M660 96 L510 147 M60 300 L210 249 M660 300 L510 249"/>
+      <text class="label" x="300" y="195">真ん中</text>
+      <text class="sub" x="300" y="215">→ タブにする</text>
+      <text class="label" x="76" y="196">左に分ける</text>
+      <text class="label" x="560" y="196">右に分ける</text>
+      <text class="label" x="312" y="130">上に分ける</text>
+      <text class="label" x="312" y="282">下に分ける</text>
+    </svg>
+    <figcaption>まとまり 1 つの中の決まり。中身の端から 4 分の 1 までは近い側に分け、真ん中はタブにする（角は近い方の辺）。全体の上の帯は、上のまとまりの見出しの帯のすぐ下にある。</figcaption>
+  </figure>
+  <!-- gen:compare -->
+<div class="pair">
+  <figure class="shot flat"><picture><img src="img/dock/before-light.webp" alt="前の版。Notes のタブを引っ張っている。Editor のまとまりの真ん中に十字の形の 5 つの四角、全体の左・右・下・見出しの帯の下に 1 つずつ四角が出ている" width="1440" height="880" loading="lazy" decoding="async"></picture><figcaption>前の版（小さな的）。右の的に乗ると、まとまりの右半分を塗る。十字の的とは別に、外側の的が全体の端に出る。</figcaption></figure>
+  <figure class="shot flat"><picture><img src="img/dock/after-light.webp" alt="今の版。Notes のタブを Editor のまとまりの右寄りまで引っ張っている。四角は無く、まとまりの右半分が薄い青で塗られている" width="1440" height="880" loading="lazy" decoding="async"></picture><figcaption>今の版（場所で決める）。同じ所まで引っ張ると、四角を狙わなくても右半分が塗られる。</figcaption></figure>
+</div>
+<!-- /gen:compare -->
+  <p>3 回目の手の確かめでは、2 つとも思った所に落とせました。作者は 1 回目の引っ張りで、右・上・左・下・真ん中に順に乗り、塗られる所を確かめてから元に戻しています。2 回目はまっすぐ右の 4 分の 1 へ動かして、離しました。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい作り: 見本の形を、狭い区画で試さずに写す</span>
+    <p>小さな的に落とす形は、Dear ImGui・Qt の Advanced Docking System・Visual Studio が使う、よく知られた形です。ところが、まとまりが狭いと的どうしが重なり、まとまりの中に外側の的が混ざります。見本の形を写す時は、狭い区画・端の区画・入れ子の区画で、目印が重ならないかを確かめてください。</p>
+  </div>
+  <div class="insight">
+    <span class="box-title">分かったこと: 引っ張りの途中を記録する</span>
+    <p>1 回目の記録には、引っ張り始めと離した所しか無く、利用者がどこを通ったかが分かりませんでした。ポインターの動きを全部残すと記録が大きくなるので、「落とす先が変わった時だけ 1 行」にしました。2 回目の記録は 65 行で、迷った所と重なった所がそのまま読めました。</p>
+  </div>
+
+  <h2 id="numbers">数</h2>
+  <p>ドッキングで足した試験は 23 個です（並べ方の木 12、落とす先の計算 4、部品 6、引っ張っている間の絵 1）。公開の項目の説明は 580 から 598 に、動く例は 425 から 429 に増えました（<code>xtask check</code> は、公開の項目の全部に説明と例があるかを確かめます）。ガイドは 23 章、見本は 23 ページになりました。記録 7478ea1 は、作者の「送って」で GitHub に入りました。</p>
+
+  <h2 id="next">次の段階</h2>
+  <p>2 段目は、まとまりを別の窓に出すことです。メニューの「別の窓に出す」と、窓の外へ引っ張る操作を、Windows と X11 から作ります。Wayland はアプリが窓の位置を読めないので後にし、出した窓の位置は戻しません。端に隠す（オートハイド）、名前を付けた並べ方、まとまりごと引っ張ることは、その後の候補です。</p>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="11-v030.html">← 第 11 章 0.3.0 の仕上げと、作者の手の確かめ</a>
+    <a href="./">目次 →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>
