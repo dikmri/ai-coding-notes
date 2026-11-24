@@ -2280,3 +2280,149 @@ test('振動で話す: 周波数の図で 1 kHz の正弦波は 1 kHz の列が�
   for (let b = 0; b < sp.bins; b++) if (sp.db[b] > sp.db[best]) best = b;
   assert.equal(best, 32);
 });
+
+// ---- unkernel の考え方（RISC-V のプログラムを真似て、カーネルは JavaScript のまま動かす） ----
+const UNK = 'tr-20261125-unkernel-syscall';
+const uk = () => trendCore(UNK, ['assemble', 'newMachine', 'run', 'kernelImage', 'build', 'runToEnd', 'disasm', 'PROGRAMS', 'ULO']);
+// 作ったプログラムを最後まで動かし、レジスタと書いた文字を返す
+function ukRun(U, src, emu, pointer) {
+  const out = [], frames = [];
+  const dev = {
+    write: (b) => { for (const v of b) out.push(v); },
+    present: (px, w, h) => frames.push({ w, h, px: Uint8Array.from(px) }),
+    pointer: () => pointer || { x: 0, y: 0, b: 0 },
+  };
+  const m = U.newMachine(U.assemble(src, U.ULO), emu ? U.kernelImage() : null, 7);
+  for (let k = 0; k < 100 && !m.halted && !frames.length; k++) { U.run(m, 1e6, dev); m.waiting = false; }
+  return { m, out, frames };
+}
+
+test('unkernel: 組み立て器が RISC-V の決まりどおりの機械語を作る', () => {
+  const U = uk();
+  const p = U.assemble('_start:\n  addi a0, zero, 172\n  sw ra, 28(sp)\n  lui t6, 0x10000\n  ecall\n  mret\n  li t0, 0xff4a3a2b\n  beq a0, a1, _start\n', 0x1000);
+  const w = Array.from(p.words, (x) => x.word);
+  assert.deepEqual(w.slice(0, 5), [0x0ac00513, 0x00112e23, 0x10000fb7, 0x00000073, 0x30200073]);
+  assert.equal(w.length, 8, 'li の大きな値は lui と addi の 2 つになる');
+  assert.equal(U.disasm(w[7], p.words[7].addr), 'beq a0, a1, 0x00001000');
+  assert.throws(() => U.assemble('_start:\n  foo a0\n', 0x1000), /2 行/);
+  for (const nm of Object.keys(U.PROGRAMS)) {
+    for (const x of U.build(nm).words) assert.ok(!U.disasm(x.word, x.addr).startsWith('.word'), nm + ' の命令を読み戻せる');
+  }
+});
+
+test('unkernel: li の大きな値・掛け算・割り算・0 で割る', () => {
+  const U = uk();
+  const src = `_start:
+  li s0, 0xff4a3a2b
+  li t0, -7
+  li t1, 2
+  div s1, t0, t1
+  rem s2, t0, t1
+  divu s3, t0, t1
+  li t2, 0
+  div s4, t0, t2
+  remu s5, t0, t2
+  li t3, 100000
+  mul s6, t3, t3
+  mulhu s7, t3, t3
+  li a7, 93
+  ecall
+`;
+  const { m } = ukRun(U, src, false);
+  assert.equal(m.x[8], 0xff4a3a2b | 0);
+  assert.equal(m.x[9], -3);
+  assert.equal(m.x[18], -1);
+  assert.equal(m.x[19], 0x7ffffffc);
+  assert.equal(m.x[20], -1);
+  assert.equal(m.x[21], -7);
+  assert.equal(m.x[22], (1e10 % 2 ** 32) | 0);
+  assert.equal(m.x[23], Math.floor(1e10 / 2 ** 32));
+});
+
+test('unkernel: 2 つのカーネルで、書く文字と利用者の命令の数が同じになる', () => {
+  const U = uk();
+  for (const nm of ['hello', 'bench']) {
+    const a = U.runToEnd(nm, false), b = U.runToEnd(nm, true);
+    assert.equal(a.text, b.text);
+    assert.equal(a.m.user, b.m.user);
+    assert.equal(a.m.sys, b.m.sys);
+    assert.equal(a.m.kern, 0, 'そのままのカーネルは命令を真似ない');
+    assert.ok(b.m.kern > 0);
+  }
+  const b = U.runToEnd('bench', true);
+  assert.match(b.text, /getpid を 20000 回呼びました（返った番号の合計 20000）/);
+  assert.equal(b.m.sys, 20004);
+  assert.equal(Math.round(b.m.kern / b.m.sys), 71, 'getpid 1 回で真似る命令は約 71 個');
+  assert.ok(b.m.kern > 14 * b.m.user);
+});
+
+test('unkernel: 真似るカーネルもレジスタを壊さず、同じ誤りの番号を返す', () => {
+  const U = uk();
+  const src = `_start:
+  li s2, 12345
+  li t3, 777
+  li a0, 1
+  li a1, 0x10
+  li a2, 4
+  li a7, 64
+  ecall
+  mv s0, a0
+  li a7, 999
+  ecall
+  mv s1, a0
+  li a0, 0x2000
+  li a1, 0
+  li a2, 4
+  li a7, 0x400
+  ecall
+  mv s3, a0
+  li a0, 0x3fff0
+  li a1, 16
+  li a2, 16
+  li a7, 0x400
+  ecall
+  mv s4, a0
+  li a7, 93
+  li a0, 3
+  ecall
+`;
+  for (const emu of [false, true]) {
+    const { m } = ukRun(U, src, emu);
+    assert.equal(m.code, 3);
+    assert.deepEqual([m.x[8], m.x[9], m.x[19], m.x[20]], [-14, -38, -22, -14], emu ? '真似る' : 'そのまま');
+    assert.equal(m.x[18], 12345);
+    assert.equal(m.x[28], 777);
+  }
+});
+
+test('unkernel: 0 番地を読むとカーネルが止める', () => {
+  const U = uk();
+  for (const emu of [false, true]) {
+    const r = U.runToEnd('crash', emu);
+    assert.match(r.text, /0 番地を読んでみます/);
+    assert.match(r.m.fault, /Segmentation fault（0x00000000 番地を読もう/);
+  }
+});
+
+test('unkernel: eyes の黒目がマウスの方へ動き、2 つのカーネルで同じ絵になる', () => {
+  const U = uk();
+  const at =(f, x, y) => { const i = (y * f.w + x) * 4; return f.px[i] | (f.px[i + 1] << 8) | (f.px[i + 2] << 16) | (f.px[i + 3] << 24); };
+  const shot = (emu, pointer) => {
+    const out = [], frames = [];
+    const dev = { write: (b) => out.push(...b), present: (px, w, h) => frames.push({ w, h, px: Uint8Array.from(px) }), pointer: () => pointer };
+    const m = U.newMachine(U.build('eyes'), emu ? U.kernelImage() : null, 3);
+    for (let k = 0; k < 10 && !frames.length; k++) U.run(m, 1e6, dev);
+    return frames[0];
+  };
+  const PUPIL = 0xff2a2420 | 0, WHITE = 0xffeaf4f7 | 0, HOT = 0xff3a46d8 | 0, BG = 0xff4a3a2b | 0;
+  const right = shot(false, { x: 900, y: 36, b: 0 });
+  assert.equal(right.w, 120);
+  assert.equal(right.h, 72);
+  assert.equal(at(right, 33 + 16, 36), PUPIL, '右を見る');
+  assert.equal(at(right, 33 - 16, 36), WHITE);
+  assert.equal(at(right, 0, 0), BG);
+  const up = shot(true, { x: 87, y: -500, b: 1 });
+  assert.equal(at(up, 87, 36 - 16), HOT, '上を見て、押している間は赤い');
+  assert.equal(at(up, 87, 36 + 16), WHITE);
+  assert.deepEqual(Array.from(shot(true, { x: 900, y: 36, b: 0 }).px), Array.from(right.px));
+});

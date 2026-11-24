@@ -13973,3 +13973,1400 @@ dekiru.add({
     requestAnimationFrame(frame);
   },
 });
+
+dekiru.add({
+  id: 'tr-20261125-unkernel-syscall', c: 'trend', lv: 3, date: '2026-11-25',
+  t: 'ブラウザの中で RISC-V のプログラムを 1 命令ずつ動かし、カーネルだけは JavaScript のまま動かす（Linux を WebAssembly にした unkernel の考え方）',
+  y: 'ぶらうざのなかでりすくふぁいぶのぷろぐらむをいちめいれいずつうごかしかーねるだけはじゃばすくりぷとのままうごかす',
+  tags: ['unkernel', 'trynix', 'RISC-V', 'エミュレータ', 'システムコール', 'Canvas'],
+  d: '2026年11月23日、Farid Zakaria さんが記事「2035 came early」を公開し、24日の Hacker News で 914 点・コメント 344 件を集めた。ブラウザで Nix のパッケージを試せる trynix.dev の土台を、QEMU を WebAssembly にしたものから unkernel に替え、ソリティアや xeyes、Firefox まで、窓のあるプログラムをタブの中で動かした話である。unkernel は Pooya Parsa さんが 11月15日に X で告知したもので（25日朝の時点でいいね 787 件）、Linux のカーネルそのものを WebAssembly にして、利用者のプログラムだけを CPU ごと真似る。システムコールは WebAssembly の普通の関数呼び出しになり、README によると getppid 1 回は約 170 ns で、カーネルも真似る qemu-system の 1.7 µs の 10 分の 1 である。この見本は、その違いを小さく作って確かめる。RV32IM（RISC-V の 32 ビット版に掛け算と割り算を足したもの）の CPU と組み立て器を一から書き、アセンブリで書いた 5 つのプログラムを 1 命令ずつ真似て動かす。カーネルは 2 通り用意した。1 つは JavaScript の関数がシステムコールを直接受ける「そのまま」（unkernel の考え方）、もう 1 つは同じ処理を RISC-V の命令で書き、レジスタ 31 個の保存と復元まで 1 命令ずつ真似る「真似る」（QEMU の考え方）である。eyes は毎回の絵を自分の記憶に描いてからカーネルに渡し、カーネルがそれを端末の上に浮かぶ窓へ写す（trynix が窓を端末の上に重ねる見せ方をまねた）。手元の Chrome で「2 つのカーネルの速さを比べる」を押すと、getpid を 20000 回呼ぶ bench は「そのまま」1.6 ms・「真似る」14〜19 ms（1 回あたり約 80 ns と 720〜950 ns）で、計算ばかりの primes はどちらも約 23 ms だった。再現していない所: 本物の Linux は動かない。ELF の読み込み、ページ表による記憶の仮想化、fork、ファイル、ネットワーク、音、GL、JIT は無い。CPU は 32 ビットで、unkernel の riscv64・aarch64 とは違う。カーネルも WebAssembly ではなく JavaScript で書いた。',
+  p: '2 つのカーネルの違いは ecall の扱いだけにした。「そのまま」では、CPU の真似の中で ecall を見つけたら JavaScript の関数を呼び、a0 に答えを入れて次の命令へ進む。「真似る」では、ecall で CPU をカーネルの状態にして KBASE 番地へ飛ばす。RISC-V の命令で書いたカーネルが 31 個のレジスタを保存し、番号で処理を選び、装置の窓口（0x10000000 番地）へ 1 バイトずつ書き、レジスタを戻して mret で帰る。getpid 1 回で 71 命令かかり、bench（getpid を 20000 回）ではカーネルの命令が利用者の命令の 14 倍になる。primes のように計算ばかりのプログラムでは、どちらのカーネルでも時間がほとんど変わらない。unkernel の README も、CPU を多く使うプログラムは本物の CPU よりかなり遅いと書いている。カーネルを速くしても、利用者のプログラムを真似る分の遅さは残る。絵は 0xAABBGGRR の 32 ビットで書くと、記憶のバイトの並びがそのまま ImageData の RGBA になるので、カーネルは putImageData で窓へ写せる。',
+  refs: [
+    { title: 'Farid Zakaria「2035 came early」（2026-11-23。trynix.dev を unkernel に載せ替えた話）', url: 'https://fzakaria.com/2026/11/23/2035-came-early' },
+    { title: 'Hacker News: 2035 came early（2026-11-24、914 点・344 件）', url: 'https://news.ycombinator.com/item?id=50624497' },
+    { title: 'pithings/unkernel（GitHub。README に仕組みと測った数字がある）', url: 'https://github.com/pithings/unkernel' },
+    { title: 'Pooya Parsa さんの X の投稿（2026-11-15、unkernel の最初の告知）', url: 'https://x.com/_pi0_/status/2122108016845566358' },
+    { title: 'trynix の測定の頁（QEMU と unkernel の比べ）', url: 'https://trynix.dev/bench/' },
+  ],
+  html: `<div class="app">
+  <div class="bar">
+    <fieldset class="mode">
+      <legend>これから起動するプログラムのカーネル</legend>
+      <label><input type="radio" name="km" value="native" checked> そのまま（JavaScript の関数が受ける。unkernel の考え方）</label>
+      <label><input type="radio" name="km" value="emu"> 真似る（RISC-V の命令で書いたカーネルも 1 命令ずつ真似る。QEMU の考え方）</label>
+    </fieldset>
+    <div class="cmds" id="cmds">
+      <button type="button" data-cmd="hello">hello</button>
+      <button type="button" data-cmd="primes">primes</button>
+      <button type="button" data-cmd="bench">bench</button>
+      <button type="button" data-cmd="eyes &amp;">eyes の窓を開く</button>
+      <button type="button" data-cmd="crash">crash</button>
+      <button type="button" data-cmd="compare" class="main">2 つのカーネルの速さを比べる</button>
+    </div>
+  </div>
+  <div class="desk" id="desk">
+    <div class="term" id="term">
+      <pre id="out" role="log" aria-label="端末の出力"></pre>
+      <form id="form" class="line" autocomplete="off"><label for="cmd" class="ps1">$</label><input id="cmd" type="text" spellcheck="false" autocapitalize="off" enterkeyhint="send" aria-describedby="hint"></form>
+    </div>
+  </div>
+  <p class="hint" id="hint">端末に help と打つと命令の一覧が出る。eyes の窓は取っ手を引くか、取っ手を選んで矢印キーで動かせる。Ctrl+C で前に動いているプログラムを止める。</p>
+  <div class="stats">
+    <div class="stat"><span>利用者のプログラムの命令</span><b id="sU">0</b><span>回／秒</span></div>
+    <div class="stat"><span>カーネルで真似た命令</span><b id="sK">0</b><span>回／秒</span></div>
+    <div class="stat"><span>システムコール</span><b id="sS">0</b><span>回／秒</span></div>
+    <div class="stat"><span>動いているプロセス</span><b id="sP">0</b><span id="sPm">-</span></div>
+  </div>
+  <div class="cmp" id="cmp" hidden>
+    <table>
+      <caption>同じプログラムを 2 つのカーネルで 3 回ずつ動かし、一番速かった時間</caption>
+      <thead><tr><th scope="col">プログラム</th><th scope="col">システムコール</th><th scope="col">そのまま</th><th scope="col">真似る</th><th scope="col">真似たカーネルの命令</th></tr></thead>
+      <tbody id="cmpBody"></tbody>
+    </table>
+  </div>
+  <div class="sr" id="live" aria-live="polite"></div>
+</div>`,
+  css: `:root { color-scheme: light; --bg: #f3f1ec; --fg: #22201c; --mut: #5f594f; --line: #d8d2c6; --panel: #fffdf9; --acc: #2f6f8f; --emu: #b5522b; --tbg: #15181d; --tfg: #d9dee5; --tdim: #8a94a3; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.55 system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    .app { box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; padding: 10px; max-inline-size: 1000px; margin-inline: auto; }
+    .bar { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: end; }
+    .mode { border: 1px solid var(--line); border-radius: 8px; padding: 2px 10px 6px; margin: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; min-inline-size: 0; flex: 1 1 300px; }
+    .mode legend { font-size: 12px; color: var(--mut); padding-inline: 4px; }
+    .mode input { accent-color: var(--acc); }
+    .cmds { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 300px; }
+    button { font: inherit; font-size: 13px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--fg); cursor: pointer; }
+    button:hover { border-color: var(--mut); }
+    button.main { background: var(--acc); border-color: var(--acc); color: #fff; }
+    button:focus-visible, input:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+    .desk { position: relative; container-type: inline-size; block-size: clamp(260px, 56vh, 460px); border-radius: 8px; overflow: hidden; background: var(--tbg); }
+    .term { box-sizing: border-box; block-size: 100%; overflow: auto; padding: 8px 10px; color: var(--tfg); font: 12.5px/1.5 ui-monospace, 'Cascadia Mono', Consolas, monospace; cursor: text; }
+    #out { margin: 0; font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .line { display: flex; gap: 6px; align-items: baseline; }
+    .ps1 { color: #8fd18f; }
+    .line.busy .ps1 { color: var(--tdim); }
+    #cmd { flex: 1; min-inline-size: 0; font: inherit; color: var(--tfg); background: transparent; border: 0; padding: 0; caret-color: #8fd18f; }
+    #cmd:focus-visible { outline: 1px dashed var(--tdim); outline-offset: 2px; }
+    .win { position: absolute; inset-inline-start: 0; inset-block-start: 0; background: #e8e4dc; border: 1px solid #0008; border-radius: 7px; box-shadow: 0 6px 22px #0007; overflow: hidden; }
+    .tb { display: flex; align-items: stretch; background: #39404b; }
+    .grip { flex: 1; min-inline-size: 0; text-align: start; border: 0; border-radius: 0; background: transparent; color: #fff; font-size: 12px; padding: 3px 8px; cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; display: flex; gap: 6px; align-items: center; white-space: nowrap; overflow: hidden; }
+    .grip.dragging { cursor: grabbing; }
+    .tag { font-size: 10.5px; padding: 0 5px; border-radius: 4px; background: var(--acc); }
+    .tag.emu { background: var(--emu); }
+    .x { border: 0; border-radius: 0; background: transparent; color: #fff; padding: 2px 10px; font-size: 15px; line-height: 1; }
+    .x:hover { background: #c0392b; }
+    .win canvas { display: block; inline-size: min(240px, calc(100cqi - 20px)); image-rendering: pixelated; }
+    .wst { font: 10.5px/1.4 ui-monospace, Consolas, monospace; color: #3c3a36; padding: 2px 6px; min-block-size: 2.8em; max-inline-size: min(240px, calc(100cqi - 20px)); }
+    .hint { margin: 0; font-size: 12.5px; color: var(--mut); }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 6px; }
+    .stat { min-inline-size: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; display: flex; flex-direction: column; }
+    .stat span { font-size: 11px; color: var(--mut); line-height: 1.35; }
+    .stat b { font-size: 20px; line-height: 1.25; font-variant-numeric: tabular-nums; }
+    .cmp { overflow-x: auto; }
+    table { border-collapse: collapse; font-size: 13px; min-inline-size: 100%; background: var(--panel); }
+    caption { text-align: start; font-size: 12px; color: var(--mut); padding-block-end: 4px; }
+    th, td { border: 1px solid var(--line); padding: 4px 8px; text-align: end; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    th:first-child, thead th { text-align: start; }
+    td.emu { color: var(--emu); }
+    .sr { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .thumb .bar, .thumb .hint, .thumb .stats, .thumb .cmp { display: none; }
+    .thumb .app { padding: 6px; }
+    .thumb .desk { block-size: calc(100vh - 12px); }
+    .thumb .term { font-size: 11px; }`,
+  core() {
+    // ---- 1. 番地の割り当て（1 つのプロセスは 512 KiB の記憶を持つ） ----
+    const MEM = 0x80000;          // 記憶の大きさ
+    const ULO = 0x1000;           // 利用者のプログラムが使える範囲の始まり（0 番地の近くは使わせない）
+    const UHI = 0x40000;          // 利用者の範囲の終わり（スタックはここから下へ伸びる）
+    const FBDEV = 0x40000;        // 真似るカーネルが画面の絵を写す、装置の絵の置き場
+    const KBASE = 0x70000;        // 真似るカーネルの機械語を置く場所
+    const TF = 0x700;             // カーネルがレジスタを保存する場所
+    const IO = 0x10000000;        // 装置の窓口（カーネルだけが読み書きできる）
+    const MAXW = 256, MAXH = 192; // 1 枚の絵の大きさの上限
+    const SYS = { write: 64, exit: 93, getpid: 172, present: 0x400, pointer: 0x401, frame: 0x402 };
+    const hex = (v) => '0x' + (v >>> 0).toString(16).padStart(8, '0');
+    const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    // 文字列を UTF-8 のバイト列に（TextEncoder の無い所でも動くように自分で書く）
+    function utf8(s) {
+      const out = [];
+      for (const ch of s) {
+        const c = ch.codePointAt(0);
+        if (c < 0x80) out.push(c);
+        else if (c < 0x800) out.push(0xc0 | (c >> 6), 0x80 | (c & 63));
+        else if (c < 0x10000) out.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+        else out.push(0xf0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+      }
+      return Uint8Array.from(out);
+    }
+    const fromUtf8 = (b) => decodeURIComponent(Array.from(b, (v) => '%' + v.toString(16).padStart(2, '0')).join(''));
+
+    // ---- 2. 組み立て器（RV32IM のアセンブリを機械語にする） ----
+    const REG = Object.create(null);
+    ['zero', 'ra', 'sp', 'gp', 'tp', 't0', 't1', 't2', 's0', 's1', 'a0', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7',
+      's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9', 's10', 's11', 't3', 't4', 't5', 't6'].forEach((nm, i) => { REG[nm] = i; REG['x' + i] = i; });
+    REG.fp = 8;
+
+    // 文字列の外にある # から後ろを消す
+    function stripComment(s) {
+      let q = false;
+      for (let i = 0; i < s.length; i++) {
+        if (s[i] === '"' && s[i - 1] !== '\\') q = !q;
+        else if (s[i] === '#' && !q) return s.slice(0, i);
+      }
+      return s;
+    }
+    // 引数をカンマで分ける（文字列の中のカンマは分けない）
+    function splitArgs(s) {
+      const out = [];
+      let cur = '', q = false;
+      for (let i = 0; i < s.length; i++) {
+        const c = s[i];
+        if (c === '"' && s[i - 1] !== '\\') q = !q;
+        if (c === ',' && !q) { out.push(cur.trim()); cur = ''; } else cur += c;
+      }
+      if (cur.trim()) out.push(cur.trim());
+      return out;
+    }
+    // 式（数・名前・+ - * / とかっこ）を計算する。名前がまだ分からないときは undefined
+    function evalExpr(src, sym, ln, strict) {
+      const t = src.replace(/\s+/g, '');
+      let i = 0;
+      const bad = () => new Error(ln + ' 行: 式が読めない「' + src + '」');
+      function prim() {
+        if (t[i] === '-') { i++; const v = prim(); return v === undefined ? undefined : -v; }
+        if (t[i] === '+') { i++; return prim(); }
+        if (t[i] === '(') {
+          i++;
+          const v = sum();
+          if (t[i] !== ')') throw bad();
+          i++;
+          return v;
+        }
+        const rest = t.slice(i);
+        let mm = /^(0x[0-9a-fA-F]+|0b[01]+|\d+)/.exec(rest);
+        if (mm) { i += mm[0].length; return Number(mm[0]); }
+        mm = /^'(.)'/.exec(rest);
+        if (mm) { i += 3; return mm[1].charCodeAt(0); }
+        mm = /^[A-Za-z_.$][\w.$]*/.exec(rest);
+        if (mm) {
+          i += mm[0].length;
+          if (mm[0] in sym) return sym[mm[0]];
+          if (strict) throw new Error(ln + ' 行: 名前「' + mm[0] + '」が見つからない');
+          return undefined;
+        }
+        throw bad();
+      }
+      function prod() {
+        let v = prim();
+        while (t[i] === '*' || t[i] === '/') {
+          const op = t[i++], w = prim();
+          v = v === undefined || w === undefined ? undefined : op === '*' ? v * w : Math.trunc(v / w);
+        }
+        return v;
+      }
+      function sum() {
+        let v = prod();
+        while (t[i] === '+' || t[i] === '-') {
+          const op = t[i++], w = prod();
+          v = v === undefined || w === undefined ? undefined : op === '+' ? v + w : v - w;
+        }
+        return v;
+      }
+      if (!t) throw bad();
+      const v = sum();
+      if (i !== t.length) throw bad();
+      return v;
+    }
+    // 32 ビットの値を lui（上の 20 ビット）と addi（下の 12 ビット、符号付き）に分ける
+    function hiLo(v) {
+      v |= 0;
+      const lo = (v << 20) >> 20;
+      return [((v - lo) >>> 12) & 0xfffff, lo];
+    }
+    const encR = (f7, rs2, rs1, f3, rd, op) => ((f7 << 25) | (rs2 << 20) | (rs1 << 15) | (f3 << 12) | (rd << 7) | op) >>> 0;
+    const encI = (imm, rs1, f3, rd, op) => (((imm & 0xfff) << 20) | (rs1 << 15) | (f3 << 12) | (rd << 7) | op) >>> 0;
+    const encS = (imm, rs2, rs1, f3) => ((((imm >> 5) & 0x7f) << 25) | (rs2 << 20) | (rs1 << 15) | (f3 << 12) | ((imm & 0x1f) << 7) | 0x23) >>> 0;
+    const encB = (imm, rs2, rs1, f3) => ((((imm >> 12) & 1) << 31) | (((imm >> 5) & 0x3f) << 25) | (rs2 << 20) | (rs1 << 15) | (f3 << 12) |
+      (((imm >> 1) & 0xf) << 8) | (((imm >> 11) & 1) << 7) | 0x63) >>> 0;
+    const encU = (imm20, rd, op) => (((imm20 & 0xfffff) << 12) | (rd << 7) | op) >>> 0;
+    const encJ = (imm, rd) => ((((imm >> 20) & 1) << 31) | (((imm >> 1) & 0x3ff) << 21) | (((imm >> 11) & 1) << 20) |
+      (((imm >> 12) & 0xff) << 12) | (rd << 7) | 0x6f) >>> 0;
+    const R_OPS = { add: [0, 0], sub: [0x20, 0], sll: [0, 1], slt: [0, 2], sltu: [0, 3], xor: [0, 4], srl: [0, 5], sra: [0x20, 5], or: [0, 6], and: [0, 7],
+      mul: [1, 0], mulh: [1, 1], mulhsu: [1, 2], mulhu: [1, 3], div: [1, 4], divu: [1, 5], rem: [1, 6], remu: [1, 7] };
+    const I_OPS = { addi: 0, slti: 2, sltiu: 3, xori: 4, ori: 6, andi: 7 };
+    const SH_OPS = { slli: [0, 1], srli: [0, 5], srai: [0x20, 5] };
+    const L_OPS = { lb: 0, lh: 1, lw: 2, lbu: 4, lhu: 5 };
+    const S_OPS = { sb: 0, sh: 1, sw: 2 };
+    const B_OPS = { beq: 0, bne: 1, blt: 4, bge: 5, bltu: 6, bgeu: 7 };
+    // 2 つのレジスタを入れ替えて書く分岐の別名（bgt a, b → blt b, a）
+    const B_SWAP = { bgt: 'blt', ble: 'bge', bgtu: 'bltu', bleu: 'bgeu' };
+    // 0 と比べる分岐の別名
+    const B_ZERO = { beqz: ['beq', 0], bnez: ['bne', 0], bltz: ['blt', 0], bgez: ['bge', 0], blez: ['bge', 1], bgtz: ['blt', 1] };
+
+    function assemble(src, base) {
+      const lines = src.split('\n');
+      const sym = Object.create(null);
+      const items = [];
+      let pc = base, pending = [];
+      const strArg = (a, ln) => {
+        const mm = /^"(.*)"$/.exec(a || '');
+        if (!mm) throw new Error(ln + ' 行: 文字列は "..." で書く');
+        return utf8(JSON.parse('"' + mm[1] + '"'));
+      };
+      // 1 回目: 名前の番地を決める
+      for (let k = 0; k < lines.length; k++) {
+        const ln = k + 1;
+        let s = stripComment(lines[k]).trim();
+        let mm;
+        while ((mm = /^([A-Za-z_.$][\w.$]*):/.exec(s))) {
+          if (mm[1] in sym) throw new Error(ln + ' 行: 名前「' + mm[1] + '」が 2 回ある');
+          sym[mm[1]] = pc;
+          pending.push(mm[1]);
+          s = s.slice(mm[0].length).trim();
+        }
+        if (!s) continue;
+        const sp = s.search(/\s/);
+        const op = (sp < 0 ? s : s.slice(0, sp)).toLowerCase();
+        const args = splitArgs(sp < 0 ? '' : s.slice(sp));
+        const it = { ln, op, args, addr: pc, size: 0, pad: 0 };
+        if (op[0] === '.') {
+          if (op === '.equ' || op === '.set') {
+            const v = evalExpr(args[1] || '', sym, ln, true);
+            sym[args[0]] = v;
+            continue;
+          }
+          if (['.text', '.data', '.globl', '.global', '.section'].includes(op)) continue;
+          if (op === '.align') { const a = 1 << evalExpr(args[0], sym, ln, true); it.size = (a - (pc % a)) % a; }
+          else if (op === '.word') it.size = 4 * args.length;
+          else if (op === '.half') it.size = 2 * args.length;
+          else if (op === '.byte') it.size = args.length;
+          else if (op === '.string' || op === '.asciz') it.size = strArg(args[0], ln).length + 1;
+          else if (op === '.ascii') it.size = strArg(args[0], ln).length;
+          else if (op === '.space' || op === '.zero') it.size = evalExpr(args[0], sym, ln, true);
+          else throw new Error(ln + ' 行: 知らない指示「' + op + '」');
+          if (op === '.align') pending = [];
+        } else {
+          // 命令は 4 の倍数の番地に置く。直前に付けた名前も一緒にずらす
+          it.pad = (4 - (pc & 3)) & 3;
+          pc += it.pad;
+          for (const nm of pending) sym[nm] = pc;
+          it.addr = pc;
+          if (op === 'li') {
+            const v = evalExpr(args[1] || '', sym, ln, false);
+            it.size = v !== undefined && v >= -2048 && v <= 2047 ? 4 : 8;
+          } else if (op === 'la') it.size = 8;
+          else it.size = 4;
+        }
+        pending = [];
+        pc += it.size;
+        items.push(it);
+      }
+      // 2 回目: 機械語を書く
+      const bytes = new Uint8Array(pc - base);
+      const dv = new DataView(bytes.buffer);
+      const words = [];
+      for (const it of items) {
+        const { ln, op, args } = it;
+        let at = it.addr - base;
+        const E = (a) => evalExpr(a || '', sym, ln, true);
+        const R = (a) => {
+          const r = REG[(a || '').trim()];
+          if (r === undefined) throw new Error(ln + ' 行: レジスタ名「' + a + '」が分からない');
+          return r;
+        };
+        const imm12 = (v) => {
+          if (v < -2048 || v > 2047) throw new Error(ln + ' 行: 即値 ' + v + ' が 12 ビットに入らない');
+          return v;
+        };
+        const mem = (a) => {
+          const mm = /^(.*)\(\s*([\w]+)\s*\)$/.exec((a || '').trim());
+          if (!mm) throw new Error(ln + ' 行: 番地は「ずれ(レジスタ)」で書く');
+          return [mm[1].trim() ? imm12(E(mm[1])) : 0, R(mm[2])];
+        };
+        const nargs = (n) => { if (args.length !== n) throw new Error(ln + ' 行: ' + op + ' の引数は ' + n + ' つ'); };
+        const put = (w) => { dv.setUint32(at, w, true); words.push({ addr: base + at, word: w, ln }); at += 4; };
+        const branch = (f3, rs1, rs2, target) => {
+          const off = E(target) - (base + at);
+          if (off < -4096 || off > 4094 || off & 1) throw new Error(ln + ' 行: 分岐の行き先が遠すぎる');
+          put(encB(off, rs2, rs1, f3));
+        };
+        const jal = (rd, target) => {
+          const off = E(target) - (base + at);
+          if (off < -(1 << 20) || off >= 1 << 20) throw new Error(ln + ' 行: 飛び先が遠すぎる');
+          put(encJ(off, rd));
+        };
+        if (op[0] === '.') {
+          if (op === '.word') args.forEach((a, i) => dv.setUint32(at + 4 * i, E(a) >>> 0, true));
+          else if (op === '.half') args.forEach((a, i) => dv.setUint16(at + 2 * i, E(a) & 0xffff, true));
+          else if (op === '.byte') args.forEach((a, i) => { bytes[at + i] = E(a) & 0xff; });
+          else if (op === '.string' || op === '.asciz' || op === '.ascii') bytes.set(strArg(args[0], ln), at);
+          continue;
+        }
+        if (op in R_OPS) { nargs(3); const [f7, f3] = R_OPS[op]; put(encR(f7, R(args[2]), R(args[1]), f3, R(args[0]), 0x33)); }
+        else if (op in I_OPS) { nargs(3); put(encI(imm12(E(args[2])), R(args[1]), I_OPS[op], R(args[0]), 0x13)); }
+        else if (op in SH_OPS) {
+          nargs(3);
+          const sh = E(args[2]);
+          if (sh < 0 || sh > 31) throw new Error(ln + ' 行: ずらす量は 0〜31');
+          const [f7, f3] = SH_OPS[op];
+          put(encR(f7, sh, R(args[1]), f3, R(args[0]), 0x13));
+        }
+        else if (op in L_OPS) { nargs(2); const [off, rs1] = mem(args[1]); put(encI(off, rs1, L_OPS[op], R(args[0]), 0x03)); }
+        else if (op in S_OPS) { nargs(2); const [off, rs1] = mem(args[1]); put(encS(off, R(args[0]), rs1, S_OPS[op])); }
+        else if (op in B_OPS) { nargs(3); branch(B_OPS[op], R(args[0]), R(args[1]), args[2]); }
+        else if (op in B_SWAP) { nargs(3); branch(B_OPS[B_SWAP[op]], R(args[1]), R(args[0]), args[2]); }
+        else if (op in B_ZERO) {
+          nargs(2);
+          const [b, swap] = B_ZERO[op];
+          if (swap) branch(B_OPS[b], 0, R(args[0]), args[1]); else branch(B_OPS[b], R(args[0]), 0, args[1]);
+        }
+        else if (op === 'lui' || op === 'auipc') { nargs(2); put(encU(E(args[1]), R(args[0]), op === 'lui' ? 0x37 : 0x17)); }
+        else if (op === 'jal') { if (args.length === 1) jal(1, args[0]); else { nargs(2); jal(R(args[0]), args[1]); } }
+        else if (op === 'jalr') {
+          if (args.length === 1) put(encI(0, R(args[0]), 0, 1, 0x67));
+          else if (args.length === 2) { const [off, rs1] = mem(args[1]); put(encI(off, rs1, 0, R(args[0]), 0x67)); }
+          else { nargs(3); put(encI(imm12(E(args[2])), R(args[1]), 0, R(args[0]), 0x67)); }
+        }
+        else if (op === 'ecall') put(0x00000073);
+        else if (op === 'mret') put(0x30200073);
+        else if (op === 'nop') put(encI(0, 0, 0, 0, 0x13));
+        else if (op === 'li') {
+          nargs(2);
+          const v = E(args[1]), rd = R(args[0]);
+          if (v < -2147483648 || v > 4294967295) throw new Error(ln + ' 行: 値が 32 ビットに入らない');
+          if (it.size === 4) put(encI(v, 0, 0, rd, 0x13));
+          else { const [hi, lo] = hiLo(v); put(encU(hi, rd, 0x37)); put(encI(lo, rd, 0, rd, 0x13)); }
+        }
+        else if (op === 'la') {
+          nargs(2);
+          const rd = R(args[0]);
+          const [hi, lo] = hiLo(E(args[1]) - (base + at));
+          put(encU(hi, rd, 0x17)); put(encI(lo, rd, 0, rd, 0x13));
+        }
+        else if (op === 'mv') { nargs(2); put(encI(0, R(args[1]), 0, R(args[0]), 0x13)); }
+        else if (op === 'not') { nargs(2); put(encI(-1, R(args[1]), 4, R(args[0]), 0x13)); }
+        else if (op === 'neg') { nargs(2); put(encR(0x20, R(args[1]), 0, 0, R(args[0]), 0x33)); }
+        else if (op === 'seqz') { nargs(2); put(encI(1, R(args[1]), 3, R(args[0]), 0x13)); }
+        else if (op === 'snez') { nargs(2); put(encR(0, R(args[1]), 0, 3, R(args[0]), 0x33)); }
+        else if (op === 'j') { nargs(1); jal(0, args[0]); }
+        else if (op === 'call') { nargs(1); jal(1, args[0]); }
+        else if (op === 'jr') { nargs(1); put(encI(0, R(args[0]), 0, 0, 0x67)); }
+        else if (op === 'ret') put(encI(0, 1, 0, 0, 0x67));
+        else throw new Error(ln + ' 行: 知らない命令「' + op + '」');
+      }
+      return { bytes, sym, words, base, entry: '_start' in sym ? sym._start : base, end: pc };
+    }
+
+    // ---- 3. 機械語を 1 行のアセンブリに戻す（表示用） ----
+    const RN = Object.keys(REG).filter((k) => !/^x\d/.test(k) && k !== 'fp');
+    function disasm(w, addr) {
+      w |= 0;
+      const op = w & 0x7f, rd = RN[(w >> 7) & 31], f3 = (w >> 12) & 7, rs1 = RN[(w >> 15) & 31], rs2 = RN[(w >> 20) & 31], f7 = w >>> 25;
+      const iimm = w >> 20;
+      const find = (tab, f) => Object.keys(tab).find((k) => f(tab[k]));
+      if (w === 0x73) return 'ecall';
+      if ((w >>> 0) === 0x30200073) return 'mret';
+      if (op === 0x33) return find(R_OPS, (v) => v[0] === f7 && v[1] === f3) + ' ' + rd + ', ' + rs1 + ', ' + rs2;
+      if (op === 0x13) {
+        if (f3 === 1 || f3 === 5) return find(SH_OPS, (v) => v[1] === f3 && v[0] === (f7 & 0x20)) + ' ' + rd + ', ' + rs1 + ', ' + ((w >> 20) & 31);
+        return find(I_OPS, (v) => v === f3) + ' ' + rd + ', ' + rs1 + ', ' + iimm;
+      }
+      if (op === 0x03) return find(L_OPS, (v) => v === f3) + ' ' + rd + ', ' + iimm + '(' + rs1 + ')';
+      if (op === 0x23) return find(S_OPS, (v) => v === f3) + ' ' + rs2 + ', ' + (((w >> 25) << 5) | ((w >> 7) & 31)) + '(' + rs1 + ')';
+      if (op === 0x63) {
+        const off = ((w >> 31) << 12) | (((w >> 7) & 1) << 11) | (((w >> 25) & 0x3f) << 5) | (((w >> 8) & 0xf) << 1);
+        return find(B_OPS, (v) => v === f3) + ' ' + rs1 + ', ' + rs2 + ', ' + hex(addr + off);
+      }
+      if (op === 0x37 || op === 0x17) return (op === 0x37 ? 'lui ' : 'auipc ') + rd + ', 0x' + (w >>> 12).toString(16);
+      if (op === 0x6f) {
+        const off = ((w >> 31) << 20) | (((w >> 12) & 0xff) << 12) | (((w >> 20) & 1) << 11) | (((w >> 21) & 0x3ff) << 1);
+        return 'jal ' + rd + ', ' + hex(addr + off);
+      }
+      if (op === 0x67) return 'jalr ' + rd + ', ' + iimm + '(' + rs1 + ')';
+      return '.word ' + hex(w);
+    }
+
+    // ---- 4. CPU（RV32IM を 1 命令ずつ真似る） ----
+    function newMachine(prog, kernel, pid) {
+      const buf = new ArrayBuffer(MEM);
+      const m = {
+        mem: new Uint8Array(buf), dv: new DataView(buf), w32: new Int32Array(buf), x: new Int32Array(32),
+        pc: prog.entry, kmode: false, epc: 0, emu: !!kernel, pid,
+        user: 0, kern: 0, sys: 0, halted: false, waiting: false, code: 0, fault: '',
+      };
+      if (prog.end > UHI) throw new Error('プログラムが大きすぎる');
+      m.mem.set(prog.bytes, prog.base);
+      if (kernel) m.mem.set(kernel.bytes, KBASE);
+      m.x[2] = UHI - 16;
+      return m;
+    }
+    const mulHigh = (a, b) => Number(BigInt.asIntN(32, (a * b) >> 32n));
+    function inUser(a, len) { return a >= ULO && a + len <= UHI; }
+
+    // JavaScript で書いたカーネル（unkernel の考え方。システムコールは普通の関数呼び出しになる）
+    function nativeSyscall(m, dev) {
+      const x = m.x, n = x[17];
+      if (n === SYS.write) {
+        const buf = x[11] >>> 0, len = x[12] >>> 0;
+        if (!inUser(buf, len)) { x[10] = -14; return; }
+        if (len) dev.write(m.mem.slice(buf, buf + len));
+        x[10] = len;
+      } else if (n === SYS.exit) { m.halted = true; m.code = x[10]; }
+      else if (n === SYS.getpid) x[10] = m.pid;
+      else if (n === SYS.present) {
+        const fb = x[10] >>> 0, w = x[11], h = x[12];
+        if (w <= 0 || h <= 0 || w > MAXW || h > MAXH) { x[10] = -22; return; }
+        if (!inUser(fb, w * h * 4)) { x[10] = -14; return; }
+        dev.present(m.mem.subarray(fb, fb + w * h * 4), w, h);
+        x[10] = 0;
+      } else if (n === SYS.pointer) {
+        const p = dev.pointer();
+        x[10] = p.x; x[11] = p.y; x[12] = p.b;
+      } else if (n === SYS.frame) { m.waiting = true; x[10] = 0; }
+      else x[10] = -38;
+    }
+    // 真似るカーネルが読む装置の窓口
+    function ioRead(m, off, dev) {
+      if (off === 0x08) return m.pid;
+      if (off === 0x0c || off === 0x10 || off === 0x14) { const p = dev.pointer(); return off === 0x0c ? p.x : off === 0x10 ? p.y : p.b; }
+      return 0;
+    }
+    function ioWrite(m, off, v, dev) {
+      if (off === 0x00) dev.write(Uint8Array.of(v & 255));
+      else if (off === 0x04) { m.halted = true; m.code = v; }
+      else if (off === 0x18) { const w = v & 0xffff, h = v >>> 16; dev.present(m.mem.subarray(FBDEV, FBDEV + w * h * 4), w, h); }
+      else if (off === 0x1c) m.waiting = true;
+    }
+    function Fault(msg) { this.msg = msg; }
+
+    // budget 個までの命令を進める。止まった理由は m.halted・m.waiting・m.fault で分かる
+    function run(m, budget, dev) {
+      const x = m.x, mem = m.mem, dv = m.dv, w32 = m.w32, emu = m.emu;
+      let pc = m.pc, kmode = m.kmode, n = 0, uc = 0, kc = 0, stop = false;
+      const segv = (a, what) => new Fault('Segmentation fault（' + hex(a) + ' 番地を' + what + 'うとした）');
+      try {
+        while (n < budget && !stop) {
+          if ((pc & 3) !== 0 || (kmode ? pc < KBASE || pc >= MEM : pc < ULO || pc >= UHI)) throw new Fault('Segmentation fault（' + hex(pc) + ' 番地の命令を実行しようとした）');
+          const ins = w32[pc >> 2];
+          n++;
+          if (kmode) kc++; else uc++;
+          const op = ins & 0x7f, rd = (ins >> 7) & 31, f3 = (ins >> 12) & 7, rs1 = (ins >> 15) & 31;
+          let npc = pc + 4;
+          switch (op) {
+            case 0x33: {
+              const a = x[rs1], b = x[(ins >> 20) & 31], f7 = ins >>> 25;
+              let v = 0;
+              if (f7 === 1) {
+                switch (f3) {
+                  case 0: v = Math.imul(a, b); break;
+                  case 1: v = mulHigh(BigInt(a), BigInt(b)); break;
+                  case 2: v = mulHigh(BigInt(a), BigInt(b >>> 0)); break;
+                  case 3: v = mulHigh(BigInt(a >>> 0), BigInt(b >>> 0)); break;
+                  case 4: v = b === 0 ? -1 : (a / b) | 0; break;
+                  case 5: v = b === 0 ? -1 : Math.floor((a >>> 0) / (b >>> 0)) | 0; break;
+                  case 6: v = b === 0 ? a : (a % b) | 0; break;
+                  default: v = b === 0 ? a : ((a >>> 0) % (b >>> 0)) | 0;
+                }
+              } else {
+                switch (f3) {
+                  case 0: v = f7 === 0x20 ? (a - b) | 0 : (a + b) | 0; break;
+                  case 1: v = a << (b & 31); break;
+                  case 2: v = a < b ? 1 : 0; break;
+                  case 3: v = (a >>> 0) < (b >>> 0) ? 1 : 0; break;
+                  case 4: v = a ^ b; break;
+                  case 5: v = f7 === 0x20 ? a >> (b & 31) : (a >>> (b & 31)) | 0; break;
+                  case 6: v = a | b; break;
+                  default: v = a & b;
+                }
+              }
+              if (rd) x[rd] = v;
+              break;
+            }
+            case 0x13: {
+              const a = x[rs1], imm = ins >> 20;
+              let v = 0;
+              switch (f3) {
+                case 0: v = (a + imm) | 0; break;
+                case 1: v = a << (imm & 31); break;
+                case 2: v = a < imm ? 1 : 0; break;
+                case 3: v = (a >>> 0) < (imm >>> 0) ? 1 : 0; break;
+                case 4: v = a ^ imm; break;
+                case 5: v = (ins >>> 30) & 1 ? a >> (imm & 31) : (a >>> (imm & 31)) | 0; break;
+                case 6: v = a | imm; break;
+                default: v = a & imm;
+              }
+              if (rd) x[rd] = v;
+              break;
+            }
+            case 0x03: {
+              const ad = (x[rs1] + (ins >> 20)) >>> 0;
+              let v = 0;
+              if (kmode && ad >= IO) v = ioRead(m, ad - IO, dev) | 0;
+              else {
+                const size = f3 === 2 ? 4 : f3 === 1 || f3 === 5 ? 2 : 1;
+                if (kmode ? ad + size > MEM : ad < ULO || ad + size > UHI) throw segv(ad, '読も');
+                if (f3 === 2) v = ad & 3 ? dv.getInt32(ad, true) : w32[ad >> 2];
+                else if (f3 === 0) v = (mem[ad] << 24) >> 24;
+                else if (f3 === 1) v = dv.getInt16(ad, true);
+                else if (f3 === 4) v = mem[ad];
+                else if (f3 === 5) v = dv.getUint16(ad, true);
+                else throw new Fault('知らない命令 ' + hex(ins));
+              }
+              if (rd) x[rd] = v;
+              break;
+            }
+            case 0x23: {
+              const ad = (x[rs1] + (((ins >> 25) << 5) | ((ins >> 7) & 31))) >>> 0, v = x[(ins >> 20) & 31];
+              if (kmode && ad >= IO) { ioWrite(m, ad - IO, v, dev); if (m.halted || m.waiting) stop = true; }
+              else {
+                const size = f3 === 2 ? 4 : f3 === 1 ? 2 : 1;
+                if (kmode ? ad + size > MEM : ad < ULO || ad + size > UHI) throw segv(ad, '書こ');
+                if (f3 === 2) { if (ad & 3) dv.setInt32(ad, v, true); else w32[ad >> 2] = v; }
+                else if (f3 === 0) mem[ad] = v;
+                else if (f3 === 1) dv.setInt16(ad, v, true);
+                else throw new Fault('知らない命令 ' + hex(ins));
+              }
+              break;
+            }
+            case 0x63: {
+              const a = x[rs1], b = x[(ins >> 20) & 31];
+              let t;
+              switch (f3) {
+                case 0: t = a === b; break;
+                case 1: t = a !== b; break;
+                case 4: t = a < b; break;
+                case 5: t = a >= b; break;
+                case 6: t = (a >>> 0) < (b >>> 0); break;
+                case 7: t = (a >>> 0) >= (b >>> 0); break;
+                default: throw new Fault('知らない命令 ' + hex(ins));
+              }
+              if (t) npc = (pc + (((ins >> 31) << 12) | (((ins >> 7) & 1) << 11) | (((ins >> 25) & 0x3f) << 5) | (((ins >> 8) & 0xf) << 1))) | 0;
+              break;
+            }
+            case 0x37: if (rd) x[rd] = ins & 0xfffff000; break;
+            case 0x17: if (rd) x[rd] = (pc + (ins & 0xfffff000)) | 0; break;
+            case 0x6f:
+              if (rd) x[rd] = pc + 4;
+              npc = (pc + (((ins >> 31) << 20) | (((ins >> 12) & 0xff) << 12) | (((ins >> 20) & 1) << 11) | (((ins >> 21) & 0x3ff) << 1))) | 0;
+              break;
+            case 0x67: {
+              const t = (x[rs1] + (ins >> 20)) & ~1;
+              if (rd) x[rd] = pc + 4;
+              npc = t;
+              break;
+            }
+            case 0x73:
+              if (ins === 0x73) {
+                if (kmode) throw new Fault('カーネルの中で ecall を使った');
+                m.sys++;
+                if (emu) { m.epc = pc + 4; kmode = true; npc = KBASE; }
+                else {
+                  nativeSyscall(m, dev);
+                  if (m.halted || m.waiting) stop = true;
+                }
+              } else if ((ins >>> 0) === 0x30200073 && kmode) { npc = m.epc; kmode = false; }
+              else throw new Fault('知らない命令 ' + hex(ins));
+              break;
+            default: throw new Fault('知らない命令 ' + hex(ins) + '（' + hex(pc) + ' 番地）');
+          }
+          pc = npc;
+        }
+      } catch (err) {
+        if (!(err instanceof Fault)) throw err;
+        m.halted = true;
+        m.fault = err.msg;
+      }
+      m.pc = pc; m.kmode = kmode; m.user += uc; m.kern += kc;
+      return n;
+    }
+
+    // ---- 5. 命令ごとに真似るカーネル（JavaScript のカーネルと同じことを RISC-V の命令で書く） ----
+    function kernelSource() {
+      const save = [], load = [];
+      for (let i = 1; i < 32; i++) {
+        save.push('  sw x' + i + ', ' + (TF + 4 * i) + '(zero)');
+        load.push('  lw x' + i + ', ' + (TF + 4 * i) + '(zero)');
+      }
+      return `# 命令ごとに真似るカーネル（QEMU のように、カーネルの仕事も 1 命令ずつ真似る）
+# 利用者のプログラムが ecall を使うと、CPU はここへ飛ぶ
+.equ TF, ${TF}
+.equ ULO, ${ULO}
+.equ UHI, ${UHI}
+.equ FBDEV, ${FBDEV}
+ktrap:
+# 入口: 31 個のレジスタを全部保存する（Linux も入口で全部保存する）
+${save.join('\n')}
+  lui t6, ${IO >>> 12}           # 装置の窓口の番地
+  li t0, 64
+  beq a7, t0, k_write
+  li t0, 172
+  beq a7, t0, k_getpid
+  li t0, 0x400
+  beq a7, t0, k_present
+  li t0, 0x401
+  beq a7, t0, k_pointer
+  li t0, 0x402
+  beq a7, t0, k_frame
+  li t0, 93
+  beq a7, t0, k_exit
+  li a0, -38                 # ENOSYS（知らない番号）
+  j k_ret
+k_getpid:
+  lw a0, 8(t6)
+  j k_ret
+k_write:                     # a1 = 文字の番地、a2 = バイト数
+  li t0, ULO
+  bltu a1, t0, k_efault
+  add t1, a1, a2
+  bltu t1, a1, k_efault
+  li t0, UHI
+  bgtu t1, t0, k_efault
+  mv t2, a1
+  j kw_test
+kw_loop:                     # 1 バイトずつ端末の窓口へ書く
+  lbu t3, 0(t2)
+  sb t3, 0(t6)
+  addi t2, t2, 1
+kw_test:
+  bltu t2, t1, kw_loop
+  mv a0, a2
+  j k_ret
+k_present:                   # a0 = 絵の番地、a1 = 幅、a2 = 高さ
+  blez a1, k_einval
+  blez a2, k_einval
+  li t0, ${MAXW}
+  bgt a1, t0, k_einval
+  li t0, ${MAXH}
+  bgt a2, t0, k_einval
+  li t0, ULO
+  bltu a0, t0, k_efault
+  mul t1, a1, a2
+  slli t1, t1, 2
+  add t1, a0, t1
+  bltu t1, a0, k_efault
+  li t0, UHI
+  bgtu t1, t0, k_efault
+  li t3, FBDEV
+  mv t2, a0
+kp_loop:                     # 1 画素ずつ装置の絵の置き場へ写す
+  lw t4, 0(t2)
+  sw t4, 0(t3)
+  addi t2, t2, 4
+  addi t3, t3, 4
+  bltu t2, t1, kp_loop
+  slli t0, a2, 16
+  or t0, t0, a1
+  sw t0, 0x18(t6)            # 装置に「写し終えた」と知らせる
+  li a0, 0
+  j k_ret
+k_pointer:                   # マウスの位置とボタン
+  lw a0, 0x0c(t6)
+  lw t0, 0x10(t6)
+  sw t0, TF+44(zero)
+  lw t0, 0x14(t6)
+  sw t0, TF+48(zero)
+  j k_ret
+k_frame:                     # 次の画面の更新まで待つ
+  sw zero, 0x1c(t6)
+  li a0, 0
+  j k_ret
+k_exit:
+  sw a0, 4(t6)
+k_einval:
+  li a0, -22
+  j k_ret
+k_efault:
+  li a0, -14
+k_ret:
+  sw a0, TF+40(zero)
+# 出口: 保存したレジスタを全部戻して、利用者のプログラムへ帰る
+${load.join('\n')}
+  mret
+`;
+    }
+
+    // ---- 6. 利用者のプログラム（アセンブリ） ----
+    const LIB = `
+# ---- 共通の部品 ----
+# print_str: a0 の番地から 0 のバイトまでを書く
+print_str:
+  mv t0, a0
+ps_len:
+  lbu t1, 0(t0)
+  beqz t1, ps_go
+  addi t0, t0, 1
+  j ps_len
+ps_go:
+  sub a2, t0, a0
+  mv a1, a0
+  li a0, 1
+  li a7, 64                  # write
+  ecall
+  ret
+# print_num: a0 を 10 進数で書く
+print_num:
+  addi sp, sp, -32
+  sw ra, 28(sp)
+  addi t0, sp, 23
+  sb zero, 0(t0)
+  li t2, 10
+pn_loop:
+  addi t0, t0, -1
+  remu t1, a0, t2
+  addi t1, t1, 48
+  sb t1, 0(t0)
+  divu a0, a0, t2
+  bnez a0, pn_loop
+  mv a0, t0
+  call print_str
+  lw ra, 28(sp)
+  addi sp, sp, 32
+  ret
+exit0:
+  li a0, 0
+  li a7, 93                  # exit
+  ecall
+`;
+    const PROGRAMS = {
+      hello: `# hello: あいさつとプロセス番号を書く
+_start:
+  la a0, msg1
+  call print_str
+  li a7, 172                 # getpid
+  ecall
+  call print_num
+  la a0, msg2
+  call print_str
+  j exit0
+msg1: .string "こんにちは。ブラウザの中の RISC-V の CPU で動いています。\\nわたしのプロセス番号は "
+msg2: .string " です。\\n"
+`,
+      primes: `# primes: 30000 より小さい素数を、割り算を試して数える（計算ばかりで、システムコールはほとんど使わない）
+.equ N, 30000
+_start:
+  la a0, msg1
+  call print_str
+  li s0, 2                   # 調べる数
+  li s1, 0                   # 見つけた素数の数
+  li s2, N
+p_outer:
+  bge s0, s2, p_done
+  li t0, 2                   # 割る数
+p_inner:
+  mul t1, t0, t0
+  bgt t1, s0, p_prime        # 割る数の 2 乗が超えたら素数
+  rem t2, s0, t0
+  beqz t2, p_next            # 割り切れたら素数ではない
+  addi t0, t0, 1
+  j p_inner
+p_prime:
+  addi s1, s1, 1
+p_next:
+  addi s0, s0, 1
+  j p_outer
+p_done:
+  mv a0, s1
+  call print_num
+  la a0, msg2
+  call print_str
+  j exit0
+msg1: .string "30000 より小さい素数を数えています。素数の数 = "
+msg2: .string "\\n"
+`,
+      bench: `# bench: getpid を 20000 回呼ぶ（システムコールばかりのプログラム）
+.equ N, 20000
+_start:
+  li s0, N
+  li s1, 0
+b_loop:
+  li a7, 172                 # getpid
+  ecall
+  add s1, s1, a0
+  addi s0, s0, -1
+  bnez s0, b_loop
+  la a0, msg1
+  call print_str
+  mv a0, s1
+  call print_num
+  la a0, msg2
+  call print_str
+  j exit0
+msg1: .string "getpid を 20000 回呼びました（返った番号の合計 "
+msg2: .string "）\\n"
+`,
+      eyes: `# eyes: マウスを目で追う。毎回、絵を全部描いてからカーネルに渡す
+.equ W, 120
+.equ H, 72
+.equ R, 28                   # 白目の半径
+.equ RO, 30                  # ふちを含めた半径
+.equ PR, 9                   # 黒目の半径
+.equ LIM, 16                 # 黒目が中心から動ける距離
+.equ CY, 36
+.equ CX1, 33
+.equ CX2, 87
+.equ BG, 0xff4a3a2b          # 色は 0xAABBGGRR
+.equ RIM, 0xff1c1a18
+.equ WHITE, 0xffeaf4f7
+.equ PUPIL, 0xff2a2420
+.equ HOT, 0xff3a46d8
+_start:
+e_loop:
+  li a7, 0x401               # マウスの位置（この窓の画素で数える）
+  ecall
+  mv s4, a0
+  mv s5, a1
+  li s6, PUPIL
+  beqz a2, e_clear
+  li s6, HOT                 # ボタンを押している間は黒目を赤くする
+e_clear:
+  la t0, fb
+  li t1, W*H*4
+  add t1, t0, t1
+  li t2, BG
+e_clr:
+  sw t2, 0(t0)
+  addi t0, t0, 4
+  bltu t0, t1, e_clr
+  li a0, CX1
+  li a1, CY
+  call draw_eye
+  li a0, CX2
+  li a1, CY
+  call draw_eye
+  la a0, fb
+  li a1, W
+  li a2, H
+  li a7, 0x400               # 描いた絵を画面へ
+  ecall
+  li a7, 0x402               # 次の画面の更新まで待つ
+  ecall
+  j e_loop
+
+# draw_eye: a0 = 中心の x、a1 = 中心の y
+draw_eye:
+  addi sp, sp, -32
+  sw ra, 28(sp)
+  sw s0, 24(sp)
+  sw s1, 20(sp)
+  sw s2, 16(sp)
+  sw s3, 12(sp)
+  sw s7, 8(sp)
+  sw s8, 4(sp)
+  mv s0, a0
+  mv s1, a1
+  sub s2, s4, s0             # マウスまでの向き dx, dy
+  sub s3, s5, s1
+  mul t0, s2, s2
+  mul t1, s3, s3
+  add a0, t0, t1
+  li t2, LIM*LIM
+  ble a0, t2, de_in          # 近ければ黒目をマウスの位置へ
+  call isqrt                 # 遠ければ長さ LIM にちぢめる
+  li t2, LIM
+  mul s2, s2, t2
+  div s2, s2, a0
+  mul s3, s3, t2
+  div s3, s3, a0
+de_in:
+  add s2, s2, s0             # 黒目の中心
+  add s3, s3, s1
+  addi s7, s1, -RO           # y
+de_row:
+  addi t0, s1, RO
+  bgt s7, t0, de_done
+  bltz s7, de_nextrow
+  li t1, H
+  bge s7, t1, de_done
+  sub t2, s7, s1
+  mul t2, t2, t2             # (y - 中心)^2
+  sub t3, s7, s3
+  mul t3, t3, t3             # (y - 黒目)^2
+  li t4, W*4
+  mul t4, t4, s7
+  la t5, fb
+  add t4, t4, t5             # この行の始まりの番地
+  addi s8, s0, -RO           # x
+de_col:
+  addi t0, s0, RO
+  bgt s8, t0, de_nextrow
+  bltz s8, de_nextcol
+  li t1, W
+  bge s8, t1, de_nextrow
+  sub t5, s8, s0
+  mul t5, t5, t5
+  add t5, t5, t2
+  li t6, RO*RO
+  bgt t5, t6, de_nextcol     # 目の外は描かない
+  li a1, RIM
+  li t6, R*R
+  bgt t5, t6, de_put         # ふち
+  sub a2, s8, s2
+  mul a2, a2, a2
+  add a2, a2, t3
+  li a1, WHITE
+  li t6, PR*PR
+  bgt a2, t6, de_put         # 白目
+  mv a1, s6                  # 黒目
+de_put:
+  slli t6, s8, 2
+  add t6, t6, t4
+  sw a1, 0(t6)
+de_nextcol:
+  addi s8, s8, 1
+  j de_col
+de_nextrow:
+  addi s7, s7, 1
+  j de_row
+de_done:
+  lw ra, 28(sp)
+  lw s0, 24(sp)
+  lw s1, 20(sp)
+  lw s2, 16(sp)
+  lw s3, 12(sp)
+  lw s7, 8(sp)
+  lw s8, 4(sp)
+  addi sp, sp, 32
+  ret
+
+# isqrt: a0 の平方根の整数部分（ニュートン法）
+isqrt:
+  mv t0, a0
+  addi t1, a0, 1
+  srli t1, t1, 1
+is_loop:
+  bgeu t1, t0, is_done
+  mv t0, t1
+  divu t2, a0, t0
+  add t1, t0, t2
+  srli t1, t1, 1
+  j is_loop
+is_done:
+  mv a0, t0
+  ret
+
+.align 2
+fb: .space W*H*4
+`,
+      crash: `# crash: 0 番地を読もうとする（カーネルが止める）
+_start:
+  la a0, msg1
+  call print_str
+  li t0, 0
+  lw a0, 0(t0)
+  j exit0
+msg1: .string "0 番地を読んでみます……\\n"
+`,
+    };
+    // 名前からプログラムを組み立てる（共通の部品をつなげる）。一度組み立てたものは使い回す
+    const BUILT = {};
+    function build(name) {
+      if (!(name in PROGRAMS)) throw new Error('プログラム「' + name + '」は無い');
+      if (!BUILT[name]) BUILT[name] = assemble(PROGRAMS[name] + LIB, ULO);
+      return BUILT[name];
+    }
+    let KERNEL = null;
+    function kernelImage() {
+      if (!KERNEL) KERNEL = assemble(kernelSource(), KBASE);
+      return KERNEL;
+    }
+    // 端末なしで最後まで動かす（試験と比べる表で使う）
+    function runToEnd(name, emu, opts) {
+      const o = opts || {};
+      const out = [];
+      const frames = [];
+      const dev = {
+        write: (b) => { for (const v of b) out.push(v); },
+        present: (px, w, h) => { frames.push({ w, h, sum: px.reduce((s, v, i) => (s + v * ((i % 251) + 1)) % 1000000007, 0) }); },
+        pointer: () => (o.pointer ? o.pointer(frames.length) : { x: 0, y: 0, b: 0 }),
+      };
+      const m = newMachine(build(name), emu ? kernelImage() : null, o.pid || 1);
+      const maxFrames = o.frames || 0;
+      let guard = 0;
+      const t0 = now();
+      while (!m.halted && guard++ < 10000) {
+        run(m, 1e6, dev);
+        if (m.waiting) {
+          m.waiting = false;
+          if (frames.length >= maxFrames) break;
+        }
+      }
+      const ms = now() - t0;
+      return { m, ms, text: fromUtf8(out), frames };
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const thumb = !!window.THUMB;
+    if (thumb) document.documentElement.classList.add('thumb');
+    const desk = $('desk'), termEl = $('term'), outEl = $('out'), form = $('form'), cmdIn = $('cmd'), liveEl = $('live');
+    const nf = new Intl.NumberFormat('ja-JP');
+    const fmt = (v) => nf.format(Math.round(v));
+    const fmtMs = (ms) => (ms < 10 ? ms.toFixed(2) : ms < 100 ? ms.toFixed(1) : Math.round(ms)) + ' ms';
+    let kmode = 'native';
+    const procs = [];
+    const queue = [];
+    const hist = [];
+    let histAt = 0, nextPid = 2, fgProc = null, zTop = 10, winCount = 0, pending = '', comparing = false;
+    const ptr = { cx: NaN, cy: NaN, b: 0 };
+    const acc = { user: 0, kern: 0, sys: 0, t: 0 };
+
+    // ---- 端末への出力（1 回の更新でまとめて書く） ----
+    function say(s) { pending += s; }
+    function flush() {
+      if (!pending) return;
+      outEl.append(pending);
+      pending = '';
+      if (outEl.textContent.length > 40000) outEl.textContent = outEl.textContent.slice(-30000);
+      termEl.scrollTop = termEl.scrollHeight;
+    }
+    function announce(s) {
+      liveEl.textContent = s;
+      setTimeout(() => { if (liveEl.textContent === s) liveEl.textContent = ''; }, 1200);
+    }
+    function syncPrompt() { form.classList.toggle('busy', !!fgProc); }
+    const modeName = (emu) => (emu ? '真似る' : 'そのまま');
+
+    // ---- プロセスを作る ----
+    function spawn(nm, bg) {
+      let prog;
+      try { prog = build(nm); } catch (err) { say('組み立てに失敗: ' + err.message + '\n'); return; }
+      const emu = kmode === 'emu';
+      const pid = nextPid++;
+      const m = newMachine(prog, emu ? kernelImage() : null, pid);
+      const p = { pid, nm, m, emu, bg, win: null, ms: 0, frames: 0, mark: { user: 0, kern: 0, frames: 0, ms: 0 } };
+      const bytes = [];
+      p.flushText = () => {
+        // UTF-8 の途中で切れたバイトは次の書き込みまで持ち越す
+        let end = bytes.length, back = 0;
+        while (end - back - 1 >= 0 && back < 3 && (bytes[end - back - 1] & 0xc0) === 0x80) back++;
+        const lead = bytes[end - back - 1];
+        const need = lead >= 0xf0 ? 4 : lead >= 0xe0 ? 3 : lead >= 0xc0 ? 2 : 1;
+        if (back + 1 < need) end -= back + 1;
+        if (end <= 0) return;
+        let s;
+        try { s = fromUtf8(bytes.slice(0, end)); } catch { s = '?'; }
+        bytes.splice(0, end);
+        say(s);
+      };
+      p.dev = {
+        write: (b) => { for (const v of b) bytes.push(v); },
+        present: (px, w, h) => present(p, px, w, h),
+        pointer: () => pointerFor(p),
+      };
+      procs.push(p);
+      if (bg) say('[' + pid + '] ' + nm + ' を起動（カーネル: ' + modeName(emu) + '）\n');
+      else fgProc = p;
+      syncPrompt();
+    }
+    function finish(p, why) {
+      const i = procs.indexOf(p);
+      if (i >= 0) procs.splice(i, 1);
+      p.flushText();
+      if (p.win) { p.win.el.remove(); p.win = null; }
+      const m = p.m;
+      if (m.fault) say('[' + p.pid + '] ' + m.fault + '\n');
+      say('[' + p.pid + ' ' + p.nm + '・' + modeName(p.emu) + '] ' + why + '。利用者の命令 ' + fmt(m.user) + '・カーネルで真似た命令 ' + fmt(m.kern) +
+        '・システムコール ' + fmt(m.sys) + ' 回・CPU ' + fmtMs(p.ms) + '\n');
+      if (fgProc === p) fgProc = null;
+      syncPrompt();
+    }
+
+    // ---- 窓（プログラムが描いた絵を端末の上に浮かべる） ----
+    function place(win, x, y) {
+      const mx = Math.max(0, desk.clientWidth - win.offsetWidth), my = Math.max(0, desk.clientHeight - win.offsetHeight);
+      win.style.left = Math.max(0, Math.min(x, mx)) + 'px';
+      win.style.top = Math.max(0, Math.min(y, my)) + 'px';
+    }
+    function openWin(p, w, h) {
+      const win = document.createElement('section');
+      win.className = 'win';
+      win.setAttribute('aria-label', p.nm + ' の窓（pid ' + p.pid + '）');
+      const tb = document.createElement('div');
+      tb.className = 'tb';
+      const grip = document.createElement('button');
+      grip.type = 'button';
+      grip.className = 'grip';
+      grip.setAttribute('aria-label', p.nm + ' の窓の取っ手。矢印キーでも動かせる');
+      const ttl = document.createElement('span');
+      ttl.textContent = p.nm + ' — pid ' + p.pid;
+      const tag = document.createElement('span');
+      tag.className = 'tag' + (p.emu ? ' emu' : '');
+      tag.textContent = 'カーネル: ' + modeName(p.emu);
+      grip.append(ttl, tag);
+      const xb = document.createElement('button');
+      xb.type = 'button';
+      xb.className = 'x';
+      xb.textContent = '×';
+      xb.setAttribute('aria-label', 'pid ' + p.pid + ' の ' + p.nm + ' を閉じる');
+      tb.append(grip, xb);
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      cv.style.aspectRatio = w + ' / ' + h;
+      cv.setAttribute('role', 'img');
+      cv.setAttribute('aria-label', p.nm === 'eyes' ? 'マウスの方を見る 2 つの目' : p.nm + ' が描いた絵');
+      const st = document.createElement('div');
+      st.className = 'wst';
+      st.textContent = '1 コマの命令を数えています';
+      win.append(tb, cv, st);
+      win.style.zIndex = ++zTop;
+      desk.append(win);
+      const k = winCount++ % 5;
+      place(win, desk.clientWidth - win.offsetWidth - 14 - k * 26, 14 + k * 24);
+      let ox = 0, oy = 0;
+      grip.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        const r = win.getBoundingClientRect();
+        ox = e.clientX - r.left; oy = e.clientY - r.top;
+        grip.setPointerCapture(e.pointerId);
+      });
+      grip.addEventListener('pointermove', (e) => {
+        if (!grip.hasPointerCapture(e.pointerId)) return;
+        grip.classList.add('dragging');
+        const d = desk.getBoundingClientRect();
+        place(win, e.clientX - ox - d.left - desk.clientLeft, e.clientY - oy - d.top - desk.clientTop);
+      });
+      grip.addEventListener('lostpointercapture', () => grip.classList.remove('dragging'));
+      grip.addEventListener('keydown', (e) => {
+        const dirs = { ArrowLeft: [-15, 0, '左'], ArrowRight: [15, 0, '右'], ArrowUp: [0, -15, '上'], ArrowDown: [0, 15, '下'] };
+        const d = dirs[e.key];
+        if (!d) return;
+        e.preventDefault();
+        place(win, win.offsetLeft + d[0], win.offsetTop + d[1]);
+        announce(p.nm + ' の窓を' + d[2] + 'へ動かした');
+      });
+      win.addEventListener('pointerdown', () => { win.style.zIndex = ++zTop; });
+      xb.addEventListener('click', () => {
+        if (procs.includes(p)) { finish(p, '窓を閉じたので止めた'); flush(); }
+      });
+      const g = cv.getContext('2d');
+      p.win = { el: win, cv, g, img: g.createImageData(w, h), st };
+    }
+    function present(p, px, w, h) {
+      if (!p.win) openWin(p, w, h);
+      const W = p.win;
+      if (W.cv.width !== w || W.cv.height !== h) {
+        W.cv.width = w; W.cv.height = h;
+        W.cv.style.aspectRatio = w + ' / ' + h;
+        W.img = W.g.createImageData(w, h);
+      }
+      W.img.data.set(px);
+      W.g.putImageData(W.img, 0, 0);
+      p.frames++;
+    }
+    // マウスの位置を、その窓の絵の画素で数えて返す
+    function pointerFor(p) {
+      if (!p.win) return { x: 60, y: 200, b: 0 };
+      const r = p.win.cv.getBoundingClientRect();
+      let cx = ptr.cx, cy = ptr.cy;
+      if (thumb) {
+        const t = performance.now() / 1000, d = desk.getBoundingClientRect();
+        cx = d.left + d.width * (0.5 + 0.45 * Math.cos(t * 1.3));
+        cy = d.top + d.height * (0.5 + 0.42 * Math.sin(t * 1.9));
+      } else if (Number.isNaN(cx)) { cx = r.left + r.width * 0.3; cy = r.bottom + r.height; }
+      const sx = p.win.cv.width / Math.max(1, r.width), sy = p.win.cv.height / Math.max(1, r.height);
+      const clampI = (v) => Math.max(-4000, Math.min(4000, Math.round(v)));
+      return { x: clampI((cx - r.left) * sx), y: clampI((cy - r.top) * sy), b: ptr.b };
+    }
+    document.addEventListener('pointermove', (e) => { ptr.cx = e.clientX; ptr.cy = e.clientY; });
+    document.addEventListener('pointerdown', (e) => { ptr.cx = e.clientX; ptr.cy = e.clientY; if (e.button === 0) ptr.b = 1; });
+    document.addEventListener('pointerup', () => { ptr.b = 0; });
+    document.addEventListener('pointercancel', () => { ptr.b = 0; });
+
+    // ---- 2 つのカーネルの速さを比べる ----
+    async function compare() {
+      if (comparing) { say('いま比べています。\n'); return; }
+      comparing = true;
+      say('bench と primes を、2 つのカーネルで 3 回ずつ動かします（端末の外で動かし、時間だけを測る）……\n');
+      flush();
+      const rows = [];
+      for (const nm of ['bench', 'primes']) {
+        const best = { native: Infinity, emu: Infinity }, info = {};
+        for (let k = 0; k < 3; k++) {
+          for (const emu of [false, true]) {
+            await new Promise((r) => setTimeout(r, 0));
+            const r = runToEnd(nm, emu);
+            const key = emu ? 'emu' : 'native';
+            best[key] = Math.min(best[key], r.ms);
+            info[key] = r.m;
+          }
+        }
+        rows.push({ nm, best, info });
+      }
+      const body = $('cmpBody');
+      body.replaceChildren();
+      for (const r of rows) {
+        const tr = document.createElement('tr');
+        const ratio = r.best.emu / Math.max(1e-6, r.best.native);
+        const per = (key) => (r.best[key] * 1e6) / Math.max(1, r.info[key].sys);
+        const cells = [
+          ['th', r.nm],
+          ['td', fmt(r.info.native.sys) + ' 回'],
+          ['td', fmtMs(r.best.native) + (r.nm === 'bench' ? '（1 回 ' + fmt(per('native')) + ' ns）' : '')],
+          ['td', fmtMs(r.best.emu) + '・' + ratio.toFixed(1) + ' 倍' + (r.nm === 'bench' ? '（1 回 ' + fmt(per('emu')) + ' ns）' : ''), 'emu'],
+          ['td', fmt(r.info.emu.kern) + ' 命令'],
+        ];
+        for (const [tag, text, cls] of cells) {
+          const c = document.createElement(tag);
+          if (tag === 'th') c.scope = 'row';
+          if (cls) c.className = cls;
+          c.textContent = text;
+          tr.append(c);
+        }
+        body.append(tr);
+        say(r.nm.padEnd(7) + 'そのまま ' + fmtMs(r.best.native) + ' ／ 真似る ' + fmtMs(r.best.emu) + '（' + ratio.toFixed(1) + ' 倍）。真似たカーネルの命令 ' +
+          fmt(r.info.emu.kern) + '、利用者の命令 ' + fmt(r.info.emu.user) + '\n');
+      }
+      $('cmp').hidden = false;
+      say('システムコールばかりの bench では差が大きく、計算ばかりの primes ではほとんど差が無い。\n');
+      comparing = false;
+    }
+
+    // ---- 端末の命令 ----
+    const HELP = [
+      'hello          あいさつとプロセス番号を書く',
+      'primes         30000 より小さい素数を数える（計算ばかり）',
+      'bench          getpid を 20000 回呼ぶ（システムコールばかり）',
+      'eyes &         マウスを目で追う窓を開く（& を付けると端末をすぐ返す）',
+      'crash          0 番地を読んでカーネルに止められる',
+      'compare        bench と primes を 2 つのカーネルで動かして時間を比べる',
+      'mode emu       これから起動するプログラムのカーネルを「真似る」にする（mode native で戻す）',
+      'ls             プログラムの一覧',
+      'cat 名前.s     アセンブリを見る（kernel.s は真似るカーネル、lib.s は共通の部品）',
+      'objdump 名前   組み立てた機械語を見る',
+      'ps / kill 番号 / clear',
+    ].join('\n');
+    function exec(line) {
+      const s = line.trim();
+      if (!s) return;
+      if (fgProc) { say('（pid ' + fgProc.pid + ' の ' + fgProc.nm + ' が動いています。Ctrl+C で止めるか、終わるのを待つ）\n'); return; }
+      const bg = /&\s*$/.test(s);
+      const parts = s.replace(/&\s*$/, '').trim().split(/\s+/);
+      const c = parts[0], arg = parts[1] || '';
+      if (c in PROGRAMS) { spawn(c, bg); return; }
+      if (c === 'help') say(HELP + '\n');
+      else if (c === 'ls') say(Object.keys(PROGRAMS).map((k) => k + '.s').join('  ') + '  lib.s  kernel.s\n');
+      else if (c === 'cat') {
+        const k = arg.replace(/\.s$/, '');
+        if (k === 'kernel') say(kernelSource());
+        else if (k === 'lib') say(LIB.replace(/^\n/, ''));
+        else if (k in PROGRAMS) say(PROGRAMS[k]);
+        else say('cat: ' + (arg || '名前') + ': そのようなファイルはありません\n');
+      } else if (c === 'objdump') {
+        const k = arg.replace(/\.s$/, '');
+        let img = null;
+        try { img = k === 'kernel' ? kernelImage() : build(k); } catch { img = null; }
+        if (!img) { say('objdump: ' + (arg || '名前') + ' が分かりません（例: objdump hello）\n'); return; }
+        const src = (k === 'kernel' ? kernelSource() : PROGRAMS[k] + LIB).split('\n');
+        const lim = 48;
+        for (const w of img.words.slice(0, lim)) {
+          say(w.addr.toString(16).padStart(8, '0') + ':  ' + w.word.toString(16).padStart(8, '0') + '   ' + disasm(w.word, w.addr).padEnd(28) + '# ' + src[w.ln - 1].trim() + '\n');
+        }
+        say(img.words.length > lim ? '…（命令は全部で ' + img.words.length + ' 個。データを含めて ' + fmt(img.bytes.length) + ' バイト）\n' : '（' + fmt(img.bytes.length) + ' バイト）\n');
+      } else if (c === 'ps') {
+        say('  PID  名前     カーネル  状態        利用者の命令 ／ カーネルで真似た命令\n');
+        for (const p of procs) {
+          say(String(p.pid).padStart(5) + '  ' + p.nm.padEnd(8) + ' ' + modeName(p.emu).padEnd(6, '　') + '  ' + (p.m.waiting ? '画面の更新待ち' : '実行中').padEnd(7, '　') + ' ' + fmt(p.m.user) + ' ／ ' + fmt(p.m.kern) + '\n');
+        }
+        if (!procs.length) say('（動いているプロセスはありません）\n');
+      } else if (c === 'kill') {
+        const p = procs.find((q) => q.pid === Number(arg));
+        if (p) finish(p, 'kill で止めた'); else say('kill: (' + arg + ') - そのようなプロセスはありません\n');
+      } else if (c === 'mode') {
+        if (arg === 'emu' || arg === 'native') setMode(arg, true);
+        else say('いまのカーネル: ' + modeName(kmode === 'emu') + '（mode native か mode emu で切り替える）\n');
+      } else if (c === 'compare') compare();
+      else if (c === 'clear') { outEl.textContent = ''; pending = ''; }
+      else say('sh: ' + c + ': そのような命令はありません（help で一覧）\n');
+    }
+    function setMode(v, fromTerm) {
+      kmode = v;
+      for (const r of document.querySelectorAll('input[name="km"]')) r.checked = r.value === v;
+      say((fromTerm ? '' : '（カーネルを切り替えた）') + 'これから起動するプログラムのカーネルは「' + modeName(v === 'emu') + '」です。動いているプログラムはそのまま。\n');
+    }
+    function submit(line) {
+      say('$ ' + line + '\n');
+      if (line.trim()) { hist.push(line); histAt = hist.length; }
+      exec(line);
+      flush();
+    }
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const v = cmdIn.value;
+      cmdIn.value = '';
+      submit(v);
+    });
+    cmdIn.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && (e.key === 'c' || e.key === 'C') && cmdIn.selectionStart === cmdIn.selectionEnd) {
+        e.preventDefault();
+        say('$ ' + cmdIn.value + '^C\n');
+        cmdIn.value = '';
+        if (fgProc) finish(fgProc, 'Ctrl+C で止めた');
+        flush();
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        if (!hist.length) return;
+        e.preventDefault();
+        histAt = Math.max(0, Math.min(hist.length, histAt + (e.key === 'ArrowUp' ? -1 : 1)));
+        cmdIn.value = hist[histAt] || '';
+      }
+    });
+    termEl.addEventListener('click', () => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed) cmdIn.focus({ preventScroll: true });
+    });
+    for (const b of document.querySelectorAll('#cmds button')) b.addEventListener('click', () => submit(b.dataset.cmd));
+    for (const r of document.querySelectorAll('input[name="km"]')) r.addEventListener('change', () => { if (r.checked) { setMode(r.value, false); flush(); } });
+
+    // ---- 毎回の画面の更新で、各プロセスを少しずつ進める ----
+    function updateStats(t) {
+      const dt = (t - acc.t) / 1000;
+      if (dt < 0.5) return;
+      $('sU').textContent = fmt(acc.user / dt);
+      $('sK').textContent = fmt(acc.kern / dt);
+      $('sS').textContent = fmt(acc.sys / dt);
+      $('sP').textContent = String(procs.length);
+      $('sPm').textContent = procs.length ? procs.map((p) => p.nm + '（' + modeName(p.emu) + '）').join('・') : '-';
+      acc.user = 0; acc.kern = 0; acc.sys = 0; acc.t = t;
+      for (const p of procs) {
+        if (!p.win) continue;
+        const k = p.mark, df = p.frames - k.frames;
+        if (df > 0) {
+          p.win.st.textContent = '1 コマの命令: 利用者 ' + fmt((p.m.user - k.user) / df) + '・カーネル ' + fmt((p.m.kern - k.kern) / df) + '。CPU ' + fmtMs((p.ms - k.ms) / df);
+        }
+        p.mark = { user: p.m.user, kern: p.m.kern, frames: p.frames, ms: p.ms };
+      }
+    }
+    function tick(t) {
+      if (!fgProc && queue.length && !comparing) submit(queue.shift());
+      const list = procs.slice();
+      const share = 10 / Math.max(1, list.length);
+      for (const p of list) {
+        const m = p.m;
+        if (m.waiting) m.waiting = false;
+        const u0 = m.user, k0 = m.kern, s0 = m.sys;
+        const t0 = performance.now();
+        try {
+          do { run(m, 100000, p.dev); } while (!m.halted && !m.waiting && performance.now() - t0 < share);
+        } catch (err) {
+          m.halted = true;
+          m.fault = '計算機の真似が止まった: ' + ((err && err.message) || err);
+        }
+        p.ms += performance.now() - t0;
+        acc.user += m.user - u0; acc.kern += m.kern - k0; acc.sys += m.sys - s0;
+        p.flushText();
+        if (m.halted) finish(p, m.fault ? 'カーネルが止めた' : '終わった（終了コード ' + m.code + '）');
+      }
+      updateStats(t);
+      flush();
+      requestAnimationFrame(tick);
+    }
+    if ('ResizeObserver' in window) {
+      new ResizeObserver(() => { for (const p of procs) if (p.win) place(p.win.el, p.win.el.offsetLeft, p.win.el.offsetTop); }).observe(desk);
+    }
+
+    say('RISC-V（RV32IM）の小さな計算機を起動しました。1 つのプロセスに 512 KiB の記憶があります。\n' +
+      'カーネル（システムコールの処理）は JavaScript で動き、利用者のプログラムだけを 1 命令ずつ真似ます。help で命令の一覧を出します。\n\n');
+    queue.push('hello', 'eyes &');
+    flush();
+    requestAnimationFrame((t) => { acc.t = t; tick(t); });
+  },
+});
