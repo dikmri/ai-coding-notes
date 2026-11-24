@@ -272,7 +272,8 @@ export function makePages(G) {
       });
     },
     drawVisits(ctx) {
-      const cols = [['回', 22, 'right'], ['日時', 28, 'left'], ['台', 90, 'left'], ['回転', 238, 'right'], ['大当り', 272, 'right'], ['最高', 304, 'right'], ['収支', 378, 'right']];
+      // 列の右端。大当り 3 桁・最高 100 連以上（LT の台）でも詰まらないように、最高の列を広めに取る
+      const cols = [['回', 22, 'right'], ['日時', 28, 'left'], ['台', 90, 'left'], ['回転', 236, 'right'], ['大当り', 270, 'right'], ['最高', 310, 'right'], ['収支', 378, 'right']];
       columns(ctx, cols, 20);
       if (!this.list.length) { drawText(ctx, 'まだ記録がありません', W / 2, 96, { size: 12, color: SOFT, align: 'center' }); return; }
       for (let k = 0; k < LIST_ROWS; k++) {
@@ -285,9 +286,9 @@ export function makePages(G) {
         drawText(ctx, String(v.no), 22, y, { size: 10, color: SOFT, align: 'right' });
         drawText(ctx, dateText(r.at), 28, y, { size: 10, color: SOFT });
         drawText(ctx, shortName(machineById(r.m)), 90, y, { size: 10, color: c });
-        drawText(ctx, comma(r.spins), 238, y, { size: 10, color: c, align: 'right' });
-        drawText(ctx, String(r.hits), 272, y, { size: 10, color: c, align: 'right' });
-        drawText(ctx, `${r.maxChain} 連`, 304, y, { size: 10, color: chainColor(r.maxChain, this.t * 0.5), align: 'right' });
+        drawText(ctx, comma(r.spins), 236, y, { size: 10, color: c, align: 'right' });
+        drawText(ctx, String(r.hits), 270, y, { size: 10, color: c, align: 'right' });
+        drawText(ctx, `${r.maxChain} 連`, 310, y, { size: 10, color: chainColor(r.maxChain, this.t * 0.5), align: 'right' });
         drawText(ctx, signed(r.yen), 378, y, { size: 10, color: yenColor(r.yen), align: 'right' });
       }
       drawText(ctx, '↑↓ で選んで Enter（クリック）で大当り履歴', W / 2, 203, { size: 10, color: SOFT, align: 'center' });
