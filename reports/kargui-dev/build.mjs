@@ -144,6 +144,7 @@ const CHAPTERS = [
   { href: "09-rich-text.html", no: "第 9 章", title: "書式付きの文字", text: "範囲を表示だけにした理由、1 つの段落として並べて部分ごとに色を付ける仕組み、見えないコードの背景と Linux で落ちた試験。", thumb: "rich/sample" },
   { href: "10-linux.html", no: "第 10 章", title: "Linux の窓（Wayland と X11）", text: "検証用の Linux の PC と AI が画面を操作する道具、境目のファイル 1 つで窓を開く作り、タッチパッドの取りこぼし、後から足したクリップボード・日本語入力・読み上げ・ファイルのダイアログ・複数の窓・GNOME の題の帯・X11 の窓。", thumb: "linux/settings" },
   { href: "11-v030.html", no: "第 11 章", title: "0.3.0 の仕上げと、作者の手の確かめ", text: "0.3.0 の範囲、6 つの宿題、部品の見本、X11 の IBus。作者の 5 回の確かめで見つけた、幅が増え続けるつまみ・押せない棒・二重に見えた棒・消える焦点。", thumb: "v030/gallery-table" },
+  { href: "12-dock.html", no: "第 12 章", title: "ドッキング", text: "4 つの見本から決めた形、並べ方の木をアプリが持つ作り、マウスを使わない操作。小さな的に落とせなかった記録から、ポインターのいる場所で決める形に変えた話。", thumb: "dock/layout" },
 ];
 
 function chapters() {
@@ -353,6 +354,19 @@ ${figure("apps/expenses", "家計簿の見本", "家計簿（<code>examples/expe
     fonts: () => figure("fonts/lines", "複数行の入力欄が 3 つ並ぶ。左から UI の書体、等幅、BIZ UDP ゴシック。どれも同じ行の間で並んでいる", "同じ文を 3 つの書体で出した複数行の入力欄。左から UI の書体（Yu Gothic UI）、<code>.monospace()</code>（BIZ UD ゴシック）、<code>.font(Font::family(\"BIZ UDPGothic\"))</code>。試験台で撮った。", { flat: true }),
     linesfix: () => `${figure("fonts/lines-before", "直す前。等幅と BIZ UDP ゴシックの欄は行がくっつき、欄の高さも低い", "直す前（dd6474e）。等幅と BIZ UDP ゴシックは、行の高さが文字の大きさと同じ 14 ピクセル。", { flat: true })}
   ${figure("fonts/lines", "直した後。3 つの欄とも同じ行の間と高さ", "直した後（b8e9d93）。UI の書体の行の高さに広げ、字を行の真ん中に置く。", { flat: true })}`,
+  },
+  "12-dock.html": {
+    layout: () =>
+      figure(
+        "dock/layout",
+        "左に Files のまとまり、右上に Editor と Notes のタブのまとまり、右下に Output のまとまり。どのタブの横にも小さな閉じるボタンがある",
+        "<code>ui.dock(&amp;mut dock).grow().closable()</code> で並べたパネル（600×360 の窓を試験台で 2 倍で撮った）。まとまりの間の線が仕切り。",
+        { flat: true },
+      ),
+    compare: () => `<div class="pair">
+  ${figure("dock/before", "前の版。Notes のタブを引っ張っている。Editor のまとまりの真ん中に十字の形の 5 つの四角、全体の左・右・下・見出しの帯の下に 1 つずつ四角が出ている", "前の版（小さな的）。右の的に乗ると、まとまりの右半分を塗る。十字の的とは別に、外側の的が全体の端に出る。", { flat: true })}
+  ${figure("dock/after", "今の版。Notes のタブを Editor のまとまりの右寄りまで引っ張っている。四角は無く、まとまりの右半分が薄い青で塗られている", "今の版（場所で決める）。同じ所まで引っ張ると、四角を狙わなくても右半分が塗られる。", { flat: true })}
+</div>`,
   },
   "11-v030.html": {
     gallery: () =>
