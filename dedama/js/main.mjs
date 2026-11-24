@@ -15,6 +15,7 @@ const DEBUG = params.has('debug');
 const canvas = document.getElementById('screen');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
 const bar = document.getElementById('controls');
+const status = document.getElementById('status');
 const stage = document.getElementById('stage');
 
 const G = {
@@ -22,6 +23,8 @@ const G = {
   daySeed: params.has('day') ? Number(params.get('day')) : Math.floor(Date.now() / 86400000),
   fx: new FxLayer(W, H), play: null, scene: null, sceneName: '', shakeT: 0, shakeAmp: 0,
 };
+// canvas の中身は読み上げられないので、選び直した台を見えない status で知らせる（ページを開いた直後は知らせない）
+G.announce = (text) => { if (status) status.textContent = text; };
 const S = makeScenes(G);
 
 G.go = (name) => {

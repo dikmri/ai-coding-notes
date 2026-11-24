@@ -1,4 +1,4 @@
-// パチンコ台 6 種（60×104 × 6）。共通の筐体に、台ごとの枠の色・上の飾り・液晶の絵。題材はすべてオリジナル。
+// パチンコ台 10 種（60×104 × 10）。共通の筐体に、台ごとの枠の色・上の飾り・液晶の絵。題材はすべてオリジナル。
 const THEMES = [
   { id: 'dynamite', main: 'org1', dark: 'org0', light: 'org2', board: 'gold3', crest: 'red2' },
   { id: 'hamster', main: 'pnk1', dark: 'pur1', light: 'white', board: 'pale2', crest: 'gold2' },
@@ -6,6 +6,11 @@ const THEMES = [
   { id: 'crab', main: 'pur1', dark: 'pur0', light: 'pur2', board: 'pale0', crest: 'red2' },
   { id: 'daibutsu', main: 'gold1', dark: 'gold0', light: 'gold2', board: 'brn3', crest: 'pur1' },
   { id: 'hanabi', main: 'red1', dark: 'red0', light: 'red2', board: 'brn3', crest: 'gold2' },
+  // 2026-11-24 に足した 4 台
+  { id: 'sushi', main: 'grn1', dark: 'grn0', light: 'grn2', board: 'brn3', crest: 'red2' },
+  { id: 'laundry', main: 'sky0', dark: 'blu0', light: 'sky2', board: 'night1', crest: 'blu4' },
+  { id: 'yokozuna', main: 'brn1', dark: 'brn0', light: 'brn2', board: 'brn3', crest: 'pur1' },
+  { id: 'maneki', main: 'red2', dark: 'red0', light: 'red3', board: 'gold3', crest: 'gold2' },
 ];
 
 function cabinet(d, t) {
@@ -56,6 +61,19 @@ function crest(d, t, i) {
   } else if (t.id === 'hanabi') { // 花火
     for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2; d.line(30, 9, 30 + Math.cos(a) * 6, 9 + Math.sin(a) * 5, k % 2 ? 'gold2' : 'pnk0'); }
     d.px(30, 9, 'white');
+  } else if (t.id === 'sushi') { // レーンを流れる皿
+    d.rect(6, 11, 48, 3, 'gray2').line(6, 11, 53, 11, 'gray3');
+    [['red2', 'red3'], ['gold2', 'org2'], ['blu2', 'pnk1'], ['red2', 'gold3']].forEach(([rim, fish], k) => {
+      const x = 9 + k * 11;
+      d.oval(x, 8, 9, 5, 'white').oval(x, 8, 9, 5, rim, false).rect(x + 2, 8, 5, 2, 'white').rect(x + 2, 7, 5, 1, fish);
+    });
+  } else if (t.id === 'laundry') { // 泡
+    for (const [x, y, r] of [[9, 6, 6], [17, 8, 4], [24, 5, 7], [33, 7, 5], [40, 5, 6], [48, 8, 4]]) d.oval(x, y, r, r, c, false).px(x + 1, y + 1, 'white');
+  } else if (t.id === 'yokozuna') { // 土俵の吊り屋根と四隅の房
+    d.poly([[8, 11], [30, 4], [52, 11]], c).line(8, 11, 52, 11, 'gold2').line(14, 9, 46, 9, 'pur2');
+    d.rect(8, 11, 3, 3, 'grn2').rect(49, 11, 3, 3, 'white').rect(20, 11, 3, 3, 'red2').rect(37, 11, 3, 3, 'blu2');
+  } else if (t.id === 'maneki') { // 小判が 4 枚
+    for (const x of [9, 20, 31, 42]) d.oval(x, 5, 9, 8, c).oval(x + 1, 6, 7, 6, 'gold3', false).line(x + 3, 8, x + 5, 8, 'gold0').line(x + 3, 10, x + 5, 10, 'gold0');
   }
 }
 
@@ -112,10 +130,53 @@ function lcd(d, t) {
       'R...R.R...R.R...R',
     ], { R: 'gold2' });
     d.line(X + 3, Y + 23, X + 19, Y + 23, 'red2');
+  } else if (t.id === 'sushi') { // のれんの下を、にぎりの皿がレーンで流れる
+    R(0, 0, 30, 26, 'brn3');
+    R(0, 0, 30, 8, 'blu1'); for (let x = 4; x < 30; x += 5) R(x, 0, 1, 8, 'blu0'); R(0, 7, 30, 1, 'blu0');
+    d.px(X + 7, Y + 3, 'white').px(X + 17, Y + 3, 'white').px(X + 22, Y + 3, 'white');
+    R(0, 18, 30, 5, 'gray2'); R(0, 18, 30, 1, 'gray3'); R(0, 22, 30, 1, 'gray0'); R(0, 23, 30, 3, 'brn1');
+    [[0, 'red2', 'red3'], [10, 'gold2', 'org2'], [20, 'blu2', 'pnk1']].forEach(([x, rim, fish]) => {
+      d.oval(X + x, Y + 14, 10, 6, 'white').oval(X + x, Y + 14, 10, 6, rim, false);
+      R(x + 2, 13, 6, 3, 'white'); R(x + 2, 12, 6, 2, fish); R(x + 4, 12, 1, 2, 'white');
+    });
+    d.px(X + 25, Y + 10, 'gold2').px(X + 26, Y + 9, 'gold3').px(X + 4, Y + 10, 'gold2');
+  } else if (t.id === 'laundry') { // 夜の洗濯機。窓の中で泡と靴下が回る
+    R(0, 0, 30, 26, 'night0');
+    d.oval(X + 24, Y + 1, 5, 5, 'gold3').px(X + 25, Y + 2, 'gold2');
+    d.px(X + 2, Y + 3, 'white').px(X + 3, Y + 15, 'white').px(X + 28, Y + 12, 'white');
+    R(6, 4, 18, 21, 'gray3'); R(6, 4, 18, 4, 'gray2'); R(6, 24, 18, 1, 'gray1');
+    d.px(X + 8, Y + 5, 'red2').px(X + 10, Y + 5, 'grn2'); R(18, 5, 4, 2, 'ink');
+    d.oval(X + 8, Y + 9, 14, 14, 'gray1').oval(X + 9, Y + 10, 12, 12, 'blu2');
+    d.oval(X + 11, Y + 13, 7, 6, 'blu3').px(X + 12, Y + 12, 'white').px(X + 17, Y + 17, 'white').px(X + 13, Y + 19, 'blu4');
+    R(15, 15, 3, 2, 'red2'); d.px(X + 17, Y + 14, 'red2');
+    d.line(X + 10, Y + 12, X + 12, Y + 11, 'white');
+  } else if (t.id === 'yokozuna') { // 土俵で四股を踏む横綱
+    R(0, 0, 30, 26, 'shade1');
+    d.px(X + 4, Y + 4, 'white').px(X + 25, Y + 3, 'white').px(X + 6, Y + 7, 'gray3').px(X + 23, Y + 8, 'gray3');
+    d.oval(X + 1, Y + 19, 28, 7, 'brn3').oval(X + 3, Y + 20, 24, 5, 'white', false);
+    d.oval(X + 3, Y + 9, 6, 7, 'skin3').oval(X + 21, Y + 9, 6, 7, 'skin3');
+    d.oval(X + 7, Y + 8, 16, 14, 'skin3').oval(X + 10, Y + 12, 10, 7, 'skin4');
+    d.oval(X + 11, Y + 2, 8, 8, 'skin3'); R(12, 2, 6, 2, 'ink'); R(14, 0, 3, 2, 'ink');
+    d.px(X + 13, Y + 5, 'ink').px(X + 16, Y + 5, 'ink').px(X + 14, Y + 7, 'skin1').px(X + 15, Y + 7, 'skin1');
+    R(8, 17, 14, 3, 'pur1'); R(14, 17, 2, 5, 'pur1'); R(8, 17, 14, 1, 'pur2');
+    R(8, 20, 5, 4, 'skin3'); R(17, 20, 5, 4, 'skin3');
+  } else if (t.id === 'maneki') { // 小判を抱えて手を振る招き猫
+    R(0, 0, 30, 26, 'red1');
+    for (const [x, y] of [[2, 3], [27, 6], [3, 20], [26, 21]]) d.px(X + x, Y + y, 'gold2');
+    d.oval(X + 7, Y + 11, 16, 14, 'white');
+    d.oval(X + 6, Y + 2, 16, 12, 'white');
+    d.poly([[X + 7, Y + 5], [X + 8, Y + 0], [X + 12, Y + 3]], 'white').poly([[X + 21, Y + 5], [X + 20, Y + 0], [X + 16, Y + 3]], 'white');
+    d.px(X + 8, Y + 2, 'pnk1').px(X + 20, Y + 2, 'pnk1');
+    d.oval(X + 15, Y + 3, 5, 4, 'org1');
+    d.oval(X + 22, Y + 1, 5, 6, 'white'); R(22, 5, 3, 6, 'white'); d.px(X + 23, Y + 2, 'pnk1');
+    d.px(X + 9, Y + 8, 'ink').px(X + 10, Y + 7, 'ink').px(X + 11, Y + 8, 'ink').px(X + 16, Y + 8, 'ink').px(X + 17, Y + 7, 'ink').px(X + 18, Y + 8, 'ink');
+    d.px(X + 14, Y + 10, 'pnk0').px(X + 13, Y + 11, 'ink').px(X + 15, Y + 11, 'ink');
+    R(8, 13, 13, 2, 'red2'); d.oval(X + 12, Y + 14, 4, 4, 'gold2');
+    d.oval(X + 9, Y + 17, 11, 7, 'gold2').oval(X + 10, Y + 18, 9, 5, 'gold3', false).line(X + 12, Y + 20, X + 17, Y + 20, 'gold0');
   }
 }
 
 export function make(d) {
   THEMES.forEach((t, i) => { d.frame(i); cabinet(d, t); crest(d, t, i); lcd(d, t); d.outline('ink', { connectivity: 4 }); });
 }
-export const asset = { name: 'machines', w: 60, h: 104, frames: 6, make };
+export const asset = { name: 'machines', w: 60, h: 104, frames: THEMES.length, make };

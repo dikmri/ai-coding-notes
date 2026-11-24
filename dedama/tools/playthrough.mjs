@@ -144,6 +144,32 @@ try {
     note(`晩ごはん ${t} の絵`, got === t && (await E("return !!document.getElementById('screen');")));
     await shot(`16-meal-${t}`);
   }
+  // 2026-11-24 に足した 4 台: 台選びの並びを送る、横綱の大一番と LT、招き猫の空振り（ST リセット）
+  await E("G.go('select');");
+  await waitFor("G.sceneName === 'select'", 3000);
+  const before = await E('return G.machineIndex;');
+  for (let i = 0; i <= before; i++) { await page.key('ArrowLeft'); await sleep(120); } // 左端から回り込んで 10 台目へ
+  const sel = await E('return { i: G.machineIndex, offset: D.S.select.offset, n: D.MACHINES.length, id: D.MACHINES[G.machineIndex].id };');
+  note('台選び: 10 台目まで並びを送れる', sel.n === 10 && sel.i === 9 && sel.offset === 4, JSON.stringify(sel));
+  await sleep(300);
+  await shot('17-select-10');
+  // 早いうちに見たい出来事が起きる種を探して、その日で打つ
+  const playUntil = async (id, want, label, name, msgRe) => {
+    const seed = await E(`return import('/dedama/sim/sim.mjs').then(({ createSession }) => {
+      for (let seed = 1; seed < 400; seed++) { const s = createSession({ machine: '${id}', seed }); s.advanceTo(4 * 3600); if (s.events.some((e) => ${want})) return seed; }
+      return null; });`);
+    if (!seed) { note(label, false, '種が見つからない'); return; }
+    // 知らせは画面に 3 行しか残らないので、出した知らせを全部取っておく
+    await E(`const P = D.S.play; P.__said = []; if (!P.__say) { P.__say = P.say; P.say = function (t, c) { this.__said?.push(t); return this.__say(t, c); }; }
+      const m = D.MACHINES.find((x) => x.id === '${id}'); G.speedOverride = null; G.startPlay(m, m.rpk, ${seed}); G.speedOverride = 8;`);
+    const ok = await waitFor(`G.sceneName === 'play' && G.play.session.events.some((e) => ${want})`, 30000, 20);
+    if (ok) { await E('G.paused = true;'); await sleep(250); await shot(name); }
+    const said = await E('return D.S.play.__said.filter((t) => ' + msgRe + '.test(t));');
+    note(label, ok && said.length > 0, `種 ${seed}: ${said.slice(0, 2).join(' / ')}`);
+    await E('G.paused = false; G.speedOverride = null;');
+  };
+  await playUntil('yokozuna', "e.type === 'hit' && e.fromKey === 'lt'", '横綱: 大一番に勝って LT の当たりが出る', '18-yokozuna-lt', /大一番 勝ち/);
+  await playUntil('maneki', "e.type === 'reset'", '招き猫: 空振り（ST リセット）の知らせが出る', '19-maneki-reset', /空振り/);
   // 記録
   await sleep(1200);
   const errors = page.consoleErrors.filter((e) => !/404|Failed to load resource/.test(e));
