@@ -2426,3 +2426,97 @@ test('unkernel: eyes の黒目がマウスの方へ動き、2 つのカーネル
   assert.equal(at(up, 87, 36 + 16), WHITE);
   assert.deepEqual(Array.from(shot(true, { x: 900, y: 36, b: 0 }).px), Array.from(right.px));
 });
+
+// ---- 行列の掛け算を少ない回数で（tr-20261125-matmul-rank） ----
+const MATMUL = 'tr-20261125-matmul-rank';
+const MM_NAMES = ['seeded', 'mmTensor', 'strassen', 'mulPlain', 'mulWith', 'usedCount', 'countAdds', 'algText', 'wrongCells',
+  'runStart', 'matPlain', 'matStrassen', 'multCount', 'maxDiff', 'omegaFrom', 'omegaRect', 'lowerBound'];
+
+test('行列の積: 表の 1 のマスは m·k·n 個で、Strassen の 7 回は表と整数として一致する', () => {
+  const { mmTensor, strassen, wrongCells, usedCount, countAdds } = trendCore(MATMUL, MM_NAMES);
+  const t = mmTensor(2, 2, 2);
+  assert.equal(t.T.reduce((s, v) => s + v, 0), 8);
+  assert.equal(t.nz.length, 24);
+  assert.equal(mmTensor(2, 3, 4).T.reduce((s, v) => s + v, 0), 24);
+  const st = strassen();
+  assert.equal(wrongCells(t, st), 0);
+  assert.equal(usedCount(st), 7);
+  assert.equal(countAdds(st), 18);
+  // 係数を 1 つ変えると一致しなくなる
+  const bad = { ...st, U: st.U.slice() };
+  bad.U[0] = 0;
+  assert.ok(wrongCells(t, bad) > 0);
+});
+
+test('行列の積: Strassen で掛けた答えは、そのまま掛けた答えと整数で一致し、掛け算は 7 回', () => {
+  const { strassen, mulWith, mulPlain, seeded } = trendCore(MATMUL, MM_NAMES);
+  const st = strassen();
+  const rand = seeded(5);
+  const ri = () => Math.floor(rand() * 41) - 20;
+  for (let n = 0; n < 50; n++) {
+    const A = [ri(), ri(), ri(), ri()], B = [ri(), ri(), ri(), ri()];
+    const res = mulWith(st, A, B);
+    assert.deepEqual(Array.from(res.C), Array.from(mulPlain(A, B, 2, 2, 2)));
+    assert.equal(res.mults, 7);
+  }
+});
+
+test('行列の積: 式の文字は M1 = (A11 + A22)·(B11 + B22) の形になる', () => {
+  const { strassen, algText } = trendCore(MATMUL, MM_NAMES);
+  const tx = algText(strassen());
+  assert.equal(tx.prods.length, 7);
+  assert.equal(tx.prods[0].text, '(A11 + A22)·(B11 + B22)');
+  assert.equal(tx.prods[1].text, '(A21 + A22)·B11');
+  assert.equal(tx.prods[3].text, 'A22·(−B11 + B21)');
+  assert.equal(tx.outs[0].text, 'M1 + M4 − M5 + M7');
+  assert.equal(tx.outs[3].text, 'M1 − M2 + M3 + M6');
+});
+
+test('行列の積: 交互最小二乗法は 2×2 を 7 回で掛けるやり方を見つけ、丸めた係数は −1・0・1 で表と一致する', () => {
+  const { mmTensor, runStart, wrongCells, usedCount } = trendCore(MATMUL, MM_NAMES);
+  const ten = mmTensor(2, 2, 2);
+  let exact = null, seed = 1;
+  for (; seed <= 16 && !exact; seed++) {
+    const st = runStart(ten, 7, seed, 2000);
+    if (st.result === 'exact') exact = st.exact;
+  }
+  assert.ok(exact, '種 1〜16 のどれかで正確なやり方が見つかる');
+  assert.equal(wrongCells(ten, exact), 0);
+  assert.equal(usedCount(exact), 7);
+  for (const v of [...exact.U, ...exact.V, ...exact.W]) assert.ok(v === -1 || v === 0 || v === 1);
+});
+
+test('行列の積: 2×2 を 6 回では、どの始めも誤差が 0 に近づかない', () => {
+  const { mmTensor, runStart } = trendCore(MATMUL, MM_NAMES);
+  const ten = mmTensor(2, 2, 2);
+  for (let seed = 1; seed <= 6; seed++) {
+    const st = runStart(ten, 6, seed, 2000);
+    assert.equal(st.result, 'stuck');
+    assert.ok(st.err > 0.1, '種 ' + seed + ' の誤差 ' + st.err);
+  }
+});
+
+test('行列の積: 大きな行列の Strassen はそのまま掛けた答えと合い、掛け算の回数は 1 段ごとに 7/8 倍', () => {
+  const { matPlain, matStrassen, multCount, maxDiff, seeded } = trendCore(MATMUL, MM_NAMES);
+  const rand = seeded(11), n = 64;
+  const A = new Float64Array(n * n), B = new Float64Array(n * n);
+  for (let i = 0; i < n * n; i++) { A[i] = rand() * 2 - 1; B[i] = rand() * 2 - 1; }
+  assert.ok(maxDiff(matPlain(A, B, n), matStrassen(A, B, n, 8)) < 1e-9);
+  assert.equal(multCount(64, 64), 262144);
+  assert.equal(multCount(64, 8), 343 * 512);
+  // 奇数になったらそのまま掛ける
+  assert.equal(multCount(6, 1), 7 * 27);
+});
+
+test('行列の積: 指数の式と、論文の下界 n^{9/4} の切り上げ', () => {
+  const { omegaFrom, omegaRect, lowerBound } = trendCore(MATMUL, MM_NAMES);
+  assert.ok(near(omegaFrom(2, 7), Math.log2(7)));
+  assert.ok(near(omegaRect(2, 2, 2, 7), Math.log2(7)));
+  // Bini ほかの 2×2 と 2×3 の 10 回から出る指数 2.7799
+  assert.ok(near(omegaRect(2, 2, 3, 10), 2.7799, 1e-4));
+  assert.equal(lowerBound(2), 5);
+  assert.equal(lowerBound(3), 12);
+  assert.equal(lowerBound(4), 23);
+  assert.equal(lowerBound(16), 512);
+  assert.equal(lowerBound(81), 19683);
+});

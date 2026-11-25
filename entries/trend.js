@@ -15370,3 +15370,1008 @@ msg1: .string "0 番地を読んでみます……\\n"
     requestAnimationFrame((t) => { acc.t = t; tick(t); });
   },
 });
+
+dekiru.add({
+  id: 'tr-20261125-matmul-rank', c: 'trend', lv: 3, date: '2026-11-25',
+  t: '行列の掛け算を少ない回数で済ませるやり方をブラウザが自分で探し、回数から計算量の指数を出す（行列の積の指数は 9/4 という OpenAI の論文）',
+  y: 'ぎょうれつのかけざんをすくないかいすうですませるやりかたをぶらうざがじぶんでさがし かいすうからけいさんりょうのしすうをだす',
+  tags: ['行列の積の指数', 'Strassen のアルゴリズム', 'テンソル分解', '交互最小二乗法', 'Canvas'],
+  d: '2026年11月24日、OpenAI は数学の成果を置く GitHub のリポジトリ openai/math に、論文「The matrix multiplication exponent is nine fourths」を公開した。2 つの n×n の行列を掛ける計算の回数が n の何乗で増えるかを表す指数 ω が、どの体でもちょうど 9/4（2.25）だと主張している。上界の 9/4 は、10月2日に同じ OpenAI の論文が複素数の場合で示し、その後ほかの研究者がどの体でも成り立つことを示した。今回の論文は下界を示したもので、n×n の掛け算を「足し算で作った 2 つの値の積」を組み合わせて行う（双線形の計算）と、どの n でも少なくとも n^(9/4) 回の掛け算が要るという。25 日の Hacker News では掲載から約 2 時間で 153 点になり、OpenAI の Sebastien Bubeck さんは X に、これまで下界は何も知られていなかったと書いた（いいね 731 件）。まだ第三者による確認は済んでいない。この見本は、その土台にある考え方を 3 つの部分で動かす。1 つ目は Strassen（1969 年）のやり方で、2×2 の積を 8 回ではなく 7 回の掛け算で求める。大きな行列では、このブラウザでの時間も測る。2 つ目では、行列の積を表す 0 と 1 の 3 次元の表（テンソル）を r 個の積の和に分ける計算を、乱数から何度も始める交互最小二乗法で行い、少ない回数のやり方をブラウザが自分で探す。2×2 では r = 7 で誤差がほぼ 0 になる始めがあり、係数を −1・0・1 に丸めても正確なまま残れば、Strassen と同じ 7 回のやり方が見つかったことになる。r = 6 では誤差が 0 に近づかない（2×2 は 7 回より減らせないことが知られている）。3 つ目では、n×n を r 回で掛けられれば指数は log_n r 以下になるという式を計算し、論文の下界 n^(9/4) と、小さな n で知られている回数を並べる。再現していない所: 論文の証明（テンソルの網の圧縮と、いくつかの単語の並びに同じ単語が無いかを調べる計算の下界）は扱っていない。指数 9/4 に届くやり方も作れない。10 月の論文も、具体的な大きさで速いやり方は示していないと書いている。探す計算は 2×2 と 2×2×3 だけにした。3×3 の 23 回（Laderman、1976 年）は、この簡単な探し方では見つからなかった。',
+  p: '掛け算の回数は、行列の積を表す 3 次元の表（テンソル）を何個の「3 つの列の積」の和に分けられるか（ランク）と同じになる。U・V・W の t 列目が掛け算 M_t の作り方で、表の全部のマスで Σ_t U[a][t]·V[b][t]·W[c][t] が 0 か 1 に一致すれば、どんな A・B でも正しい積が出る。交互最小二乗法では、V と W を固定すると U の式が一次になるので、r×r の連立一次方程式（係数の行列は (VᵀV)∘(WᵀW)）を 1 つ解けば U の一番よい値が決まる。これを U→V→W の順に繰り返す。誤差がほぼ 0 になったら、係数を −1・0・1 へ少しずつ引き寄せる項を足して解き直し、丸めても誤差が 0 のままなら正確なやり方として採る。n×n を r 回で掛けられれば、N×N の行列を n×n の塊に分けて同じやり方を k 回重ねられ、N = n^k のとき掛け算は r^k = N^(log_n r) 回になる。指数を 9/4 より下げるには、どこかの n で r < n^(9/4) のやり方が要るが、今回の論文はそれが無いと主張している。',
+  refs: [
+    { title: 'OpenAI「The matrix multiplication exponent is nine fourths」（2026-11-24。下界を示した論文、PDF）', url: 'https://github.com/openai/math/blob/main/preprints/The-matrix-multiplication-exponent-is-nine-fourths-November-24-2026/paper.pdf' },
+    { title: 'OpenAI「An Upper Bound of 9/4 for the Matrix Multiplication Exponent」（2026-10-02。上界を示した論文、PDF）', url: 'https://github.com/openai/math/blob/main/preprints/Matrix-Multiplication-Nine-Fourths-October-2-2026/paper.pdf' },
+    { title: 'Hacker News: Matrix Multiplication is Θ(n^2.25)（2026-11-25）', url: 'https://news.ycombinator.com/item?id=50637220' },
+    { title: 'Sebastien Bubeck さんの X の投稿（2026-11-25、上界の次に下界が示されたことの紹介）', url: 'https://x.com/SebastienBubeck/status/2125402576145572334' },
+  ],
+  html: `<div class="app">
+  <section class="sec" id="s1" aria-labelledby="s1h">
+    <h2 id="s1h">1. 2×2 の行列を 7 回の掛け算で掛ける（Strassen、1969 年）</h2>
+    <p class="lead">そのまま掛けると、A の行と B の列の組ごとに 2 回ずつ、合わせて 8 回の掛け算が要る。Strassen は足し算と引き算を増やす代わりに、掛け算を 7 回に減らした。</p>
+    <div class="mats" id="s1mats"></div>
+    <div class="s1cols">
+      <ol class="eqs" id="s1prods" aria-label="7 回の掛け算"></ol>
+      <ul class="eqs" id="s1outs" aria-label="7 つの積から C を組み立てる"></ul>
+    </div>
+    <p class="cnt" id="s1cnt"></p>
+    <div class="ctl">
+      <button type="button" id="s1shuffle">数を変える</button>
+      <button type="button" id="s1bench">大きな行列で時間を比べる</button>
+      <span class="mut" id="s1bst" aria-live="polite"></span>
+    </div>
+    <div class="tblwrap" id="s1tbl" hidden>
+      <table>
+        <caption>乱数の実数の行列で 2 回ずつ測り、速かった方の時間。Strassen は 64×64 まで分けたら、そこからはそのまま掛ける</caption>
+        <thead><tr><th scope="col">大きさ</th><th scope="col">そのまま: 掛け算</th><th scope="col">時間</th><th scope="col">Strassen: 掛け算</th><th scope="col">時間</th><th scope="col">時間の比</th><th scope="col">答えの差</th></tr></thead>
+        <tbody id="s1tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="sec" id="s2" aria-labelledby="s2h">
+    <h2 id="s2h">2. 少ない回数のやり方をブラウザが探す</h2>
+    <p class="lead">2×2 の積は、A の 4 個 × B の 4 個 × C の 4 個 = 64 マスの表で表せる。A の (i, j) と B の (j, l) の積が C の (i, l) に足されるマスだけが 1 になる。この表を r 個の「A の係数の列 × B の係数の列 × C の係数の列」の和にちょうど分けられれば、掛け算 r 回のやり方になる。乱数から始め、3 つの係数の表を 1 つずつ最小二乗法で直すことを繰り返す（交互最小二乗法）。</p>
+    <div class="ctl">
+      <label>大きさ <select id="s2size"><option value="2,2,2">2×2 と 2×2</option><option value="2,2,3">2×2 と 2×3</option></select></label>
+      <label>掛け算の回数 r <input id="s2r" type="number" min="1" max="14" step="1" value="7" inputmode="numeric"></label>
+      <button type="button" id="s2go" class="main">探す</button>
+      <button type="button" id="s2halt" disabled>止める</button>
+    </div>
+    <canvas id="s2cv" role="img" aria-label="誤差の変わり方のグラフ"></canvas>
+    <div class="legend" aria-hidden="true">
+      <span><i style="background:#2f6f8f"></i>今動いている始め</span>
+      <span><i style="background:#2e7d4f"></i>丸めても正確なまま</span>
+      <span><i style="background:#c07a12"></i>誤差はほぼ 0 だが丸めると崩れる</span>
+      <span><i style="background:#a39e94"></i>下がらなくなった・決めた回数までに 0 にならなかった</span>
+      <span>横は繰り返しの回数、縦は誤差（表と和の差の大きさ、対数の目盛り）</span>
+    </div>
+    <p class="sum" id="s2sum"></p>
+    <p class="sr" id="s2live" aria-live="polite"></p>
+    <div class="found" id="s2found" hidden>
+      <p class="fhead" id="s2fhead"></p>
+      <div class="grids" id="s2grids" aria-hidden="true"></div>
+      <pre class="formula" id="s2formula"></pre>
+      <p class="check" id="s2check"></p>
+    </div>
+  </section>
+
+  <section class="sec" id="s3" aria-labelledby="s3h">
+    <h2 id="s3h">3. 回数から指数を出す</h2>
+    <p class="lead">n×n を r 回の掛け算で掛けられれば、大きな行列を n×n の塊に分け、塊どうしの掛け算にも同じやり方を使える。これを繰り返すと、N×N の掛け算は約 N^(log_n r) 回になる。</p>
+    <div class="ctl">
+      <label>塊の大きさ n <input id="s3n" type="number" min="2" max="64" step="1" value="2" inputmode="numeric"></label>
+      <label>掛け算の回数 r <input id="s3r" type="number" min="1" max="1000000" step="1" value="7" inputmode="numeric"></label>
+    </div>
+    <p class="om"><output id="s3om" for="s3n s3r"></output></p>
+    <div class="tblwrap">
+      <table>
+        <caption>n×n の掛け算の回数。論文の下界は「双線形の計算なら少なくとも n^(9/4) 回」</caption>
+        <thead><tr><th scope="col">n</th><th scope="col">そのまま n³</th><th scope="col">論文の下界</th><th scope="col">知られている回数</th><th scope="col">指数 log_n r</th><th scope="col" class="l">どのやり方か</th></tr></thead>
+        <tbody id="s3known"></tbody>
+      </table>
+    </div>
+    <label class="rangel">行列の大きさ N <input id="s3N" type="range" min="1" max="6" step="0.05" value="4"> <output id="s3No" for="s3N"></output></label>
+    <canvas id="s3cv" role="img" aria-label="指数ごとの掛け算の回数のグラフ"></canvas>
+    <div class="tblwrap">
+      <table>
+        <caption id="s3cap">N×N の掛け算の回数（定数の倍率は 1 とし、指数の違いだけを比べる）</caption>
+        <thead><tr><th scope="col">指数</th><th scope="col" class="l">どの値か</th><th scope="col">掛け算の回数</th><th scope="col">そのままとの比</th></tr></thead>
+        <tbody id="s3cnt"></tbody>
+      </table>
+    </div>
+  </section>
+</div>`,
+  css: `:root { color-scheme: light; --bg: #f6f4ef; --fg: #22201c; --mut: #5f594f; --line: #d8d2c6; --panel: #fffdf9; --acc: #2f6f8f; --ok: #2e7d4f; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.6 system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    .app { box-sizing: border-box; max-inline-size: 980px; margin-inline: auto; padding: 10px 12px 16px; display: grid; gap: 14px; }
+    .sec { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px 12px; min-inline-size: 0; }
+    h2 { font-size: 15px; line-height: 1.45; margin: 0 0 4px; }
+    .lead { margin: 0 0 8px; font-size: 13px; color: var(--mut); }
+    .mut { color: var(--mut); font-size: 13px; }
+    .ctl { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-block: 8px 6px; }
+    .ctl label { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+    input[type=number] { inline-size: 6em; }
+    button { font-size: 13px; }
+    button.main { background: var(--acc); border-color: var(--acc); color: #fff; }
+    button:disabled { opacity: .5; cursor: default; }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+    .mats { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+    .matw { display: flex; align-items: center; gap: 5px; }
+    .ml { font-weight: 600; }
+    .mat { display: grid; gap: 2px 10px; padding: 2px 8px; border-inline: 2px solid var(--fg); border-radius: 7px; font-variant-numeric: tabular-nums; text-align: end; }
+    .op { font-size: 18px; color: var(--mut); }
+    .s1cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 0 18px; }
+    .eqs { margin: 8px 0 0; padding-inline-start: 1.4em; font: 12.5px/1.75 ui-monospace, Consolas, monospace; }
+    #s1outs { list-style: none; padding-inline-start: 0; }
+    .eqs li { overflow-wrap: anywhere; }
+    .ok { color: var(--ok); font-family: system-ui, sans-serif; }
+    .cnt { margin: 6px 0 0; font-size: 13px; }
+    .tblwrap { overflow-x: auto; margin-top: 8px; }
+    table { border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+    th, td { border-bottom: 1px solid var(--line); padding: 3px 8px; text-align: end; white-space: nowrap; }
+    th { font-weight: 600; color: var(--mut); }
+    th:first-child, td:first-child { text-align: start; }
+    td.l, th.l { text-align: start; white-space: normal; min-inline-size: 14em; }
+    caption { text-align: start; font-size: 12.5px; color: var(--mut); padding-bottom: 4px; }
+    canvas { display: block; inline-size: 100%; block-size: 240px; border-radius: 8px; border: 1px solid var(--line); background: #fffdf9; }
+    .legend { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 12px; color: var(--mut); margin-top: 4px; }
+    .legend i { display: inline-block; inline-size: 14px; block-size: 3px; vertical-align: middle; margin-inline-end: 4px; }
+    .sum { margin: 6px 0 0; font-size: 13px; min-block-size: 3.2em; }
+    .found { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; }
+    .fhead { margin: 0; font-size: 13px; font-weight: 600; }
+    .grids { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-block: 8px; }
+    .gt { font-size: 12px; color: var(--mut); margin-bottom: 2px; }
+    .grid { display: grid; gap: 1px; font: 11px/1 ui-monospace, Consolas, monospace; }
+    .grid span { block-size: 1.8em; display: grid; place-items: center; border-radius: 2px; }
+    .grid .gh, .grid .rl { color: var(--mut); }
+    .grid .rl { justify-items: end; padding-inline-end: 5px; }
+    .formula { margin: 6px 0; font: 12.5px/1.65 ui-monospace, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg); padding: 6px 8px; border-radius: 6px; }
+    .check { margin: 0; font-size: 13px; }
+    .om { margin: 0; font-size: 13px; min-block-size: 3.2em; }
+    .rangel { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; margin-top: 10px; }
+    .rangel input { flex: 1 1 200px; min-inline-size: 0; accent-color: var(--acc); }
+    #s3cv { block-size: 250px; margin-top: 6px; }
+    .sr { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; margin: 0; }
+    .sw { display: inline-block; inline-size: 12px; block-size: 3px; vertical-align: middle; margin-inline-end: 5px; }
+    .thumb .app { padding: 6px; gap: 0; }
+    .thumb #s1, .thumb #s3, .thumb #s2 .lead, .thumb #s2 .ctl, .thumb #s2found, .thumb .legend { display: none !important; }
+    .thumb .sec { padding: 6px 8px; }
+    .thumb #s2cv { block-size: 148px; }
+    .thumb .sum { font-size: 12px; min-block-size: 0; margin-top: 4px; }`,
+  core() {
+    // ---- 種を決めると同じ並びになる乱数 ----
+    function seeded(seed) {
+      let s = seed >>> 0;
+      return function () {
+        s = (s + 0x6d2b79f5) >>> 0;
+        let t = s;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    // ---- 行列の積を表す 3 次元の表（テンソル） ----
+    // m×k の A と k×n の B の積 C（m×n）。A の (i,j) は a = i*k+j、B の (j,l) は b = j*n+l、C の (i,l) は c = i*n+l。
+    // A の a 番目と B の b 番目の積が C の c 番目に足されるマスだけ 1 にする。nz は 1 のマスの (a, b, c) の並び
+    function mmTensor(m, k, n) {
+      const na = m * k, nb = k * n, nc = m * n;
+      const T = new Float64Array(na * nb * nc);
+      const nz = [];
+      for (let i = 0; i < m; i++) for (let j = 0; j < k; j++) for (let l = 0; l < n; l++) {
+        const a = i * k + j, b = j * n + l, c = i * n + l;
+        T[a * nb * nc + b * nc + c] = 1;
+        nz.push(a, b, c);
+      }
+      return { m, k, n, na, nb, nc, T, nz: Int32Array.from(nz) };
+    }
+    // 要素の名前（A11, A12, …）
+    function entryNames(rows, cols, ch) {
+      const out = [];
+      for (let i = 1; i <= rows; i++) for (let j = 1; j <= cols; j++) out.push(ch + i + j);
+      return out;
+    }
+
+    // ---- 掛け算 r 回のやり方（双線形の計算） ----
+    // M_t = (Σ_a U[a][t]·A_a)(Σ_b V[b][t]·B_b)、C_c = Σ_t W[c][t]·M_t。係数は行の順の平らな配列（U[a*r+t]）
+    function strassen() {
+      return {
+        m: 2, k: 2, n: 2, r: 7,
+        // 行は A11 A12 A21 A22、列は M1〜M7
+        U: [1, 0, 1, 0, 1, -1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, -1],
+        // 行は B11 B12 B21 B22
+        V: [1, 1, 0, -1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, -1, 0, 1, 0, 1],
+        // 行は C11 C12 C21 C22
+        W: [1, 0, 0, 1, -1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, -1, 1, 0, 0, 1, 0],
+      };
+    }
+    // そのまま掛ける（小さな行列。A は m×k、B は k×n の平らな配列）
+    function mulPlain(A, B, m, k, n) {
+      const C = new Array(m * n).fill(0);
+      for (let i = 0; i < m; i++) for (let l = 0; l < n; l++) {
+        let s = 0;
+        for (let j = 0; j < k; j++) s += A[i * k + j] * B[j * n + l];
+        C[i * n + l] = s;
+      }
+      return C;
+    }
+    // t 番目の掛け算が答えに使われるか（U・V・W のどの列も 0 だけではない）
+    function isUsed(alg, t) {
+      const { m, k, n, r, U, V, W } = alg;
+      let u = false, v = false, w = false;
+      for (let a = 0; a < m * k; a++) if (U[a * r + t]) u = true;
+      for (let b = 0; b < k * n; b++) if (V[b * r + t]) v = true;
+      for (let c = 0; c < m * n; c++) if (W[c * r + t]) w = true;
+      return u && v && w;
+    }
+    function usedCount(alg) {
+      let s = 0;
+      for (let t = 0; t < alg.r; t++) if (isUsed(alg, t)) s++;
+      return s;
+    }
+    // やり方 alg で掛ける。M は各掛け算の値、mults は実際に行った掛け算の回数
+    function mulWith(alg, A, B) {
+      const { m, k, n, r, U, V, W } = alg;
+      const M = new Array(r).fill(0);
+      let mults = 0;
+      for (let t = 0; t < r; t++) {
+        if (!isUsed(alg, t)) continue;
+        let x = 0, y = 0;
+        for (let a = 0; a < m * k; a++) if (U[a * r + t]) x += U[a * r + t] * A[a];
+        for (let b = 0; b < k * n; b++) if (V[b * r + t]) y += V[b * r + t] * B[b];
+        M[t] = x * y;
+        mults++;
+      }
+      const C = new Array(m * n).fill(0);
+      for (let c = 0; c < m * n; c++) {
+        let s = 0;
+        for (let t = 0; t < r; t++) if (W[c * r + t]) s += W[c * r + t] * M[t];
+        C[c] = s;
+      }
+      return { C, M, mults };
+    }
+    // 足し算と引き算の回数（途中の和を使い回さない数え方）
+    function countAdds(alg) {
+      const { m, k, n, r, U, V, W } = alg;
+      let s = 0;
+      for (let t = 0; t < r; t++) {
+        if (!isUsed(alg, t)) continue;
+        let u = 0, v = 0;
+        for (let a = 0; a < m * k; a++) if (U[a * r + t]) u++;
+        for (let b = 0; b < k * n; b++) if (V[b * r + t]) v++;
+        s += u - 1 + v - 1;
+      }
+      for (let c = 0; c < m * n; c++) {
+        let w = 0;
+        for (let t = 0; t < r; t++) if (W[c * r + t] && isUsed(alg, t)) w++;
+        if (w) s += w - 1;
+      }
+      return s;
+    }
+    // 係数と名前の組 [[係数, 名前], …] を「A11 + A22」の形の文字にする
+    function sumText(terms) {
+      let s = '';
+      terms.forEach(([c, nm], i) => {
+        const mag = Math.abs(c);
+        const body = (mag === 1 ? '' : String(mag) + '·') + nm;
+        if (i === 0) s += (c < 0 ? '−' : '') + body;
+        else s += (c < 0 ? ' − ' : ' + ') + body;
+      });
+      return s || '0';
+    }
+    // やり方を式の文字にする。使わない掛け算は飛ばし、使う物に M1 から番号を振り直す
+    function algText(alg) {
+      const { m, k, n, r, U, V, W } = alg;
+      const an = entryNames(m, k, 'A'), bn = entryNames(k, n, 'B'), cn = entryNames(m, n, 'C');
+      const wrap = (ts) => (ts.length > 1 || ts[0][0] !== 1 ? '(' + sumText(ts) + ')' : ts[0][1]);
+      const prods = [];
+      for (let t = 0; t < r; t++) {
+        if (!isUsed(alg, t)) continue;
+        const left = [], right = [];
+        for (let a = 0; a < an.length; a++) if (U[a * r + t]) left.push([U[a * r + t], an[a]]);
+        for (let b = 0; b < bn.length; b++) if (V[b * r + t]) right.push([V[b * r + t], bn[b]]);
+        prods.push({ t, name: 'M' + (prods.length + 1), left, right, text: wrap(left) + '·' + wrap(right) });
+      }
+      const outs = [];
+      for (let c = 0; c < cn.length; c++) {
+        const terms = [];
+        for (const p of prods) if (W[c * r + p.t]) terms.push([W[c * r + p.t], p.name]);
+        outs.push({ name: cn[c], terms, text: sumText(terms) });
+      }
+      return { prods, outs, an, bn, cn };
+    }
+    // 全部のマスで、表とやり方の和が整数として一致しないマスの数（0 なら正確なやり方）
+    function wrongCells(ten, alg) {
+      const { r, U, V, W } = alg;
+      let bad = 0;
+      for (let a = 0; a < ten.na; a++) for (let b = 0; b < ten.nb; b++) for (let c = 0; c < ten.nc; c++) {
+        let v = ten.T[a * ten.nb * ten.nc + b * ten.nc + c];
+        for (let t = 0; t < r; t++) v -= U[a * r + t] * V[b * r + t] * W[c * r + t];
+        if (v !== 0) bad++;
+      }
+      return bad;
+    }
+
+    // ---- 交互最小二乗法で探す ----
+    // G X = R（G は r×r、R は r×cols）を部分ピボットのガウスの消去法で解く。解けなければ null
+    function solveSmall(G, R, r, cols) {
+      const M = Float64Array.from(G), X = Float64Array.from(R);
+      for (let p = 0; p < r; p++) {
+        let best = p, bv = Math.abs(M[p * r + p]);
+        for (let q = p + 1; q < r; q++) { const v = Math.abs(M[q * r + p]); if (v > bv) { bv = v; best = q; } }
+        if (!(bv > 1e-300)) return null;
+        if (best !== p) {
+          for (let j = 0; j < r; j++) { const t = M[p * r + j]; M[p * r + j] = M[best * r + j]; M[best * r + j] = t; }
+          for (let j = 0; j < cols; j++) { const t = X[p * cols + j]; X[p * cols + j] = X[best * cols + j]; X[best * cols + j] = t; }
+        }
+        const d = M[p * r + p];
+        for (let q = p + 1; q < r; q++) {
+          const f = M[q * r + p] / d;
+          if (!f) continue;
+          for (let j = p; j < r; j++) M[q * r + j] -= f * M[p * r + j];
+          for (let j = 0; j < cols; j++) X[q * cols + j] -= f * X[p * cols + j];
+        }
+      }
+      for (let p = r - 1; p >= 0; p--) {
+        const d = M[p * r + p];
+        for (let j = 0; j < cols; j++) {
+          let s = X[p * cols + j];
+          for (let q = p + 1; q < r; q++) s -= M[p * r + q] * X[q * cols + j];
+          X[p * cols + j] = s / d;
+        }
+      }
+      for (let i = 0; i < X.length; i++) if (!Number.isFinite(X[i])) return null;
+      return X;
+    }
+    function newSearch(ten, r, seed) {
+      const rand = seeded(seed);
+      const mk = (len) => { const X = new Float64Array(len * r); for (let i = 0; i < X.length; i++) X[i] = rand() * 2 - 1; return X; };
+      return { ten, r, seed, U: mk(ten.na), V: mk(ten.nb), W: mk(ten.nc), it: 0, rit: 0, phase: 'als', lam: 0.1, mu: 0, err: Infinity, mark: Infinity, hist: [], real: null, exact: null, result: '' };
+    }
+    // md = 0 なら U を、1 なら V を、2 なら W を、ほかの 2 つを固定して最小二乗法で決め直す。
+    // tg と mu を渡すと、係数を tg へ引き寄せる項 mu·|X − tg|² も足す
+    function updateFactor(st, md, lam, tg, mu) {
+      const { ten, r } = st;
+      const F = [st.U, st.V, st.W], dims = [ten.na, ten.nb, ten.nc];
+      const X = F[md], P = F[(md + 1) % 3], Q = F[(md + 2) % 3];
+      const nx = dims[md], np = dims[(md + 1) % 3], nq = dims[(md + 2) % 3];
+      const G = new Float64Array(r * r);
+      for (let s = 0; s < r; s++) for (let t = s; t < r; t++) {
+        let a = 0, b = 0;
+        for (let i = 0; i < np; i++) a += P[i * r + s] * P[i * r + t];
+        for (let i = 0; i < nq; i++) b += Q[i * r + s] * Q[i * r + t];
+        G[s * r + t] = G[t * r + s] = a * b;
+      }
+      for (let s = 0; s < r; s++) G[s * r + s] += lam + mu;
+      const R = new Float64Array(r * nx);
+      const nz = ten.nz;
+      for (let z = 0; z < nz.length; z += 3) {
+        const x = nz[z + md], p = nz[z + (md + 1) % 3], q = nz[z + (md + 2) % 3];
+        for (let t = 0; t < r; t++) R[t * nx + x] += P[p * r + t] * Q[q * r + t];
+      }
+      if (mu) for (let x = 0; x < nx; x++) for (let t = 0; t < r; t++) R[t * nx + x] += mu * tg[x * r + t];
+      const S = solveSmall(G, R, r, nx);
+      if (!S) return false;
+      for (let x = 0; x < nx; x++) for (let t = 0; t < r; t++) X[x * r + t] = S[t * nx + x];
+      return true;
+    }
+    // 表とやり方の和の差の大きさ（全部のマスの差の二乗和の平方根）
+    function residual(st) {
+      const { ten, r, U, V, W } = st;
+      let s = 0;
+      for (let a = 0; a < ten.na; a++) for (let b = 0; b < ten.nb; b++) for (let c = 0; c < ten.nc; c++) {
+        let v = ten.T[a * ten.nb * ten.nc + b * ten.nc + c];
+        for (let t = 0; t < r; t++) v -= U[a * r + t] * V[b * r + t] * W[c * r + t];
+        s += v * v;
+      }
+      return Math.sqrt(s);
+    }
+    // 1 つの掛け算の 3 つの列の大きさをそろえる（1 つだけ大きくなって計算が止まるのを防ぐ）
+    function balance(st) {
+      const { ten, r, U, V, W } = st;
+      const nrm = (X, len, t) => { let s = 0; for (let i = 0; i < len; i++) s += X[i * r + t] * X[i * r + t]; return Math.sqrt(s); };
+      for (let t = 0; t < r; t++) {
+        const a = nrm(U, ten.na, t), b = nrm(V, ten.nb, t), c = nrm(W, ten.nc, t);
+        if (!(a > 0 && b > 0 && c > 0)) continue;
+        const g = Math.cbrt(a * b * c);
+        for (let i = 0; i < ten.na; i++) U[i * r + t] *= g / a;
+        for (let i = 0; i < ten.nb; i++) V[i * r + t] *= g / b;
+        for (let i = 0; i < ten.nc; i++) W[i * r + t] *= g / c;
+      }
+    }
+    // U と V の列の一番大きい値が 1 になるよう、大きさを W の列へ移す（丸める前の準備）
+    function normCols(st) {
+      const { ten, r, U, V, W } = st;
+      for (let t = 0; t < r; t++) {
+        let a = 0, b = 0;
+        for (let i = 0; i < ten.na; i++) if (Math.abs(U[i * r + t]) > Math.abs(a)) a = U[i * r + t];
+        for (let i = 0; i < ten.nb; i++) if (Math.abs(V[i * r + t]) > Math.abs(b)) b = V[i * r + t];
+        if (!a || !b) continue;
+        for (let i = 0; i < ten.na; i++) U[i * r + t] /= a;
+        for (let i = 0; i < ten.nb; i++) V[i * r + t] /= b;
+        for (let i = 0; i < ten.nc; i++) W[i * r + t] *= a * b;
+      }
+    }
+    const snap = (X) => Array.from(X, (v) => Math.max(-1, Math.min(1, Math.round(v))) || 0);
+    function rounded(st) {
+      const { ten, r } = st;
+      return { m: ten.m, k: ten.k, n: ten.n, r, U: snap(st.U), V: snap(st.V), W: snap(st.W) };
+    }
+    function copyReal(st) {
+      const { ten, r } = st;
+      return { m: ten.m, k: ten.k, n: ten.n, r, U: Array.from(st.U), V: Array.from(st.V), W: Array.from(st.W), err: st.err };
+    }
+    function sweep(st, lam, tg, mu) {
+      for (let md = 0; md < 3; md++) if (!updateFactor(st, md, lam, tg ? tg[md] : null, mu)) return false;
+      return true;
+    }
+    function toRound(st) {
+      st.real = copyReal(st);
+      normCols(st);
+      st.phase = 'round';
+      st.mu = 1e-3;
+      st.rit = 0;
+    }
+    // 誤差をほぼ 0 にする段階。5 回ごとに誤差を記録し、減らなくなったらあきらめる
+    function stepAls(st, maxIt) {
+      if (!sweep(st, st.lam, null, 0)) { st.phase = 'done'; st.result = 'stuck'; return; }
+      balance(st);
+      st.it++;
+      if (st.it % 5) return;
+      const e = residual(st);
+      if (!Number.isFinite(e)) { st.phase = 'done'; st.result = 'stuck'; return; }
+      st.err = e;
+      st.hist.push(st.it, e);
+      st.lam = e < 1e-4 ? 1e-13 : Math.min(0.1, e * 0.05);
+      if (e < 1e-11) { toRound(st); return; }
+      if (st.it % 200 === 0) {
+        if (st.it >= 600 && e > 1e-3 && e > st.mark * 0.999) { st.phase = 'done'; st.result = 'stuck'; return; }
+        st.mark = e;
+      }
+      if (st.it >= maxIt) {
+        if (e < 1e-6) toRound(st);
+        else { st.phase = 'done'; st.result = 'stuck'; }
+      }
+    }
+    // 係数を −1・0・1 へ引き寄せる段階。丸めた係数で表と一致したら正確なやり方
+    function stepRound(st) {
+      const tg = [snap(st.U), snap(st.V), snap(st.W)];
+      if (!sweep(st, 1e-9, tg, st.mu)) { st.phase = 'done'; st.result = 'real'; return; }
+      st.mu = Math.min(10, st.mu * 1.01);
+      st.rit++;
+      if (st.rit % 10 && st.rit < 1500) return;
+      const alg = rounded(st);
+      if (wrongCells(st.ten, alg) === 0) { st.exact = alg; st.phase = 'done'; st.result = 'exact'; return; }
+      if (st.rit >= 1500) { st.phase = 'done'; st.result = 'real'; }
+    }
+    // steps 回だけ進める。終わったら true
+    function advance(st, steps, maxIt) {
+      for (let s = 0; s < steps && st.phase !== 'done'; s++) {
+        if (st.phase === 'als') stepAls(st, maxIt);
+        else stepRound(st);
+      }
+      return st.phase === 'done';
+    }
+    // 最後まで一度に動かす（テスト用）
+    function runStart(ten, r, seed, maxIt) {
+      const st = newSearch(ten, r, seed);
+      while (!advance(st, 1000, maxIt)) { /* 終わるまで進める */ }
+      return st;
+    }
+
+    // ---- 大きな行列 ----
+    function matPlain(A, B, n) {
+      const C = new Float64Array(n * n);
+      for (let i = 0; i < n; i++) {
+        const ci = i * n;
+        for (let k = 0; k < n; k++) {
+          const a = A[ci + k];
+          if (!a) continue;
+          const bk = k * n;
+          for (let j = 0; j < n; j++) C[ci + j] += a * B[bk + j];
+        }
+      }
+      return C;
+    }
+    // Strassen を繰り返す。cut 以下の大きさか奇数になったら、そのまま掛ける
+    function matStrassen(A, B, n, cut) {
+      if (n <= cut || n % 2) return matPlain(A, B, n);
+      const h = n / 2, hh = h * h;
+      const part = (X, bi, bj) => {
+        const Y = new Float64Array(hh);
+        for (let i = 0; i < h; i++) { const o = (bi * h + i) * n + bj * h; Y.set(X.subarray(o, o + h), i * h); }
+        return Y;
+      };
+      const add = (X, Y) => { const Z = new Float64Array(hh); for (let i = 0; i < hh; i++) Z[i] = X[i] + Y[i]; return Z; };
+      const sub = (X, Y) => { const Z = new Float64Array(hh); for (let i = 0; i < hh; i++) Z[i] = X[i] - Y[i]; return Z; };
+      const A11 = part(A, 0, 0), A12 = part(A, 0, 1), A21 = part(A, 1, 0), A22 = part(A, 1, 1);
+      const B11 = part(B, 0, 0), B12 = part(B, 0, 1), B21 = part(B, 1, 0), B22 = part(B, 1, 1);
+      const M1 = matStrassen(add(A11, A22), add(B11, B22), h, cut);
+      const M2 = matStrassen(add(A21, A22), B11, h, cut);
+      const M3 = matStrassen(A11, sub(B12, B22), h, cut);
+      const M4 = matStrassen(A22, sub(B21, B11), h, cut);
+      const M5 = matStrassen(add(A11, A12), B22, h, cut);
+      const M6 = matStrassen(sub(A21, A11), add(B11, B12), h, cut);
+      const M7 = matStrassen(sub(A12, A22), add(B21, B22), h, cut);
+      const C = new Float64Array(n * n);
+      for (let i = 0; i < h; i++) for (let j = 0; j < h; j++) {
+        const s = i * h + j;
+        C[i * n + j] = M1[s] + M4[s] - M5[s] + M7[s];
+        C[i * n + j + h] = M3[s] + M5[s];
+        C[(i + h) * n + j] = M2[s] + M4[s];
+        C[(i + h) * n + j + h] = M1[s] - M2[s] + M3[s] + M6[s];
+      }
+      return C;
+    }
+    // matStrassen が行う掛け算の回数
+    function multCount(n, cut) {
+      return n <= cut || n % 2 ? n * n * n : 7 * multCount(n / 2, cut);
+    }
+    function maxDiff(X, Y) {
+      let d = 0;
+      for (let i = 0; i < X.length; i++) d = Math.max(d, Math.abs(X[i] - Y[i]));
+      return d;
+    }
+
+    // ---- 指数 ----
+    // n×n を r 回で掛けるやり方を重ねたときの指数
+    function omegaFrom(n, r) { return Math.log(r) / Math.log(n); }
+    // m×k と k×n を r 回で掛けるやり方から出る指数（3 つの向きを回して正方形にする）
+    function omegaRect(m, k, n, r) { return (3 * Math.log(r)) / Math.log(m * k * n); }
+    // 論文の下界: n×n の双線形の計算に要る掛け算は n^(9/4) 回以上
+    function lowerBound(n) { return Math.ceil(Math.pow(n, 2.25) - 1e-9); }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const THUMB_MODE = !!window.THUMB;
+    if (THUMB_MODE) document.body.classList.add('thumb');
+    const MINUS = '−';
+    const el = (tag, cls, text) => {
+      const e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text != null) e.textContent = text;
+      return e;
+    };
+    const fmtE = (v) => (!Number.isFinite(v) ? '-' : v === 0 ? '0' : v.toExponential(1).replace('e+', 'e').replace('-', MINUS));
+    const num = (v) => (v < 0 ? '(' + MINUS + (-v) + ')' : String(v));
+    const fmtInt = (v) => (v < 0 ? MINUS + (-v) : String(v));
+    const SUP = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '-': '⁻' };
+    const pow10 = (e) => '10' + String(e).split('').map((ch) => SUP[ch] || ch).join('');
+    const fmtBig = (lg) => {
+      // 10^lg を「1.23 × 10¹²」の形にする
+      const e = Math.floor(lg + 1e-9), mant = Math.pow(10, lg - e);
+      return e < 4 ? String(Math.round(Math.pow(10, lg))) : mant.toFixed(2) + ' × ' + pow10(e);
+    };
+    const yieldMain = () => (window.scheduler && 'yield' in window.scheduler
+      ? window.scheduler.yield()
+      : new Promise((res) => setTimeout(res, 0)));
+    function sizeCanvas(c, ctx) {
+      const w = Math.max(1, Math.round(c.clientWidth)), h = Math.max(1, Math.round(c.clientHeight));
+      const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+      const W = Math.max(1, Math.round(w * dpr)), H = Math.max(1, Math.round(h * dpr));
+      if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return [w, h];
+    }
+
+    // ================= 1. Strassen の 7 回 =================
+    const ST = strassen();
+    const STX = algText(ST);
+    let s1A = [], s1B = [];
+    const rnd9 = () => 1 + Math.floor(Math.random() * 9);
+    function valSum(terms, names, vals) {
+      return terms.map(([c, nm], i) => (c < 0 ? (i ? ' ' + MINUS + ' ' : MINUS) : (i ? ' + ' : '')) + num(vals[names.indexOf(nm)])).join('');
+    }
+    function wrapVal(terms, names, vals) {
+      return terms.length > 1 || terms[0][0] !== 1 ? '(' + valSum(terms, names, vals) + ')' : num(vals[names.indexOf(terms[0][1])]);
+    }
+    function matBox(label, vals, cols) {
+      const w = el('div', 'matw');
+      w.append(el('span', 'ml', label));
+      const g = el('div', 'mat');
+      g.style.gridTemplateColumns = 'repeat(' + cols + ', auto)';
+      for (const v of vals) g.append(el('span', '', fmtInt(v)));
+      w.append(g);
+      return w;
+    }
+    function renderS1() {
+      const res = mulWith(ST, s1A, s1B);
+      const plain = mulPlain(s1A, s1B, 2, 2, 2);
+      $('s1mats').replaceChildren(matBox('A', s1A, 2), el('span', 'op', '×'), matBox('B', s1B, 2), el('span', 'op', '='), matBox('C', res.C, 2));
+      const ol = $('s1prods');
+      ol.replaceChildren();
+      for (const p of STX.prods) {
+        const li = el('li');
+        li.append(el('b', '', p.name), ' = ' + p.text + ' = ' + wrapVal(p.left, STX.an, s1A) + ' × ' + wrapVal(p.right, STX.bn, s1B) + ' = ', el('b', '', fmtInt(res.M[p.t])));
+        ol.append(li);
+      }
+      const mval = new Map(STX.prods.map((p) => [p.name, res.M[p.t]]));
+      const ul = $('s1outs');
+      ul.replaceChildren();
+      STX.outs.forEach((o, c) => {
+        const li = el('li');
+        const vs = o.terms.map(([cf, nm], i) => (cf < 0 ? (i ? ' ' + MINUS + ' ' : MINUS) : (i ? ' + ' : '')) + num(mval.get(nm))).join('');
+        li.append(el('b', '', o.name), ' = ' + o.text + ' = ' + vs + ' = ', el('b', '', fmtInt(res.C[c])), ' ',
+          el('span', 'ok', plain[c] === res.C[c] ? '（そのまま掛けた答えと同じ）' : '（そのまま掛けた答え ' + fmtInt(plain[c]) + ' と違う）'));
+        ul.append(li);
+      });
+      $('s1cnt').textContent = '掛け算: そのままなら 8 回、Strassen は ' + res.mults + ' 回。足し算と引き算: そのままなら 4 回、Strassen は ' + countAdds(ST) + ' 回。'
+        + '1 回の掛け算を「塊どうしの行列の掛け算」に置き換えると、足し算より掛け算の方がずっと重いので、この差が効いてくる。';
+    }
+    function shuffleS1() {
+      s1A = [rnd9(), rnd9(), rnd9(), rnd9()];
+      s1B = [rnd9(), rnd9(), rnd9(), rnd9()];
+      renderS1();
+    }
+    let benchBusy = false;
+    async function runBench() {
+      if (benchBusy) return;
+      benchBusy = true;
+      const btn = $('s1bench');
+      btn.disabled = true;
+      const body = $('s1tbody');
+      body.replaceChildren();
+      $('s1tbl').hidden = false;
+      const cut = 64;
+      try {
+        for (const n of [128, 256, 512]) {
+          $('s1bst').textContent = n + '×' + n + ' を測っています…';
+          await yieldMain();
+          const A = new Float64Array(n * n), B = new Float64Array(n * n);
+          for (let i = 0; i < n * n; i++) { A[i] = Math.random() * 2 - 1; B[i] = Math.random() * 2 - 1; }
+          let tp = Infinity, ts = Infinity, Cp = null, Cs = null;
+          for (let rep = 0; rep < 2; rep++) {
+            let t0 = performance.now();
+            Cp = matPlain(A, B, n);
+            tp = Math.min(tp, performance.now() - t0);
+            await yieldMain();
+            t0 = performance.now();
+            Cs = matStrassen(A, B, n, cut);
+            ts = Math.min(ts, performance.now() - t0);
+            await yieldMain();
+          }
+          const tr = el('tr');
+          const cells = [n + '×' + n, (n * n * n).toLocaleString('ja-JP'), tp.toFixed(1) + ' ms', multCount(n, cut).toLocaleString('ja-JP'), ts.toFixed(1) + ' ms', (ts / tp).toFixed(2), fmtE(maxDiff(Cp, Cs))];
+          cells.forEach((v, i) => tr.append(el(i ? 'td' : 'th', '', v)));
+          tr.firstChild.setAttribute('scope', 'row');
+          body.append(tr);
+        }
+        $('s1bst').textContent = '済み。時間の比が 1 より小さければ Strassen の方が速い。分けるたびに足し算と新しい配列が増えるので、小さな行列ではそのままの方が速いことが多い。';
+      } finally {
+        btn.disabled = false;
+        benchBusy = false;
+      }
+    }
+
+    // ================= 2. 少ない回数のやり方を探す =================
+    const cv = $('s2cv'), g2 = cv.getContext('2d');
+    const COL = { run: '#2f6f8f', exact: '#2e7d4f', real: '#c07a12', stuck: '#a39e94', grid: '#e6e1d6', text: '#5f594f', bg: '#fffdf9' };
+    let job = null, lastJob = null, seedBase = 1;
+    function startSearch() {
+      if (job) job.halt = true;
+      const [m, k, n] = $('s2size').value.split(',').map(Number);
+      let r = Math.round(Number($('s2r').value));
+      if (!(r >= 1)) r = 7;
+      r = Math.min(14, r);
+      $('s2r').value = String(r);
+      const ten = mmTensor(m, k, n);
+      // nz は (a, b, c) を 3 つずつ並べた配列なので、1 のマスの数は長さの 3 分の 1
+      const me = { halt: false, ten, r, starts: [], cur: null, max: THUMB_MODE ? 6 : 16, maxIt: ten.nz.length / 3 > 8 ? 3000 : 2000, done: false, shown: '' };
+      job = me;
+      lastJob = me;
+      $('s2halt').disabled = false;
+      $('s2found').hidden = true;
+      requestAnimationFrame(() => frame(me));
+    }
+    function frame(me) {
+      if (me.halt || job !== me) return;
+      let left = THUMB_MODE ? 8 : 30;
+      while (left > 0) {
+        if (!me.cur || me.cur.phase === 'done') {
+          if (me.cur) finished(me, me.cur);
+          if (me.starts.length >= me.max) { me.done = true; break; }
+          me.cur = newSearch(me.ten, me.r, seedBase++);
+          me.starts.push(me.cur);
+        }
+        const n = Math.min(left, 10);
+        advance(me.cur, n, me.maxIt);
+        left -= n;
+      }
+      drawSearch(me);
+      summarize(me);
+      if (me.done) {
+        $('s2halt').disabled = true;
+        job = null;
+        if (THUMB_MODE) setTimeout(() => { if (!job) startSearch(); }, 2500);
+        return;
+      }
+      requestAnimationFrame(() => frame(me));
+    }
+    function haltSearch() {
+      if (!job) return;
+      job.halt = true;
+      job.stopped = true;
+      summarize(job);
+      job = null;
+      $('s2halt').disabled = true;
+    }
+    function finished(me, st) {
+      if (st.result === 'exact' && me.shown !== 'exact') { me.shown = 'exact'; showAlg(me, st, true); }
+      else if (st.result === 'real' && !me.shown) { me.shown = 'real'; showAlg(me, st, false); }
+    }
+    function counts(me) {
+      let exact = 0, real = 0, stuck = 0, best = Infinity;
+      for (const st of me.starts) {
+        best = Math.min(best, st.real ? st.real.err : st.err);
+        if (st.phase !== 'done') continue;
+        if (st.result === 'exact') exact++;
+        else if (st.result === 'real') real++;
+        else stuck++;
+      }
+      return { exact, real, stuck, best };
+    }
+    function summarize(me) {
+      const c = counts(me);
+      const t = me.ten;
+      const what = t.m + '×' + t.k + ' と ' + t.k + '×' + t.n + ' の積を ' + me.r + ' 回の掛け算で';
+      if (THUMB_MODE) {
+        $('s2sum').textContent = what + '。始め ' + me.starts.length + '/' + me.max + '、正確なやり方 ' + c.exact + ' 個、誤差の最小 ' + fmtE(c.best);
+        return;
+      }
+      let s = what + ': 始め ' + me.starts.length + ' / ' + me.max + ' 回目。誤差がほぼ 0 になった始めは ' + (c.exact + c.real) + ' 回（そのうち係数を −1・0・1 に丸めても正確なまま ' + c.exact + ' 回）、誤差が下がらなくなったか ' + me.maxIt + ' 回までに 0 にならなかった始めは ' + c.stuck + ' 回。これまでで一番小さい誤差は ' + fmtE(c.best) + '。';
+      if (me.stopped) s += '（途中で止めた）';
+      if (me.done || me.stopped) {
+        const sq = t.m === 2 && t.k === 2 && t.n === 2;
+        const r23 = t.m === 2 && t.k === 2 && t.n === 3;
+        if (sq && me.r <= 6) s += ' 2×2 の積は 7 回より減らせないことが 1971 年に示され（Winograd）、誤差をいくらでも小さくする近似のやり方でも 7 回より減らせないことが 2006 年に示された（Landsberg）。どの始めでも誤差が 0 に近づかないのは、探し方のせいではない。';
+        else if (sq && me.r === 7) s += ' 2×2 を 7 回で掛けるやり方は、行や列の入れ替えなどの変換で、全部 Strassen のやり方に移せることが知られている（de Groote、1978 年）。';
+        else if (r23 && me.r === 10) s += ' 2×2 と 2×3 の積には、係数を限りなく大きくすれば 10 回で誤差をいくらでも小さくできる近似のやり方がある（Bini ほか、1979 年）。この探し方は係数が大きくなりすぎないように抑えているので、誤差 0.1 前後で止まる。';
+        else if (me.r >= t.nz.length / 3) s += ' r が ' + (t.nz.length / 3) + ' 以上なら、そのまま掛けるやり方（' + (t.nz.length / 3) + ' 回）も答えの 1 つになる。';
+      }
+      $('s2sum').textContent = s;
+      if (me.done || me.stopped) {
+        // 読み上げは終わった時だけ（毎コマ書き換える欄を読み上げさせない）
+        $('s2live').textContent = s;
+        cv.setAttribute('aria-label', '誤差の変わり方のグラフ。' + s);
+      }
+    }
+    function drawSearch(me) {
+      const [w, h] = sizeCanvas(cv, g2);
+      g2.fillStyle = COL.bg;
+      g2.fillRect(0, 0, w, h);
+      const L = 46, R = 12, T = 10, B = 22;
+      const pw = Math.max(1, w - L - R), ph = Math.max(1, h - T - B);
+      const Y0 = 1, Y1 = -13;
+      // 横の目盛りは、ここまでで一番長く進んだ始めに合わせる（早く終わる始めの線をつぶさない）
+      let seen = 0;
+      for (const st of me.starts) if (st.hist.length) seen = Math.max(seen, st.hist[st.hist.length - 2]);
+      const xMax = Math.max(200, Math.ceil(seen / 100) * 100);
+      const xOf = (it) => L + pw * Math.min(1, it / xMax);
+      const yOf = (e) => {
+        const l = Math.max(Y1, Math.min(Y0, Math.log10(Math.max(e, 1e-300))));
+        return T + (ph * (Y0 - l)) / (Y0 - Y1);
+      };
+      g2.font = '11px system-ui, sans-serif';
+      g2.lineWidth = 1;
+      g2.textBaseline = 'middle';
+      g2.textAlign = 'right';
+      for (const l of [0, -4, -8, -12]) {
+        const y = yOf(Math.pow(10, l));
+        g2.strokeStyle = COL.grid;
+        g2.beginPath(); g2.moveTo(L, y); g2.lineTo(L + pw, y); g2.stroke();
+        g2.fillStyle = COL.text;
+        g2.fillText(l === 0 ? '1' : pow10(l), L - 6, y);
+      }
+      g2.textAlign = 'center';
+      g2.textBaseline = 'alphabetic';
+      for (const f of [0, 0.5, 1]) {
+        const it = Math.round(xMax * f);
+        g2.fillText(f === 1 ? it + ' 回' : String(it), Math.min(w - 18, xOf(it)), h - 6);
+      }
+      const order = me.starts.slice().sort((a, b) => rank(a) - rank(b));
+      function rank(st) { return st === me.cur && st.phase !== 'done' ? 3 : st.result === 'stuck' ? 0 : st.result === 'real' ? 1 : 2; }
+      for (const st of order) {
+        const hst = st.hist;
+        if (hst.length < 2) continue;
+        const running = st.phase !== 'done';
+        g2.strokeStyle = running ? COL.run : COL[st.result] || COL.stuck;
+        g2.lineWidth = running ? 2.2 : 1.4;
+        g2.beginPath();
+        for (let i = 0; i < hst.length; i += 2) {
+          const x = xOf(hst[i]), y = yOf(hst[i + 1]);
+          if (i) g2.lineTo(x, y); else g2.moveTo(x, y);
+        }
+        g2.stroke();
+        if (st.result === 'exact' || st.result === 'real' || st.phase === 'round') {
+          const x = xOf(hst[hst.length - 2]), y = yOf(hst[hst.length - 1]);
+          g2.fillStyle = st.result === 'exact' ? COL.exact : st.result === 'real' ? COL.real : COL.run;
+          g2.beginPath(); g2.arc(x, y, 3.5, 0, Math.PI * 2); g2.fill();
+        }
+      }
+      g2.strokeStyle = COL.text;
+      g2.lineWidth = 1;
+      g2.strokeRect(L + 0.5, T + 0.5, pw - 1, ph - 1);
+    }
+    function cellColor(v) {
+      if (!v) return 'transparent';
+      const a = Math.min(1, Math.abs(v)) * 0.75 + 0.12;
+      return v > 0 ? 'rgba(214, 104, 40, ' + a.toFixed(2) + ')' : 'rgba(47, 111, 143, ' + a.toFixed(2) + ')';
+    }
+    function gridBox(title, X, names, cols, r, exact) {
+      const w = el('div');
+      w.append(el('div', 'gt', title));
+      const g = el('div', 'grid');
+      g.style.gridTemplateColumns = 'auto repeat(' + cols.length + ', 1.9em)';
+      g.append(el('span', 'gh', ''));
+      for (const c of cols) g.append(el('span', 'gh', c.name));
+      names.forEach((nm, i) => {
+        g.append(el('span', 'rl', nm));
+        for (const c of cols) {
+          const v = X[i * r + c.t];
+          const s = el('span', '', exact ? (v === 1 ? '1' : v === -1 ? MINUS + '1' : '') : '');
+          s.style.background = cellColor(v);
+          if (exact && v) s.style.color = '#fff';
+          g.append(s);
+        }
+      });
+      w.append(g);
+      return w;
+    }
+    function showAlg(me, st, exact) {
+      const alg = exact ? st.exact : st.real;
+      const t = me.ten;
+      const tx = algText(alg);
+      const used = tx.prods.length;
+      const idx = me.starts.indexOf(st) + 1;
+      const om = omegaRect(t.m, t.k, t.n, used);
+      $('s2found').hidden = false;
+      $('s2fhead').textContent = exact
+        ? idx + ' 回目の始めで見つけた、係数が −1・0・1 だけの正確なやり方: 掛け算 ' + used + ' 回、足し算と引き算 ' + countAdds(alg) + ' 回（途中の和を使い回さない数え方）。このやり方を繰り返すと指数は ' + om.toFixed(3) + '。'
+        : idx + ' 回目の始めで見つけた、実数の係数のやり方（誤差 ' + fmtE(alg.err) + '。−1・0・1 に丸めると正確でなくなった）: 掛け算 ' + used + ' 回。';
+      const cols = tx.prods.map((p) => ({ t: p.t, name: p.name }));
+      $('s2grids').replaceChildren(
+        gridBox('A の係数（U）', alg.U, tx.an, cols, alg.r, exact),
+        gridBox('B の係数（V）', alg.V, tx.bn, cols, alg.r, exact),
+        gridBox('C の係数（W）', alg.W, tx.cn, cols, alg.r, exact));
+      const f = $('s2formula');
+      if (exact) {
+        f.hidden = false;
+        f.textContent = tx.prods.map((p) => p.name + ' = ' + p.text).join('\n') + '\n\n' + tx.outs.map((o) => o.name + ' = ' + o.text).join('\n');
+      } else {
+        f.hidden = true;
+      }
+      const N = 300;
+      if (exact) {
+        let ok = 0;
+        for (let i = 0; i < N; i++) {
+          const A = Array.from({ length: t.na }, () => Math.floor(Math.random() * 19) - 9);
+          const B = Array.from({ length: t.nb }, () => Math.floor(Math.random() * 19) - 9);
+          const C1 = mulWith(alg, A, B).C, C2 = mulPlain(A, B, t.m, t.k, t.n);
+          if (C1.every((v, j) => v === C2[j])) ok++;
+        }
+        $('s2check').textContent = '確かめ: −9〜9 の乱数の整数の行列 ' + N + ' 組をこのやり方で掛け、そのまま掛けた答えと比べると ' + ok + ' 組が一致した。オレンジは +1、青は −1、空白は 0。';
+      } else {
+        let d = 0;
+        for (let i = 0; i < N; i++) {
+          const A = Array.from({ length: t.na }, () => Math.random() * 2 - 1);
+          const B = Array.from({ length: t.nb }, () => Math.random() * 2 - 1);
+          const C1 = mulWith(alg, A, B).C, C2 = mulPlain(A, B, t.m, t.k, t.n);
+          C1.forEach((v, j) => { d = Math.max(d, Math.abs(v - C2[j])); });
+        }
+        $('s2check').textContent = '確かめ: −1〜1 の乱数の実数の行列 ' + N + ' 組をこのやり方で掛けると、そのまま掛けた答えとの差は最大 ' + fmtE(d) + ' だった。色の濃さは係数の大きさ（オレンジは正、青は負）。';
+      }
+    }
+
+    // ================= 3. 回数から指数を出す =================
+    const KNOWN = [
+      { n: 2, r: 7, who: 'Strassen（1969 年）。7 回より減らせないことも 1971 年に示された' },
+      { n: 3, r: 23, who: 'Laderman（1976 年）' },
+      { n: 4, r: 49, who: 'Strassen を 2 回重ねる（これより少ないやり方も見つかっている）' },
+      { n: 8, r: 343, who: 'Strassen を 3 回重ねる' },
+      { n: 16, r: 2401, who: 'Strassen を 4 回重ねる' },
+    ];
+    const EXPS = [
+      { w: 3, name: 'そのまま掛ける', col: '#a39e94' },
+      { w: Math.log2(7), name: 'Strassen（1969 年）', col: '#2f6f8f' },
+      { w: 2.371055, name: '9/4 の前に知られていた一番小さい値（論文が挙げる値）', col: '#c07a12' },
+      { w: 2.25, name: '9/4（2026 年 10 月の上界と 11 月の下界）', col: '#b5522b' },
+      { w: 2, name: '以前は多くの人がこうなると考えていた値', col: '#6d6a63', dash: true },
+    ];
+    const cv3 = $('s3cv'), g3 = cv3.getContext('2d');
+    function fillKnown() {
+      const body = $('s3known');
+      body.replaceChildren();
+      for (const k of KNOWN) {
+        const tr = el('tr');
+        const th = el('th', '', String(k.n));
+        th.setAttribute('scope', 'row');
+        tr.append(th, el('td', '', String(k.n ** 3)), el('td', '', String(lowerBound(k.n))), el('td', '', String(k.r)), el('td', '', omegaFrom(k.n, k.r).toFixed(3)), el('td', 'l', k.who));
+        body.append(tr);
+      }
+    }
+    let userW = null;
+    function updateOmega() {
+      const n = Math.round(Number($('s3n').value)), r = Math.round(Number($('s3r').value));
+      const out = $('s3om');
+      userW = null;
+      if (!(n >= 2) || !(r >= 1)) { out.textContent = 'n は 2 以上、r は 1 以上の整数にする。'; return; }
+      const lb = lowerBound(n);
+      if (r < n * n) {
+        out.textContent = n + '×' + n + ' の答えには ' + (n * n) + ' 個の値があるので、掛け算が ' + (n * n) + ' 回より少ないやり方は無い。';
+        return;
+      }
+      const w = omegaFrom(n, r);
+      userW = w;
+      let s = n + '×' + n + ' を ' + r + ' 回で掛けられれば、指数は log_' + n + ' ' + r + ' = ' + w.toFixed(4) + ' 以下になる。';
+      if (r < lb) s += ' ただし論文によれば、' + n + '×' + n + ' には少なくとも n^(9/4) ≈ ' + Math.pow(n, 2.25).toFixed(2) + '、つまり ' + lb + ' 回が要るので、このやり方は無い（あれば指数が 2.25 より小さくなる）。';
+      else if (r >= n ** 3) s += ' そのまま掛ける ' + (n ** 3) + ' 回と同じか多いので、速くならない。';
+      else if (n === 2 && r < 7) s += ' ただし 2×2 は 7 回より減らせないことが 1971 年に示されているので、このやり方は無い。論文の下界（' + lb + ' 回）は、小さな n ではこれより弱い。';
+      else s += ' 指数を 2.25 に近づけるには、r を n^(9/4) ≈ ' + Math.pow(n, 2.25).toFixed(2) + ' に近づける必要がある。';
+      out.textContent = s;
+    }
+    function updateCounts() {
+      const lg = Number($('s3N').value);
+      $('s3No').textContent = 'N = ' + fmtBig(lg);
+      const body = $('s3cnt');
+      body.replaceChildren();
+      const rows = EXPS.slice();
+      if (userW != null) rows.push({ w: userW, name: '上で入れた n と r のやり方', col: '#2e7d4f', dash: true });
+      for (const e of rows) {
+        const tr = el('tr');
+        const th = el('th', '');
+        th.setAttribute('scope', 'row');
+        const sw = el('span', 'sw');
+        sw.style.background = e.col;
+        th.append(sw, e.w.toFixed(4));
+        const ratio = Math.pow(10, (e.w - 3) * lg);
+        tr.append(th, el('td', 'l', e.name), el('td', '', fmtBig(e.w * lg)), el('td', '', ratio >= 0.9999 ? '1' : '1 / ' + fmtBig(-Math.log10(ratio))));
+        body.append(tr);
+      }
+      drawCounts(lg, rows);
+    }
+    function drawCounts(lg, rows) {
+      const [w, h] = sizeCanvas(cv3, g3);
+      g3.fillStyle = '#fffdf9';
+      g3.fillRect(0, 0, w, h);
+      const L = 50, R = 14, T = 10, B = 24;
+      const pw = Math.max(1, w - L - R), ph = Math.max(1, h - T - B);
+      const X0 = 1, X1 = 6, Y0 = 2, Y1 = 18;
+      const xOf = (x) => L + (pw * (x - X0)) / (X1 - X0);
+      const yOf = (y) => T + ph - (ph * (Math.max(Y0, Math.min(Y1, y)) - Y0)) / (Y1 - Y0);
+      g3.font = '11px system-ui, sans-serif';
+      g3.lineWidth = 1;
+      g3.fillStyle = '#5f594f';
+      g3.textAlign = 'right';
+      g3.textBaseline = 'middle';
+      for (let y = 3; y <= 18; y += 3) {
+        g3.strokeStyle = '#e6e1d6';
+        g3.beginPath(); g3.moveTo(L, yOf(y)); g3.lineTo(L + pw, yOf(y)); g3.stroke();
+        g3.fillText(pow10(y), L - 6, yOf(y));
+      }
+      g3.textAlign = 'center';
+      g3.textBaseline = 'alphabetic';
+      for (let x = 1; x <= 6; x++) g3.fillText(pow10(x), xOf(x), h - 6);
+      for (const e of rows) {
+        g3.strokeStyle = e.col;
+        g3.lineWidth = 2;
+        g3.setLineDash(e.dash ? [5, 4] : []);
+        g3.beginPath();
+        g3.moveTo(xOf(X0), yOf(e.w * X0));
+        // 縦の範囲を出る所で止める
+        const xe = Math.min(X1, Y1 / e.w);
+        g3.lineTo(xOf(xe), yOf(e.w * xe));
+        g3.stroke();
+      }
+      g3.setLineDash([]);
+      g3.strokeStyle = '#22201c';
+      g3.lineWidth = 1;
+      g3.beginPath(); g3.moveTo(xOf(lg), T); g3.lineTo(xOf(lg), T + ph); g3.stroke();
+      for (const e of rows) {
+        g3.fillStyle = e.col;
+        g3.beginPath(); g3.arc(xOf(lg), yOf(e.w * lg), 3.5, 0, Math.PI * 2); g3.fill();
+      }
+      g3.strokeStyle = '#5f594f';
+      g3.strokeRect(L + 0.5, T + 0.5, pw - 1, ph - 1);
+      cv3.setAttribute('aria-label', '横が行列の大きさ N、縦が掛け算の回数の両対数のグラフ。指数が小さいほど線の傾きがゆるい。N = ' + fmtBig(lg) + ' の所に縦の線を引いた。');
+    }
+    function updateS3() { updateOmega(); updateCounts(); }
+
+    // ================= 起動 =================
+    $('s1shuffle').addEventListener('click', shuffleS1);
+    $('s1bench').addEventListener('click', runBench);
+    $('s2go').addEventListener('click', startSearch);
+    $('s2halt').addEventListener('click', haltSearch);
+    $('s2size').addEventListener('change', () => { $('s2r').value = $('s2size').value === '2,2,2' ? '7' : '11'; });
+    for (const id of ['s3n', 's3r']) $(id).addEventListener('input', updateS3);
+    $('s3N').addEventListener('input', updateCounts);
+    if ('ResizeObserver' in window) {
+      new ResizeObserver(() => { if (lastJob) drawSearch(lastJob); }).observe(cv);
+      new ResizeObserver(() => updateCounts()).observe(cv3);
+    }
+    shuffleS1();
+    fillKnown();
+    updateS3();
+    startSearch();
+  },
+});
