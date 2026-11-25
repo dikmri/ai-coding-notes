@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 13 章 浮いた枠 ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="ドッキングの 2 段目として、タブのまとまりを窓の中に浮かせる枠を足しました。別の窓に出す前に窓の中から作った理由と、枠で覆ってもホイールやスクロールの棒が下の部品へ届いた不具合を紹介します。後半では、作者の 3 回の手の確かめで見つかった、F6 が枠を 1 つ飛ばしたこと、元の場所へ戻らなかったこと、落としても変わらない所に塗りが出たことと、その直し方を書きます。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 13 章</p>
+  <h1>浮いた枠</h1>
+  <p class="lede">ドッキングの 2 段目として、タブのまとまりを窓の中に浮かせる枠を足しました。枠は引いて動かし、大きさを変え、メニューで元の場所へ戻せます。この章では、別の窓に出す前に窓の中から作った理由と、枠で覆っても下の部品へ操作が届いた不具合を紹介します。後半では、作者の 3 回の手の確かめで見つかった 3 つのことと、その直し方を書きます。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>OS の別の窓に出す前に、窓の中に浮かせる形から作った理由</li>
+      <li>浮いた枠を、並べ方の木とは別に持つ作り</li>
+      <li>枠で覆っても、ホイールやスクロールの棒が枠の下の部品へ届いた理由と、描く順で隠す直し方</li>
+      <li>F6 が浮いた枠を 1 つ飛ばした理由（重なりの順と回る順を 1 つの並びで持っていた）</li>
+      <li>元の場所へ戻す時に、戻る先をパネルごとに覚える理由</li>
+      <li>落としても何も変わらない所に、薄い塗りを出さない直し方</li>
+    </ul>
+  </section>
+
+  <h2 id="why">窓の中に浮かせる形から作った理由</h2>
+  <p>浮かせ方には 2 つの形があります。窓の中でほかのまとまりの上に重ねる形と、OS の別の窓に出す形です。作者に 2 つを示し、答えを待つ間に、推奨した窓の中の形で進めました。別の窓に出すのは 3 段目にします。理由は 2 つです。</p>
+  <ul>
+    <li>窓の中の形は、Windows・Wayland・X11 で同じ作りで動く。別の窓に出す形は、第 12 章で調べたとおり、Wayland ではアプリが窓の位置を読めず、出した窓を元の位置に戻せない。</li>
+    <li>枠の場所と大きさ、押して上に出すこと、元の場所へ戻すことは、別の窓に出す形でも使う。窓の中の形を先に作ると、3 段目はその上に足せる。</li>
+  </ul>
+
+  <!-- gen:float -->
+<figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dock2/float-dark.webp"><img src="img/dock2/float-light.webp" alt="左に Files、右上に Editor、右下に Output のまとまり。Editor の上に、Notes のタブだけの枠が重なっている。枠のタブの左に縦 2 列の点、枠の右下の角に点がある" width="1200" height="720" loading="lazy" decoding="async"></picture><figcaption>Notes のまとまりを浮かせた所（600×360 の窓を試験台で 2 倍で撮った）。タブの左の点で枠を動かし、右下の点で大きさを変える。</figcaption></figure>
+<!-- /gen:float -->
+
+  <h2 id="api">書き方</h2>
+  <p>利用者は、タブの右クリックのメニューの「Float」で浮かせます。アプリから浮かせる時も、ほかの置き方と同じく <code>Dock::insert</code> を使います。</p>
+  <pre><code>// メニューの「Float」と同じ（場所と大きさは論理ピクセル）
+dock.insert(Panel::Notes, DockTo::Float { x: 290.0, y: 92.0, w: 270.0, h: 128.0 });</code></pre>
+  <p>浮いた枠のタブのメニューは、「Dock」「Move into group」「Close」です。「Dock」は、そのパネルが枠に入る前にいた所へ戻します。</p>
+  <!-- gen:menu -->
+<figure class="shot flat"><picture><img src="img/dock2/menu-light.webp" alt="浮いた枠の Notes のタブの右クリックのメニュー。Dock、Move into group、区切りの線、Close が並ぶ" width="1200" height="720" loading="lazy" decoding="async"></picture><figcaption>浮いた枠のタブのメニュー。「Dock」で元の場所へ戻し、「Move into group」でほかのまとまりへ入れる。</figcaption></figure>
+<!-- /gen:menu -->
+  <p>保存の形では、木の行の後に、枠ごとに場所と大きさの行とタブの塊が続きます。戻る先は保存しません。</p>
+  <pre><code>（木の行は第 12 章と同じ）
+float 290 92 270 128
+tabs 0 1
+panel Notes</code></pre>
+
+  <h2 id="frame">枠の作り</h2>
+  <ul>
+    <li>枠は <code>Dock::floating</code> に、下にある物から順に持ちます。並べ方の木とは別です。木のまとまりと同じく、中のパネルで指します。</li>
+    <li>枠は、木の上に重ねて描きます。配置に <code>LayoutNode::at</code> を足しました。重ねる入れ物の中の決めた位置に子を置き、入れ物の大きさには数えません。</li>
+    <li>タブの左の点を引くと枠が動き、右下の点を引くと大きさが変わります。ポインターの形に <code>Move</code> と <code>NwseResize</code> を足し、Windows・Wayland・X11 で出るようにしました。</li>
+    <li>枠のどこかを押すと、その枠がいちばん上に来ます。F6 で移った時も上に来ます。</li>
+    <li>枠の上に落としたタブは、どこに落としてもタブとして入ります。1 つの枠には 1 つのまとまりだけを置き、枠は分けません。</li>
+  </ul>
+  <!-- gen:drop -->
+<figure class="shot flat"><picture><img src="img/dock2/drop-light.webp" alt="Output のタブを引っ張り、Notes の枠の上に乗せている。枠の全体が薄い青で塗られ、ポインターの所に Output と書いた小さな箱がある" width="1200" height="720" loading="lazy" decoding="async"></picture><figcaption>Output のタブを枠の上へ引っ張っている所。枠のどこに乗せても枠の全体が塗られ、離すとタブとして入る。</figcaption></figure>
+<!-- /gen:drop -->
+
+  <h2 id="occlude">枠の下へ届いた操作</h2>
+  <p>枠の範囲には、押せない当たりを置いて下の部品を覆いました。これで、ボタンや入力欄は枠の下から押せなくなります。ところが、一覧のホイール、スクロールの棒、右クリックの範囲は、枠の上からでも下の部品に届きました。この 3 つは、押す当たりとは別の一覧から探すためです。</p>
+  <p>そこで、3 つの一覧のそれぞれの物に、中身を描き終えた時の当たりの数を持たせました。枠を描き始めた時の数より前に描き終えた物だけを、枠の範囲で隠します。</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 250" role="img" aria-labelledby="oc-title oc-desc">
+      <title id="oc-title">描く順で、枠の下の物だけを隠す</title>
+      <desc id="oc-desc">横が描く順。ドッキングの木の中身を描き、その中の一覧 A を当たりの数 12 で描き終える。次に浮いた枠を当たりの数 20 で描き始め、枠の中身を描く。見本のページの入れ物は、枠も含めて全部を描いた後の 35 で描き終える。枠を描き始めた 20 より前に描き終えた一覧 A は枠の範囲で隠し、35 で描き終えたページの入れ物は隠さない。</desc>
+      <line class="axis" x1="30" y1="200" x2="690" y2="200"/>
+      <text class="sub" x="690" y="225" text-anchor="end">描く順（当たりの数。数は例）</text>
+      <rect class="box" x="30" y="20" width="660" height="40" rx="4"/>
+      <text class="label" x="44" y="45">見本のページの入れ物（ホイールでページが動く）</text>
+      <text class="sub" x="676" y="45" text-anchor="end">35 は 20 より後なので隠さない</text>
+      <rect class="box" x="30" y="80" width="300" height="40" rx="4"/>
+      <text class="label" x="44" y="105">ドッキングの木の中身</text>
+      <rect class="box-soft" x="60" y="140" width="250" height="40" rx="4"/>
+      <text class="label" x="72" y="165">一覧 A</text>
+      <text class="sub" x="128" y="165">12 は 20 より前なので隠す</text>
+      <rect class="box-soft" x="350" y="80" width="240" height="40" rx="4"/>
+      <text class="label" x="364" y="105">浮いた枠の中身</text>
+      <line class="grid-line" x1="310" y1="140" x2="310" y2="200"/>
+      <text class="tick" x="310" y="195" text-anchor="middle">12</text>
+      <line class="loop" x1="350" y1="70" x2="350" y2="200"/>
+      <text class="loop-text" x="358" y="160">枠を描き始める: 20</text>
+      <line class="grid-line" x1="690" y1="60" x2="690" y2="200"/>
+      <text class="tick" x="680" y="195" text-anchor="end">35</text>
+    </svg>
+    <figcaption>枠を描き始めた時（20）より前に描き終えた一覧 A は、枠の範囲で隠す。枠を中に持つページの入れ物は、枠の後（35）に描き終えるので隠さない。</figcaption>
+  </figure>
+  <p>最初は、描き始めた時の数で比べていました。すると、枠を中に持つ外側の入れ物（見本のページ）まで隠れ、枠の上でホイールを回してもページが動きませんでした。作者に手順を渡す前に試験で見つけ、描き終えた時の数で比べる形に直しました。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい作り: 当たりの一覧を 1 つだけ見て、覆いを足す</span>
+    <p>押す当たりで覆っても、ホイール・スクロールの棒・右クリックのように別の一覧から探す物は、覆いの下へ届きます。重ねて出す物を足す時は、当たりを探す一覧の全部で、下の物が隠れるかを確かめてください。</p>
+  </div>
+
+  <h2 id="build">作る途中で直したこと</h2>
+  <ol>
+    <li>何も無い所を押すと、押した部品は「無し」になります。押した枠を上にするには、部品が無くても分かる「このフレームで押した場所」を別に持つ必要がありました。</li>
+    <li>上下に分かれた 2 つのまとまりの隣にいたパネルを浮かせて戻すと、片方の隣だけに戻りました。戻る先を 1 つのまとまりの隣として覚えていたためです。隣の部分の木のパネルを全部覚え、それを全部含むいちばん小さい部分の隣へ戻すようにしました。</li>
+    <li>枠を入れ物の大きさに数えると、ドッキングの最小の大きさが枠の大きさで変わりました。決めた位置に置く子は、大きさに数えないようにしました。</li>
+  </ol>
+
+  <h2 id="hand1">作者の手の確かめ（1 回目）</h2>
+  <p>見本の 23 ページ目「ドッキング」で、作者が手の確かめをしました。浮かせる・動かす・大きさを変える・押して上に出す・保存と読み込みは、記録の上で期待どおりでした。異常は 2 つでした。</p>
+
+  <h3 id="f6">F6 が浮いた枠を 1 つ飛ばす</h3>
+  <p>作者は枠を 2 つ浮かせた後、F6 を 11 回押しました。まとまりは、木の 2 つと枠の 2 つで、全部で 4 つです。記録では、どの周も同じ 3 つだけを回っていました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-f6">
+    <table>
+      <caption id="t-f6">1 回目の F6 の記録（dock.next_group）。0 と 1 は木のまとまり、2 と 3 は枠</caption>
+      <thead><tr><th scope="col">押した回</th><th scope="col">記録</th><th scope="col">起きたこと</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">1 回目</th><td data-label="記録"><code>from=0 → to=1</code></td><td data-label="起きたこと">木の 2 つ目のまとまりへ移る</td></tr>
+        <tr><th scope="row">2 回目</th><td data-label="記録"><code>from=1 → to=2</code></td><td data-label="起きたこと">下にある枠へ移り、その枠を上にする</td></tr>
+        <tr><th scope="row">3 回目</th><td data-label="記録"><code>from=3 → to=0</code></td><td data-label="起きたこと">木の 1 つ目へ戻る。もう 1 つの枠には移らない</td></tr>
+        <tr><th scope="row">4〜11 回目</th><td data-label="記録">同じ 3 つのくり返し</td><td data-label="起きたこと">もう 1 つの枠には、1 回も移らない</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>2 回目で番号 2 の枠へ移ったのに、3 回目の移る前の番号は 3 でした。移り先は、「木のまとまり、枠（重なりの順）」の並びで 1 つ進めて決めていました。移った枠は上にするので、重なりの順の最後へ動きます。そのため、移ったばかりの枠が並びの最後になり、次の F6 は最初へ戻っていました。重なりの順と F6 で回る順を、1 つの並びで持っていたのが原因です。</p>
+  <p>枠に浮かせた順の番号を持たせ、F6 はその順で回るようにしました。上にしても、この番号は変わりません。</p>
+
+  <h3 id="home">後から枠に入れたパネルが、元の場所へ戻らない</h3>
+  <p>作者はメモを浮かせ、出力のタブをその枠へ落としました。その後、出力を「Dock」で戻すと、編集の下ではなく、編集のまとまりのタブに入りました。作者は続けて、出力を手で引っ張り、編集の下へ戻していました。</p>
+  <p>戻る先は、枠ごとに 1 つだけ覚えていました。覚えるのは浮かせた時だけなので、後から入った出力には、先に浮かせたメモの元の場所が使われました。戻る先をパネルごとに覚え、枠へ入る時に、入る前の場所を覚えるようにしました。並べ方を読み込んだ後のように戻る先を覚えていないパネルは、先に戻したパネルのまとまりへ入ります。</p>
+  <p>どちらも、作者の操作と同じ形の試験を先に書きました。直す前のコードで、作者が見た結果と同じ形で落ちることを確かめてから直しています。</p>
+
+  <h2 id="hand2">2 回目: 落としても何も変わらない所の塗り</h2>
+  <p>2 回目の記録で、2 つの直しは期待どおりでした。F6 は 4 つのまとまりを毎周回り、Shift+F6 は逆の順に回りました。出力は編集の下へ、メモは編集の隣のタブへ戻りました。</p>
+  <p>別の食い違いが 1 つ見つかりました。作者は、タブが 1 枚だけの出力を、自分のまとまりの上に 2 回落としていました。1 回目は真ん中、2 回目は上の 4 分の 1 です。どちらも薄い塗りが出たのに、並べ方は変わりませんでした。2 回目は、差し込みの関数が false を返しています。3 回目に、出力は枠に入りました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-own">
+    <table>
+      <caption id="t-own">2 回目の、出力を落とした記録（dock.drop）。2 は出力のまとまり、3 は枠</caption>
+      <thead><tr><th scope="col">落とした回</th><th scope="col">落とす先</th><th scope="col">結果</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">1 回目</th><td data-label="落とす先"><code>Tab { group: 2 }</code>（自分のまとまり）</td><td data-label="結果">塗りが出たが、並べ方は変わらない</td></tr>
+        <tr><th scope="row">2 回目</th><td data-label="落とす先"><code>Split { group: 2, side: Top }</code>（自分のまとまり）</td><td data-label="結果">塗りが出たが、<code>ok=false</code>（差し込みが断られた）</td></tr>
+        <tr><th scope="row">3 回目</th><td data-label="落とす先"><code>Tab { group: 3 }</code></td><td data-label="結果">出力が枠のタブになる</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>落とす先は、描いた結果の場所だけから決めていました。どのタブを引っ張っているかを知らないので、自分 1 枚だけのまとまりの上でも「タブにする」「分ける」の塗りを出していました。そこへ落としても、抜いて同じ所へ入れるだけです。1 段目からあった食い違いで、2 段目で入ったものではありません。</p>
+  <p>まとまりの場所に、タブが 1 枚だけの時のそのタブの id を持たせました。引っ張っているタブが 1 枚だけのまとまりの上では、落とす先を「無し」にします。塗りは出ず、離しても何も起きません。全体の端の帯へは、今までどおり落とせます。塗りを出す側と、落とした時の処理は、同じ関数を使います。</p>
+
+  <h2 id="hand3">3 回目: 期待どおり</h2>
+  <p>3 回目は、出力を自分のまとまりの上へ引っ張っても塗りが出ず、離しても何も起きませんでした（記録は <code>zone=None</code>）。ファイルのまとまりの真ん中では塗りが出て、出力はタブとして入りました。浮かせたメモを自分の枠の上で離した時と、編集のまとまりへ落とした時も、期待どおりでした。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 記録に「どこから、どこへ」を残す</span>
+    <p>F6 の記録には、移る前と移った先のまとまりの番号（from と to）を残していました。2 回目で 2 へ移ったのに、3 回目は 3 から移っている。この 2 行で、移った枠が並びの最後へ動いたことが分かりました。移った先だけを残していたら、飛ばした理由は読めませんでした。</p>
+  </div>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい作り: 描く順の並びで、キーで移る順も決める</span>
+    <p>押した物を上に出すたびに描く順は変わるので、同じ並びで回るとキーで移る順も変わります。描く順と、キーで回る順は、別に持ってください。</p>
+  </div>
+
+  <h2 id="numbers">数</h2>
+  <p>2 段目で足した試験は 21 個です（並べ方の木 9、落とす先の計算 3、配置 1、部品と引っ張り 7、変わった所だけ描く絵 1）。公開の項目の説明は 598 から 603 に増え、動く例は 429 のままです（<code>xtask check</code> は、公開の項目の全部に説明と例があるかを確かめます）。ガイドの 23 章に、浮いた枠の節を足しました。記録 8ebbef8 は、作者の「送って」で GitHub に入りました。</p>
+
+  <h2 id="ci">CI</h2>
+  <p>記録 8ebbef8 は、CI の Windows・Linux・macOS で 1 回目から通りました。第 12 章で決めたとおり、送る前に CI の Windows と同じ 4 段（全体の試験、文字の別の組み立ての試験、<code>xtask check</code>、警告を誤りにした説明の組み立て）を手元で全部走らせています。</p>
+
+  <h2 id="next">次の段階</h2>
+  <p>3 段目は、浮いた枠を OS の別の窓に出す形です。Wayland ではアプリが窓の位置を読めないので、Windows と X11 から作ります。浮いた枠をキーボードで動かす・大きさを変えることも、まだできません。端に隠す（オートハイド）、名前を付けた並べ方、まとまりごと引っ張ることは、さらに後の候補です。</p>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="12-dock.html">← 第 12 章 ドッキング</a>
+    <a href="./">目次 →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>
