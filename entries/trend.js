@@ -16375,3 +16375,520 @@ dekiru.add({
     startSearch();
   },
 });
+dekiru.add({
+  id: 'tr-20261125-click-synth', c: 'trend', lv: 2, date: '2026-11-25',
+  t: '録音を使わず、ボタンの「押す音」と「離す音」を毎回その場で計算して、少しずつ違う音にする',
+  y: 'ろくおんをつかわず ぼたんのおすおととはなすおとをまいかいそのばでけいさんして すこしずつちがうおとにする',
+  tags: ['Button Sounds', 'Web Audio', 'モード合成', '効果音', 'AudioBuffer'],
+  d: 'Josh W. Comeau さんの Button Sounds（2026-11-25 に Hacker News で 370 点を超えた）は、身の回りのボタンやスイッチの音を録音した 50 種類以上の素材集で、1 つの音につき押す音と離す音を何回分も録ってある。鳴らすたびに録音を選び直すので、続けて押しても同じ音の繰り返しに聞こえない。この見本は録音を使わず、ボタンの音を「何度か当たって、いくつかの高さで響いて消えるもの」と考えて、波をその場で計算する（モード合成）。押す時と離す時で当たり方を変え、種類・大きさ・硬さ・響きの長さを選べる。種（seed）から決まる乱数で、響きの高さや当たる時刻を毎回少しずらす。ばらつきを 0 にすると毎回まったく同じ音になるので、「続けて 8 回」で聞き比べられる。再現できていないのは、本物の録音の細かい質感・部屋の響き・左右の広がり（この見本は 1 チャンネル）。5 種類の響きの周波数は実物を測った値ではなく、それらしく決めた値である。',
+  p: 'ボタンの音を、当たった瞬間の短いざらつきと、そのあと減っていくいくつかの正弦波（響き）の足し算として計算する。減っていく正弦波は sin を毎回呼ばずに、y[k+1] = 2d·cos(ω)·y[k] − d²·y[k−1]（d は 1 サンプルごとの減り方）という 2 つ前までの値を使う式で進める。硬い当たりほど高い響きが残るように、周波数 f の響きに 1/(1+(f·当たりの長さ)²) を掛ける。種から決まる乱数で周波数・減り方・当たりの時刻を少しずつずらすと、録音を何回分も用意しなくても毎回違う音になる。できた波は AudioBuffer に入れ、AudioBufferSourceNode で鳴らす。「続けて 8 回」は AudioContext の時計（currentTime）で鳴らす時刻を決めるので、間隔がずれない。',
+  refs: [
+    { title: 'Button Sounds — tactile SFX for your UI（Josh W. Comeau）', url: 'https://buttons.joshwcomeau.com/' },
+    { title: 'joshwcomeau/button-sounds（README に、録音のしかたと、録音を何回分も用意して選び直す理由）', url: 'https://github.com/joshwcomeau/button-sounds' },
+    { title: 'Hacker News: Button Sounds – collection of professionally-recorded button clicks and presses', url: 'https://news.ycombinator.com/item?id=50638032' },
+  ],
+  html: `<div class="wrap">
+  <div class="stage">
+    <button id="cap" class="cap" type="button" aria-describedby="hint"><span class="face">押す</span></button>
+    <div class="side">
+      <p id="hint">押した時に「押す音」、離した時に「離す音」が鳴る。録音は使わず、毎回その場で波を計算している。Tab で選んで Space か Enter でも押せる。</p>
+      <button id="burst" class="sub" type="button">続けて 8 回鳴らす</button>
+    </div>
+  </div>
+  <fieldset id="kinds"><legend>ボタンの種類</legend></fieldset>
+  <div class="sl">
+    <label><span>大きさ</span><input type="range" id="size" min="0.6" max="1.6" step="0.01" value="1"><output id="sizeO" for="size"></output></label>
+    <label><span>硬さ</span><input type="range" id="hard" min="0" max="1" step="0.01" value="0.6"><output id="hardO" for="hard"></output></label>
+    <label><span>響きの長さ</span><input type="range" id="ring" min="0.4" max="2.5" step="0.01" value="1"><output id="ringO" for="ring"></output></label>
+    <label><span>ばらつき</span><input type="range" id="vary" min="0" max="1" step="0.01" value="0.5"><output id="varyO" for="vary"></output></label>
+  </div>
+  <canvas id="wave" role="img" aria-label="押す音と離す音の波の形"></canvas>
+  <p class="note">上の段が押す音（薄い線は前の 4 回）、下の段が離す音。▼ は当たった時刻。ばらつきを 0 にして「続けて 8 回」を押すと、同じ録音を繰り返した時の聞こえ方と比べられる。</p>
+  <p id="info"></p>
+</div>`,
+  css: `:root { color-scheme: dark; --ac: #f0b44c; }
+body { margin: 0; background: #1f2128; color: #ece8df; font: 14px/1.6 system-ui, sans-serif; accent-color: var(--ac); }
+.wrap { display: grid; gap: 12px; padding: 14px; max-width: 760px; margin: 0 auto; }
+.stage { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 18px; align-items: center; }
+.side { display: grid; gap: 8px; justify-items: start; }
+.side p { margin: 0; color: #cfc9bd; }
+.cap { width: 120px; height: 120px; padding: 0; border: 0; border-radius: 22px; background: linear-gradient(#3a3e49, #2b2e37); color: #ece8df; font: 700 18px system-ui, sans-serif; cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; box-shadow: 0 8px 0 #121318, 0 10px 18px #0008, inset 0 1px 0 #ffffff22; }
+.cap .face { display: grid; place-items: center; width: 84px; height: 84px; margin: auto; border-radius: 14px; background: linear-gradient(#4a4f5c, #3a3e49); box-shadow: inset 0 2px 0 #ffffff1c, inset 0 -3px 0 #0003; }
+.cap:hover .face { background: linear-gradient(#565c6a, #414653); }
+.cap.down { translate: 0 6px; box-shadow: 0 2px 0 #121318, 0 3px 6px #0008, inset 0 1px 0 #ffffff22; }
+@media (prefers-reduced-motion: no-preference) { .cap { transition: translate 40ms ease-out, box-shadow 40ms ease-out; } }
+:focus-visible { outline: 2px solid #f6d58e; outline-offset: 3px; }
+.sub { padding: 6px 14px; border: 1px solid #4a4f5c; border-radius: 8px; background: #2f333d; color: #ece8df; font: inherit; cursor: pointer; }
+.sub:hover { background: #3a3f4b; }
+.sub:active { scale: 0.97; }
+.sub[aria-disabled="true"] { opacity: 0.6; cursor: default; }
+fieldset { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 6px 12px 10px; border: 1px solid #3b3f4a; border-radius: 10px; }
+legend { padding: 0 4px; color: #b8b2a6; }
+fieldset label { cursor: pointer; }
+.sl { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 4px 18px; }
+.sl label { display: grid; grid-template-columns: 5.5em minmax(0, 1fr) 7.5em; align-items: center; gap: 8px; }
+.sl input { width: 100%; margin: 0; }
+.sl output { font: 12px ui-monospace, monospace; color: #cfc9bd; }
+canvas { display: block; width: 100%; height: 190px; border-radius: 10px; background: #16181d; }
+.note { margin: 0; color: #b8b2a6; font-size: 13px; }
+#info { margin: 0; min-height: 6.4em; color: #cfc9bd; font: 12.5px/1.6 ui-monospace, monospace; white-space: pre-line; overflow-wrap: anywhere; }
+@media (max-width: 520px) { .stage { grid-template-columns: minmax(0, 1fr); justify-items: center; } .side { justify-items: center; text-align: center; } }
+.thumb .side, .thumb fieldset, .thumb .sl, .thumb .note, .thumb #info { display: none; }
+.thumb .wrap { grid-template-columns: auto minmax(0, 1fr); align-items: center; }
+.thumb .cap { width: 96px; height: 96px; }
+.thumb .cap .face { width: 66px; height: 66px; }
+.thumb canvas { height: 170px; }`,
+  core() {
+    // 種（seed）から決まった乱数の列を出す（mulberry32）。同じ種なら同じ音になる
+    function rng(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a = (a + 0x6d2b79f5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    // ボタンの種類。modes は響き [周波数 Hz, 減る時間 τ 秒, 強さ]（実物を測った値ではなく、それらしく決めた値）。
+    // down と up は当たりの並び [時刻 秒, 強さ, 響きの高さの倍率]。noise は当たりの瞬間のざらつきの強さ
+    const KINDS = {
+      key: {
+        name: 'キーボードのキー', sound: 'コトッ', noise: 0.25,
+        modes: [[430, 0.02, 1], [1010, 0.012, 0.55], [2350, 0.006, 0.35], [4200, 0.0035, 0.25], [7300, 0.045, 0.035]],
+        down: [[0, 0.25, 1.7], [0.0065, 1, 1]],
+        up: [[0, 0.5, 1.12], [0.0035, 0.2, 1.6]],
+      },
+      mouse: {
+        name: 'マウスのボタン', sound: 'カチッ', noise: 0.4,
+        modes: [[1850, 0.009, 1], [3650, 0.006, 0.7], [6050, 0.004, 0.5], [9100, 0.0025, 0.3]],
+        down: [[0, 1, 1], [0.0022, 0.25, 0.8]],
+        up: [[0, 0.75, 1.1], [0.0018, 0.15, 0.85]],
+      },
+      toggle: {
+        name: '金属のトグルスイッチ', sound: 'パチン', noise: 0.3,
+        modes: [[1180, 0.055, 1], [2950, 0.04, 0.55], [5100, 0.028, 0.4], [7900, 0.018, 0.25]],
+        down: [[0, 1, 1], [0.0085, 0.35, 1.04]],
+        up: [[0, 0.9, 0.96], [0.0075, 0.3, 1.02]],
+      },
+      pen: {
+        name: 'ボールペンのノック', sound: 'カチャ', noise: 0.35,
+        modes: [[2550, 0.012, 1], [4350, 0.008, 0.6], [1150, 0.018, 0.4], [7200, 0.005, 0.35], [5800, 0.07, 0.04]],
+        down: [[0, 0.6, 1], [0.011, 1, 0.9]],
+        up: [[0, 0.85, 1.08], [0.006, 0.3, 0.7]],
+      },
+      wood: {
+        name: '木の押しボタン', sound: 'コン', noise: 0.15,
+        modes: [[310, 0.032, 1], [760, 0.018, 0.5], [1650, 0.009, 0.3], [2900, 0.004, 0.15]],
+        down: [[0, 1, 1]],
+        up: [[0, 0.45, 1.05]],
+      },
+    };
+
+    // 硬さ 0〜1 を、当たっている時間（秒）に直す。0 は 1.6 ms（やわらかい）、1 は 0.16 ms（硬い）
+    function contactTime(hard) {
+      return 0.0016 * Math.pow(0.1, Math.min(1, Math.max(0, hard)));
+    }
+
+    // 当たりの長さ ex 秒のとき、周波数 f の響きがどれだけ残るか（硬く短い当たりほど高い響きが残る）
+    function softness(f, ex) {
+      return 1 / (1 + (f * ex) * (f * ex));
+    }
+
+    // 音の大きさをそろえるための基準（ばらつき 0 の押す音の一番大きい値）。同じ設定なら覚えておく
+    const refPeak = new Map();
+
+    // ボタンの音を1つ計算する。o = { sr, kind, phase: 'down' | 'up', seed, size, hard, ring, vary }
+    // 返す値: { data: Float32Array, sr, dur, events: 当たりの時刻の配列, modes: 響きの配列, peak }
+    function synthClick(o) {
+      const sr = o.sr || 48000;
+      const K = KINDS[o.kind] || KINDS.key;
+      const phase = o.phase === 'up' ? 'up' : 'down';
+      const size = o.size == null ? 1 : o.size;
+      const hard = o.hard == null ? 0.6 : o.hard;
+      const ring = o.ring == null ? 1 : o.ring;
+      const v = o.vary == null ? 0.5 : Math.min(1, Math.max(0, o.vary));
+      const rand = rng(o.seed == null ? 1 : o.seed);
+      // 1 ± w·v の範囲でずらす
+      const j = (w) => 1 + (rand() - 0.5) * 2 * w * v;
+      const ex0 = contactTime(hard);
+      const pitch = j(0.015) / size;
+      const modes = K.modes.map(([f, tau, gain]) => ({ f: f * pitch * j(0.03), tau: tau * ring * j(0.2), g: gain * j(0.3) }));
+      const events = K[phase].map(([t, a, p]) => ({ t: t * j(0.3), a: a * j(0.25), p }));
+      // 響きが 1/1000 まで減る時間（τ·ln(強さ/0.001)）。一番遅く消える所までを音の長さにする
+      const life = (a, m) => m.tau * Math.log(Math.max(1.001, (a * m.g) / 0.001));
+      let end = 0;
+      for (const e of events) for (const m of modes) end = Math.max(end, e.t + life(e.a, m));
+      end = Math.min(0.6, end + 0.004);
+      const n = Math.max(1, Math.round(end * sr));
+      const data = new Float32Array(n);
+      for (const e of events) {
+        const i0 = Math.min(n - 1, Math.round(e.t * sr));
+        const ex = ex0 / Math.sqrt(e.p);
+        // 立ち上がりを当たりの長さだけなめらかにする
+        const ad = Math.exp(-1 / Math.max(1, ex * sr));
+        for (const m of modes) {
+          const f = m.f * e.p;
+          if (f >= sr * 0.45) continue;
+          const amp = e.a * m.g * softness(f, ex);
+          const w = (2 * Math.PI * f) / sr;
+          const d = Math.exp(-1 / (m.tau * sr));
+          // 減っていく正弦波 A·d^k·sin(kω) を、sin を呼ばずに2つ前までの値から進める
+          const cw = 2 * d * Math.cos(w), d2 = d * d;
+          let y0 = 0, y1 = amp * d * Math.sin(w), att = 1;
+          const len = Math.min(n - i0, Math.ceil(life(e.a, m) * sr) + 1);
+          for (let k = 1; k < len; k++) {
+            att *= ad;
+            data[i0 + k] += y1 * (1 - att);
+            const y2 = cw * y1 - d2 * y0;
+            y0 = y1;
+            y1 = y2;
+          }
+        }
+        // 当たりの瞬間のざらつき: 白い雑音を1次の低域通過にかけ、すぐ減らす
+        const nt = 0.0006 + ex;
+        const nd = Math.exp(-1 / (nt * sr));
+        const fc = Math.min(sr * 0.45, 4 / (2 * Math.PI * ex));
+        const lp = 1 - Math.exp((-2 * Math.PI * fc) / sr);
+        const nlen = Math.min(n - i0, Math.ceil(nt * sr * 8));
+        let env = e.a * K.noise, z = 0, prev = 0;
+        for (let k = 0; k < nlen; k++) {
+          z += lp * (rand() * 2 - 1 - z);
+          // 差を取って低い音を除く（カチッという音のざらつきだけを残す）
+          data[i0 + k] += (z - prev) * env * 4;
+          prev = z;
+          env *= nd;
+        }
+      }
+      let peak = 0;
+      for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(data[i]));
+      if (o.raw) return { data, sr, dur: n / sr, events: events.map((e) => e.t), modes, peak };
+      // 同じ設定のばらつき 0 の押す音が 0.6 になるように大きさをそろえる（ばらつきによる大小は残る）
+      const key = [o.kind, sr, size, hard, ring].join(',');
+      if (!refPeak.has(key)) {
+        if (refPeak.size > 64) refPeak.clear();
+        const r = synthClick({ sr, kind: o.kind, phase: 'down', seed: 7, size, hard, ring, vary: 0, raw: true });
+        refPeak.set(key, r.peak || 1);
+      }
+      const gain = 0.6 / refPeak.get(key);
+      peak = 0;
+      for (let i = 0; i < n; i++) {
+        let x = data[i] * gain;
+        // 0.9 を超える所だけ、なめらかに抑える
+        if (x > 0.9) x = 0.9 + 0.1 * Math.tanh((x - 0.9) / 0.1);
+        else if (x < -0.9) x = -0.9 - 0.1 * Math.tanh((-x - 0.9) / 0.1);
+        data[i] = x;
+        peak = Math.max(peak, Math.abs(x));
+      }
+      return { data, sr, dur: n / sr, events: events.map((e) => e.t), modes, peak };
+    }
+
+    // 音の中心の高さ（スペクトルの重心、Hz）。先頭の N 個にハン窓をかけて離散フーリエ変換する
+    function centroid(data, sr, N) {
+      const n = Math.min(N || 1024, data.length);
+      if (n < 8) return 0;
+      const cosT = new Float64Array(n), sinT = new Float64Array(n), x = new Float64Array(n);
+      for (let i = 0; i < n; i++) {
+        cosT[i] = Math.cos((2 * Math.PI * i) / n);
+        sinT[i] = Math.sin((2 * Math.PI * i) / n);
+        x[i] = data[i] * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (n - 1)));
+      }
+      let num = 0, den = 0;
+      for (let k = 1; k < n >> 1; k++) {
+        let re = 0, im = 0, idx = 0;
+        for (let i = 0; i < n; i++) {
+          re += x[i] * cosT[idx];
+          im -= x[i] * sinT[idx];
+          idx += k;
+          if (idx >= n) idx -= n;
+        }
+        const mag = Math.hypot(re, im);
+        num += (mag * k * sr) / n;
+        den += mag;
+      }
+      return den > 0 ? num / den : 0;
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const cap = $('cap'), cv = $('wave'), g = cv.getContext('2d'), info = $('info'), burst = $('burst');
+    const S = { kind: 'key', size: 1, hard: 0.6, ring: 1, vary: 0.5 };
+    let ac = null, master = null, count = 0, isDown = false, busy = false;
+    let lastDown = null, lastUp = null, ghosts = [];
+
+    // ボタンの種類の選択肢
+    const box = $('kinds');
+    for (const id of Object.keys(KINDS)) {
+      const k = KINDS[id];
+      const lab = document.createElement('label');
+      const inp = document.createElement('input');
+      inp.type = 'radio';
+      inp.name = 'kind';
+      inp.value = id;
+      inp.checked = id === S.kind;
+      inp.addEventListener('change', () => { S.kind = id; resetShape(); });
+      lab.append(inp, ' ' + k.name + '（' + k.sound + '）');
+      box.append(lab);
+    }
+    function setKind(id) {
+      S.kind = id;
+      const r = box.querySelector('input[value="' + id + '"]');
+      if (r) r.checked = true;
+    }
+
+    // つまみ
+    const FMT = {
+      size: (v) => '×' + v.toFixed(2),
+      hard: (v) => Math.round(v * 100) + '%',
+      ring: (v) => '×' + v.toFixed(2),
+      vary: (v) => (v === 0 ? '0（毎回同じ）' : Math.round(v * 100) + '%'),
+    };
+    for (const k of Object.keys(FMT)) {
+      const inp = $(k), out = $(k + 'O');
+      const show = () => { S[k] = Number(inp.value); out.textContent = FMT[k](S[k]); };
+      inp.addEventListener('input', () => { show(); if (k !== 'vary') resetShape(); });
+      show();
+    }
+
+    // 設定を変えたら、鳴らさずに見本の形だけ描き直す
+    function resetShape() {
+      ghosts = [];
+      lastDown = make('down');
+      lastUp = make('up');
+      draw();
+      tell(lastDown, false);
+    }
+
+    // 音はクリックやキーを押した後で用意する
+    function audio() {
+      if (!ac) {
+        ac = new AudioContext();
+        master = ac.createGain();
+        master.gain.value = 0.8;
+        master.connect(ac.destination);
+      }
+      if (ac.state === 'suspended') ac.resume();
+    }
+    // ばらつきが 0 なら毎回同じ種（= 同じ録音を繰り返すのと同じ）、それ以外は毎回新しい種
+    function make(phase) {
+      const seed = S.vary > 0 ? Math.floor(Math.random() * 4294967296) >>> 0 : phase === 'down' ? 101 : 202;
+      const r = synthClick({ sr: ac ? ac.sampleRate : 48000, kind: S.kind, phase, seed, size: S.size, hard: S.hard, ring: S.ring, vary: S.vary });
+      r.seed = seed;
+      r.phase = phase;
+      return r;
+    }
+    function play(snd, when) {
+      if (!ac || window.THUMB) return;
+      const b = ac.createBuffer(1, snd.data.length, snd.sr);
+      b.copyToChannel(snd.data, 0);
+      const s = ac.createBufferSource();
+      s.buffer = b;
+      s.connect(master);
+      s.start(when || 0);
+    }
+
+    function showDown(snd) {
+      count++;
+      cap.classList.add('down');
+      if (lastDown) ghosts = [lastDown].concat(ghosts).slice(0, 4);
+      lastDown = snd;
+      lastUp = null;
+      draw();
+      tell(snd, true);
+    }
+    function showUp(snd) {
+      cap.classList.remove('down');
+      lastUp = snd;
+      draw();
+      tell(snd, true);
+    }
+    function press() {
+      if (isDown || busy) return;
+      isDown = true;
+      const snd = make('down');
+      play(snd);
+      showDown(snd);
+    }
+    function release() {
+      if (!isDown) return;
+      isDown = false;
+      const snd = make('up');
+      play(snd);
+      showUp(snd);
+    }
+
+    function tell(s, pressed) {
+      const head = (s.phase === 'down' ? '押す音' : '離す音') + (pressed ? ' #' + count : '（見本の形。まだ鳴らしていない）');
+      const c = centroid(s.data, s.sr);
+      info.textContent = head + '　種 ' + s.seed +
+        '\n当たり ' + s.events.length + ' 回: ' + s.events.map((t) => (t * 1000).toFixed(1) + ' ms').join('・') +
+        '\n響き: ' + s.modes.map((m) => Math.round(m.f) + ' Hz').join('・') +
+        '\n音の中心 ' + (c / 1000).toFixed(2) + ' kHz・長さ ' + Math.round(s.dur * 1000) + ' ms・一番大きい所 ' + s.peak.toFixed(2);
+    }
+
+    // ---- 波の形を描く ----
+    function sizeCanvas() {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const w = Math.max(1, cv.clientWidth), h = Math.max(1, cv.clientHeight);
+      const W = Math.max(1, Math.round(w * dpr)), H = Math.max(1, Math.round(h * dpr));
+      if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return [w, h];
+    }
+    // 表に出す長さ: どの音も一番大きい所の 2% より小さくなる時刻まで（10 ms 単位で切り上げ）
+    function spanOf(list) {
+      let t = 0.02;
+      for (const s of list) {
+        if (!s) continue;
+        const lim = s.peak * 0.02;
+        for (let i = s.data.length - 1; i >= 0; i--) {
+          if (Math.abs(s.data[i]) > lim) { t = Math.max(t, i / s.sr); break; }
+        }
+      }
+      return Math.min(0.4, Math.ceil(t * 100) / 100);
+    }
+    // 1 画素の幅に入るサンプルの最小と最大を縦線で描く
+    function wave(s, x0, y0, pw, amp, span, color) {
+      const n = s.data.length, per = (span * s.sr) / pw;
+      g.fillStyle = color;
+      for (let px = 0; px < pw; px++) {
+        const a = Math.floor(px * per), b = Math.min(n, Math.floor((px + 1) * per) + 1);
+        if (a >= n) break;
+        let lo = 0, hi = 0;
+        for (let i = a; i < b; i++) {
+          const v = s.data[i];
+          if (v < lo) lo = v;
+          if (v > hi) hi = v;
+        }
+        const y1 = y0 - hi * amp, y2 = y0 - lo * amp;
+        g.fillRect(x0 + px, y1, 1, Math.max(1, y2 - y1));
+      }
+    }
+    function draw() {
+      const [w, h] = sizeCanvas();
+      g.fillStyle = '#16181d';
+      g.fillRect(0, 0, w, h);
+      const L = 46, R = 26, T = 8, B = 22;
+      const pw = Math.max(1, Math.floor(w - L - R));
+      const rowH = Math.max(1, (h - T - B) / 2);
+      const span = spanOf([lastDown, lastUp].concat(ghosts));
+      g.font = '12px system-ui, sans-serif';
+      g.textBaseline = 'middle';
+      g.lineWidth = 1;
+      // 時刻の目盛り
+      const step = [0.005, 0.01, 0.02, 0.05, 0.1].find((s) => span / s <= 6) || 0.1;
+      g.textAlign = 'center';
+      for (let t = 0; t <= span + 1e-9; t += step) {
+        const x = Math.round(L + (pw * t) / span) + 0.5;
+        g.strokeStyle = '#2a2e37';
+        g.beginPath();
+        g.moveTo(x, T);
+        g.lineTo(x, T + rowH * 2);
+        g.stroke();
+        g.fillStyle = '#8e887c';
+        g.fillText(Math.round(t * 1000) + ' ms', x, h - B / 2);
+      }
+      const rows = [
+        { label: '押す', y: T + rowH / 2, list: ghosts, main: lastDown, col: '#f0b44c', ghost: 'rgba(240, 180, 76, 0.22)' },
+        { label: '離す', y: T + rowH * 1.5, list: [], main: lastUp, col: '#6cc4e8', ghost: '' },
+      ];
+      for (const r of rows) {
+        g.strokeStyle = '#3b3f4a';
+        g.beginPath();
+        g.moveTo(L, Math.round(r.y) + 0.5);
+        g.lineTo(L + pw, Math.round(r.y) + 0.5);
+        g.stroke();
+        g.fillStyle = '#cfc9bd';
+        g.textAlign = 'left';
+        g.fillText(r.label, 6, r.y);
+        const amp = rowH * 0.46;
+        for (const s of r.list) wave(s, L, r.y, pw, amp, span, r.ghost);
+        if (r.main) {
+          wave(r.main, L, r.y, pw, amp, span, r.col);
+          // 当たった時刻（▼）
+          g.fillStyle = r.col;
+          const ty = r.y - rowH / 2 + 2;
+          for (const t of r.main.events) {
+            const x = L + (pw * t) / span;
+            g.beginPath();
+            g.moveTo(x - 4, ty);
+            g.lineTo(x + 4, ty);
+            g.lineTo(x, ty + 6);
+            g.fill();
+          }
+        } else {
+          g.fillStyle = '#6f6a60';
+          g.textAlign = 'center';
+          g.fillText('離すと、ここに出る', L + pw / 2, r.y);
+        }
+      }
+      cv.setAttribute('aria-label', '上の段は押す音、下の段は離す音の波の形。横は時刻で、0 から ' + Math.round(span * 1000) + ' ミリ秒まで。');
+    }
+
+    // ---- 操作 ----
+    cap.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      try { cap.setPointerCapture(e.pointerId); } catch (err) { /* 捕まえられなくても鳴らす */ }
+      audio();
+      press();
+    });
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) cap.addEventListener(type, () => { if (ac) audio(); release(); });
+    cap.addEventListener('contextmenu', (e) => e.preventDefault());
+    cap.addEventListener('keydown', (e) => {
+      if (e.key !== ' ' && e.key !== 'Enter') return;
+      e.preventDefault();
+      if (e.repeat) return;
+      audio();
+      press();
+    });
+    cap.addEventListener('keyup', (e) => {
+      if (e.key !== ' ' && e.key !== 'Enter') return;
+      e.preventDefault();
+      release();
+    });
+    cap.addEventListener('blur', () => release());
+
+    // 続けて 8 回: 先に 16 個の音を作り、AudioContext の時計で並べて鳴らす
+    burst.addEventListener('click', () => {
+      if (busy || isDown) return;
+      audio();
+      busy = true;
+      burst.setAttribute('aria-disabled', 'true');
+      const gap = 0.17, hold = 0.075, lead = 0.06, t0 = ac.currentTime + lead;
+      for (let i = 0; i < 8; i++) {
+        const d = make('down'), u = make('up');
+        play(d, t0 + i * gap);
+        play(u, t0 + i * gap + hold);
+        setTimeout(() => showDown(d), (lead + i * gap) * 1000);
+        setTimeout(() => showUp(u), (lead + i * gap + hold) * 1000);
+      }
+      setTimeout(() => { busy = false; burst.removeAttribute('aria-disabled'); }, (lead + 8 * gap) * 1000 + 50);
+    });
+
+    // 一覧の小窓では、ボタンと波の形だけを並べる
+    if (window.THUMB) document.body.classList.add('thumb');
+    resetShape();
+    if ('ResizeObserver' in window) new ResizeObserver(() => draw()).observe(cv);
+
+    // 一覧の小窓: 音は出さずに、押す・離すをくり返して波の形を見せる
+    if (window.THUMB) {
+      const ids = Object.keys(KINDS);
+      let i = 0;
+      const loop = () => {
+        showDown(make('down'));
+        setTimeout(() => {
+          showUp(make('up'));
+          i++;
+          if (i % 3 === 0) {
+            setKind(ids[(i / 3) % ids.length]);
+            ghosts = [];
+            lastDown = null;
+          }
+          setTimeout(loop, 520);
+        }, 150);
+      };
+      loop();
+    }
+  },
+});

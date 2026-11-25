@@ -2520,3 +2520,73 @@ test('行列の積: 指数の式と、論文の下界 n^{9/4} の切り上げ', 
   assert.equal(lowerBound(16), 512);
   assert.equal(lowerBound(81), 19683);
 });
+
+const CLICK = 'tr-20261125-click-synth';
+const CK_NAMES = ['rng', 'KINDS', 'synthClick', 'centroid', 'contactTime', 'softness'];
+
+test('ボタンの音: 同じ種なら同じ乱数の列、値は 0 以上 1 未満', () => {
+  const { rng } = trendCore(CLICK, CK_NAMES);
+  const a = rng(42), b = rng(42), c = rng(43);
+  const xa = Array.from({ length: 50 }, a), xb = Array.from({ length: 50 }, b), xc = Array.from({ length: 50 }, c);
+  assert.deepEqual(xa, xb);
+  assert.notDeepEqual(xa, xc);
+  for (const x of xa) assert.ok(x >= 0 && x < 1);
+});
+
+test('ボタンの音: 硬さから当たりの長さ、高い響きほど硬さの影響を受ける', () => {
+  const { contactTime, softness } = trendCore(CLICK, CK_NAMES);
+  assert.ok(near(contactTime(0), 0.0016));
+  assert.ok(near(contactTime(1), 0.00016));
+  assert.ok(near(contactTime(2), 0.00016), '1 より大きい硬さは 1 として扱う');
+  assert.equal(softness(0, 0.001), 1);
+  assert.ok(near(softness(1000, 0.001), 0.5));
+  assert.ok(softness(4000, 0.001) < softness(1000, 0.001));
+});
+
+test('ボタンの音: 同じ種なら同じ波、種が違えば違う波。長さ・当たりの数・大きさの上限を守る', () => {
+  const { KINDS, synthClick } = trendCore(CLICK, CK_NAMES);
+  for (const kind of Object.keys(KINDS)) {
+    for (const phase of ['down', 'up']) {
+      const o = { sr: 48000, kind, phase, seed: 9, vary: 0.7 };
+      const a = synthClick(o), b = synthClick(o), c = synthClick({ ...o, seed: 10 });
+      assert.deepEqual(Array.from(a.data), Array.from(b.data), kind + phase);
+      assert.notDeepEqual(Array.from(a.data), Array.from(c.data), kind + phase);
+      assert.equal(a.data.length, Math.round(a.dur * 48000));
+      assert.ok(a.dur > 0.01 && a.dur <= 0.6 + 1e-9);
+      assert.equal(a.events.length, KINDS[kind][phase].length);
+      for (let i = 1; i < a.events.length; i++) assert.ok(a.events[i] > a.events[i - 1]);
+      let mx = 0;
+      for (const x of a.data) { assert.ok(Number.isFinite(x)); mx = Math.max(mx, Math.abs(x)); }
+      assert.ok(mx <= 1 && near(mx, a.peak, 1e-6));
+    }
+  }
+});
+
+test('ボタンの音: ばらつき 0 の押す音は一番大きい所が 0.6 にそろい、最後は十分に小さくなる', () => {
+  const { KINDS, synthClick } = trendCore(CLICK, CK_NAMES);
+  for (const kind of Object.keys(KINDS)) {
+    for (const opt of [{}, { size: 0.6, hard: 0, ring: 2.5 }, { size: 1.6, hard: 1, ring: 0.4 }]) {
+      const r = synthClick({ sr: 44100, kind, phase: 'down', seed: 7, vary: 0, ...opt });
+      assert.ok(near(r.peak, 0.6, 1e-6), kind + ' ' + r.peak);
+      const tail = r.data.subarray(Math.floor(r.data.length * 0.95));
+      let tm = 0;
+      for (const x of tail) tm = Math.max(tm, Math.abs(x));
+      assert.ok(tm < 0.02, kind + ' の最後の 5% が ' + tm);
+    }
+  }
+});
+
+test('ボタンの音: 音の中心の高さは、正弦波ならその周波数。硬いほど高く、大きいほど低い', () => {
+  const { synthClick, centroid } = trendCore(CLICK, CK_NAMES);
+  const sr = 48000, s = new Float32Array(2048), two = new Float32Array(2048);
+  for (let i = 0; i < s.length; i++) {
+    s[i] = Math.sin((2 * Math.PI * 3000 * i) / sr);
+    two[i] = Math.sin((2 * Math.PI * 1500 * i) / sr) + Math.sin((2 * Math.PI * 4500 * i) / sr);
+  }
+  assert.ok(Math.abs(centroid(s, sr) - 3000) < 30);
+  assert.ok(Math.abs(centroid(two, sr) - 3000) < 60);
+  assert.equal(centroid(new Float32Array(4), sr), 0);
+  const c = (o) => centroid(synthClick({ sr, kind: 'key', phase: 'down', seed: 3, vary: 0, ...o }).data, sr);
+  assert.ok(c({ hard: 0 }) < c({ hard: 1 }));
+  assert.ok(c({ size: 1.6 }) < c({ size: 0.6 }));
+});
