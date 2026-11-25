@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 14 章 別の窓 ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="ドッキングの 3 段目として、パネルを OS の別の窓に出せるようにしました（Windows と X11。Wayland では出さない）。範囲を決めた理由、別の窓の中身をアプリの App::window から同じ ui.dock で描く書き方、窓の場所を OS ごとに読み直す作りと、最小化した窓の場所を覚えない理由を紹介します。後半では、本物の窓での確かめ、検証機で Hyprland が落ちたこと、作者の手の確かめの結果を書きます。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 14 章</p>
+  <h1>別の窓</h1>
+  <p class="lede">ドッキングの 3 段目として、パネルを OS の別の窓に出せるようにしました。画面が 2 つある時に、片方の画面へパネルを置く時などに使います。Windows と X11 だけで、Wayland では今までどおり窓の中の枠にします。この章では、範囲を決めた理由と、別の窓の中身をアプリが描く書き方、窓の場所を OS ごとに読み直す作りを紹介します。後半では、本物の窓での確かめと、作者の手の確かめの結果を書きます。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>Wayland では別の窓に出さないと決めた理由</li>
+      <li>別の窓の中身を、アプリの <code>App::window</code> から同じ <code>ui.dock</code> で描く書き方</li>
+      <li>窓の場所の形が OS ごとに違う時に、開き直してもずれないように読み戻す方法</li>
+      <li>最小化した窓の場所を覚えてはいけない理由</li>
+      <li>窓を並べて置くウィンドウマネージャー（Hyprland）では、頼んだ場所が使われないこと</li>
+    </ul>
+  </section>
+
+  <h2 id="scope">範囲を決めた</h2>
+  <p>2 段目を送った後、作者に 3 段目の範囲を 1 つ尋ねました。Wayland でも別の窓に出すかどうかです。Wayland では、アプリが窓の場所を決めることも読むこともできません。窓を出す場所も、保存した場所を戻せるかも、合成（コンポジター）に任せることになります。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-scope">
+    <table>
+      <caption id="t-scope">作者に示した 2 つの案</caption>
+      <thead><tr><th scope="col">案</th><th scope="col">3 つの OS の動き</th><th scope="col">場所を戻せるか</th><th scope="col">作る量</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Wayland では出さない（推奨）</th><td data-label="3 つの OS の動き">Windows と X11 は別の窓、Wayland は窓の中の枠。違いは説明に書く</td><td data-label="場所を戻せるか">別の窓に出す OS では戻せる</td><td data-label="作る量">少ない</td></tr>
+        <tr><th scope="row">Wayland でも出す</th><td data-label="3 つの OS の動き">3 つとも別の窓に出せる</td><td data-label="場所を戻せるか">Wayland では戻せない。出す場所も合成が決める</td><td data-label="作る量">多い（Wayland だけの扱いが要る）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>作者の答えは「その形で進めて」でした。Wayland では「Move to a new window」のメニューを出しません。読み込んだ並べ方に別の窓があれば、窓の中の浮いた枠にします。</p>
+
+  <!-- gen:windows -->
+<div class="pair">
+  <figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dock3/main-dark.webp"><img src="img/dock3/main-light.webp" alt="主の窓。左に Files、右上に Editor、右下に Output のまとまり。Editor のまとまりにあった Notes のタブは無い" width="1200" height="720" loading="lazy" decoding="async"></picture><figcaption>主の窓。Notes を別の窓に出したので、Editor のまとまりは Editor だけになった（600×360 の窓を試験台で 2 倍で撮った）。</figcaption></figure>
+  <figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dock3/window-dark.webp"><img src="img/dock3/window-light.webp" alt="別の窓。Notes のタブだけのまとまりが、窓いっぱいに出ている" width="600" height="360" loading="lazy" decoding="async"></picture><figcaption>別の窓（300×180）。中は Notes のまとまりだけで、動かす印や大きさを変える印は無い（窓は OS が動かす）。</figcaption></figure>
+</div>
+<!-- /gen:windows -->
+
+  <h2 id="api">書き方</h2>
+  <p>利用者は、タブの右クリックのメニューの「Move to a new window」で、パネルを別の窓に出します。窓は、そのまとまりがあった所に同じ大きさで開き、題は選んでいるパネルの名前です。アプリから出す時は <code>DockTo::Window { x, y, w, h }</code> を使います。</p>
+  <!-- gen:menu -->
+<figure class="shot flat"><picture><img src="img/dock3/menu-light.webp" alt="Editor のまとまりの Notes のタブの右クリックのメニュー。Move to a new group、Move into group、Float、Move to a new window、区切りの線、Close が並ぶ" width="1200" height="720" loading="lazy" decoding="async"></picture><figcaption>木のまとまりのタブのメニュー。「Float」の下に「Move to a new window」が足された（Wayland では出ない）。</figcaption></figure>
+<!-- /gen:menu -->
+  <p>kargui の複数の窓は、主の窓のビューで <code>ui.window</code> を頼み、その窓の中身はアプリの <code>App::window</code> が描く作りです（第 10 章）。ドッキングも同じ道を通ります。主の窓の <code>ui.dock</code> が、別の窓に出したまとまりごとに窓を頼みます。アプリは <code>App::window</code> の中で、<code>dock.has_window(key)</code> が true なら、主の窓と同じ <code>ui.dock</code> を呼びます。</p>
+  <pre><code>impl App for Ide {
+    fn view(&amp;mut self, ui: &amp;mut Ui) {
+        self.panels(ui); // ui.dock(&amp;mut self.dock).show(…)
+    }
+
+    // 別の窓に出したまとまりも、同じ dock で描く
+    fn window(&amp;mut self, key: &amp;str, ui: &amp;mut Ui) {
+        if self.dock.has_window(key) {
+            self.panels(ui);
+        }
+    }
+}</code></pre>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 300" role="img" aria-labelledby="fl-title fl-desc">
+      <title id="fl-title">別の窓を描く流れ</title>
+      <desc id="fl-desc">主の窓では、アプリの view が ui.dock を呼び、ui.dock が別の窓に出したまとまりごとに ui.window で窓を頼む。別の窓では、アプリの App::window が呼ばれ、dock.has_window が true なら同じ ui.dock を呼ぶ。別の窓の中の ui.dock は、その窓のまとまりだけを窓いっぱいに描く。利用者が窓を閉じたら、次の主の窓の ui.dock が、そのパネルを元の場所へ戻す。</desc>
+      <text class="sub" x="20" y="30">主の窓</text>
+      <rect class="box" x="20" y="40" width="190" height="56" rx="6"/>
+      <text class="label" x="36" y="74">App::view</text>
+      <rect class="box" x="265" y="40" width="190" height="56" rx="6"/>
+      <text class="label" x="281" y="74">ui.dock</text>
+      <rect class="box-soft" x="510" y="40" width="190" height="56" rx="6"/>
+      <text class="label" x="526" y="66">ui.window を頼む</text>
+      <text class="sub" x="526" y="86">まとまりごとに 1 つ</text>
+      <path class="arrow" d="M210 68 L259 68 M455 68 L504 68"/>
+      <path class="arrow-head" d="M259 63 L265 68 L259 73 Z M504 63 L510 68 L504 73 Z"/>
+      <path class="arrow" d="M605 96 L605 172"/>
+      <path class="arrow-head" d="M600 166 L605 174 L610 166 Z"/>
+      <text class="sub" x="614" y="140">OS の窓</text>
+      <text class="sub" x="20" y="166">別の窓</text>
+      <rect class="box" x="510" y="176" width="190" height="56" rx="6"/>
+      <text class="label" x="526" y="202">App::window(key)</text>
+      <text class="sub" x="526" y="222">has_window(key) なら</text>
+      <rect class="box" x="265" y="176" width="190" height="56" rx="6"/>
+      <text class="label" x="281" y="202">ui.dock</text>
+      <text class="sub" x="281" y="222">そのまとまりだけを描く</text>
+      <path class="arrow" d="M510 204 L461 204"/>
+      <path class="arrow-head" d="M461 199 L455 204 L461 209 Z"/>
+      <path class="loop" d="M265 204 L240 204 L240 82 L259 82"/>
+      <path class="loop-head" d="M253 77 L261 82 L253 87 Z"/>
+      <text class="loop-text" x="30" y="262">利用者が窓を閉じたら、次の主の窓の ui.dock がパネルを元の場所へ戻す</text>
+    </svg>
+    <figcaption>主の窓の <code>ui.dock</code> が窓を頼み、別の窓では同じ <code>ui.dock</code> がそのまとまりだけを描く。アプリは 1 つなので、どちらの窓での変更も同じ <code>Dock</code> に入る。</figcaption>
+  </figure>
+  <p>別の窓のタブのメニューは、「Dock」（元の場所へ）・「Move into group」・「Close」です。利用者が窓を × で閉じた時は、中のパネルを消さずに、それぞれ窓に入る前にいた所へ戻します。並べ方の保存には「<code>window x y w h</code>」の行で、窓の場所と中の大きさが入ります。</p>
+
+  <h2 id="frame">浮いた枠と同じ並びに持つ</h2>
+  <p>別の窓に出したまとまりは、浮いたまとまり（第 13 章）に「別の窓か」の印を足して、同じ並びに持ちました。外す・入れる・元の場所へ戻す・選ぶ・保存は、浮いた枠の物をそのまま使えます。違いは描く側だけです。</p>
+  <ul>
+    <li>主の窓は、並べ方の木と全体の中の浮いた枠だけを描く。F6 も、この 2 つだけを回る。</li>
+    <li>別の窓の中は、その窓のまとまりだけを窓いっぱいに描く。</li>
+    <li>別の窓の中のまとまりは、落とす先の計算では浮いたまとまりとして扱う。窓いっぱいの形は木のまとまりと同じに見えるので、そのままでは「分ける」の薄い塗りが出るのに分けられない。第 13 章の 2 回目に直した食い違いと同じ形なので、作る時に避けた。</li>
+  </ul>
+
+  <h2 id="place">窓の場所を読み直す</h2>
+  <p>並べ方を保存した後で開き直した時、窓が同じ場所に出るようにするには、窓の場所を OS から読み直す必要があります。ここで、OS ごとに場所の形が違うことが分かりました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-place">
+    <table>
+      <caption id="t-place">OS ごとの窓の場所の形と、読み直す時</caption>
+      <thead><tr><th scope="col">OS</th><th scope="col">場所の形（<code>Options::position</code> と同じ）</th><th scope="col">読み直す時</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Windows</th><td data-label="場所の形">画面の画素のまま。窓の外枠の左上</td><td data-label="読み直す時">窓が動いた時と、動かし終えた時（WM_MOVE・WM_EXITSIZEMOVE）。最小化している間は読まない</td></tr>
+        <tr><th scope="row">X11</th><td data-label="場所の形">論理の画素。窓の中の左上（外枠も同じ所とする）</td><td data-label="読み直す時">窓の形が変わった知らせ（ConfigureNotify）のたびに、中の左上を画面の座標で読む</td></tr>
+        <tr><th scope="row">Wayland</th><td data-label="場所の形">読めない</td><td data-label="読み直す時">別の窓に出さない</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>開き直した時にずれないよう、どの OS でも「窓を開く時に渡す形」のまま読み戻して保存します。Windows の <code>Options::position</code> は、説明では論理の画素と書いてありますが、実際は画面の画素のまま使っていました。100 % の画面では同じ値になるので、今まで気づきませんでした。今回は、各 OS が受け取る形にそろえる方を選び、説明に合わせて直すことはしませんでした。画面ごとに倍率が違う時、論理の画素ではどの画面の倍率で直すかが決まらないためです。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい作り: 最小化した窓の場所を覚える</span>
+    <p>Windows は、最小化した窓を画面の外（左上が -32000, -32000）に置きます。その間の場所を保存すると、次に開いた時に窓が画面の外に出て見えなくなります。窓の場所を覚える時は、最小化している間（<code>IsIconic</code>）を除き、大きさが 0 の間も覚えないでください。</p>
+  </div>
+  <p>別の窓は、Windows では動かし終えた時に 1 回描き直し、新しい場所を並べ方に入れます。動かしている途中は描かないので、記録も増えません。X11 には「動かし終えた」の知らせが無いので、場所が変わるたびに描き直します。</p>
+
+  <h2 id="real">本物の窓で確かめた</h2>
+  <p>試験台では、OS の窓の場所は試験が決めた値です。そこで作者に渡す前に、最初から別の窓を 1 つ持つ並べ方で始める小さなアプリを作り、本物の窓で確かめました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-real">
+    <table>
+      <caption id="t-real">本物の窓での確かめ</caption>
+      <thead><tr><th scope="col">確かめたこと</th><th scope="col">Windows</th><th scope="col">X11（検証機の Hyprland）</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">頼んだ場所に開くか</th><td data-label="Windows">(-1400, 620) に、中の大きさ 320×180 で開いた（2 つ目の画面）</td><td data-label="X11">Hyprland が窓を並べて置いた。頼んだ場所は使われず、Hyprland が決めた場所と大きさ（646, 40、624×670）が並べ方に入った</td></tr>
+        <tr><th scope="row">動かした場所が入るか</th><td data-label="Windows">(-1300, 660) へ動かすと、保存する場所も (-1300, 660) になった</td><td data-label="X11">（動かす命令は使わなかった）</td></tr>
+        <tr><th scope="row">閉じると戻るか</th><td data-label="Windows">Notes が Editor の隣のタブへ戻り、窓が閉じた</td><td data-label="X11">Hyprland の命令で閉じると、同じく戻った</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>検証機では、別のことも起きました。作業場 9 に切り替えてから確かめのアプリを開き、窓を押すと、Hyprland 自体が 2 回落ちました（見張りの仕組みで、自動で起動し直しました）。切り替えずに試した 3 回は落ちていません。Hyprland の記録に理由は残っておらず、kargui の窓が原因かどうかは分かっていません。</p>
+
+  <h2 id="hand">作者の手の確かめ</h2>
+  <p>見本の 23 ページ目で、作者が 10 の手順を試しました。1 回目で、どの手順も記録の上で期待どおりでした。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-hand">
+    <table>
+      <caption id="t-hand">作者の手の確かめの記録</caption>
+      <thead><tr><th scope="col">手順</th><th scope="col">記録</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">メモを新しい窓へ</th><td data-label="記録">窓が (503, 173) に、中の大きさ 428×200 で開いた</td></tr>
+        <tr><th scope="row">窓の中で文字を打つ</th><td data-label="記録">英字と、日本語の「あいう」の確定が、窓の中の入力欄に届いた</td></tr>
+        <tr><th scope="row">窓を動かし、大きさを変える</th><td data-label="記録">動かし終えるたびに、新しい場所が並べ方に入った</td></tr>
+        <tr><th scope="row">ファイルを窓のまとまりへ</th><td data-label="記録">メニューの「Move into group」で、窓のタブになった</td></tr>
+        <tr><th scope="row">並べ方を保存</th><td data-label="記録"><code>window 644 272 324 176</code> の後に、メモとファイルのタブ</td></tr>
+        <tr><th scope="row">窓を × で閉じる</th><td data-label="記録">2 つのパネルを元の場所へ戻し、窓を閉じた</td></tr>
+        <tr><th scope="row">保存した並べ方に戻す</th><td data-label="記録">窓が、保存した場所 (644, 272) と大きさ 324×176 で開き直した</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>1 つだけ、記録の多さが目に付きました。窓の大きさを変えている間、並べ方の場所の記録（<code>dock.window_place</code>）が 1 フレームごとに出て、126 行になりました。値は少しずつ一方向に変わっていて、行ったり来たりはしていません。窓の大きさの記録も同じ数だけ出ているので、直していません。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 試験台で確かめられない所は、小さなアプリで本物の窓を確かめる</span>
+    <p>試験台の試験は、並べ方の変わり方とメニューの中身を確かめられます。一方で、OS が窓をどこに置いたか、閉じるボタンの知らせがどう届くかは、本物の窓でしか分かりません。最初から確かめたい形で始まる小さなアプリを作り、記録を読んでから作者に渡すと、手の確かめは 1 回で済みました。</p>
+  </div>
+
+  <h2 id="numbers">数</h2>
+  <p>3 段目で足した試験は 7 個です（並べ方の木 3、部品 4）。公開の項目の説明は 603 から 608 に増え、動く例は 429 のままです。説明の中の動く例（doc テスト）は 690 から 691 に増えました。記録 c1784af は、作者の「送って」で GitHub に入りました。</p>
+
+  <h2 id="ci">CI</h2>
+  <p>記録 c1784af は、CI の Windows・Linux・macOS で 1 回目から通りました。送る前に、CI の Windows と同じ 4 段を手元で走らせ、検証機でも試験と clippy を走らせています（X11 と Wayland の分は検証機でしか組み立てられないため）。</p>
+
+  <h2 id="next">次の段階</h2>
+  <p>窓をまたいでタブを引っ張ることと、浮いた枠を窓の外へ引っ張って別の窓にすることは、まだできません。浮いた枠をキーボードで動かす・大きさを変えること、端に隠す（オートハイド）、名前を付けた並べ方、まとまりごと引っ張ることも、後の候補です。</p>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="13-floating.html">← 第 13 章 浮いた枠</a>
+    <a href="./">目次 →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>

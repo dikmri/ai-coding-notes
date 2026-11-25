@@ -146,6 +146,7 @@ const CHAPTERS = [
   { href: "11-v030.html", no: "第 11 章", title: "0.3.0 の仕上げと、作者の手の確かめ", text: "0.3.0 の範囲、6 つの宿題、部品の見本、X11 の IBus。作者の 5 回の確かめで見つけた、幅が増え続けるつまみ・押せない棒・二重に見えた棒・消える焦点。", thumb: "v030/gallery-table" },
   { href: "12-dock.html", no: "第 12 章", title: "ドッキング", text: "4 つの見本から決めた形、並べ方の木をアプリが持つ作り、マウスを使わない操作。小さな的に落とせなかった記録から、ポインターのいる場所で決める形に変えた話。", thumb: "dock/layout" },
   { href: "13-floating.html", no: "第 13 章", title: "浮いた枠", text: "窓の中に浮かせる形から作った理由、枠の下へ届いたホイールを描く順で隠す直し方。作者の記録から見つけた、F6 が枠を飛ばした理由と、元の場所へ戻らなかったパネル。", thumb: "dock2/float" },
+  { href: "14-windows.html", no: "第 14 章", title: "別の窓", text: "Wayland では出さないと決めた理由、別の窓をアプリの App::window から同じ ui.dock で描く書き方、OS ごとに違う窓の場所の形と、最小化した窓の場所を覚えない理由。", thumb: "dock3/main" },
 ];
 
 function chapters() {
@@ -389,6 +390,19 @@ ${figure("apps/expenses", "家計簿の見本", "家計簿（<code>examples/expe
         "dock2/drop",
         "Output のタブを引っ張り、Notes の枠の上に乗せている。枠の全体が薄い青で塗られ、ポインターの所に Output と書いた小さな箱がある",
         "Output のタブを枠の上へ引っ張っている所。枠のどこに乗せても枠の全体が塗られ、離すとタブとして入る。",
+        { flat: true },
+      ),
+  },
+  "14-windows.html": {
+    windows: () => `<div class="pair">
+  ${figure("dock3/main", "主の窓。左に Files、右上に Editor、右下に Output のまとまり。Editor のまとまりにあった Notes のタブは無い", "主の窓。Notes を別の窓に出したので、Editor のまとまりは Editor だけになった（600×360 の窓を試験台で 2 倍で撮った）。", { flat: true })}
+  ${figure("dock3/window", "別の窓。Notes のタブだけのまとまりが、窓いっぱいに出ている", "別の窓（300×180）。中は Notes のまとまりだけで、動かす印や大きさを変える印は無い（窓は OS が動かす）。", { flat: true })}
+</div>`,
+    menu: () =>
+      figure(
+        "dock3/menu",
+        "Editor のまとまりの Notes のタブの右クリックのメニュー。Move to a new group、Move into group、Float、Move to a new window、区切りの線、Close が並ぶ",
+        "木のまとまりのタブのメニュー。「Float」の下に「Move to a new window」が足された（Wayland では出ない）。",
         { flat: true },
       ),
   },
