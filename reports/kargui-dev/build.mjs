@@ -145,6 +145,7 @@ const CHAPTERS = [
   { href: "10-linux.html", no: "第 10 章", title: "Linux の窓（Wayland と X11）", text: "検証用の Linux の PC と AI が画面を操作する道具、境目のファイル 1 つで窓を開く作り、タッチパッドの取りこぼし、後から足したクリップボード・日本語入力・読み上げ・ファイルのダイアログ・複数の窓・GNOME の題の帯・X11 の窓。", thumb: "linux/settings" },
   { href: "11-v030.html", no: "第 11 章", title: "0.3.0 の仕上げと、作者の手の確かめ", text: "0.3.0 の範囲、6 つの宿題、部品の見本、X11 の IBus。作者の 5 回の確かめで見つけた、幅が増え続けるつまみ・押せない棒・二重に見えた棒・消える焦点。", thumb: "v030/gallery-table" },
   { href: "12-dock.html", no: "第 12 章", title: "ドッキング", text: "4 つの見本から決めた形、並べ方の木をアプリが持つ作り、マウスを使わない操作。小さな的に落とせなかった記録から、ポインターのいる場所で決める形に変えた話。", thumb: "dock/layout" },
+  { href: "13-floating.html", no: "第 13 章", title: "浮いた枠", text: "窓の中に浮かせる形から作った理由、枠の下へ届いたホイールを描く順で隠す直し方。作者の記録から見つけた、F6 が枠を飛ばした理由と、元の場所へ戻らなかったパネル。", thumb: "dock2/float" },
 ];
 
 function chapters() {
@@ -367,6 +368,29 @@ ${figure("apps/expenses", "家計簿の見本", "家計簿（<code>examples/expe
   ${figure("dock/before", "前の版。Notes のタブを引っ張っている。Editor のまとまりの真ん中に十字の形の 5 つの四角、全体の左・右・下・見出しの帯の下に 1 つずつ四角が出ている", "前の版（小さな的）。右の的に乗ると、まとまりの右半分を塗る。十字の的とは別に、外側の的が全体の端に出る。", { flat: true })}
   ${figure("dock/after", "今の版。Notes のタブを Editor のまとまりの右寄りまで引っ張っている。四角は無く、まとまりの右半分が薄い青で塗られている", "今の版（場所で決める）。同じ所まで引っ張ると、四角を狙わなくても右半分が塗られる。", { flat: true })}
 </div>`,
+  },
+  "13-floating.html": {
+    float: () =>
+      figure(
+        "dock2/float",
+        "左に Files、右上に Editor、右下に Output のまとまり。Editor の上に、Notes のタブだけの枠が重なっている。枠のタブの左に縦 2 列の点、枠の右下の角に点がある",
+        "Notes のまとまりを浮かせた所（600×360 の窓を試験台で 2 倍で撮った）。タブの左の点で枠を動かし、右下の点で大きさを変える。",
+        { flat: true },
+      ),
+    menu: () =>
+      figure(
+        "dock2/menu",
+        "浮いた枠の Notes のタブの右クリックのメニュー。Dock、Move into group、区切りの線、Close が並ぶ",
+        "浮いた枠のタブのメニュー。「Dock」で元の場所へ戻し、「Move into group」でほかのまとまりへ入れる。",
+        { flat: true },
+      ),
+    drop: () =>
+      figure(
+        "dock2/drop",
+        "Output のタブを引っ張り、Notes の枠の上に乗せている。枠の全体が薄い青で塗られ、ポインターの所に Output と書いた小さな箱がある",
+        "Output のタブを枠の上へ引っ張っている所。枠のどこに乗せても枠の全体が塗られ、離すとタブとして入る。",
+        { flat: true },
+      ),
   },
   "11-v030.html": {
     gallery: () =>
