@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 17 章 通知 ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="アプリの仕組みの 3 つ目として、通知を作りました。Windows はトースト、Linux はデスクトップの通知の係（org.freedesktop.Notifications）です。トーストを選んだ理由、キーで頼んでキーで答えを受け取る書き方、インストールしないアプリがトーストに名前を出すための登録、OS ごとの違いを紹介します。後半では、自分では押せなかったトーストのボタンを、作者の手の確かめで確かめた話を書きます。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 17 章</p>
+  <h1>通知</h1>
+  <p class="lede">アプリの仕組みの 3 つ目として、通知を作りました。Windows はトースト（画面の右下に出て、通知センターにも残る物）、Linux はデスクトップの通知の係（org.freedesktop.Notifications）に出します。通知には題・本文・ボタンを置け、利用者が押した所をアプリが受け取れます。この章では、トーストを選んだ理由、書き方、インストールしないアプリがトーストに名前を出すための登録、OS ごとの違いを紹介します。後半では、自分では押せなかったトーストのボタンを、作者の手の確かめで確かめた話を書きます。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>トーストと、トレイのアイコンの吹き出しの違い</li>
+      <li>キーで頼んで、キーで答えを受け取る書き方</li>
+      <li>インストールしないアプリが、トーストにアプリの名前を出す方法</li>
+      <li>押された知らせが別のスレッドから来る時に、窓の処理へ渡す方法</li>
+      <li>自分で押せない所を、作者の手の確かめに回す時の切り分け方</li>
+    </ul>
+  </section>
+
+  <h2 id="scope">範囲を決めた</h2>
+  <p>トレイを送った後、作者に通知の範囲を尋ねました。Linux はどちらの案でも同じ作り方になり、分かれるのは Windows です。トーストは今の Windows の通知の仕組みですが、アプリの名前を Windows に登録する必要があります。インストールしないアプリでは、利用者ごとのレジストリに kargui が書くことになります。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-scope">
+    <table>
+      <caption id="t-scope">作者に示した 2 つの案（Windows）</caption>
+      <thead><tr><th scope="col">案</th><th scope="col">通知に置ける物</th><th scope="col">アプリの準備</th><th scope="col">作る量</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">トースト（推奨）</th><td data-label="通知に置ける物">題・本文・画像・ボタン。通知センターに残る</td><td data-label="アプリの準備">アプリの名前を Windows に登録する（利用者ごとのレジストリに kargui が書く）</td><td data-label="作る量">多い（windows クレートの機能を足す）</td></tr>
+        <tr><th scope="row">トレイのアイコンの吹き出し</th><td data-label="通知に置ける物">題・本文・小さいアイコンだけ。ボタンは置けない</td><td data-label="アプリの準備">要らない（トレイのアイコンを使う）</td><td data-label="作る量">少ない</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>作者の答えは「トーストで作って」でした。windows クレートに足したのは機能の切り替え（<code>UI_Notifications</code> など）だけで、新しい crate は増えていません。Linux も、前から使っている D-Bus の道具（zbus）で足りました。</p>
+
+  <!-- gen:gallery -->
+<figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/notify/gallery-dark.webp"><img src="img/notify/gallery-light.webp" alt="部品の見本の通知のページ。通知を出す、音の無い通知、ボタン付きの通知の 3 つのボタン。出した通知 0、最後に押された所 まだ無い、説明の文が並ぶ" width="900" height="651" loading="lazy" decoding="async"></picture><figcaption>見本の 25 ページ目「通知」（Windows 11 の本物の窓、900×651）。3 つのボタンで通知を出し、押された所をページに出す。日本語の書体では、レジストリの場所の <code>\</code> が ¥ で表示される。</figcaption></figure>
+<!-- /gen:gallery -->
+
+  <h2 id="api">書き方</h2>
+  <p>ファイルのダイアログと同じく、キーで頼んで、キーで答えを受け取る形にしました。<code>ui.notify</code> は、呼んだ時に 1 回出す命令です（第 16 章の窓を出す・隠すと同じ考え方）。</p>
+  <pre><code>if ui.button("Remind me").clicked() {
+    ui.notify("time", Notification::new("Time is up").body("The meeting starts").button("snooze", "In 5 minutes"));
+}
+match ui.notification_clicked("time") {
+    Some(NotificationAction::Button(id)) if id == "snooze" =&gt; self.snoozed += 1,
+    Some(_) =&gt; ui.show_window(),
+    None =&gt; {}
+}</code></pre>
+  <ul>
+    <li>同じキーで出し直すと、前の通知を置き換える。</li>
+    <li><code>ui.notification_clicked</code> は、本文（<code>Body</code>）かボタン（<code>Button(id)</code>）が押された時に、1 回だけ答えを返す。押さずに閉じた時は何も返さない。</li>
+    <li>ボタンは 3 つまで。Windows のトーストは 5 つまで置けるが、Linux の通知の係は 3 つほどしか並べないため。</li>
+    <li><code>Notification::silent()</code> で、音を鳴らさずに出す。計画では後回しにしていたが、確かめのたびに作者の PC で通知の音が鳴らないよう、先に足した。</li>
+  </ul>
+
+  <h2 id="os">OS ごとの違い</h2>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-os">
+    <table>
+      <caption id="t-os">Windows と Linux の通知の作り</caption>
+      <thead><tr><th scope="col">項目</th><th scope="col">Windows</th><th scope="col">Linux</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">出す仕組み</th><td data-label="Windows">WinRT の ToastNotification（XML で題・本文・ボタンを書く）</td><td data-label="Linux">D-Bus の Notify（題・本文・actions）</td></tr>
+        <tr><th scope="row">アプリの名前</th><td data-label="Windows">最初の通知の時に、利用者ごとのレジストリに書いて登録する</td><td data-label="Linux">Notify に毎回渡す</td></tr>
+        <tr><th scope="row">押した知らせ</th><td data-label="Windows">Activated が WinRT の別のスレッドに届く</td><td data-label="Linux">ActionInvoked の知らせを、別のスレッドで受ける</td></tr>
+        <tr><th scope="row">置き換え</th><td data-label="Windows">Tag にキーを入れる</td><td data-label="Linux">前の通知の番号（replaces_id）を渡す</td></tr>
+        <tr><th scope="row">音を消す</th><td data-label="Windows">audio を silent にする</td><td data-label="Linux">suppress-sound を渡す</td></tr>
+        <tr><th scope="row">アプリが終わった後</th><td data-label="Windows">通知センターに残るが、押しても何も起きない</td><td data-label="Linux">通知の係による</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="windows">Windows: 名前の登録と、押された知らせ</h3>
+  <p>トーストは、どのアプリの通知かを AppUserModelID という名前で見分けます。ストアなどからインストールしたアプリは、この名前を持っています。kargui のアプリのように、実行ファイルをそのまま動かすアプリには、この名前がありません。そこで、最初の通知の時に、利用者ごとのレジストリ <code>HKEY_CURRENT_USER\Software\Classes\AppUserModelId\実行ファイルの名前</code> に、表示する名前（<code>Options::title</code>）を書いてから出します。トーストの上には、この名前が出ます。</p>
+  <p>押された知らせ（Activated）は、WinRT の別のスレッドに届きます。kargui は答えを列に積み、通知を頼んだ窓に知らせを積みます（PostMessage）。第 16 章で、エクスプローラーが「送る」知らせでは輪が起きないことが分かったので、ここは初めから「積む」形にしました。積んだ知らせは <code>GetMessage</code> を戻すので、輪が起きてフレームが回ります。トーストを出す呼び出しも、窓の状態を借りていない時に行います（第 15 章の 3 回目と同じ理由）。</p>
+
+  <h3 id="linux">Linux: actions の名前</h3>
+  <p>Linux の Notify では、actions を「名前、表示する文字」の並びで渡します。本文を押した時の名前は「default」と決まっています。アプリがボタンの id を「default」にすると区別できなくなるので、ボタンの名前には「button:」を付けて送ります。押された知らせ（ActionInvoked）は、どのアプリの通知の物も届くので、kargui が出した通知の番号だけを見ます。</p>
+  <!-- gen:linux -->
+<figure class="shot flat"><picture><img src="img/notify/linux-light.webp" alt="暗い色の通知の枠。太字の kargui notify check と、その下に A silent notification with two buttons" width="452" height="110" loading="lazy" decoding="async"></picture><figcaption>検証機の通知の係（mako）に出た通知（確かめのアプリ）。mako はボタンを枠に並べず、命令やメニューで選ぶ形。枠の中だけを切り出した。</figcaption></figure>
+<!-- /gen:linux -->
+
+  <h2 id="real">本物の窓で確かめた</h2>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-real">
+    <table>
+      <caption id="t-real">作者に渡す前の確かめ</caption>
+      <thead><tr><th scope="col">確かめたこと</th><th scope="col">結果</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Windows: 名前の登録</th><td data-label="結果">レジストリに「kargui notify check」が書かれた</td></tr>
+        <tr><th scope="row">Windows: 通知センター</th><td data-label="結果">トーストの履歴に 1 件入った</td></tr>
+        <tr><th scope="row">Windows: ボタンを押す</th><td data-label="結果">確かめられなかった（下の説明）</td></tr>
+        <tr><th scope="row">Linux（Wayland）: ボタンを押す</th><td data-label="結果">mako の命令でボタンを押すと、答え Button("snooze") がすぐ届いた</td></tr>
+        <tr><th scope="row">Linux（X11）: 本文を押す</th><td data-label="結果">答え Body がすぐ届いた</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Windows では、UI オートメーションでトーストのボタンを探して押そうとしましたが、ボタンが見つかりませんでした。トーストが画面に出ずに、通知センターへ直接入った可能性があります（「応答不可」の設定など）。通知センターを開いて押す方法もありますが、作者の画面を動かすので使いませんでした。押した時の動きは、作者の手の確かめで見てもらうことにしました。確かめで作った通知センターの履歴とレジストリのキーは、確かめの道具の終わりに消しています。</p>
+
+  <h2 id="hand">作者の手の確かめ</h2>
+  <p>見本の 25 ページ目「通知」で、作者に 10 の手順を試してもらいました。1 回目で、どの手順も記録の上で期待どおりでした。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-hand">
+    <table>
+      <caption id="t-hand">作者の手の確かめの記録</caption>
+      <thead><tr><th scope="col">手順</th><th scope="col">記録</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">通知を出す</th><td data-label="記録">名前「部品の見本（kargui）」を登録して出した</td></tr>
+        <tr><th scope="row">本文を押す</th><td data-label="記録">答え Body が届き、見本の窓が前に出た</td></tr>
+        <tr><th scope="row">ボタン「開く」</th><td data-label="記録">答え Button("open") が届いた</td></tr>
+        <tr><th scope="row">続けて 2 つ出す</th><td data-label="記録">0.5 秒の間に 2 回出し、同じキーで置き換えた</td></tr>
+        <tr><th scope="row">× で閉じる</th><td data-label="記録">閉じた理由は「利用者が閉じた」。答えは届かない</td></tr>
+        <tr><th scope="row">通知センターで「あとで」</th><td data-label="記録">画面から消えた（時間切れ）後に押しても、答え Button("later") が届いた</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="insight">
+    <span class="box-title">分かったこと: 自分で確かめられない所を、先に分けて書いておく</span>
+    <p>今回は、Windows で押した答えが届くかを、自分では確かめられませんでした。確かめられた所（名前の登録・通知センターへの記録・Linux の答え）と、確かめられなかった所を、作者に渡す時に分けて書きました。作者の手順には、確かめられなかった所（本文・ボタン・通知センターでの押し）を必ず入れました。記録の名前（notify.click・notify.answer）も先に決めておいたので、作者の 1 回の確かめで、残っていた所を全部埋められました。</p>
+  </div>
+
+  <h2 id="numbers">数</h2>
+  <p>通知で足した試験は 6 個です（共通 3、Windows のトーストの XML 1、Linux の actions 1、見本 1）。公開の項目の説明は 622 から 630 に、動く例は 439 から 445 に増えました。説明の中の動く例（doc テスト）は 715 から 727 に増えました。新しいファイルは 3 つで、合わせて 478 行です（Windows の toast_win.rs 191 行、Linux の notify_dbus.rs 161 行、共通の ui/notify.rs 126 行）。記録 ded14a7 は、作者の「送って」で GitHub に入りました。</p>
+
+  <h2 id="ci">CI</h2>
+  <p>記録 ded14a7 は、CI の Windows・Linux・macOS で 1 回目から通りました。送る前に、CI の Windows と同じ 4 段と clippy を手元で走らせ、検証機でも試験と clippy を走らせています。windows クレートに足したのは機能の切り替えだけなので、Cargo.lock は変わっていません。</p>
+
+  <h2 id="next">次の段階</h2>
+  <p>アプリの仕組みの次は、ハイコントラスト、その後に多言語です。通知では、画像、アプリのアイコン（トーストの名前の横に出る物）、アプリが終わった後に押した時にアプリを起動することを、まだ作っていません。</p>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="16-tray.html">← 第 16 章 トレイ</a>
+    <a href="./">目次 →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>
