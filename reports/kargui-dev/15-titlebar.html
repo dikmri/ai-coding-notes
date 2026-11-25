@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 15 章 題の帯 ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="0.4 の「アプリの仕組み」の最初として、Windows でも kargui が題の帯を描き、アプリが帯の中に部品を置けるようにしました。範囲を決めた理由、OS によって帯の中にも窓のいちばん上の行にもなる書き方、Windows に帯の場所を答える仕組みを紹介します。後半では、作者の 4 回の手の確かめで見つけた 3 つの不具合（起動の直後に止まる、窓のメニューが出ない、窓の処理が二重に呼ばれる）を書きます。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 15 章</p>
+  <h1>題の帯</h1>
+  <p class="lede">計画の 0.4 では、ドッキングの次に「アプリの仕組み」を作ります。その最初が、Windows の題の帯の作り替えです。Windows 11 の新しいアプリや VS Code のように、題の帯の中にメニュー・検索・タブなどを置けるようにしました。kargui は、最小化・最大化・閉じるのボタンと、窓をつかんで動かす所を受け持ちます。この章では、範囲を決めた理由と書き方、Windows に帯の場所を答える仕組みを紹介します。後半では、作者の 4 回の手の確かめで見つかった 3 つの不具合と、その直し方を書きます。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>題の帯に部品を置ける形を選んだ理由</li>
+      <li>同じ <code>ui.title_bar</code> が、OS によって帯の中にも、窓のいちばん上の行にもなる作り</li>
+      <li>Windows に、窓のどこが帯でどこがボタンかを答える方法と、スナップレイアウトが出る条件</li>
+      <li>読み上げの木に、どの節の子でもない節を送ってはいけない理由</li>
+      <li>閉じるまで戻らないメニューを、窓の状態を借りたまま出してはいけない理由</li>
+    </ul>
+  </section>
+
+  <h2 id="scope">範囲を決めた</h2>
+  <p>ドッキングの 3 段目を送った後、作者に題の帯の作り替えの範囲を尋ねました。計画書には「Windows の題の帯の作り替え」とだけ書いてあり、中身を決めていなかったためです。判断の軸は、アプリの見た目の自由、Windows らしい動き（スナップレイアウト・窓の影・2 回押して最大化）を保てるか、作る量の 3 つです。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-scope">
+    <table>
+      <caption id="t-scope">作者に示した 2 つの案</caption>
+      <thead><tr><th scope="col">案</th><th scope="col">見た目の自由</th><th scope="col">Windows らしい動き</th><th scope="col">作る量</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">題の帯に部品を置ける（推奨）</th><td data-label="見た目の自由">題の帯の中まで、アプリが決められる</td><td data-label="Windows らしい動き">kargui が受け持つので保てる</td><td data-label="作る量">多い</td></tr>
+        <tr><th scope="row">色だけを変える</th><td data-label="見た目の自由">題の帯の色と文字の色だけ</td><td data-label="Windows らしい動き">OS のままなので変わらない</td><td data-label="作る量">少ない</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>作者の答えは「その形で進めて」でした。Linux の GNOME では、kargui は前から自分で題の帯を描いています（第 10 章）。今回の作り替えで、Windows と GNOME の帯を同じ書き方で使えるようにしました。</p>
+
+  <!-- gen:gallery -->
+<figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/titlebar/gallery-dark.webp"><img src="img/titlebar/gallery-light.webp" alt="部品の見本の窓。いちばん上の帯の左に太字の「部品の見本」と「暗い色」のボタン、右端に最小化・最大化・閉じるのボタンがある。その下に部品の一覧とボタンのページ" width="900" height="651" loading="lazy" decoding="async"></picture><figcaption>部品の見本の本物の窓（Windows 11、900×651）。題の帯の左に「部品の見本」の文字と「暗い色」のボタンを置いた。右端の 3 つのボタンも kargui が描く。</figcaption></figure>
+<!-- /gen:gallery -->
+
+  <h2 id="api">書き方</h2>
+  <p>アプリは <code>Options::custom_title_bar</code> を true にし、ビューの初めで <code>ui.title_bar</code> を呼びます。中に置いた部品が題の帯に入ります。</p>
+  <pre><code>impl App for Notes {
+    fn view(&amp;mut self, ui: &amp;mut Ui) {
+        ui.title_bar(|ui| {
+            ui.label("Notes").bold();
+            ui.text_input(&amp;mut self.search).hint("Search");
+        });
+        ui.label("Shopping list");
+    }
+}
+
+let mut options = Options::new("Notes");
+options.custom_title_bar = true;</code></pre>
+  <p>帯の中の、押せる部品でない所は、OS の題の帯と同じ働きをします。引っ張ると窓が動き、2 回押すと最大化し、右クリックで窓のメニューが出ます。押せない文字（上の「Notes」）の上も同じです。<code>ui.title_bar</code> に何も入れなければ、帯の左に窓の題を出します。</p>
+  <p>同じ書き方を、どの OS でも使えるようにしました。題の帯を誰が描くかで、部品の置き場所が変わります。</p>
+  <!-- gen:forms -->
+<figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/titlebar/windows-dark.webp"><img src="img/titlebar/windows-light.webp" alt="帯の左に太字の Notes と Search の入力欄、右端に最小化・最大化・閉じるのボタン。帯の下に Shopping list と Ideas for the weekend の 2 行" width="1040" height="260" loading="lazy" decoding="async"></picture><figcaption>Windows（<code>custom_title_bar</code> が true）。kargui が帯を描き、部品は帯の左、3 つのボタンは右端に並ぶ。520×130 の窓を試験台で 2 倍で撮った。</figcaption></figure>
+<figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/titlebar/gnome-dark.webp"><img src="img/titlebar/gnome-light.webp" alt="帯の左に太字の Notes と Search の入力欄、右端に閉じるのボタンだけ。窓の四方の縁に線がある" width="1040" height="260" loading="lazy" decoding="async"></picture><figcaption>GNOME（合成が題の帯を描かない Wayland）。kargui は <code>custom_title_bar</code> にかかわらず帯を描く。ボタンは GNOME の設定に合わせる（この写真は閉じるだけ）。縁の線も kargui が引く。</figcaption></figure>
+<figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/titlebar/plain-dark.webp"><img src="img/titlebar/plain-light.webp" alt="帯は無く、窓のいちばん上の行に太字の Notes と Search の入力欄。その下に Shopping list と Ideas for the weekend の 2 行" width="1040" height="260" loading="lazy" decoding="async"></picture><figcaption>OS や合成が帯を描く所（X11、帯を描く Wayland、<code>custom_title_bar</code> が false の Windows）。部品は窓のいちばん上の行になる。</figcaption></figure>
+<!-- /gen:forms -->
+
+  <h2 id="hit">Windows に帯の場所を答える</h2>
+  <p>Windows の題の帯は、本来は窓の「枠」（中の外側）にあり、OS が描きます。kargui が描くには、まず帯を窓の中に入れます。窓の枠の大きさを決める知らせ（WM_NCCALCSIZE）で、OS に計算させた後、上の端だけを窓の上の端に戻します。左右と下の縁は OS のままなので、大きさを変える所と窓の影は、今までどおり OS が受け持ちます。最大化した窓は画面の外へ縁の厚さだけはみ出すので、その時だけ上を縁の厚さだけ下げます。</p>
+  <p>帯を窓の中に入れると、OS は帯のどこを押しても「窓の中」だと考えます。そこで、窓のどこに何があるかを尋ねる知らせ（WM_NCHITTEST）に、kargui が答えます。答え方は 2 段です。先に OS に答えさせ、OS が「窓の中」（HTCLIENT）と答えた所だけを kargui が決めます。左右と下の縁の答えは、OS のまま返します。</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 210" role="img" aria-labelledby="ht-title ht-desc">
+      <title id="ht-title">題の帯の場所ごとに、kargui が OS に返す答え</title>
+      <desc id="ht-desc">帯の上の縁は HTTOP で、OS が高さを変える。押せない文字と何も無い所は HTCAPTION で、OS が窓を動かす。入力欄、最小化と閉じるのボタンは HTCLIENT で、kargui が入力を受ける。最大化のボタンは HTMAXBUTTON で、Windows 11 のスナップレイアウトが出る。</desc>
+      <text class="sub" x="20" y="40">上の縁: HTTOP（OS が高さを変える）</text>
+      <path class="arrow" d="M150 46 L150 72"/>
+      <rect class="box" x="20" y="72" width="680" height="64" rx="4"/>
+      <rect class="box-warn" x="20" y="72" width="680" height="8"/>
+      <text class="label" x="34" y="112">Notes</text>
+      <rect class="box" x="96" y="88" width="190" height="36" rx="6"/>
+      <text class="sub" x="108" y="110">Search</text>
+      <rect class="box-soft" x="300" y="88" width="220" height="36" rx="6"/>
+      <text class="sub" x="410" y="110" text-anchor="middle">何も無い所</text>
+      <rect class="box" x="530" y="80" width="56" height="56"/>
+      <path class="arrow" d="M550 108 L566 108"/>
+      <rect class="box-soft" x="586" y="80" width="56" height="56"/>
+      <rect class="arrow" x="606" y="100" width="16" height="16"/>
+      <rect class="box" x="642" y="80" width="58" height="56"/>
+      <path class="arrow" d="M663 100 L679 116 M679 100 L663 116"/>
+      <text class="sub" x="62" y="160" text-anchor="middle">HTCAPTION</text>
+      <text class="sub" x="191" y="160" text-anchor="middle">HTCLIENT</text>
+      <text class="sub" x="410" y="160" text-anchor="middle">HTCAPTION</text>
+      <text class="sub" x="530" y="160">最小化・閉じる: HTCLIENT</text>
+      <text class="sub" x="530" y="180">最大化: HTMAXBUTTON</text>
+      <text class="loop-text" x="20" y="200">HTCLIENT は kargui が入力を受け、ほかは OS が受ける</text>
+    </svg>
+    <figcaption>帯の場所ごとに、kargui が OS に返す答え。押せる部品の上だけを kargui が受け、何も無い所と押せない文字の上は OS に任せる。最大化のボタンは、スナップレイアウトのために専用の答えを返す。</figcaption>
+  </figure>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-hit">
+    <table>
+      <caption id="t-hit">本物の窓で尋ねた答え（確かめのアプリ、Windows 11）</caption>
+      <thead><tr><th scope="col">場所</th><th scope="col">答え</th><th scope="col">起きること</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">押せる部品（帯の New のボタン）</th><td data-label="答え">HTCLIENT（1）</td><td data-label="起きること">kargui が入力を受ける</td></tr>
+        <tr><th scope="row">何も無い所、押せない文字</th><td data-label="答え">HTCAPTION（2）</td><td data-label="起きること">OS が窓を動かす。2 回押すと最大化し、画面の端へ寄せられる</td></tr>
+        <tr><th scope="row">最大化のボタン</th><td data-label="答え">HTMAXBUTTON（9）</td><td data-label="起きること">Windows 11 のスナップレイアウトが出る</td></tr>
+        <tr><th scope="row">上の縁</th><td data-label="答え">HTTOP（12）</td><td data-label="起きること">OS が高さを変える</td></tr>
+        <tr><th scope="row">左の縁</th><td data-label="答え">HTLEFT（10、OS の答えのまま）</td><td data-label="起きること">OS が幅を変える</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>表の答えは、確かめのアプリの窓に、帯に沿って 20 画素ごとに同じ知らせを送って得た値です。</p>
+  <p>スナップレイアウト（窓の並べ方の候補）は、最大化のボタンの所で HTMAXBUTTON と答えた時だけ出ます。この答えを返すと、OS はそのボタンの上の動きを、窓の中の知らせ（WM_MOUSEMOVE など）ではなく、枠の知らせ（WM_NCMOUSEMOVE・WM_NCLBUTTONDOWN など）で送ってきます。kargui は、最大化のボタンの上の乗る・押す・離す・離れるの知らせを、窓の中の入力に直します。こうして、ほかのボタンと同じように、乗った時の塗りと押した時の動きを出しています。</p>
+  <!-- gen:close -->
+<figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/titlebar/close-dark.webp"><img src="img/titlebar/close-light.webp" alt="Windows の形の帯。右端の閉じるのボタンが赤く塗られ、白い × の印がある" width="1040" height="260" loading="lazy" decoding="async"></picture><figcaption>閉じるのボタンに乗った時。赤（#c42b1c）に白の印。ボタンは、乗った時と押した時だけ塗る。</figcaption></figure>
+<!-- /gen:close -->
+  <p>Windows では、窓の縁の線と影は OS が描くので、kargui は縁の線を引きません。GNOME では、合成が影も縁も描かないので、kargui が縁に線を引きます（上の GNOME の写真）。</p>
+
+  <h2 id="hand">作者の手の確かめ</h2>
+  <p>作者に、見本で 11 の手順を試してもらいました。帯の部品を押す、帯を引いて窓を動かす、2 回押して最大化する、スナップレイアウトを出す、右クリックで窓のメニューを出す、上の縁で高さを変える、最小化して戻す、閉じる、などです。記録に異常が無くなるまで、4 回試してもらいました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-hand">
+    <table>
+      <caption id="t-hand">4 回の手の確かめ</caption>
+      <thead><tr><th scope="col">回</th><th scope="col">記録から見つかったこと</th><th scope="col">原因</th><th scope="col">直し方</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">1 回目</th><td data-label="見つかったこと">見本が起動の直後に止まった（3 回とも）</td><td data-label="原因">帯の空の入れ物を子の並びから外し、読み上げの木に親の無い節が入った</td><td data-label="直し方">外さない。読み上げの木は、たどれる節だけを送る</td></tr>
+        <tr><th scope="row">2 回目</th><td data-label="見つかったこと">帯の右クリックで、窓のメニューが出なかったとみられる</td><td data-label="原因">帯を窓の中に入れた窓では、OS が窓のメニューを出さない</td><td data-label="直し方">kargui が窓のメニューを出す</td></tr>
+        <tr><th scope="row">3 回目</th><td data-label="見つかったこと">メニューを開いている間に、窓の処理が 722 回、二重に呼ばれた</td><td data-label="原因">窓の状態を借りたまま、メニューを出していた</td><td data-label="直し方">メニューは、借りを返した後に出す</td></tr>
+        <tr><th scope="row">4 回目</th><td data-label="見つかったこと">異常なし（二重の呼び出しも 0 回）</td><td data-label="原因">―</td><td data-label="直し方">―</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="crash">1 回目: 起動の直後に止まった</h3>
+  <p>見本は、3 回とも最初のフレームを描いた直後に止まりました。記録の最後には、読み上げの木を受け取る部品（accesskit）がアプリを止めた理由が残っていました。</p>
+  <pre><code>TreeUpdate includes 1 nodes which are neither in the current tree nor a child of another node from the update: [#7137097850875062750]</code></pre>
+  <p>原因は、題の帯の並べ方にありました。帯は「左のボタン・アプリの部品を入れる所・題を入れる所・右のボタン」の 4 つの子を持ちます。アプリが帯に何も入れない時、空の「部品を入れる所」を帯の子の並びから外していました。空の入れ物の分の間が空かないようにするためです。ところが、読み上げの木は、木の配列にある全部の節を送ります。外した節は、どの節の子でもない節として送られ、accesskit はそれを誤りとしてアプリを止めました。</p>
+  <p>私の手元の確かめで出なかったのは、読み上げの木の問い合わせが来なかったためです。kargui は、スクリーンリーダーなどが UI オートメーションで問い合わせた時に、初めて読み上げの木を作ります。作者の起動では、起動の直後に問い合わせ（WM_GETOBJECT）が 15 回来ていました。</p>
+  <p>直し方は 2 つです。1 つ目に、子の並びから外すのをやめ、帯の子の間を 0 にして、すき間は入れ物の余白で作りました。2 つ目に、読み上げの木は、根と重ねて出す物（メニューなど）からたどれる節だけを送るようにしました。同じ種類の誤りがほかで起きても、アプリは止まりません。直す前に、作者の起動と同じ形の試験を書き、落ちることを確かめました。落ちた時に出た節の番号は、作者の記録の番号と同じでした。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい作り: 並べ方の木から節を外したまま、読み上げの木を作る</span>
+    <p>読み上げの木を受け取る側（accesskit）は、どの節の子でもない節を許しません。並べ方の木の子の並びを後から書き換える時は、外した節が配列に残ることに気をつけてください。読み上げの木を作る側で、根からたどれる節だけを送ると、この種類の誤りでアプリが止まらなくなります。</p>
+  </div>
+  <div class="insight">
+    <span class="box-title">分かったこと: 本物の窓の確かめでは、読み上げの問い合わせも送る</span>
+    <p>作者の PC では、何かのアプリが起動の直後に読み上げの木を問い合わせます。私の確かめでは問い合わせが来ず、読み上げの木を作る処理を通っていませんでした。今は、作者に渡す前に UI オートメーションで窓の全部の節を問い合わせ、アプリが動き続けるかを確かめています。</p>
+  </div>
+
+  <h3 id="menu">2 回目: 窓のメニューが出なかった</h3>
+  <p>2 回目は止まらず、11 の手順のうち 10 は記録の上で期待どおりでした。残る 1 つが、帯の右クリックで出るはずの窓のメニューです。kargui は、窓のメニューが出たことを記録していませんでした。そのため、出なかったと言い切ることはできません。記録からは、次の 2 つが読み取れました。</p>
+  <ul>
+    <li>ポインターが 6 秒ほど、帯の何も無い所にあった（窓の中の動きの記録が途切れていた）</li>
+    <li>その後、本文と最小化のボタンを合わせて 7 回右クリックしていた（kargui の右クリックの記録）</li>
+  </ul>
+  <p>帯を窓の中に入れた窓では、帯の何も無い所を右クリックしても、Windows は窓のメニューを出さないとみられます。そこで、帯の何も無い所で右ボタンを離した時に、kargui が OS の窓のメニュー（元に戻す・移動・サイズ変更・最小化・最大化・閉じる）を出すようにしました。押せる項目は窓の状態に合わせ、最大化の間は元に戻す・最小化・閉じるだけを押せるようにします。選ばれた項目は、その操作の知らせ（WM_SYSCOMMAND）として窓に送ります。</p>
+  <p>自分で確かめる時に、困ったことがありました。右ボタンの知らせを窓に送る方法（PostMessage）では、kargui の処理は確かめられますが、OS の動きは確かめられません。OS が帯を描く普通の窓に同じ知らせを送っても、窓のメニューは出なかったためです。OS は、本物のボタンの状態を見ているようです。本物の右クリックでの動きは、作者の 3 回目と 4 回目の確かめで確かめました。窓のメニューが出て、選んだ最大化・元に戻す・最小化・閉じるが窓に届きました。</p>
+
+  <h3 id="reentrant">3 回目: 窓の処理が 722 回、二重に呼ばれた</h3>
+  <p>3 回目では、右クリックの手順はすべて期待どおりでした。一方で、記録に「窓の処理が二重に呼ばれた」（<code>wndproc.reentrant</code>）という行が 722 行ありました。5 回開いたメニューの間に出た物です。</p>
+  <!-- gen:reentrant -->
+<figure class="bars" id="c-reentrant">
+    <figcaption><span class="bars-title">メニューの間に二重に入った知らせ（722 回）</span><span class="bars-hint">作者の 3 回目の記録。5 回開いたメニューの合計。空き時間は WM_ENTERIDLE、項目の選び直しは WM_MENUSELECT、始めと終わりはメニューを開く・閉じる時の 6 種類、説明の無い物は 0x00AE と 0x0094、ボタンを離れたは WM_NCMOUSELEAVE、ポインターは WM_SETCURSOR と WM_NCHITTEST</span></figcaption>
+    <div class="bar-rows">
+      <div class="bar-row" data-v="now"><span class="bar-name">空き時間</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">641 回</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">項目の選び直し</span><span class="bar-track"><span class="bar" style="--w: 4.1%"></span><span class="bar-val">26 回</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">始めと終わり</span><span class="bar-track"><span class="bar" style="--w: 4.7%"></span><span class="bar-val">30 回</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">説明の無い物</span><span class="bar-track"><span class="bar" style="--w: 2.2%"></span><span class="bar-val">14 回</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">ポインター</span><span class="bar-track"><span class="bar" style="--w: 0.9%"></span><span class="bar-val">6 回</span></span></div>
+      <div class="bar-row" data-v="now"><span class="bar-name">ボタンを離れた</span><span class="bar-track"><span class="bar" style="--w: 0.8%"></span><span class="bar-val">5 回</span></span></div>
+    </div>
+  </figure>
+<!-- /gen:reentrant -->
+  <p>原因は、メニューを出す関数（TrackPopupMenu）の作りにあります。この関数は、利用者がメニューを閉じるまで戻らず、その間も窓の知らせを受け続けます。kargui は窓の状態を借りている最中にこの関数を呼んでいたので、その間の知らせが、借りている最中の窓の処理にもう一度入りました。kargui の窓の処理は、二重に入った知らせを記録して、OS の既定の処理に回します。止まりはしませんが、メニューの間の知らせは kargui を通りません。</p>
+  <p>影響は 2 つありました。1 つは記録の量です。メニューを開いている間の空き時間の知らせ（WM_ENTERIDLE）だけで 641 行になりました。もう 1 つは、ポインターが最大化のボタンから離れた知らせ（WM_NCMOUSELEAVE）も、kargui を通らなかったことです。kargui は離れたことを知らないままになり、次にボタンに乗った時に、離れるのを待つ準備をし直しません。</p>
+  <p>直し方は、ファイルのダイアログと同じ形です。右クリックの処理では、「借りを返した後に行うこと」の並びにメニューを積むだけにし、メニューは借りを返した後に出します。4 回目の記録では、二重の呼び出しは 0 回でした。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい作り: 窓の状態を借りたまま、閉じるまで戻らない物を出す</span>
+    <p>メニュー（TrackPopupMenu）やダイアログは、閉じるまで戻らず、その間も同じ窓の知らせを処理します。窓の状態を借りたまま呼ぶと、知らせが二重に入ります。二重に入った知らせを OS に回す作りでも、その間の知らせはアプリに届きません。借りを返した後に呼んでください。</p>
+  </div>
+  <div class="insight">
+    <span class="box-title">分かったこと: 記録は、出来事の名前で絞らずに読む</span>
+    <p>実は、手元の確かめのアプリでも、二重の呼び出しは 19 回出ていました。私はメニューの記録の名前だけを探していたので、見落としました。今は、確かめのたびに、二重の呼び出しと止まった記録の数も数えています。それまでの見本の記録（30,386 行）には、二重の呼び出しは 1 回もありませんでした。</p>
+  </div>
+
+  <h2 id="numbers">数</h2>
+  <p>題の帯で足した試験は 4 個です。公開の項目の説明は 608 から 610 に、動く例は 429 から 430 に増えました（<code>Options::custom_title_bar</code> と <code>Ui::title_bar</code>）。説明の中の動く例（doc テスト）は 691 から 694 に増えました。記録 354e88c は、作者の「送って」で GitHub に入りました。</p>
+
+  <h2 id="ci">CI</h2>
+  <p>記録 354e88c は、CI の Windows・Linux・macOS で 1 回目から通りました。送る前に、CI の Windows と同じ 4 段と clippy を手元で走らせています。最後の 2 回の直しは Windows の窓の処理だけだったので、検証機の試験は、その前の形で走らせた結果（309 個が通過、clippy の注意 0 件）を使いました。</p>
+
+  <h2 id="next">次の段階</h2>
+  <p>アプリの仕組みの次は、通知領域のアイコン（トレイ）です。その後に、通知、ハイコントラスト、多言語の順で進めます。題の帯では、Alt+Space で窓のメニューを出す操作を、まだ確かめていません。</p>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="14-windows.html">← 第 14 章 別の窓</a>
+    <a href="./">目次 →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>

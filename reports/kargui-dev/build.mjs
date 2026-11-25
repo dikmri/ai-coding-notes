@@ -147,6 +147,7 @@ const CHAPTERS = [
   { href: "12-dock.html", no: "第 12 章", title: "ドッキング", text: "4 つの見本から決めた形、並べ方の木をアプリが持つ作り、マウスを使わない操作。小さな的に落とせなかった記録から、ポインターのいる場所で決める形に変えた話。", thumb: "dock/layout" },
   { href: "13-floating.html", no: "第 13 章", title: "浮いた枠", text: "窓の中に浮かせる形から作った理由、枠の下へ届いたホイールを描く順で隠す直し方。作者の記録から見つけた、F6 が枠を飛ばした理由と、元の場所へ戻らなかったパネル。", thumb: "dock2/float" },
   { href: "14-windows.html", no: "第 14 章", title: "別の窓", text: "Wayland では出さないと決めた理由、別の窓をアプリの App::window から同じ ui.dock で描く書き方、OS ごとに違う窓の場所の形と、最小化した窓の場所を覚えない理由。", thumb: "dock3/main" },
+  { href: "15-titlebar.html", no: "第 15 章", title: "題の帯", text: "題の帯に部品を置ける形を選んだ理由、OS によって帯の中にも窓のいちばん上の行にもなる書き方、Windows に帯の場所を答える仕組み。作者の 4 回の確かめで見つけた、起動の直後に止まる・窓のメニューが出ない・窓の処理が二重に呼ばれる不具合。", thumb: "titlebar/windows" },
 ];
 
 function chapters() {
@@ -404,6 +405,57 @@ ${figure("apps/expenses", "家計簿の見本", "家計簿（<code>examples/expe
         "Editor のまとまりの Notes のタブの右クリックのメニュー。Move to a new group、Move into group、Float、Move to a new window、区切りの線、Close が並ぶ",
         "木のまとまりのタブのメニュー。「Float」の下に「Move to a new window」が足された（Wayland では出ない）。",
         { flat: true },
+      ),
+  },
+  "15-titlebar.html": {
+    gallery: () =>
+      figure(
+        "titlebar/gallery",
+        "部品の見本の窓。いちばん上の帯の左に太字の「部品の見本」と「暗い色」のボタン、右端に最小化・最大化・閉じるのボタンがある。その下に部品の一覧とボタンのページ",
+        "部品の見本の本物の窓（Windows 11、900×651）。題の帯の左に「部品の見本」の文字と「暗い色」のボタンを置いた。右端の 3 つのボタンも kargui が描く。",
+        { flat: true },
+      ),
+    forms: () =>
+      [
+        figure(
+          "titlebar/windows",
+          "帯の左に太字の Notes と Search の入力欄、右端に最小化・最大化・閉じるのボタン。帯の下に Shopping list と Ideas for the weekend の 2 行",
+          "Windows（<code>custom_title_bar</code> が true）。kargui が帯を描き、部品は帯の左、3 つのボタンは右端に並ぶ。520×130 の窓を試験台で 2 倍で撮った。",
+          { flat: true },
+        ),
+        figure(
+          "titlebar/gnome",
+          "帯の左に太字の Notes と Search の入力欄、右端に閉じるのボタンだけ。窓の四方の縁に線がある",
+          "GNOME（合成が題の帯を描かない Wayland）。kargui は <code>custom_title_bar</code> にかかわらず帯を描く。ボタンは GNOME の設定に合わせる（この写真は閉じるだけ）。縁の線も kargui が引く。",
+          { flat: true },
+        ),
+        figure(
+          "titlebar/plain",
+          "帯は無く、窓のいちばん上の行に太字の Notes と Search の入力欄。その下に Shopping list と Ideas for the weekend の 2 行",
+          "OS や合成が帯を描く所（X11、帯を描く Wayland、<code>custom_title_bar</code> が false の Windows）。部品は窓のいちばん上の行になる。",
+          { flat: true },
+        ),
+      ].join("\n"),
+    close: () =>
+      figure(
+        "titlebar/close",
+        "Windows の形の帯。右端の閉じるのボタンが赤く塗られ、白い × の印がある",
+        "閉じるのボタンに乗った時。赤（#c42b1c）に白の印。ボタンは、乗った時と押した時だけ塗る。",
+        { flat: true },
+      ),
+    reentrant: () =>
+      bars(
+        "c-reentrant",
+        "メニューの間に二重に入った知らせ（722 回）",
+        "作者の 3 回目の記録。5 回開いたメニューの合計。空き時間は WM_ENTERIDLE、項目の選び直しは WM_MENUSELECT、始めと終わりはメニューを開く・閉じる時の 6 種類、説明の無い物は 0x00AE と 0x0094、ボタンを離れたは WM_NCMOUSELEAVE、ポインターは WM_SETCURSOR と WM_NCHITTEST",
+        [
+          ["空き時間", 641],
+          ["項目の選び直し", 26],
+          ["始めと終わり", 30],
+          ["説明の無い物", 14],
+          ["ポインター", 6],
+          ["ボタンを離れた", 5],
+        ].map(([name, value]) => ({ name, v: "now", value, label: `${value} 回` })),
       ),
   },
   "11-v030.html": {
