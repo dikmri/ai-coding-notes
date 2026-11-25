@@ -149,6 +149,7 @@ const CHAPTERS = [
   { href: "14-windows.html", no: "第 14 章", title: "別の窓", text: "Wayland では出さないと決めた理由、別の窓をアプリの App::window から同じ ui.dock で描く書き方、OS ごとに違う窓の場所の形と、最小化した窓の場所を覚えない理由。", thumb: "dock3/main" },
   { href: "15-titlebar.html", no: "第 15 章", title: "題の帯", text: "題の帯に部品を置ける形を選んだ理由、OS によって帯の中にも窓のいちばん上の行にもなる書き方、Windows に帯の場所を答える仕組み。作者の 4 回の確かめで見つけた、起動の直後に止まる・窓のメニューが出ない・窓の処理が二重に呼ばれる不具合。", thumb: "titlebar/windows" },
   { href: "16-tray.html", no: "第 16 章", title: "トレイ", text: "OS が描くメニューを kargui のメニューと同じ書き方で作る方法、OS ごとの知らせの届き方、Wayland で隠した窓が戻らなかった理由。作者の確かめで見つけた、アイコンを押しても届かなかった不具合と、手元でそれを見落とした確かめ方。", thumb: "tray/gallery" },
+  { href: "17-notify.html", no: "第 17 章", title: "通知", text: "トーストを選んだ理由、キーで頼んでキーで答えを受け取る書き方、インストールしないアプリがトーストに名前を出す登録、OS ごとの違い。自分では押せなかったトーストのボタンを、作者の手の確かめで確かめた話。", thumb: "notify/gallery" },
 ];
 
 function chapters() {
@@ -479,6 +480,22 @@ ${figure("apps/expenses", "家計簿の見本", "家計簿（<code>examples/expe
         "tray/linux",
         "検証機の上の帯の右端。赤い角の丸い四角のアイコン（kargui の無地のアイコン）と、キーボードの形のアイコンが並ぶ",
         "検証機の上の帯（Quickshell）に出た kargui のアイコン（左。アプリが画像を渡さない時の無地のアイコン）。右は日本語入力（fcitx5）のアイコン。帯の右端だけを切り出し、3 倍にした。",
+        { flat: true },
+      ),
+  },
+  "17-notify.html": {
+    gallery: () =>
+      figure(
+        "notify/gallery",
+        "部品の見本の通知のページ。通知を出す、音の無い通知、ボタン付きの通知の 3 つのボタン。出した通知 0、最後に押された所 まだ無い、説明の文が並ぶ",
+        "見本の 25 ページ目「通知」（Windows 11 の本物の窓、900×651）。3 つのボタンで通知を出し、押された所をページに出す。日本語の書体では、レジストリの場所の <code>\\</code> が ¥ で表示される。",
+        { flat: true },
+      ),
+    linux: () =>
+      figure(
+        "notify/linux",
+        "暗い色の通知の枠。太字の kargui notify check と、その下に A silent notification with two buttons",
+        "検証機の通知の係（mako）に出た通知（確かめのアプリ）。mako はボタンを枠に並べず、命令やメニューで選ぶ形。枠の中だけを切り出した。",
         { flat: true },
       ),
   },
