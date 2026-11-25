@@ -148,6 +148,7 @@ const CHAPTERS = [
   { href: "13-floating.html", no: "第 13 章", title: "浮いた枠", text: "窓の中に浮かせる形から作った理由、枠の下へ届いたホイールを描く順で隠す直し方。作者の記録から見つけた、F6 が枠を飛ばした理由と、元の場所へ戻らなかったパネル。", thumb: "dock2/float" },
   { href: "14-windows.html", no: "第 14 章", title: "別の窓", text: "Wayland では出さないと決めた理由、別の窓をアプリの App::window から同じ ui.dock で描く書き方、OS ごとに違う窓の場所の形と、最小化した窓の場所を覚えない理由。", thumb: "dock3/main" },
   { href: "15-titlebar.html", no: "第 15 章", title: "題の帯", text: "題の帯に部品を置ける形を選んだ理由、OS によって帯の中にも窓のいちばん上の行にもなる書き方、Windows に帯の場所を答える仕組み。作者の 4 回の確かめで見つけた、起動の直後に止まる・窓のメニューが出ない・窓の処理が二重に呼ばれる不具合。", thumb: "titlebar/windows" },
+  { href: "16-tray.html", no: "第 16 章", title: "トレイ", text: "OS が描くメニューを kargui のメニューと同じ書き方で作る方法、OS ごとの知らせの届き方、Wayland で隠した窓が戻らなかった理由。作者の確かめで見つけた、アイコンを押しても届かなかった不具合と、手元でそれを見落とした確かめ方。", thumb: "tray/gallery" },
 ];
 
 function chapters() {
@@ -456,6 +457,29 @@ ${figure("apps/expenses", "家計簿の見本", "家計簿（<code>examples/expe
           ["ポインター", 6],
           ["ボタンを離れた", 5],
         ].map(([name, value]) => ({ name, v: "now", value, label: `${value} 回` })),
+      ),
+  },
+  "16-tray.html": {
+    gallery: () =>
+      figure(
+        "tray/gallery",
+        "部品の見本のトレイのページ。通知領域にアイコンを出す、閉じるボタンでトレイに隠れる（灰色）、窓を隠す（灰色）、トレイのアイコンを押した回数 0、説明の文が並ぶ",
+        "見本の 24 ページ目「トレイ」（Windows 11 の本物の窓、900×651）。「通知領域にアイコンを出す」に印を付けると、アイコンが出て、下の 2 つが押せるようになる。",
+        { flat: true },
+      ),
+    menu: () =>
+      figure(
+        "tray/menu",
+        "トレイのアイコンの右クリックのメニュー。Show window、印の付いた Mute、区切りの線、右に矢印のある Recent、灰色の Disabled、Quit が並ぶ",
+        "Windows のトレイのメニュー（確かめのアプリ）。OS が描くので、Windows 11 のメニューの見た目になる。印の付く項目・区切り・入れ子・押せない項目が使える。",
+        { flat: true },
+      ),
+    linux: () =>
+      figure(
+        "tray/linux",
+        "検証機の上の帯の右端。赤い角の丸い四角のアイコン（kargui の無地のアイコン）と、キーボードの形のアイコンが並ぶ",
+        "検証機の上の帯（Quickshell）に出た kargui のアイコン（左。アプリが画像を渡さない時の無地のアイコン）。右は日本語入力（fcitx5）のアイコン。帯の右端だけを切り出し、3 倍にした。",
+        { flat: true },
       ),
   },
   "11-v030.html": {

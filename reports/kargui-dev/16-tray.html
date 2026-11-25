@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 16 章 トレイ ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="アプリの仕組みの 2 つ目として、通知領域のアイコン（トレイ）と、窓を隠す・出す仕組みを、Windows と Linux で同時に作りました。書き方、OS ごとに違う知らせの届き方、Wayland で隠した窓が戻らなかった理由を紹介します。後半では、作者の手の確かめで見つけた、アイコンを押しても見本に届かなかった不具合と、手元の確かめでそれを見落とした理由を書きます。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 16 章</p>
+  <h1>トレイ</h1>
+  <p class="lede">アプリの仕組みの 2 つ目として、通知領域のアイコン（トレイ）を作りました。アイコンには、説明・押した時の知らせ・右クリックのメニューがあります。あわせて、窓を隠す・出す仕組みも作り、「閉じるボタンでトレイに隠れる」アプリを書けるようにしました。Windows と Linux（Wayland と X11）で同時に作っています。この章では、書き方と、OS ごとに違う知らせの届き方を紹介します。後半では、作者の手の確かめで見つけた「アイコンを押しても見本に届かない」不具合と、手元の確かめでそれを見落とした理由を書きます。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>OS が描くメニューを、kargui のメニューと同じ書き方で作る方法</li>
+      <li>Windows と Linux で、トレイの知らせがどう届くか</li>
+      <li>窓を出す・隠すを「状態」でなく「呼んだ時の命令」にした理由</li>
+      <li>Wayland で、隠した窓を決まりどおりに出し直しても戻らなかった理由</li>
+      <li>OS が「送る」知らせを、確かめで「積んで」送ると、不具合を見落とす理由</li>
+    </ul>
+  </section>
+
+  <h2 id="scope">範囲を決めた</h2>
+  <p>題の帯を送った後、作者にトレイの範囲を尋ねました。Linux のトレイは StatusNotifierItem という決まりで、D-Bus でやり取りします。kargui は読み上げとファイルのダイアログのために D-Bus の道具（zbus）を既に使っているので、依存は増えません。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-scope">
+    <table>
+      <caption id="t-scope">作者に示した 2 つの案</caption>
+      <thead><tr><th scope="col">案</th><th scope="col">使える OS</th><th scope="col">確かめの手間</th><th scope="col">作る量</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Windows と Linux を同時に（推奨）</th><td data-label="使える OS">Windows と、トレイを出す帯がある Linux（KDE、Hyprland の帯など）。拡張機能の無い GNOME には出ない</td><td data-label="確かめの手間">検証機の帯にトレイの表示が要るかもしれない（調べる前）</td><td data-label="作る量">多い</td></tr>
+        <tr><th scope="row">Windows だけ先に</th><td data-label="使える OS">Windows だけ。Linux は後で</td><td data-label="確かめの手間">Windows の本物の窓で済む</td><td data-label="作る量">少ない</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>作者の答えは「同時に作って」でした。調べると、検証機の上の帯（Quickshell）は、トレイの受け手（StatusNotifierWatcher）と表示役を既に持っていました。検証機に何も入れずに確かめられました。</p>
+
+  <!-- gen:gallery -->
+<figure class="shot flat"><picture><source media="(prefers-color-scheme: dark)" srcset="img/tray/gallery-dark.webp"><img src="img/tray/gallery-light.webp" alt="部品の見本のトレイのページ。通知領域にアイコンを出す、閉じるボタンでトレイに隠れる（灰色）、窓を隠す（灰色）、トレイのアイコンを押した回数 0、説明の文が並ぶ" width="900" height="651" loading="lazy" decoding="async"></picture><figcaption>見本の 24 ページ目「トレイ」（Windows 11 の本物の窓、900×651）。「通知領域にアイコンを出す」に印を付けると、アイコンが出て、下の 2 つが押せるようになる。</figcaption></figure>
+<!-- /gen:gallery -->
+
+  <h2 id="api">書き方</h2>
+  <p>主の窓のビューで <code>ui.tray</code> を呼んでいる間、アイコンが出ます。呼ばなくなるとアイコンを消します。メニューは OS が描くので、kargui のメニュー（<code>Menu</code>）と同じ名前の関数を持つ別の型（<code>TrayMenu</code>）で中身だけを集めます。アプリの書き方は、kargui のメニューと同じです。</p>
+  <pre><code>let (mut show, mut quit) = (false, false);
+ui.tray(|t| {
+    t.tooltip("Notes");
+    show = t.clicked();
+    t.menu(|m| {
+        show |= m.item("Show window").clicked();
+        m.check(&amp;mut self.muted, "Mute");
+        m.separator();
+        quit = m.item("Quit").clicked();
+    });
+});
+if show {
+    ui.show_window();
+}
+if quit {
+    ui.quit();
+}</code></pre>
+  <ul>
+    <li><code>ui</code> は <code>ui.tray</code> の中で使えないので、押した・選んだことを変数に覚え、後で窓を出す・アプリを終えるなどを行う。</li>
+    <li>押した・選んだ知らせは入力として届き、入力を渡す回のビューでだけ <code>clicked()</code> が true になる。ボタンを押した時と同じ扱い。</li>
+    <li>メニューの項目と区切りには、作った順の番号を付ける。並びが同じなら次のフレームでも同じ番号なので、OS が返した番号から項目が分かる。</li>
+    <li>「閉じるボタンでトレイに隠れる」アプリは、<code>App::close_requested</code> で false を返し、次のビューで <code>ui.hide_window()</code> を呼ぶ。</li>
+  </ul>
+  <!-- gen:menu -->
+<figure class="shot flat"><picture><img src="img/tray/menu-light.webp" alt="トレイのアイコンの右クリックのメニュー。Show window、印の付いた Mute、区切りの線、右に矢印のある Recent、灰色の Disabled、Quit が並ぶ" width="172" height="125" loading="lazy" decoding="async"></picture><figcaption>Windows のトレイのメニュー（確かめのアプリ）。OS が描くので、Windows 11 のメニューの見た目になる。印の付く項目・区切り・入れ子・押せない項目が使える。</figcaption></figure>
+<!-- /gen:menu -->
+
+  <h2 id="flow">知らせの届き方</h2>
+  <p>アイコンを押した・項目を選んだという知らせは、OS ごとに違う道でアプリに届きます。どちらも最後は kargui の入力（<code>Event::Tray</code>）になり、ビューから見ると同じです。</p>
+  <figure class="diagram">
+    <svg viewBox="0 0 720 300" role="img" aria-labelledby="fl-title fl-desc">
+      <title id="fl-title">トレイの知らせが、ビューに届くまで</title>
+      <desc id="fl-desc">Windows では、エクスプローラーが窓に知らせを送り（SendMessage）、窓の処理が入力として積んだ後、何もしない知らせを積んで輪を起こし、フレームを回す。Linux では、帯が D-Bus で呼び、zbus のスレッドが列に積んで eventfd に書き、窓の処理が起きてフレームを回す。どちらも最後はビューの clicked になる。</desc>
+      <text class="sub" x="20" y="28">Windows</text>
+      <rect class="box" x="20" y="38" width="150" height="56" rx="6"/>
+      <text class="label" x="34" y="64">エクスプローラー</text>
+      <text class="sub" x="34" y="84">知らせを送る</text>
+      <rect class="box" x="210" y="38" width="200" height="56" rx="6"/>
+      <text class="label" x="224" y="64">窓の処理（WM_APP+3）</text>
+      <text class="sub" x="224" y="84">入力を積み、WM_NULL も積む</text>
+      <path class="arrow" d="M170 66 L204 66"/>
+      <path class="arrow-head" d="M204 61 L210 66 L204 71 Z"/>
+      <text class="sub" x="20" y="146">Linux</text>
+      <rect class="box" x="20" y="156" width="150" height="56" rx="6"/>
+      <text class="label" x="34" y="182">帯（KDE など）</text>
+      <text class="sub" x="34" y="202">D-Bus で呼ぶ</text>
+      <rect class="box" x="210" y="156" width="200" height="56" rx="6"/>
+      <text class="label" x="224" y="182">zbus のスレッド</text>
+      <text class="sub" x="224" y="202">列に積み、eventfd に書く</text>
+      <path class="arrow" d="M170 184 L204 184"/>
+      <path class="arrow-head" d="M204 179 L210 184 L204 189 Z"/>
+      <rect class="box-soft" x="460" y="96" width="240" height="62" rx="6"/>
+      <text class="label" x="476" y="122">輪が起きて、フレームを回す</text>
+      <text class="sub" x="476" y="144">入力 Event::Tray → ビューの clicked</text>
+      <path class="arrow" d="M410 66 L440 66 L440 112 L454 112 M410 184 L440 184 L440 142 L454 142"/>
+      <path class="arrow-head" d="M454 107 L460 112 L454 117 Z M454 137 L460 142 L454 147 Z"/>
+      <text class="loop-text" x="20" y="262">Windows の「送る」知らせは GetMessage の中で処理されるので、積んだ知らせが無いと輪が戻らない</text>
+    </svg>
+    <figcaption>トレイの知らせが、ビューに届くまで。Linux は前から別のスレッドの答えを eventfd で受けていたので、同じ道を使えた。Windows の WM_NULL は、作者の手の確かめの後に足した（後半で説明）。</figcaption>
+  </figure>
+
+  <h2 id="windows">Windows の作り</h2>
+  <p>Windows は Shell_NotifyIconW でアイコンを出します。新しい形の知らせ（NOTIFYICON_VERSION_4）では、左のボタンで押した時に NIN_SELECT、右クリックで WM_CONTEXTMENU が届きます。右クリックでは、kargui が OS のメニュー（TrackPopupMenuEx）を出し、選ばれた番号を入力にします。</p>
+  <ul>
+    <li>OS への呼び出しとメニューは、窓の状態を借りていない時に行う。メニューは閉じるまで戻らず、その間も窓の知らせを受けるため（第 15 章の 3 回目と同じ）。</li>
+    <li>メニューを出す前に窓を前面にし、閉じた後に何もしない知らせを積む。こうしないと、メニューの外を押しても閉じず、次に開いたメニューがすぐ閉じる（Microsoft の TrackPopupMenu の説明にある注意）。</li>
+    <li>エクスプローラーが起動し直した時の知らせ（TaskbarCreated）で、アイコンを入れ直す。窓を壊す時にアイコンを消す。消さないと、ポインターが乗るまで通知領域に残る。</li>
+    <li>アイコンの画像は、通知領域の大きさ（その窓の DPI の小さいアイコン）に縮めてから渡す。縮める処理は、乗算済みの色のまま平均する。</li>
+  </ul>
+
+  <h2 id="linux">Linux の作り</h2>
+  <p>Linux は、StatusNotifierItem（アイコン・説明・押した）と com.canonical.dbusmenu（メニュー）を D-Bus に出し、受け手（org.kde.StatusNotifierWatcher）に届け出ます。受け手が後から起動した時は、名前の持ち主が変わる知らせを見て届け出直します。メニューは、帯が <code>GetLayout</code> で木を読み、項目を選ぶと <code>Event</code>（clicked）で知らせてくる作りです。</p>
+  <p>dbusmenu は、区切りにも番号が要ります。最初は区切りの番号を「木をたどった順」で付けていました。ところが帯は、深さを限って木を読むことがあり、その時は番号がずれます。書き終えた後の見直しでこれに気づき、区切りにも作った順の番号を付ける形に変えました。</p>
+  <!-- gen:linux -->
+<figure class="shot flat"><picture><img src="img/tray/linux-light.webp" alt="検証機の上の帯の右端。赤い角の丸い四角のアイコン（kargui の無地のアイコン）と、キーボードの形のアイコンが並ぶ" width="276" height="132" loading="lazy" decoding="async"></picture><figcaption>検証機の上の帯（Quickshell）に出た kargui のアイコン（左。アプリが画像を渡さない時の無地のアイコン）。右は日本語入力（fcitx5）のアイコン。帯の右端だけを切り出し、3 倍にした。</figcaption></figure>
+<!-- /gen:linux -->
+  <p>検証機の帯は、アイコンを左クリックすると <code>Activate</code> を呼びますが、右クリックではメニューを出さない設定でした。そのため、メニューは帯が使うのと同じ D-Bus の呼び出し（<code>GetLayout</code> と <code>Event</code>）を、busctl で送って確かめました。帯の設定は変えていません。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-linux">
+    <table>
+      <caption id="t-linux">検証機での確かめ（Hyprland 0.55）</caption>
+      <thead><tr><th scope="col">確かめたこと</th><th scope="col">Wayland</th><th scope="col">X11（XWayland）</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">受け手に届け出る</th><td data-label="Wayland">受け手の一覧に入り、帯にアイコンが出た</td><td data-label="X11">受け手の一覧に入った</td></tr>
+        <tr><th scope="row">メニューの木</th><td data-label="Wayland">7 つの節（印の付く項目・区切り・入れ子・押せない項目）がそろった</td><td data-label="X11">読んでいない（Wayland と同じスレッドの処理）</td></tr>
+        <tr><th scope="row">閉じると隠れ、押すと戻る</th><td data-label="Wayland">直した後に戻った（下の落とし穴）</td><td data-label="X11">地図から外して隠れ、地図に戻して前面になった</td></tr>
+        <tr><th scope="row">項目を選ぶ</th><td data-label="Wayland">印が付き、説明が変わった</td><td data-label="X11">説明が変わった</td></tr>
+        <tr><th scope="row">終わる</th><td data-label="Wayland">受け手の一覧から消えた</td><td data-label="X11">同じ</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="show">窓を隠す・出す</h2>
+  <p>最初は、<code>ui.show_window()</code> を「毎フレーム呼んでもよい状態」として作りかけました。ところが、それでは利用者が窓を最小化した直後のフレームで、アプリの呼ぶ <code>show_window</code> が窓をすぐ戻してしまいます。そこで、<code>hide_window</code> と <code>show_window</code> は「呼んだ時にそうする命令」にしました。アプリは、トレイを押した・閉じた、などの出来事の時だけ呼びます。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい作り: Wayland で、隠した窓を絵の無い commit だけで出し直す</span>
+    <p>Wayland の決まり（xdg-shell）では、窓から絵を外して下ろした後、絵の無い commit をすると、合成が設定（configure）を送り直し、窓を出し直せます。ところが Hyprland 0.55 は、この commit に設定を返しませんでした。kargui は設定を待つ間はビューを回さないので、後から届いたトレイの知らせも止まりました。出す時は、窓の役目（xdg_surface と xdg_toplevel）を壊して作り直してください。新しく作った役目には、合成が必ず最初の設定を送ります。隠している間も、設定を待たずにビューを回し（描かない）、トレイの知らせを受け取れるようにしました。</p>
+  </div>
+
+  <h2 id="hand">作者の手の確かめ</h2>
+  <p>見本の 24 ページ目「トレイ」で、作者に 12 の手順を試してもらいました。アイコンを出す、押す、右クリックのメニューで明暗やページを選ぶ、窓を隠す・閉じる・最小化してから押して戻す、アイコンを消す、メニューで見本を終える、などです。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-hand">
+    <table>
+      <caption id="t-hand">2 回の手の確かめ</caption>
+      <thead><tr><th scope="col">回</th><th scope="col">記録から見つかったこと</th><th scope="col">直し方</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">1 回目</th><td data-label="見つかったこと">アイコンを左クリックしても、見本に届かなかった（OS の「押した」は 13 回あった）。左クリックとメニューの選択が重なると、左クリックが消えた。終わる時に、消したアイコンを出し直そうとした</td><td data-label="直し方">知らせの後に輪を起こす。知らせを並びで持つ。壊した窓はフレームを回さない</td></tr>
+        <tr><th scope="row">2 回目</th><td data-label="見つかったこと">異常なし。左クリック 4 回が、どれも同じミリ秒のうちに見本に届いた</td><td data-label="直し方">―</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="sent">1 回目: アイコンを押しても届かなかった</h3>
+  <p>記録には、OS からの「押した」（<code>tray.click</code>）が 13 回ありました。ところが、見本の「押した」は 1 回も出ず、押した後に描く処理も走っていませんでした。窓が戻ったのは、メニューの「窓を出す」を選んだ時だけでした。</p>
+  <p>kargui の Windows の輪は、<code>GetMessage</code> が戻った後に、描き直しを頼まれた窓のフレームを回します。一方、エクスプローラーはトレイの知らせを窓に「送る」（SendMessage）ので、知らせは <code>GetMessage</code> の中で処理されます。<code>GetMessage</code> は、積まれた知らせが来るまで戻りません。そのため、フレームを回す頼みは、マウスが窓の上を動くなどして次の知らせが積まれるまで、放っておかれました。メニューの項目だけが届いたのは、メニューを閉じた後に、決まりどおり何もしない知らせを積んでいたからです。</p>
+  <p>直し方は、トレイの知らせを受けた時に、何もしない知らせ（WM_NULL）を積んで輪を起こすことです。フレームが回らない間に、左クリックとメニューの選択が 1 つのフレームにまとめて届き、左クリックが消えていたことも分かりました。トレイの知らせを 1 つしか持てない欄にしていたためで、並びで持つ形に直しました（試験を先に書き、落ちることを確かめてから直しています）。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい確かめ方: OS が「送る」知らせを、確かめで「積んで」送る</span>
+    <p>手元の確かめの道具は、トレイの知らせを PostMessage で積んで送っていました。積んだ知らせは <code>GetMessage</code> を戻すので、輪は普通にフレームを回し、不具合は出ません。OS が SendMessage で送る知らせを確かめる時は、確かめでも SendMessage で送ってください。道具を SendMessage に変えると、同じ不具合が手元で再現しました。</p>
+  </div>
+  <div class="insight">
+    <span class="box-title">分かったこと: 確かめのアプリが周期的にフレームを回すと、「フレームが回らない」不具合が隠れる</span>
+    <p>確かめのアプリは、20 秒で自分で終わるために、1 秒ごとにフレームを回していました。そのため、知らせの後にフレームが回らなくても、1 秒以内には次のフレームで処理され、窓は戻っていました。見本には周期のフレームが無いので、作者の手元では窓が戻りませんでした。確かめのアプリは、終わる時刻にだけ起きる形に直しました。</p>
+  </div>
+
+  <h2 id="numbers">数</h2>
+  <p>トレイで足した試験は 9 個です（共通 5、Linux の D-Bus の形 2、画像の大きさ 1、見本 1）。公開の項目の説明は 610 から 622 に、動く例は 430 から 439 に増えました。説明の中の動く例（doc テスト）は 694 から 715 に増えました。新しいファイルは 3 つで、合わせて 974 行です（Linux の sni.rs 495 行、共通の ui/tray.rs 336 行、Windows の tray_win.rs 143 行）。記録 20f50e8 は、作者の「送って」で GitHub に入りました。</p>
+
+  <h2 id="ci">CI</h2>
+  <p>記録 20f50e8 は、CI の Windows・Linux・macOS で 1 回目から通りました。送る前に、CI の Windows と同じ 4 段と clippy を手元で走らせ、検証機でも試験（説明の中の例を含む）と clippy を走らせています。</p>
+
+  <h2 id="next">次の段階</h2>
+  <p>アプリの仕組みの次は、通知（トースト）です。その後に、ハイコントラスト、多言語の順で進めます。トレイでは、キーボードで通知領域へ移ってアイコンを選ぶ操作、エクスプローラーが起動し直した時の入れ直し、KDE と拡張機能を入れた GNOME での表示を、まだ確かめていません。</p>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="15-titlebar.html">← 第 15 章 題の帯</a>
+    <a href="./">目次 →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>
