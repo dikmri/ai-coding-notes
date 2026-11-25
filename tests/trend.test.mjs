@@ -2590,3 +2590,156 @@ test('ボタンの音: 音の中心の高さは、正弦波ならその周波数
   assert.ok(c({ hard: 0 }) < c({ hard: 1 }));
   assert.ok(c({ size: 1.6 }) < c({ size: 0.6 }));
 });
+
+const LEQ = 'tr-20261126-loudness-eq';
+const LQ_NAMES = ['frameSize', 'riseRate', 'riseSeconds', 'loudnessOf', 'targetGain', 'fft', 'equalize', 'lookahead', 'limit', 'rmsDb', 'spread'];
+// 決まった乱数（線形合同法）で、実効値 rms のおおよそ正規分布の雑音を作る
+function lqNoise(n, rms, seed) {
+  let s = seed >>> 0;
+  const a = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    let sum = 0;
+    for (let k = 0; k < 12; k++) {
+      s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+      sum += s / 4294967296;
+    }
+    a[i] = (sum - 6) * rms;
+  }
+  return a;
+}
+
+test('音量の均一化: 調べる長さと、戻りの速さごとの時定数（r = 4 で約 4.6 秒）', () => {
+  const { frameSize, riseSeconds } = trendCore(LEQ, LQ_NAMES);
+  assert.equal(frameSize(44100), 512);
+  assert.equal(frameSize(48000), 512);
+  assert.equal(frameSize(96000), 1024);
+  assert.equal(frameSize(16000), 256);
+  assert.ok(Math.abs(riseSeconds(48000, 4) - 4.6) < 0.05);
+  assert.ok(Math.abs(riseSeconds(44100, 4) - 4.6) < 0.05);
+  for (let r = 2; r < 7; r++) assert.ok(riseSeconds(48000, r) < riseSeconds(48000, r + 1));
+  assert.ok(riseSeconds(48000, 2) < 0.2);
+});
+
+test('音量の均一化: FFT は素直な離散フーリエ変換と同じ値を返す', () => {
+  const { fft } = trendCore(LEQ, LQ_NAMES);
+  const n = 16, x = lqNoise(n, 1, 5), re = Float64Array.from(x), im = new Float64Array(n);
+  fft(re, im);
+  for (let k = 0; k < n; k++) {
+    let a = 0, b = 0;
+    for (let i = 0; i < n; i++) {
+      a += x[i] * Math.cos((2 * Math.PI * k * i) / n);
+      b -= x[i] * Math.sin((2 * Math.PI * k * i) / n);
+    }
+    assert.ok(near(re[k], a, 1e-9) && near(im[k], b, 1e-9), 'k=' + k);
+  }
+});
+
+test('音量の均一化: 目標のゲインは L = 1300 で 1 倍、小さい音は最大 10 倍、L が 2 倍なら 2^−1.6 倍', () => {
+  const { targetGain, loudnessOf } = trendCore(LEQ, LQ_NAMES);
+  assert.ok(near(targetGain(1300), 1, 1e-12));
+  assert.equal(targetGain(1), 10);
+  assert.equal(targetGain(0), 10);
+  assert.ok(near(targetGain(2600), Math.pow(2, -1.6), 1e-12));
+  assert.ok(loudnessOf(new Float64Array(25)) < 1e-6);
+});
+
+test('音量の均一化: 小さい音はゆっくり持ち上げ、大きな音が来たらすぐ下げる', () => {
+  const { equalize, targetGain } = trendCore(LEQ, LQ_NAMES);
+  const fs = 48000;
+  const quiet = lqNoise(fs * 6, 0.003, 1), loud = lqNoise(fs * 2, 0.3, 2);
+  const x = new Float32Array(quiet.length + loud.length);
+  x.set(quiet, 0);
+  x.set(loud, quiet.length);
+  const r = equalize([x], fs, 4);
+  const at = (t) => r.gains[Math.floor((t * fs) / r.hop)];
+  // 時定数 4.6 秒で 10 倍へ近づく: 1 秒後は 1 + 9·(1 − e^(−1/4.6)) ≈ 2.8
+  assert.ok(at(1) > 2.3 && at(1) < 3.3, '1 秒後 ' + at(1));
+  assert.ok(at(1) < at(3) && at(3) < at(5.9));
+  // 大きい音だけの最初のブロックで、その目標まで一度に下がる
+  const k0 = (6 * fs) / r.hop;
+  assert.ok(r.gains[k0] < 1.2, '下がったゲイン ' + r.gains[k0]);
+  assert.ok(near(r.gains[k0], targetGain(r.loud[k0]), 1e-6));
+  assert.ok(r.loud[k0] > r.loud[100] * 5);
+  // 出力は、入力に前のブロックから今のブロックへ直線でつないだゲインをかけたもの
+  const j = Math.floor(7 * fs) + 77, k = Math.floor(j / r.hop);
+  const want = x[j] * (r.gains[k - 1] + ((r.gains[k] - r.gains[k - 1]) * (j - k * r.hop)) / r.hop);
+  assert.ok(near(r.out[0][j], want, 1e-6));
+});
+
+test('音量の均一化: 戻りが速いほど、小さい所と大きい所の差が縮まる', () => {
+  const { equalize, spread } = trendCore(LEQ, LQ_NAMES);
+  const fs = 48000, seg = fs * 3, x = new Float32Array(seg * 6);
+  for (let s = 0; s < 6; s++) x.set(lqNoise(seg, s % 2 ? 0.3 : 0.01, 11 + s), s * seg);
+  const before = spread([x], fs);
+  const fast = spread(equalize([x], fs, 2).out, fs), slow = spread(equalize([x], fs, 6).out, fs);
+  assert.ok(before > 25, '元 ' + before);
+  assert.ok(fast < before - 10, '速い ' + fast);
+  assert.ok(fast < slow, '速い ' + fast + ' 遅い ' + slow);
+});
+
+test('音量の均一化: リミッターは出口を 0.99 以下に抑え、小さい所はそのまま通す', () => {
+  const { limit, lookahead } = trendCore(LEQ, LQ_NAMES);
+  const fs = 48000, n = fs * 3;
+  const a = new Float32Array(n), b = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const t = i / fs, amp = t < 1 ? 0.2 : t < 2 ? 1.6 : 0.2;
+    a[i] = amp * Math.sin(2 * Math.PI * 1800 * t);
+    b[i] = a[i] * 0.5;
+  }
+  const orig = Float32Array.from(a);
+  const gain = limit([a, b], fs);
+  let pk = 0;
+  for (const v of a) pk = Math.max(pk, Math.abs(v));
+  assert.ok(pk <= 0.99, '山 ' + pk);
+  // 大きい音より先読みの長さ以上前は、何も変えない
+  const La = lookahead(fs);
+  for (let i = 0; i < fs - La - 1; i++) assert.equal(a[i], orig[i]);
+  // 大きい所では約 0.985/1.6 まで下げ、2 チャンネルで同じゲインを使う
+  const m = Math.floor(1.5 * fs);
+  assert.ok(Math.abs(gain[m] - 0.985 / 1.6) < 0.01, 'ゲイン ' + gain[m]);
+  assert.ok(near(b[m], a[m] * 0.5, 1e-6));
+  // 小さくなったら戻り、最後は 1 倍
+  assert.equal(gain[n - 1], 1);
+  // 不規則な強い山でも 0.99 を超えない
+  const z = lqNoise(fs, 0.8, 9);
+  for (let i = 0; i < z.length; i += 997) z[i] *= 4;
+  limit([z], fs);
+  let zp = 0;
+  for (const v of z) zp = Math.max(zp, Math.abs(v));
+  assert.ok(zp <= 0.99, '山 ' + zp);
+});
+
+test('音量の均一化: 区間の実効値は、振幅 A の正弦波なら 20·log10(A/√2) dB。2 チャンネルはまとめて数える', () => {
+  const { rmsDb } = trendCore(LEQ, LQ_NAMES);
+  const fs = 8000, x = new Float32Array(fs * 2), y = new Float32Array(fs * 2);
+  for (let i = 0; i < x.length; i++) {
+    x[i] = (i < fs ? 0.1 : 1) * Math.sin((2 * Math.PI * 400 * i) / fs);
+    y[i] = 0;
+  }
+  assert.ok(Math.abs(rmsDb([x], fs, 0, 1) - 20 * Math.log10(0.1 / Math.SQRT2)) < 0.01);
+  assert.ok(Math.abs(rmsDb([x], fs, 1, 2) - 20 * Math.log10(1 / Math.SQRT2)) < 0.01);
+  // 片方が無音なら、力は半分（−3 dB）
+  assert.ok(Math.abs(rmsDb([x, y], fs, 1, 2) - (20 * Math.log10(1 / Math.SQRT2) - 10 * Math.log10(2))) < 0.01);
+  // 範囲の外や長さ 0 は −∞
+  assert.equal(rmsDb([x], fs, 3, 4), -Infinity);
+  assert.equal(rmsDb([x], fs, 1, 1), -Infinity);
+});
+
+test('音量の均一化: 散らばりは 0.4 秒ごとの大きさの上位 10% と下位 10% の差で、無音は数えない', () => {
+  const { spread } = trendCore(LEQ, LQ_NAMES);
+  const fs = 8000, half = fs * 10, x = new Float32Array(half * 2);
+  for (let i = 0; i < x.length; i++) x[i] = (i < half ? 0.01 : 0.316) * Math.SQRT2 * Math.sin((2 * Math.PI * 440 * i) / fs);
+  assert.ok(Math.abs(spread([x], fs) - 30) < 0.2, '差 ' + spread([x], fs));
+  assert.equal(spread([new Float32Array(fs * 4)], fs), 0);
+  assert.ok(spread([x.subarray(half)], fs) < 0.1);
+  // ref を渡すと、元の音で無音（−50 dB 未満）だった所は、持ち上がっても数えない
+  const src = new Float32Array(fs * 12), out = new Float32Array(fs * 12);
+  for (let i = 0; i < src.length; i++) {
+    const t = i / fs, s = Math.SQRT2 * Math.sin((2 * Math.PI * 440 * i) / fs);
+    src[i] = (t < 4 ? 0.001 : t < 8 ? 0.01 : 0.316) * s;
+    out[i] = src[i] * (t < 8 ? 10 : 1);
+  }
+  assert.ok(Math.abs(spread([src], fs) - 30) < 0.2);
+  assert.ok(spread([out], fs) > 25, '無音だった所も数えると差が残る');
+  assert.ok(Math.abs(spread([out], fs, 0.4, [src]) - 10) < 0.2, '同じ区間なら −20 dB と −10 dB の差');
+});

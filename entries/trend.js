@@ -16892,3 +16892,837 @@ canvas { display: block; width: 100%; height: 190px; border-radius: 10px; backgr
     }
   },
 });
+dekiru.add({
+  id: 'tr-20261126-loudness-eq', c: 'trend', lv: 3, date: '2026-11-26',
+  t: 'Windows の「ラウドネス イコライゼーション」と同じ計算で、小さい声を持ち上げ、大きな音はすぐ下げて、音量の差を縮める',
+  y: 'うぃんどうずのらうどねす いこらいぜーしょんとおなじけいさんで ちいさいこえをもちあげ おおきなおとはすぐさげて おんりょうのさをちぢめる',
+  tags: ['pw-loudness-eq', 'Loudness Equalization', 'Web Audio', 'FFT', 'OfflineAudioContext', 'リミッター'],
+  d: 'Windows のサウンドの設定にある「ラウドネス イコライゼーション」（Loudness Equalization）は、小さい音を持ち上げ、大きい音を抑えて、音量の差を小さくする機能である。2026-11-25 に Hacker News で 300 点近くを集めた pw-loudness-eq は、これを Windows の WMALFXGFXDSP.dll から逆解析して Linux の PipeWire へ移したもので、README に計算の手順と定数が文章で書かれている。この見本は、その文章をもとに計算を JavaScript で書き、ブラウザの中で動かす。512 サンプルずつ FFT で 25 の帯の力を求めて音の大きさ L を出し、目標のゲイン (1300/L)^1.6（最大 +20 dB）へ、下げる時はすぐ、上げる時は「戻りの速さ」に応じてゆっくり近づける。出口には、Windows の音声エンジンと同じ考え方の先読みリミッターを付けた。見本の場面（声に似せた合成音の会話・爆発・口笛）は Web Audio の OfflineAudioContext で作り、手元の音声ファイルでも試せる（ファイルはブラウザの中だけで扱う）。再現できていない所: Windows の出力と同じになるかは突き合わせていない（README の文章だけを元にし、pw-loudness-eq のコードも DLL も見ていない）。ゲインの初期値は README に無いので 1 とした。リミッターは README の説明どおりに作ると、だんだん大きくなる音で出口が 1 を少し超えたので、下げている途中に新しい山が来たら急な方の傾きを使うように変えた。アプリごとに分けて処理する所と、PipeWire の音量との関係は扱っていない。',
+  p: '音の大きさは、窓をかけた 512 サンプルを FFT し、周波数ごとの力を 100 Hz〜24 kHz の 25 帯に足し合わせ、帯ごとの値 T を引いてから 4 乗根を取って足す（L = 1.72·Σ max(E − T, 0)^0.25）。4 乗根を取るので、1 つの帯に集まった音（口笛など）は小さく数えられ、大きく持ち上げられる。ゲインは半分ずつ重ねた 256 サンプルごとに更新し、目標より大きければすぐ目標まで下げ、小さければ g += w·(目標 − g) で近づける。w は戻りの速さ r から (N/128)·(44100/fs)·0.1^min(r,3)·0.316^(min(r,7)−min(r,3)) で決まり、r = 4 で時定数は約 4.6 秒になる。ブロックの間はゲインを直線でつなぐ。リミッターは 64 フレーム先を見て、山が出ていく時までに 0.985/山 へ直線で下げる。聞き比べは、元の音と処理した音の 2 つの AudioBufferSourceNode を同じ時刻から鳴らし、GainNode で片方だけが聞こえるようにする。',
+  refs: [
+    { title: 'xoxorwr/pw-loudness-eq（README の「The algorithm」と「The limiter」に計算の手順と定数）', url: 'https://github.com/xoxorwr/pw-loudness-eq' },
+    { title: 'Hacker News: Windows Loudness Equalization, reverse-engineered and ported to PipeWire', url: 'https://news.ycombinator.com/item?id=50641171' },
+  ],
+  html: `<div class="wrap">
+  <div class="bar">
+    <button id="play" class="main" type="button" disabled>再生</button>
+    <label class="sw"><input type="checkbox" id="on" switch role="switch" checked> 音量の均一化（Loudness Equalization）</label>
+  </div>
+  <canvas id="view" role="img" aria-label="元の音と、均一化した後の音の波の形と、かけたゲイン"></canvas>
+  <p id="now"></p>
+  <div class="ctl">
+    <label class="rl"><span>戻りの速さ</span><input type="range" id="rel" min="2" max="7" step="1" value="4"><output id="relO" for="rel"></output></label>
+    <div class="fl">
+      <label>手元の音声ファイルで試す（最初の 3 分）<input type="file" id="file" accept="audio/*"></label>
+      <button id="back" class="sub" type="button" hidden>見本の場面に戻す</button>
+    </div>
+  </div>
+  <p id="msg" role="status"></p>
+  <p id="sum"></p>
+  <p class="note">上の段が元の音、中の段が均一化した後の音（出口のリミッターまで通したもの）。下の段の線がかけたゲイン（0〜+20 dB）で、赤はリミッターが下げた所。波の上を押すと、その位置から再生する。再生中にスイッチを切り替えると、同じ位置のまま元の音と聞き比べられる。戻りの速さを 2 にすると、爆発のあとの会話がすぐ大きくなり、7 にするとなかなか戻らない。口笛のように 1 つの高さに集まった音は小さく数えられるので、会話よりも大きく持ち上がる（README に書かれている性質と同じ）。</p>
+</div>`,
+  css: `:root { color-scheme: dark; --ac: #f2b450; }
+[hidden] { display: none !important; }
+body { margin: 0; background: #1c1e24; color: #ece8df; font: 14px/1.6 system-ui, sans-serif; accent-color: var(--ac); }
+.wrap { display: grid; gap: 10px; padding: 14px; max-width: 820px; margin: 0 auto; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+.main { min-width: 6.5em; padding: 8px 18px; border: 0; border-radius: 8px; background: var(--ac); color: #1c1e24; font: 700 15px system-ui, sans-serif; cursor: pointer; }
+.main:hover { background: #f6c470; }
+.main:disabled { opacity: 0.5; cursor: progress; }
+.sw { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+input[type="checkbox"][switch] { margin: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid #f6d58e; outline-offset: 3px; }
+canvas { display: block; width: 100%; height: 300px; border-radius: 10px; background: #14161b; cursor: pointer; touch-action: manipulation; }
+#now { margin: 0; min-height: 3.2em; color: #cfc9bd; font: 12.5px/1.6 ui-monospace, monospace; white-space: pre-line; overflow-wrap: anywhere; }
+.ctl { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 8px 20px; align-items: start; }
+.rl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; align-items: center; }
+.rl input { width: 100%; margin: 0; }
+.rl output { grid-column: 1 / -1; color: #cfc9bd; font: 12px ui-monospace, monospace; }
+.fl { display: grid; gap: 6px; justify-items: start; min-width: 0; }
+.fl label { display: grid; gap: 4px; max-width: 100%; }
+.fl input { max-width: 100%; color: #cfc9bd; font: inherit; }
+.sub { padding: 5px 12px; border: 1px solid #4a4f5c; border-radius: 8px; background: #2f333d; color: #ece8df; font: inherit; cursor: pointer; }
+.sub:hover { background: #3a3f4b; }
+#msg, #sum, .note { margin: 0; }
+#sum { color: #cfc9bd; font-size: 13px; }
+.note { color: #b8b2a6; font-size: 13px; }
+.thumb .bar, .thumb .ctl, .thumb #now, .thumb #msg, .thumb #sum, .thumb .note { display: none; }
+.thumb .wrap { padding: 8px; }
+.thumb canvas { height: 232px; }`,
+  core() {
+    // 帯の上の端（Hz）。0〜100 Hz から 15500〜24000 Hz までの 25 帯
+    const EDGES = [100, 200, 300, 400, 510, 630, 770, 920, 1080, 1270, 1480, 1720, 2000, 2320, 2700, 3150, 3700, 4400, 5300, 6400, 7700, 9500, 12000, 15500, 24000];
+    // 帯ごとに差し引く値（これより小さい力は数えない）
+    const TH = [1000, 100, 31.6, 10, 3.16, 2, 1, 1, 0.316, 0.316, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 4, 10, 100, 1000];
+
+    // 1 回に調べる長さ N = 2^⌈log2(fs/100)⌉（44.1 kHz と 48 kHz では 512）
+    function frameSize(fs) {
+      return Math.pow(2, Math.ceil(Math.log2(fs / 100)));
+    }
+
+    // 戻りの速さ r（2〜7）のとき、ゲインを上げる時に 1 ブロック（N/2 サンプル）ごとに目標へ近づく割合
+    function riseRate(N, fs, r) {
+      return (N / 128) * (44100 / fs) * Math.pow(0.1, Math.min(r, 3)) * Math.pow(0.316, Math.min(r, 7) - Math.min(r, 3));
+    }
+
+    // 上げる時の時定数（秒）。1 ブロックで割合 w だけ近づくので、約 (ブロックの秒数)/w
+    function riseSeconds(fs, r) {
+      const N = frameSize(fs);
+      return N / 2 / fs / riseRate(N, fs, r);
+    }
+
+    // 帯ごとの力 E（25 個）から音の大きさ L を出す
+    function loudnessOf(E) {
+      let s = 0;
+      for (let b = 0; b < 25; b++) s += Math.pow(Math.max(E[b] - TH[b], 1e-32), 0.25);
+      return 1.72 * s;
+    }
+
+    // L から目標のゲイン（最大 10 倍 = +20 dB）
+    function targetGain(L) {
+      return Math.min(Math.pow(1300 / Math.max(L, 1e-12), 1.6), 10);
+    }
+
+    // その場で書き換える基数 2 の FFT（re と im は長さ N の配列、N は 2 の累乗）
+    function fft(re, im) {
+      const n = re.length;
+      for (let i = 1, j = 0; i < n; i++) {
+        let bit = n >> 1;
+        for (; j & bit; bit >>= 1) j ^= bit;
+        j ^= bit;
+        if (i < j) {
+          let t = re[i]; re[i] = re[j]; re[j] = t;
+          t = im[i]; im[i] = im[j]; im[j] = t;
+        }
+      }
+      for (let len = 2; len <= n; len <<= 1) {
+        const ang = (-2 * Math.PI) / len, wr = Math.cos(ang), wi = Math.sin(ang), half = len >> 1;
+        for (let i = 0; i < n; i += len) {
+          let cr = 1, ci = 0;
+          for (let k = 0; k < half; k++) {
+            const a = i + k, b = a + half;
+            const xr = re[b] * cr - im[b] * ci, xi = re[b] * ci + im[b] * cr;
+            re[b] = re[a] - xr;
+            im[b] = im[a] - xi;
+            re[a] += xr;
+            im[a] += xi;
+            const t = cr * wr - ci * wi;
+            ci = cr * wi + ci * wr;
+            cr = t;
+          }
+        }
+      }
+    }
+
+    // ラウドネス イコライゼーション本体。chs はチャンネルごとの Float32Array の配列、fs はサンプリング周波数、r は戻りの速さ。
+    // 返す値: { out: 処理した配列, gains: ブロックごとのゲイン, loud: ブロックごとの L, hop: ブロックの長さ, N }
+    function equalize(chs, fs, r, g0) {
+      const N = frameSize(fs), H = N >> 1, n = chs[0].length;
+      const w = riseRate(N, fs, r == null ? 4 : r);
+      const win = new Float64Array(N);
+      for (let i = 0; i < N; i++) win[i] = (16384 * (1 - Math.cos((2 * Math.PI * (i + 0.5)) / N))) / (N / 2);
+      // 周波数の番号 q が入る帯（24 kHz より上は -1）
+      const bandOf = new Int8Array(H + 1);
+      for (let q = 0; q <= H; q++) {
+        const f = (q * fs) / N;
+        let b = 0;
+        while (b < 25 && f >= EDGES[b]) b++;
+        bandOf[q] = b < 25 ? b : -1;
+      }
+      const blocks = Math.max(1, Math.ceil(n / H));
+      const gains = new Float32Array(blocks), loud = new Float32Array(blocks);
+      const out = chs.map(() => new Float32Array(n));
+      const re = new Float64Array(N), im = new Float64Array(N), E = new Float64Array(25);
+      let g = g0 == null ? 1 : g0;
+      for (let k = 0; k < blocks; k++) {
+        const s = k * H;
+        E.fill(0);
+        // チャンネルごとに FFT し、帯ごとの力をチャンネルをまたいで足す
+        for (const x of chs) {
+          for (let i = 0; i < N; i++) {
+            const j = s + i;
+            re[i] = j < n ? x[j] * win[i] : 0;
+            im[i] = 0;
+          }
+          fft(re, im);
+          for (let q = 0; q <= H; q++) {
+            const b = bandOf[q];
+            if (b >= 0) E[b] += re[q] * re[q] + im[q] * im[q];
+          }
+        }
+        const L = loudnessOf(E), tg = targetGain(L), prev = g;
+        // 下げる時はすぐ、上げる時はゆっくり
+        g = tg < g ? tg : g + w * (tg - g);
+        gains[k] = g;
+        loud[k] = L;
+        // 調べた N サンプルの前半に、前のゲインから今のゲインへ直線でつないでかける。
+        // 本物は N サンプル遅れて出すので、その遅れの分を先読みに使っているのと同じになる
+        const e = Math.min(n, s + H);
+        for (let c = 0; c < chs.length; c++) {
+          const x = chs[c], y = out[c];
+          for (let j = s; j < e; j++) y[j] = x[j] * (prev + ((g - prev) * (j - s)) / H);
+        }
+      }
+      return { out, gains, loud, hop: H, N };
+    }
+
+    // 出口のリミッターの先読みの長さ（フレーム数）
+    function lookahead(fs) {
+      return fs <= 12000 ? 16 : fs <= 24000 ? 32 : fs <= 48000 ? 64 : 128;
+    }
+
+    // 先読み付きのリミッター。全チャンネルで同じゲインを使い、chs をその場で書き換える。
+    // 返す値: 各サンプルにかけたゲイン（Float32Array）
+    function limit(chs, fs) {
+      const n = chs[0].length, La = lookahead(fs), up = Math.exp(2.205 / fs);
+      const gain = new Float32Array(n);
+      const delay = chs.map(() => new Float32Array(La));
+      let tp = 0.985, g = 1, step = 0, tgt = 1, ramp = false;
+      for (let i = 0; i < n + La; i++) {
+        // 入ってくるフレームの一番大きい値
+        let pk = 0;
+        if (i < n) for (const x of chs) pk = Math.max(pk, Math.abs(x[i]));
+        if (pk > tp) {
+          // La フレーム後にこのフレームが出ていく時に 0.985/pk になるように下げ始める。
+          // 下げている途中なら、前の山にも間に合うように急な方の傾きを使う
+          tp = pk;
+          tgt = 0.985 / pk;
+          step = Math.min(ramp ? step : 0, (tgt - g) / La);
+          ramp = true;
+        } else if (!ramp && pk <= tp / 2 && g < 1) {
+          // 入ってくる音が山の半分以下になったら、ゆっくり戻す（1 秒に約 19 dB）
+          g = Math.min(1, g * up);
+          tp = Math.max(0.985, tp / up);
+        }
+        if (ramp) {
+          g += step;
+          if (g <= tgt) {
+            g = tgt;
+            ramp = false;
+          }
+        }
+        // 先読みの分だけ遅れて出ていくフレーム
+        const j = i - La, slot = i % La;
+        for (let c = 0; c < chs.length; c++) {
+          const old = delay[c][slot];
+          if (i < n) delay[c][slot] = chs[c][i];
+          if (j >= 0) chs[c][j] = old * g;
+        }
+        if (j >= 0) gain[j] = g;
+      }
+      return gain;
+    }
+
+    // t0〜t1 秒の実効値（dBFS）。全チャンネルをまとめて計算する
+    function rmsDb(chs, fs, t0, t1) {
+      const a = Math.max(0, Math.floor(t0 * fs)), b = Math.min(chs[0].length, Math.floor(t1 * fs));
+      if (b <= a) return -Infinity;
+      let sum = 0;
+      for (const x of chs) for (let i = a; i < b; i++) sum += x[i] * x[i];
+      return 10 * Math.log10(sum / ((b - a) * chs.length) + 1e-20);
+    }
+
+    // win 秒（既定 0.4 秒）ごとの音の大きさ（dB）を並べ、無音（−50 dB 未満）を除いて、
+    // 大きい方から 10% の所と小さい方から 10% の所の差を返す。
+    // ref（元の音）を渡すと、無音かどうかを ref の大きさで決める（処理の前と後で同じ区間を比べるため）
+    function spread(chs, fs, win, ref) {
+      const n = chs[0].length, m = Math.max(1, Math.round(fs * (win || 0.4)));
+      const level = (xs, s) => {
+        let sum = 0;
+        for (const x of xs) for (let i = s; i < s + m; i++) sum += x[i] * x[i];
+        return 10 * Math.log10(sum / (m * xs.length) + 1e-20);
+      };
+      const lv = [];
+      for (let s = 0; s + m <= n; s += m) {
+        if (level(ref || chs, s) > -50) lv.push(level(chs, s));
+      }
+      if (lv.length < 2) return 0;
+      lv.sort((a, b) => a - b);
+      const at = (p) => lv[Math.min(lv.length - 1, Math.max(0, Math.round(p * (lv.length - 1))))];
+      return at(0.9) - at(0.1);
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const cv = $('view'), g = cv.getContext('2d');
+    const playBtn = $('play'), sw = $('on'), rel = $('rel'), relO = $('relO'), fileIn = $('file'), backBtn = $('back');
+    const msg = $('msg'), now = $('now'), sum = $('sum');
+    const SR = 48000, DUR = 20;
+    // 見本の場面の区切り [始め, 終わり, 名前]（秒）
+    const SCENE = [[0, 6.2, '小声の会話'], [6.2, 9.6, '爆発'], [9.6, 15.6, '小声の会話'], [15.6, 20, '口笛']];
+    const S = { src: null, eq: null, res: null, limG: null, sr: SR, dur: 0, parts: SCENE, label: '', r: 4, on: true, bufA: null, bufB: null };
+    const bg = document.createElement('canvas'), bgc = bg.getContext('2d');
+    let ac = null, master = null, gO = null, gE = null, nodes = [], token = 0;
+    let playing = false, startAt = 0, startPos = 0, pos = 0, raf = 0, sceneCache = null, lastNow = '';
+    let VW = 1, VH = 1, DPR = 1;
+    const T0 = performance.now();
+
+    const say = (s) => { msg.textContent = s; };
+    const fmt = (t) => {
+      const m = Math.floor(t / 60), s = t - m * 60;
+      return m + ':' + s.toFixed(1).padStart(4, '0');
+    };
+
+    // 種から決まる乱数（mulberry32）。見本の場面を毎回同じにする
+    function rng(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a = (a + 0x6d2b79f5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    // ---- 見本の場面を OfflineAudioContext で作る ----
+    // 日本語の母音のおおよその共鳴の高さ（あ・い・う・え・お）
+    const VOW = [[800, 1200, 2500], [300, 2300, 3000], [350, 1300, 2400], [500, 1900, 2500], [500, 850, 2500]];
+    // 声に似せた音: のこぎり波を 3 つの帯域通過フィルターに通し、音節ごとに母音と高さと大きさを変える
+    function voice(ctx, out, nb, t0, t1, f0, rnd) {
+      const osc = ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(f0, 0);
+      const amp = ctx.createGain();
+      amp.gain.setValueAtTime(0, 0);
+      amp.connect(out);
+      const bps = [0, 1, 2].map((i) => {
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.Q.value = [6, 9, 12][i];
+        bp.frequency.setValueAtTime(VOW[0][i], 0);
+        const w = ctx.createGain();
+        w.gain.value = [1, 0.7, 0.4][i];
+        osc.connect(bp).connect(w).connect(amp);
+        return bp;
+      });
+      // 子音: 雑音の高い所だけを短く鳴らす
+      const ns = ctx.createBufferSource();
+      ns.buffer = nb;
+      ns.loop = true;
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 3200;
+      const ng = ctx.createGain();
+      ng.gain.setValueAtTime(0, 0);
+      ns.connect(hp).connect(ng).connect(out);
+      let t = t0;
+      const syl = Math.max(2, Math.round((t1 - t0) / 0.19));
+      for (let s = 0; s < syl; s++) {
+        const d = 0.13 + rnd() * 0.12;
+        if (t + d > t1) break;
+        let tv = t;
+        if (rnd() < 0.45) {
+          ng.gain.setTargetAtTime(0.35, t, 0.004);
+          ng.gain.setTargetAtTime(0, t + 0.025, 0.01);
+          tv = t + 0.03;
+        }
+        const v = VOW[Math.floor(rnd() * VOW.length)];
+        bps.forEach((bp, i) => bp.frequency.setTargetAtTime(v[i] * (0.95 + rnd() * 0.1), tv, 0.015));
+        osc.frequency.setTargetAtTime(f0 * (1.12 - (0.25 * s) / syl) * (0.97 + rnd() * 0.06), tv, 0.03);
+        const a = 0.6 + rnd() * 0.4;
+        amp.gain.setTargetAtTime(a, tv, 0.012);
+        amp.gain.setTargetAtTime(a * 0.2, t + d * 0.75, 0.02);
+        t += d;
+      }
+      amp.gain.setTargetAtTime(0, t, 0.03);
+      ng.gain.setTargetAtTime(0, t, 0.01);
+      osc.start(t0);
+      osc.stop(t1 + 0.3);
+      ns.start(t0, rnd() * 1.5);
+      ns.stop(t1 + 0.3);
+    }
+    // 2 人が交互に話す
+    function talk(ctx, out, nb, t0, t1, rnd) {
+      let t = t0, who = 0;
+      while (t < t1 - 0.5) {
+        const end = Math.min(t1, t + 1.3 + rnd() * 1.0);
+        voice(ctx, out, nb, t, end, who ? 205 : 118, rnd);
+        t = end + 0.15 + rnd() * 0.25;
+        who = 1 - who;
+      }
+    }
+    // 爆発: 低い所へ閉じていく雑音と、低いドンという音と、飛び散る破片の小さな音
+    function boom(ctx, out, nb, te, rnd) {
+      const ns = ctx.createBufferSource();
+      ns.buffer = nb;
+      ns.loop = true;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(6000, te);
+      lp.frequency.exponentialRampToValueAtTime(160, te + 2.6);
+      const ga = ctx.createGain();
+      ga.gain.setValueAtTime(0, 0);
+      ga.gain.setValueAtTime(0, te);
+      ga.gain.linearRampToValueAtTime(1, te + 0.012);
+      ga.gain.setTargetAtTime(0, te + 0.1, 0.65);
+      ns.connect(lp).connect(ga).connect(out);
+      ns.start(te);
+      ns.stop(te + 3.2);
+      const o = ctx.createOscillator();
+      o.frequency.setValueAtTime(75, te);
+      o.frequency.exponentialRampToValueAtTime(32, te + 1.2);
+      const go = ctx.createGain();
+      go.gain.setValueAtTime(0, 0);
+      go.gain.setValueAtTime(0, te);
+      go.gain.linearRampToValueAtTime(1.6, te + 0.01);
+      go.gain.setTargetAtTime(0, te + 0.05, 0.4);
+      o.connect(go).connect(out);
+      o.start(te);
+      o.stop(te + 3);
+      for (let k = 0; k < 14; k++) {
+        const tk = te + 0.5 + rnd() * 2.2;
+        const s = ctx.createBufferSource();
+        s.buffer = nb;
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.value = 1500 + rnd() * 4000;
+        bp.Q.value = 3;
+        const gk = ctx.createGain();
+        gk.gain.setValueAtTime(0, 0);
+        gk.gain.setValueAtTime(0.5 * (1 - (tk - te) / 3), tk);
+        gk.gain.setTargetAtTime(0, tk + 0.005, 0.02);
+        s.connect(bp).connect(gk).connect(out);
+        s.start(tk, rnd());
+        s.stop(tk + 0.2);
+      }
+    }
+    // 口笛: ゆれのある正弦波で、音階を上がって下りる
+    function whistle(ctx, out, t0, t1) {
+      const notes = [1568, 1760, 1976, 2093, 1976, 1760, 1568, 1319, 1568];
+      const o = ctx.createOscillator();
+      o.frequency.setValueAtTime(notes[0], 0);
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 5.5;
+      const lg = ctx.createGain();
+      lg.gain.value = 18;
+      lfo.connect(lg).connect(o.frequency);
+      const ga = ctx.createGain();
+      ga.gain.setValueAtTime(0, 0);
+      o.connect(ga).connect(out);
+      const step = (t1 - t0) / notes.length;
+      notes.forEach((f, i) => {
+        const t = t0 + i * step;
+        o.frequency.setTargetAtTime(f, t, 0.02);
+        ga.gain.setTargetAtTime(1, t, 0.02);
+        ga.gain.setTargetAtTime(0.15, t + step * 0.8, 0.02);
+      });
+      ga.gain.setTargetAtTime(0, t1, 0.03);
+      o.start(t0);
+      lfo.start(t0);
+      o.stop(t1 + 0.3);
+      lfo.stop(t1 + 0.3);
+    }
+    // 声・爆発・口笛を別々のチャンネルに作り、決めた大きさにそろえてから 1 つに混ぜる
+    function buildScene() {
+      const rnd = rng(20261126);
+      const ctx = new OfflineAudioContext(3, DUR * SR, SR);
+      ctx.destination.channelInterpretation = 'discrete';
+      const mg = ctx.createChannelMerger(3);
+      mg.connect(ctx.destination);
+      const vb = ctx.createGain(), eb = ctx.createGain(), wb = ctx.createGain();
+      vb.connect(mg, 0, 0);
+      eb.connect(mg, 0, 1);
+      wb.connect(mg, 0, 2);
+      const nb = ctx.createBuffer(1, SR * 2, SR), nd = nb.getChannelData(0);
+      for (let i = 0; i < nd.length; i++) nd[i] = rnd() * 2 - 1;
+      talk(ctx, vb, nb, 0.4, 6.0, rnd);
+      talk(ctx, vb, nb, 9.9, 15.4, rnd);
+      boom(ctx, eb, nb, 6.4, rnd);
+      whistle(ctx, wb, 15.9, 19.7);
+      return ctx.startRendering().then((buf) => {
+        const v = buf.getChannelData(0), e = buf.getChannelData(1), w = buf.getChannelData(2), n = v.length;
+        let sv = 0, cnt = 0, pe = 0, pw = 0;
+        for (let i = 0; i < n; i++) {
+          const t = i / SR;
+          if (t < 6.2 || (t >= 9.6 && t < 15.6)) { sv += v[i] * v[i]; cnt++; }
+          pe = Math.max(pe, Math.abs(e[i]));
+          pw = Math.max(pw, Math.abs(w[i]));
+        }
+        // 会話の区間の実効値を −33 dBFS、爆発の山を 0.89、口笛の山を 0.17 にする
+        const kv = Math.pow(10, -33 / 20) / Math.sqrt(sv / Math.max(1, cnt) || 1e-12);
+        const ke = 0.89 / (pe || 1), kw = 0.17 / (pw || 1);
+        const out = new Float32Array(n);
+        let z = 0;
+        for (let i = 0; i < n; i++) {
+          // 部屋のかすかな雑音（約 −60 dBFS）
+          z += 0.15 * (rnd() * 2 - 1 - z);
+          out[i] = v[i] * kv + e[i] * ke + w[i] * kw + z * 0.006;
+        }
+        return [out];
+      });
+    }
+
+    // ---- 処理 ----
+    function runEq() {
+      const res = equalize(S.src, S.sr, S.r);
+      S.limG = limit(res.out, S.sr);
+      S.res = res;
+      S.eq = res.out;
+      S.bufB = null;
+      const dB = (v) => (v < 0 ? '−' : '') + Math.abs(v).toFixed(1);
+      if (S.parts.length) {
+        // 見本の場面: 区間ごとの実効値を、処理の前と後で並べる
+        sum.textContent = '区間ごとの音の大きさ（実効値、dBFS）: ' + S.parts.map(([t0, t1, label]) =>
+          label + ' ' + dB(rmsDb(S.src, S.sr, t0, t1)) + ' → ' + dB(rmsDb(S.eq, S.sr, t0, t1))).join('　');
+      } else {
+        const a = spread(S.src, S.sr, 0.4), b = spread(S.eq, S.sr, 0.4, S.src);
+        sum.textContent = '0.4 秒ごとの音の大きさの散らばり（元の音で −50 dB 未満の所を除き、大きい方から 10% の所と小さい方から 10% の所の差）: 元の音 ' + a.toFixed(1) + ' dB → 均一化の後 ' + b.toFixed(1) + ' dB';
+      }
+      layout();
+      renderStatic();
+      frame();
+    }
+    function useSource(chs, sr, parts, label) {
+      halt();
+      playing = false;
+      pos = 0;
+      S.src = chs;
+      S.sr = sr;
+      S.dur = chs[0].length / sr;
+      S.parts = parts;
+      S.label = label;
+      S.bufA = null;
+      runEq();
+      ui();
+      if (window.THUMB) kick();
+    }
+    function useScene() {
+      backBtn.hidden = true;
+      if (sceneCache) {
+        useSource(sceneCache, SR, SCENE, '');
+        say('');
+        return;
+      }
+      say('見本の場面（20 秒）を作っています…');
+      buildScene().then((chs) => {
+        sceneCache = chs;
+        useSource(chs, SR, SCENE, '');
+        say('');
+      }).catch((err) => say('見本の音を作れませんでした: ' + err.message));
+    }
+
+    // ---- 再生 ----
+    function ensureAudio() {
+      if (!ac) {
+        ac = new AudioContext();
+        master = ac.createGain();
+        master.gain.value = 0.9;
+        master.connect(ac.destination);
+        gO = ac.createGain();
+        gE = ac.createGain();
+        gO.connect(master);
+        gE.connect(master);
+        setMix(true);
+      }
+      if (ac.state === 'suspended') ac.resume();
+    }
+    function toBuffer(chs) {
+      const b = ac.createBuffer(chs.length, chs[0].length, S.sr);
+      chs.forEach((x, i) => b.copyToChannel(x, i));
+      return b;
+    }
+    // 元の音と処理した音のどちらを聞かせるか（もう片方は音量 0 で同じ位置を進める）
+    function setMix(instant) {
+      if (!ac) return;
+      const t = ac.currentTime;
+      for (const [node, v] of [[gO, S.on ? 0 : 1], [gE, S.on ? 1 : 0]]) {
+        node.gain.cancelScheduledValues(t);
+        if (instant) node.gain.setValueAtTime(v, t);
+        else node.gain.setTargetAtTime(v, t, 0.012);
+      }
+    }
+    function halt() {
+      token++;
+      for (const s of nodes) {
+        try { s.stop(); } catch (err) { /* もう止まっていてもよい */ }
+        s.disconnect();
+      }
+      nodes = [];
+    }
+    function start(at) {
+      ensureAudio();
+      halt();
+      if (!S.bufA) S.bufA = toBuffer(S.src);
+      if (!S.bufB) S.bufB = toBuffer(S.eq);
+      startPos = Math.min(Math.max(0, at), Math.max(0, S.dur - 0.01));
+      startAt = ac.currentTime + 0.03;
+      const tok = ++token;
+      nodes = [[S.bufA, gO], [S.bufB, gE]].map(([b, gn]) => {
+        const s = ac.createBufferSource();
+        s.buffer = b;
+        s.connect(gn);
+        s.start(startAt, startPos);
+        return s;
+      });
+      nodes[1].onended = () => {
+        if (tok !== token) return;
+        playing = false;
+        pos = 0;
+        nodes = [];
+        ui();
+        frame();
+      };
+      playing = true;
+      ui();
+      kick();
+    }
+    function curPos() {
+      if (window.THUMB && S.dur) return ((performance.now() - T0) / 400) % S.dur;
+      if (!playing || !ac) return pos;
+      return Math.min(S.dur, startPos + Math.max(0, ac.currentTime - startAt));
+    }
+    function ui() {
+      playBtn.textContent = playing ? '止める' : '再生';
+      playBtn.disabled = !S.res;
+    }
+
+    // ---- 描く ----
+    function layout() {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const w = Math.max(1, cv.clientWidth), h = Math.max(1, cv.clientHeight);
+      const W = Math.max(1, Math.round(w * dpr)), H = Math.max(1, Math.round(h * dpr));
+      VW = w;
+      VH = h;
+      DPR = dpr;
+      if (cv.width === W && cv.height === H && bg.width === W && bg.height === H) return false;
+      cv.width = W;
+      cv.height = H;
+      bg.width = W;
+      bg.height = H;
+      return true;
+    }
+    function geom(w, h) {
+      const x0 = 74, pw = Math.max(1, Math.floor(w - x0 - 12));
+      const T = 22, B = 22, gap = 6;
+      const avail = Math.max(3, h - T - B - gap * 2);
+      const ha = avail * 0.36, hc = avail * 0.28;
+      return { x0, pw, a: { y: T, h: ha }, b: { y: T + ha + gap, h: ha }, c: { y: T + ha * 2 + gap * 2, h: hc }, base: h - B };
+    }
+    // ゲインの帯の縦の位置（−12〜+21 dB）
+    function dbY(row, db) {
+      const lo = -12, hi = 21;
+      return row.y + row.h * (1 - (Math.min(hi, Math.max(lo, db)) - lo) / (hi - lo));
+    }
+    // 1 画素の幅に入るサンプルの最小と最大を縦線で描く
+    function wave(c, chs, x0, row, pw, color) {
+      const n = chs[0].length, per = n / pw, mid = row.y + row.h / 2, amp = row.h / 2 - 1;
+      c.fillStyle = '#1b1e25';
+      c.fillRect(x0, row.y, pw, row.h);
+      c.fillStyle = color;
+      for (let px = 0; px < pw; px++) {
+        const a = Math.floor(px * per), b = Math.min(n, Math.max(a + 1, Math.floor((px + 1) * per)));
+        if (a >= n) break;
+        let lo = 0, hi = 0;
+        for (const x of chs) {
+          for (let i = a; i < b; i++) {
+            const v = x[i];
+            if (v < lo) lo = v;
+            if (v > hi) hi = v;
+          }
+        }
+        hi = Math.min(1, hi);
+        lo = Math.max(-1, lo);
+        const y1 = mid - hi * amp, y2 = mid - lo * amp;
+        c.fillRect(x0 + px, y1, 1, Math.max(1, y2 - y1));
+      }
+    }
+    // 動かない部分（波の形とゲイン）は別の canvas に 1 回だけ描いておく
+    function renderStatic() {
+      const c = bgc;
+      c.setTransform(DPR, 0, 0, DPR, 0, 0);
+      c.fillStyle = '#14161b';
+      c.fillRect(0, 0, VW, VH);
+      if (!S.res) return;
+      const G = geom(VW, VH), dur = S.dur;
+      c.font = '12px system-ui, sans-serif';
+      c.textBaseline = 'middle';
+      c.textAlign = 'center';
+      for (const [t0, t1, label] of S.parts) {
+        const xa = G.x0 + (G.pw * t0) / dur, xb = G.x0 + (G.pw * Math.min(dur, t1)) / dur;
+        if (t0 > 0) {
+          c.fillStyle = '#343844';
+          c.fillRect(Math.round(xa), G.a.y, 1, G.c.y + G.c.h - G.a.y);
+        }
+        c.fillStyle = '#a49e92';
+        c.fillText(label, (xa + xb) / 2, G.a.y - 10);
+      }
+      c.textAlign = 'left';
+      if (S.label) {
+        c.fillStyle = '#a49e92';
+        c.fillText(S.label, G.x0, G.a.y - 10);
+      }
+      c.fillStyle = '#cfc9bd';
+      c.fillText('元の音', 6, G.a.y + G.a.h / 2);
+      c.fillText('均一化の後', 6, G.b.y + G.b.h / 2);
+      c.fillText('ゲイン', 6, G.c.y + G.c.h / 2);
+      wave(c, S.src, G.x0, G.a, G.pw, '#8fa7c0');
+      wave(c, S.eq, G.x0, G.b, G.pw, '#f2b450');
+      // ゲインの帯: 0・+10・+20 dB の線
+      c.font = '11px system-ui, sans-serif';
+      c.textBaseline = 'bottom';
+      for (const db of [0, 10, 20]) {
+        const y = Math.round(dbY(G.c, db)) + 0.5;
+        c.strokeStyle = db === 0 ? '#444956' : '#2a2e37';
+        c.beginPath();
+        c.moveTo(G.x0, y);
+        c.lineTo(G.x0 + G.pw, y);
+        c.stroke();
+        c.fillStyle = '#8e887c';
+        c.fillText((db > 0 ? '+' : '') + db + ' dB', G.x0 + 3, y - 1);
+      }
+      c.textBaseline = 'middle';
+      // リミッターが下げた所（赤、0 dB から下へ）
+      const lg = S.limG, n = lg.length, per = n / G.pw, y0 = dbY(G.c, 0);
+      c.fillStyle = 'rgba(240, 96, 80, 0.8)';
+      for (let px = 0; px < G.pw; px++) {
+        const a = Math.floor(px * per), b = Math.min(n, Math.max(a + 1, Math.floor((px + 1) * per)));
+        let m = 1;
+        for (let i = a; i < b; i++) if (lg[i] < m) m = lg[i];
+        if (m < 0.995) c.fillRect(G.x0 + px, y0, 1, Math.max(1, dbY(G.c, 20 * Math.log10(m)) - y0));
+      }
+      // 均一化のゲイン（線）
+      const gs = S.res.gains, hop = S.res.hop;
+      c.strokeStyle = '#f2b450';
+      c.lineWidth = 1.5;
+      c.beginPath();
+      for (let px = 0; px <= G.pw; px++) {
+        const k = Math.min(gs.length - 1, Math.floor(((px / G.pw) * dur * S.sr) / hop));
+        const y = dbY(G.c, 20 * Math.log10(gs[k]));
+        if (px === 0) c.moveTo(G.x0 + px, y);
+        else c.lineTo(G.x0 + px, y);
+      }
+      c.stroke();
+      c.lineWidth = 1;
+      // 時刻の目盛り（文字が重ならないように、間隔を 52 px 以上にする）
+      const most = Math.max(1, Math.floor(G.pw / 52));
+      const step = [1, 2, 5, 10, 15, 30, 60, 120].find((s) => dur / s <= most) || 300;
+      c.font = '11px system-ui, sans-serif';
+      c.fillStyle = '#8e887c';
+      for (let t = 0; t <= dur + 1e-9; t += step) {
+        const x = G.x0 + (G.pw * t) / dur, m = Math.floor(t / 60), s = Math.round(t - m * 60);
+        const label = m + ':' + String(s).padStart(2, '0');
+        // 右端の文字は切れないように右に寄せる
+        const right = x + c.measureText(label).width / 2 > VW - 2;
+        c.textAlign = right ? 'right' : 'center';
+        c.fillText(label, right ? VW - 2 : x, G.base + 11);
+      }
+    }
+    function frame() {
+      if (layout()) renderStatic();
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.drawImage(bg, 0, 0);
+      if (!S.res) return;
+      g.setTransform(DPR, 0, 0, DPR, 0, 0);
+      const p = curPos(), G = geom(VW, VH);
+      // 聞こえている方の段を枠で囲む
+      const row = S.on ? G.b : G.a;
+      g.strokeStyle = S.on ? '#f2b450' : '#8fa7c0';
+      g.lineWidth = 2;
+      g.strokeRect(G.x0 + 1, row.y + 1, Math.max(1, G.pw - 2), Math.max(1, row.h - 2));
+      g.lineWidth = 1;
+      // 今の位置
+      const x = Math.round(G.x0 + (G.pw * p) / S.dur) + 0.5;
+      g.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+      g.beginPath();
+      g.moveTo(x, G.a.y);
+      g.lineTo(x, G.c.y + G.c.h);
+      g.stroke();
+      tellNow(p);
+    }
+    function tellNow(p) {
+      const k = Math.min(S.res.gains.length - 1, Math.max(0, Math.floor((p * S.sr) / S.res.hop)));
+      const gn = S.res.gains[k], L = S.res.loud[k];
+      const li = Math.min(S.limG.length - 1, Math.max(0, Math.floor(p * S.sr)));
+      const ldb = 20 * Math.log10(S.limG[li]), gdb = 20 * Math.log10(gn);
+      const s = fmt(p) + ' / ' + fmt(S.dur) + '　再生する音:「' + (S.on ? '均一化の後' : '元の音') + '」' +
+        '\n均一化のゲイン ' + (gdb >= 0 ? '+' : '−') + Math.abs(gdb).toFixed(1) + ' dB（×' + gn.toFixed(2) + '）　音の大きさ L = ' + Math.round(L) + '（1300 のとき ×1）' +
+        (ldb < -0.05 ? '　リミッター −' + Math.abs(ldb).toFixed(1) + ' dB' : '');
+      if (s !== lastNow) {
+        now.textContent = s;
+        lastNow = s;
+      }
+    }
+    function loop() {
+      raf = 0;
+      frame();
+      if (playing || window.THUMB) raf = requestAnimationFrame(loop);
+    }
+    function kick() {
+      if (!raf) raf = requestAnimationFrame(loop);
+    }
+
+    // ---- 操作 ----
+    playBtn.addEventListener('click', () => {
+      if (!S.res) return;
+      if (playing) {
+        pos = curPos();
+        halt();
+        playing = false;
+        ui();
+        frame();
+        return;
+      }
+      start(pos >= S.dur - 0.05 ? 0 : pos);
+    });
+    sw.addEventListener('change', () => {
+      S.on = sw.checked;
+      setMix(false);
+      frame();
+    });
+    function showRel() {
+      const sec = riseSeconds(SR, S.r);
+      relO.textContent = S.r + (S.r === 4 ? '（Windows の既定）' : '') + '　上げる時の時定数 約 ' + (sec < 10 ? sec.toFixed(1) : Math.round(sec)) + ' 秒';
+    }
+    rel.addEventListener('input', () => {
+      S.r = Number(rel.value);
+      showRel();
+    });
+    rel.addEventListener('change', () => {
+      if (!S.src) return;
+      const p = curPos(), was = playing;
+      runEq();
+      if (was) start(p);
+    });
+    cv.addEventListener('pointerdown', (e) => {
+      if (!S.res || window.THUMB) return;
+      const r = cv.getBoundingClientRect(), G = geom(r.width, r.height);
+      const t = Math.min(1, Math.max(0, (e.clientX - r.left - G.x0) / G.pw)) * S.dur;
+      if (playing) start(t);
+      else {
+        pos = t;
+        frame();
+      }
+    });
+    fileIn.addEventListener('change', () => {
+      const f = fileIn.files && fileIn.files[0];
+      if (!f) return;
+      say('「' + f.name + '」を読み込んでいます…');
+      f.arrayBuffer()
+        .then((ab) => new OfflineAudioContext(2, 1, SR).decodeAudioData(ab))
+        .then((b) => {
+          const n = Math.min(b.length, SR * 180);
+          const chs = [];
+          for (let c = 0; c < Math.min(2, b.numberOfChannels); c++) chs.push(b.getChannelData(c).slice(0, n));
+          useSource(chs, b.sampleRate, [], f.name);
+          backBtn.hidden = false;
+          say('「' + f.name + '」の最初の ' + Math.round(n / b.sampleRate) + ' 秒を処理した。ファイルはブラウザの中だけで扱い、どこにも送らない。');
+        })
+        .catch(() => say('このファイルは読めなかった。mp3・wav・ogg・m4a などの音声ファイルを選んでほしい。'));
+    });
+    backBtn.addEventListener('click', () => {
+      fileIn.value = '';
+      useScene();
+    });
+
+    if (window.THUMB) document.body.classList.add('thumb');
+    showRel();
+    ui();
+    layout();
+    renderStatic();
+    frame();
+    if (typeof OfflineAudioContext === 'undefined') say('このブラウザでは OfflineAudioContext が使えないため、見本の音を作れない。');
+    else useScene();
+    if ('ResizeObserver' in window) new ResizeObserver(() => frame()).observe(cv);
+  },
+});
