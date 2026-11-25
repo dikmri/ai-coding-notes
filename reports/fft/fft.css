@@ -1,0 +1,112 @@
+/* reports/fft/ のページの体裁。css/site.css の上に重ねる */
+:root {
+  /* グラフの色。dataviz の基準の配色を、このサイトの紙の色に合わせて検査した（2 色とも明暗で合格） */
+  --viz-surface: light-dark(#fffdf7, #1b1914);
+  --viz-muted: light-dark(#7d7465, #8a8170);
+  --viz-grid: light-dark(#e6dfcf, #2e2a24);
+  --viz-axis: light-dark(#c9bfab, #4a443a);
+  --viz-s1: light-dark(#2a78d6, #3987e5);
+  --viz-s2: light-dark(#eb6834, #d95926);
+  /* 強さの色（青の 1 色の段階。弱い所は紙の色に近づく） */
+  --viz-seq-0: light-dark(#fffdf7, #1b1914);
+  --viz-seq-1: light-dark(#cde2fb, #0d366b);
+  --viz-seq-2: light-dark(#9ec5f4, #184f95);
+  --viz-seq-3: light-dark(#6da7ec, #256abf);
+  --viz-seq-4: light-dark(#3987e5, #3987e5);
+  --viz-seq-5: light-dark(#256abf, #6da7ec);
+  --viz-seq-6: light-dark(#184f95, #9ec5f4);
+  --viz-seq-7: light-dark(#0d366b, #cde2fb);
+}
+[hidden] { display: none !important; }
+
+body { font-size: 0.9375rem; }
+.report { max-inline-size: 60rem; margin-inline: auto; padding: 2rem 1rem 5rem; }
+.report :is(p, ul, ol, .note, details) { max-inline-size: 46rem; }
+.report p, .report li { text-wrap: pretty; }
+.report a { overflow-wrap: anywhere; }
+.kicker { margin: 0; color: var(--ink-2); font-weight: 600; font-size: 0.875rem; }
+.report h1 { margin: 0.2em 0 0.4em; font: 800 clamp(1.6rem, 1.2rem + 1.6vw, 2.4rem)/1.3 var(--serif); text-wrap: balance; }
+.lede { font-size: 1.0625rem; }
+.report h2 { margin: 3.5rem 0 1rem; padding-top: 0.6em; border-top: 2px solid var(--ink); font: 700 clamp(1.25rem, 1.1rem + 0.6vw, 1.6rem)/1.4 var(--serif); text-wrap: balance; }
+.report h3 { margin: 2.2rem 0 0.6rem; font-size: 1.0625rem; }
+.report figure { margin: 1.5rem 0; }
+.report figure img { display: block; inline-size: 100%; block-size: auto; border-radius: var(--r); border: 1px solid var(--rule); }
+.report figcaption { margin-top: 0.4rem; color: var(--ink-2); font-size: 0.875rem; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: 1rem; margin: 1.5rem 0 0.4rem; }
+.pair figure { margin: 0; }
+.small { color: var(--ink-2); font-size: 0.875rem; }
+.note { margin: 1.5rem 0; padding: 1rem 1.2rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
+.note > :first-child { margin-top: 0; }
+.note > :last-child { margin-bottom: 0; }
+.table-wrap { overflow: auto; max-inline-size: 100%; margin: 1rem 0 1.5rem; container-type: inline-size; }
+.table-wrap:focus-visible { outline-offset: 2px; }
+@container (width < 34rem) {
+  .report table.stack, .report table.stack :is(caption, tbody, tr, th, td) { display: block; }
+  .report table.stack thead { display: none; }
+  .report table.stack tr { padding: 0.6em 0; border-bottom: 1px solid var(--rule); }
+  .report table.stack :is(th, td) { padding: 0.1em 0; border: 0; }
+  .report table.stack td[data-label]::before { content: attr(data-label) "　"; color: var(--ink-2); font-size: 0.8125rem; font-weight: 600; }
+}
+.report table { border-collapse: collapse; font-size: 0.9375rem; }
+.report caption { text-align: start; font-weight: 700; padding-bottom: 0.4rem; }
+.report th, .report td { padding: 0.45em 0.8em; border-bottom: 1px solid var(--rule); text-align: start; vertical-align: top; }
+.report thead th { border-bottom: 2px solid var(--ink-3); text-wrap: balance; }
+.report tbody th { font-weight: 600; }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.code { margin: 0.8rem 0 1.2rem; padding: 1rem 1.2rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); font: 0.8125rem/1.7 var(--mono); max-inline-size: 100%; overflow: auto; tab-size: 2; white-space: pre; }
+.steps { padding-inline-start: 1.4em; }
+.steps > li { margin: 0 0 1.4rem; max-inline-size: 46rem; }
+.steps > li > strong:first-child { display: block; margin-bottom: 0.3rem; }
+.foot { margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--rule); color: var(--ink-2); font-size: 0.875rem; }
+.math { font-family: var(--serif); white-space: nowrap; }
+
+/* ---- 試す道具 ---- */
+.tool, .panel { margin: 1.5rem 0; padding: 1rem 1rem 1.2rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
+.tool h2, .panel h2 { margin-top: 0.4rem; }
+.pieces { display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; align-items: center; margin: 0 0 0.8rem; padding: 0.6rem 0.9rem; border: 1px solid var(--rule); border-radius: 10px; }
+.pieces legend { padding-inline: 0.3em; font-weight: 700; }
+.pieces label { display: inline-flex; gap: 0.35em; align-items: center; min-block-size: 2.2rem; }
+.pieces .file { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; align-items: center; }
+.pieces .file-pick { flex-wrap: wrap; }
+.pieces .file-pick > span { white-space: nowrap; }
+.pieces input[type="file"] { max-inline-size: 100%; min-inline-size: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 0.6rem 1.2rem; align-items: center; margin: 0.6rem 0; }
+.row label { display: inline-flex; gap: 0.4em; align-items: center; }
+.row select { padding: 0.25rem 0.4rem; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); }
+.row input[type="range"] { inline-size: min(12rem, 50vw); }
+button.go { padding: 0.45rem 1.1rem; border: 2px solid var(--ink); border-radius: 10px; background: var(--paper); font-weight: 700; min-inline-size: 6.5rem; }
+button.go:hover { background: var(--paper-2); }
+button.go[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+button.go:disabled { opacity: 0.55; cursor: progress; }
+progress { inline-size: min(16rem, 60vw); }
+.viz { margin: 1rem 0 0.4rem; }
+.canvas-box { position: relative; }
+.canvas-box canvas { display: block; inline-size: 100%; border-radius: 8px; border: 1px solid var(--rule); background: var(--viz-surface); }
+#spec { block-size: 230px; }
+#sgram { block-size: 270px; cursor: crosshair; }
+#sgram:focus-visible { outline: 3px solid var(--shu); outline-offset: 2px; }
+.hover { position: absolute; inset-block-start: 6px; padding: 0.1rem 0.5rem; background: var(--ink); color: var(--paper); font-size: 0.8125rem; border-radius: 6px; pointer-events: none; white-space: nowrap; }
+.readout { display: flex; flex-wrap: wrap; gap: 0.2rem 1.4rem; margin-top: 0.4rem; font-size: 0.875rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.readout #peak { color: var(--ink); font-weight: 600; }
+.scale { display: inline-flex; gap: 0.4em; align-items: center; }
+.sgram-scale { display: inline-block; inline-size: 8rem; block-size: 0.7rem; border-radius: 3px; border: 1px solid var(--rule); }
+.status { min-block-size: 1.5em; margin: 0.6rem 0 0; font-size: 0.875rem; color: var(--ink-2); }
+
+/* 測定の図 */
+#bench-chart { display: block; inline-size: 100%; block-size: auto; max-inline-size: 46rem; }
+#bench-chart .grid { stroke: var(--viz-grid); stroke-width: 1; }
+#bench-chart .link { stroke: var(--viz-muted); stroke-width: 2; }
+#bench-chart .mk { stroke: var(--viz-surface); stroke-width: 2; }
+#bench-chart .s1 { fill: var(--viz-s1); }
+#bench-chart .s2 { fill: var(--viz-s2); }
+#bench-chart text { font: 12px system-ui, sans-serif; fill: var(--ink-2); }
+#bench-chart .lg { fill: var(--ink); }
+#bench-chart .val { fill: var(--ink); font-weight: 700; }
+
+/* 模型の図 */
+.walsh-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12.5rem), 1fr)); gap: 1rem; margin: 1rem 0; }
+.walsh-grid figure { margin: 0; }
+.walsh-grid canvas { display: block; inline-size: 100%; aspect-ratio: 1; image-rendering: pixelated; border: 1px solid var(--rule); border-radius: 6px; background: var(--viz-surface); }
+.walsh-grid figcaption { font-size: 0.8125rem; }
+#win-out { font-variant-numeric: tabular-nums; }
+#model-table td { font-variant-numeric: tabular-nums; }

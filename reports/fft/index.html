@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>フーリエ変換の「指数 1/2」の論文で、FFT は速くなるかを試した ― AI コーディングノート</title>
+<meta name="description" content="OpenAI の論文「The logarithmic exponent of finite Fourier transforms」（2026-11-24）を読み、FFT が実際に速くなるかを確かめた実験。論文の「予測と修理」を小さく作って測り、実数入力・基数 4 の FFT と基数 2 を、その場で合成した曲で交互に測れる。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='800'%3EAI%3C/text%3E%3Cpath d='M15 51H49' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="fft.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="report">
+<article>
+  <p class="kicker">試せる実験 ・ 2026 年 11 月 26 日（音が出ます）</p>
+  <h1>フーリエ変換の「指数 1/2」の論文で、FFT は速くなるかを試した</h1>
+  <p class="lede">2026 年 11 月 24 日に OpenAI が公開した論文は、長さ N のフーリエ変換を、2 つの値に係数をかけて足す計算（au + bv）およそ N·(log N)<sup>1/2</sup> 回で行えることと、それより少なくはできないことを示しました。ふつうの FFT は N·log N 回です。この結果で FFT が実際に速くなるかを、論文の作り方から調べ、仕組みの一部を小さく作って測りました。</p>
+  <p class="lede">音楽を解析する長さでは、論文の作り方では速くなりません。そこで、実数の入力を使う基数 4 の FFT を作り、教科書どおりの基数 2 と同じ入力で交互に測りました。下の合成した曲か、自分の音声ファイルで試せます。</p>
+
+  <section class="tool" id="tool" aria-labelledby="tool-h">
+    <h2 id="tool-h">合成した曲で試す</h2>
+    <fieldset class="pieces">
+      <legend>曲を選ぶ（どれもこのページがその場で合成する約 24 秒の曲）</legend>
+      <label><input type="radio" name="piece" value="arp" checked> 夜の和音</label>
+      <label><input type="radio" name="piece" value="drums"> ドラムとベース</label>
+      <label><input type="radio" name="piece" value="sweep"> 上がる音と鐘と口笛</label>
+      <div class="file">
+        <label><input type="radio" name="piece" value="file" id="piece-file" disabled> <span id="file-name">自分の音声ファイル</span></label>
+        <label class="file-pick"><span>ファイルを選ぶ</span> <input type="file" id="file" accept="audio/*"></label>
+        <span class="small">ファイルはこのブラウザの中だけで読み、どこへも送りません。</span>
+      </div>
+    </fieldset>
+    <div class="row">
+      <button type="button" id="play" class="go" aria-pressed="false">再生</button>
+      <label>FFT の長さ
+        <select id="size">
+          <option value="1024">1,024</option>
+          <option value="2048" selected>2,048</option>
+          <option value="4096">4,096</option>
+          <option value="8192">8,192</option>
+          <option value="16384">16,384</option>
+        </select>
+      </label>
+      <label>計算の方法
+        <select id="engine">
+          <option value="fast" selected>速い版（実数入力・基数 4）</option>
+          <option value="radix2">基数 2（教科書どおり）</option>
+        </select>
+      </label>
+      <label>音量 <input type="range" id="vol" min="0" max="100" value="60" aria-valuetext="60%"></label>
+    </div>
+    <p id="piece-desc" class="small"></p>
+
+    <figure class="viz">
+      <div class="canvas-box">
+        <canvas id="spec" role="img" aria-label="周波数ごとの強さのグラフ"></canvas>
+        <div class="hover" id="spec-hover" hidden></div>
+      </div>
+      <figcaption class="readout"><span id="peak">曲を用意しています…</span><span id="fft-time"></span></figcaption>
+    </figure>
+
+    <figure class="viz">
+      <div class="canvas-box">
+        <canvas id="sgram" tabindex="0" role="img" aria-label="曲全体のスペクトログラム。横が時間、縦が周波数（対数）、色が強さ。押すか、矢印のキーで再生位置を動かせます"></canvas>
+        <div class="hover" id="sgram-hover" hidden></div>
+      </div>
+      <figcaption class="readout">
+        <span id="sgram-cap-time"></span>
+        <span class="scale">弱い（−90 dB）<span class="sgram-scale" id="sgram-scale"></span>強い（−10 dB）</span>
+      </figcaption>
+    </figure>
+    <p class="small">スペクトログラムを押すと、その位置から再生します（矢印のキーで 1 秒ずつ、Shift と一緒で 5 秒ずつ動かせます）。上のグラフは、再生位置の 1 区間をいま選んでいる方法で FFT したものです。</p>
+    <p id="status" class="status" role="status"></p>
+  </section>
+
+  <section class="panel" id="bench" aria-labelledby="bench-h">
+    <h2 id="bench-h">基数 2 と速い版を交互に測る</h2>
+    <p>いま選んでいる曲の真ん中から同じ区間を取り、5 つの長さで 2 つの FFT を測ります。1 回の測定は 25 ms 以上の束にして、15 回ずつ交互に（先に走らせる方を毎回入れ替えて）測り、中央値を出します。誤差は、定義どおりの DFT（倍精度、長さ 4,096 まで）と比べた相対誤差です。計算は画面の外（Web Worker）で行います。</p>
+    <div class="row">
+      <button type="button" id="bench-run" class="go">測る（約 10 秒）</button>
+      <progress id="bench-prog" max="1" value="0" hidden aria-label="測定の進み具合"></progress>
+    </div>
+    <p id="bench-status" class="status" role="status"></p>
+    <figure class="viz">
+      <svg id="bench-chart" role="img" aria-labelledby="bench-cap"></svg>
+      <figcaption>横は FFT 1 回の時間（対数の目盛り）。点の上に指を置くと値が出ます。数字は下の表にもあります。</figcaption>
+    </figure>
+    <div class="table-wrap" role="region" tabindex="0" aria-labelledby="bench-cap">
+      <table id="bench-table" class="stack">
+        <caption id="bench-cap">FFT 1 回の時間（中央値）と誤差</caption>
+        <thead><tr><th scope="col">長さ N</th><th scope="col">基数 2</th><th scope="col">速い版</th><th scope="col">速さの比</th><th scope="col">誤差（基数 2）</th><th scope="col">誤差（速い版）</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" id="model" aria-labelledby="model-h">
+    <h2 id="model-h">論文の仕組みを小さく動かす（予測と修理）</h2>
+    <p>論文の上限の作り方の中心にある「予測と修理」を、長さ 1,024 のウォルシュ・アダマール変換で動かします。曲の先頭を 1,024 標本ずつ 1,024 区間に分け、1,024 行の束として計算し、ふつうの変換と答えと時間を比べます。窓の幅 D を変えると、予測の多項式の次数と、外れる行の数が変わります。作りは<a href="#model-how">模型の作りと、論文との違い</a>に書きました。</p>
+    <div class="row">
+      <label for="win">窓の幅 D</label>
+      <input type="range" id="win" min="4" max="10" step="1" value="6">
+      <output id="win-out" for="win"></output>
+    </div>
+    <div class="row">
+      <button type="button" id="model-run" class="go">模型で計算する（数秒）</button>
+      <progress id="model-prog" max="1" value="0" hidden aria-label="模型の計算の進み具合"></progress>
+    </div>
+    <p id="model-status" class="status" role="status"></p>
+    <div class="walsh-grid">
+      <figure><canvas id="map" width="256" height="256" role="img" aria-label="外れる所の地図"></canvas><figcaption>外れる所の地図。横が周波数 ν（共通の基底）、縦が行 r。濃い所は数 c が窓の外で、予測が外れる。周波数ごとに外れる行が違う</figcaption></figure>
+      <figure><canvas id="w-pred" width="1" height="1" role="img" aria-label="予測だけの答え"></canvas><figcaption>予測だけ（修理の前）。外れた分が全体に広がる</figcaption></figure>
+      <figure><canvas id="w-rep" width="1" height="1" role="img" aria-label="予測と修理の答え"></canvas><figcaption>予測と修理のあと</figcaption></figure>
+      <figure><canvas id="w-plain" width="1" height="1" role="img" aria-label="ふつうの変換の答え"></canvas><figcaption>ふつうのウォルシュ・アダマール変換</figcaption></figure>
+    </div>
+    <p class="small">右の 3 枚は、横が時間（区間）、縦が符号の変わる回数（セクエンシー。周波数に近い量）、色が強さです。どれも同じ色の目盛り（ふつうの変換の最大から −80 dB まで）で描いています。</p>
+    <div class="table-wrap">
+      <table id="model-table" hidden>
+        <caption>模型の結果（このブラウザで計算）</caption>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <h2 id="new">何が新しく分かったのか</h2>
+  <p>対象は、長さ N のフーリエ変換です。音の解析に使うふつうの DFT と、±1 だけで作るウォルシュ・アダマール変換の両方を含みます。論文はこれらを「有限アーベル群のフーリエ変換」としてまとめて扱います。</p>
+  <p>論文が数えるのは、2 つの値 u・v から au + bv を作る計算（2 入力の線形ゲート）の回数です。係数 a・b は何でもよく、途中の値は何度でも使えます。結果は次の 4 つです。</p>
+  <ul>
+    <li>少なくとも c·N·√(log N) 回が要る（c は正の定数）。</li>
+    <li>どんな ε &gt; 0 についても、C<sub>ε</sub>·N·(1 + log N)<sup>1/2+ε</sup> 回で計算できる。</li>
+    <li>独立な入力を J 本まとめても、1 本あたりの回数は同じ（上の数も下の数も J 倍）。</li>
+    <li>多項式の掛け算にも、同じ指数 1/2 が成り立つ。</li>
+  </ul>
+  <p>1965 年の Cooley と Tukey の FFT は N·log N 回です。log N の指数が 1 から 1/2（と ε）へ下がったことと、1/2 より下げられないことを示した点が新しい所です。ε を 0 にした版（ちょうど N·√(log N) 回）を作れるかは、論文でも未解決とされています。定数 C<sub>ε</sub> の大きさは示されていません。主な部分は Lean（証明を計算機で確かめる道具）で形式化されていますが、第三者による確認はこれからです。</p>
+
+  <h2 id="speed">論文の作り方と、速さの関係</h2>
+  <p>上の数の作り方（論文の第 II 部）は、次の順に進みます。</p>
+  <ol>
+    <li>ウォルシュ・アダマール変換から始めます。大きな変換を、入れ替えのきく m 個の演算 Q<sub>j</sub> の積として表します。</li>
+    <li>共通の基底（周波数の側）では、どの Q<sub>j</sub> も ±1 をかけるだけになります。積の符号は、−1 になる Q<sub>j</sub> の個数の偶奇で決まります。</li>
+    <li>独立な入力をたくさん束ね、行ごとに違う「ずらし」を割り当てます。どの周波数でも、−1 の個数（数 c）は行の間で 2 項分布になり、ほとんどの行で平均の近く（幅は √(m log m) 程度）に入ります。</li>
+    <li>その幅（窓）の上で正しい符号を返す多項式を使えば、次数は √(m log m) 程度で済みます。これが「予測」です。</li>
+    <li>窓の外になる行は周波数ごとに違いますが、どの行かは前もって分かります。検査用の少数の行だけを周波数の側へ移し、Reed–Solomon 符号の検査と同じ形で外れた分を求めて直します。これが「修理」です。</li>
+    <li>多項式の 1 段には、m 個の Q<sub>j</sub> が全部入ります。論文の第 6 節は、この呼び出しを行の間で共有して 1 段の費用を下げます。これを再帰でくり返すと、指数が 1/2 + ε になります。</li>
+    <li>ふつうの DFT（巡回群）へは、体の拡大と多項式の掛け算を使って広げます（第 III 部）。</li>
+  </ol>
+  <p>ここから、速さについて次のことが分かります。</p>
+  <ul>
+    <li>論文が数えるのはゲートの数で、計算時間ではありません。メモリの読み書き、キャッシュ、SIMD は数えません。論文は実際の計算時間について主張していません。記事も、実際の処理時間の短縮を直接示すものではないと書いています。</li>
+    <li>作り方が得をするのは、m がとても大きいときだけです。下の表は、論文の式（窓の端 u・v と、予測 1 回の段の数 b）から、このページの <code>repair.mjs</code> が計算した値です。</li>
+    <li>音楽の解析で使う長さは 2<sup>10</sup>〜2<sup>16</sup> 程度です。論文の再帰は、桁の数が小さいときは「そのまま変換する」と決めているので、この長さでは論文の作り方はふつうの FFT そのものになります。</li>
+  </ul>
+  <div class="table-wrap" role="region" tabindex="0" aria-labelledby="paper-cap">
+    <table id="paper-table" class="stack">
+      <caption id="paper-cap">論文の式で計算した、予測と修理の段の数（ℓ = 2）</caption>
+      <thead><tr><th scope="col">m（演算 Q<sub>j</sub> の数）</th><th scope="col">窓 [u, v]</th><th scope="col">窓の幅 D</th><th scope="col">予測 1 回の段 b</th><th scope="col">修理までの段 4b</th><th scope="col">b と m</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <p>m = 10 では窓が −5〜15 で、ありうる数 c（0〜10）を全部含みます。外れる行が無いので修理は要りませんが、段は 128 段です。Q<sub>j</sub> を 1 つずつかければ 10 段で済みます。</p>
+  <p>次に、論文の作り方がふつうの方法より少ない呼び出しで済む大きさを見積もります。論文の配列（第 6 節）の軸は 2(m + D′ − 1) 本です（D′ は補助の軸の数）。D′ は m より小さく選ぶので、軸は 2m 本以上 4m 本未満です。ふつうの方法は、軸ごとに 1 回ずつ変換を呼びます。論文の作り方が 1 段で少なくとも 1 回は軸の変換を呼ぶとすると、呼び出しが少なくなるには 4b &lt; 4m、つまり b &lt; m が要ります。</p>
+  <p>b &lt; m になる最初の m は <strong id="paper-first">…</strong> です。そのとき軸は 2m 本以上あり、各軸は 1 ビット以上なので、変換の長さは <span id="paper-len">…</span> 以上（10 進で <span id="paper-digits">…</span> 桁の数）です。修理までの段の数 4b が、Q<sub>j</sub> を 1 つずつかける m 段を下回るのは、m = <span id="paper-first1">…</span> からです。</p>
+  <p>この見積もりは段の数だけを比べたもので、1 段の中の共有の費用（第 6 節）は入っていません。実際に得をする長さは、これより大きくなります。</p>
+  <div class="note">
+    <p><strong>まとめ</strong>　この論文の作り方では、音の解析に使う FFT は速くなりません。論文の主張は計算量の指数についてのもので、実際に速いプログラムの作り方を示すものではありません。このページの模型は、ふつうの変換の数十倍の時間とゲートを使います（<a href="#model">上の模型</a>で確かめられます。D = 6 のゲートは 1 標本あたり <span id="gate-model">…</span> 個、ふつうは 10 個）。</p>
+  </div>
+
+  <h2 id="fast-how">このページの速い版の作り</h2>
+  <p>論文の作り方が使えないので、実用で効く工夫を 3 つ入れた FFT を作りました。どれも昔から知られている方法で、計算量は N·log N のままです。速くなるのは、N·log N にかかる係数の部分です。</p>
+  <ul>
+    <li><strong>実数の入力を使う。</strong>音の標本は実数です。n 個の実数を n/2 個の複素数として詰め、n/2 点の FFT をしてから分け直すと、計算はほぼ半分になります。出力は 0〜n/2 の n/2 + 1 本です（残りは対称なので要りません）。</li>
+    <li><strong>基数 4。</strong>4 点ずつまとめて計算すると段の数が半分になり、配列を読み書きする回数が減ります。Stockham 法を使い、ビットを逆に並べる並べ替えを省きました。長さが 4 のべきでないときは、最後に基数 2 の段を 1 つ足します。</li>
+    <li><strong>回転因子の表を段ごとに並べる。</strong>内側の繰り返しで、使う順に読めるようにしました。</li>
+  </ul>
+  <p>比べる相手の基数 2 は、教科書どおりの形（ビット反転の並べ替えと、回転因子の表）です。実数の入力は、虚部を 0 にして渡します。どちらも JavaScript だけで書き、WebAssembly や SIMD は使っていません。</p>
+
+  <h2 id="model-how">模型の作りと、論文との違い</h2>
+  <p>上の「予測と修理」を、長さ 1,024（m = 10）のウォルシュ・アダマール変換で動かしました。曲の先頭を 1,024 標本ずつ 1,024 区間に分け（約 23.8 秒）、1,024 行の束として渡します。</p>
+  <ul>
+    <li>Q<sub>j</sub>（j = 0〜9）は、ビット j に 2 点の変換 h = [[1, 1], [1, −1]] / √2 をかける演算です。10 個の積がウォルシュ・アダマール変換になります。</li>
+    <li>共通の基底 S は、ビットごとに h の固有ベクトルへ回す変換（π/8 の回転）です。</li>
+    <li>行 r のずらしは β = r で、1,024 通りを 1 回ずつ使います。周波数 ν での数は c = popcount(ν xor β) です。</li>
+    <li>予測は、窓 [u, u + D] の上で (−1)<sup>c</sup> に一致する D 次の多項式です。論文の例（m = 3、窓 1〜2）では 2c − 3 になり、テストで確かめました。</li>
+    <li>修理は、論文の補題（Full-rate Hermite repair）のとおりです。予測 P を g(P) = P − P(P² − 1)/2 に置き換え、検査の行 HX・HPX から外れた分を解き、持ち上げた Z と F·Z を足し引きします。F·Z は、表が返した値を S で戻すだけで得られ、F を直接かけずに済みます。</li>
+  </ul>
+  <p>論文と違う所は 3 つです。</p>
+  <ul>
+    <li><strong>検査の行列。</strong>論文は Vandermonde 行列（一般化 Reed–Solomon 符号の検査行列）を使います。正確な計算ならどの組でも解けますが、倍精度では解けませんでした。大きさ 1 以下の未知数 22 個を解いた誤差は、単項式の形で 7.4、チェビシェフ多項式の形でも 3×10<sup>−2</sup> でした。そこで、外れる行の組で必ず解ける ±1 の行（ウォルシュ関数）を、ピボット付きのグラム・シュミット法で選びました。D = 6 では、どの周波数でも条件数が約 3.8 です。</li>
+    <li><strong>1 段の中の共有。</strong>論文の第 6 節の共有は作っていません。多項式の 1 段ごとに、10 個の Q<sub>j</sub> をそのままかけます。この大きさでは、共有の工夫は働かないからです。</li>
+    <li><strong>浮動小数点の丸め。</strong>窓の外では予測の値が大きくなります（D = 6 で最大 769。正しい値は ±1）。修理は P<sup>3</sup> を使うので、丸めの誤差もその 3 乗に比例して増えます。正確な計算なら差は 0 です。</li>
+  </ul>
+
+  <h2 id="results">このパソコンで測った結果</h2>
+  <p>2026 年 11 月 26 日に、AMD Ryzen 5 3500（6 コア）・メモリ 64 GB・Windows 11 の上の Chrome 157（画面なしのモード、音なし）で、このページの「測る」と「模型で計算する」を動かした値です。機械やブラウザが変われば数字も変わるので、上のボタンで自分の機械の値を確かめてください。</p>
+
+  <h3>基数 2 と速い版</h3>
+  <div class="table-wrap" role="region" tabindex="0" aria-labelledby="r-fft-cap">
+    <table class="stack">
+      <caption id="r-fft-cap">FFT 1 回の時間（中央値）。2 回測り、時間は 1 回目、比は 1 回目と 2 回目</caption>
+      <thead><tr><th scope="col">長さ N</th><th scope="col">基数 2</th><th scope="col">速い版</th><th scope="col">速さの比</th><th scope="col">誤差（基数 2・速い版）</th></tr></thead>
+      <tbody>
+        <tr><th>256</th><td class="num" data-label="基数 2">4.15 µs</td><td class="num" data-label="速い版">2.16 µs</td><td class="num" data-label="速さの比">1.92 倍・2.55 倍</td><td class="num" data-label="誤差">8.8×10<sup>−16</sup>・9.5×10<sup>−16</sup></td></tr>
+        <tr><th>1,024</th><td class="num" data-label="基数 2">27.9 µs</td><td class="num" data-label="速い版">9.55 µs</td><td class="num" data-label="速さの比">2.92 倍・2.92 倍</td><td class="num" data-label="誤差">9.8×10<sup>−16</sup>・1.1×10<sup>−15</sup></td></tr>
+        <tr><th>4,096</th><td class="num" data-label="基数 2">130.1 µs</td><td class="num" data-label="速い版">44.5 µs</td><td class="num" data-label="速さの比">2.92 倍・2.90 倍</td><td class="num" data-label="誤差">1.9×10<sup>−15</sup>・2.0×10<sup>−15</sup></td></tr>
+        <tr><th>16,384</th><td class="num" data-label="基数 2">597.6 µs</td><td class="num" data-label="速い版">232.4 µs</td><td class="num" data-label="速さの比">2.57 倍・2.54 倍</td><td data-label="誤差">測っていない</td></tr>
+        <tr><th>65,536</th><td class="num" data-label="基数 2">3.03 ms</td><td class="num" data-label="速い版">1.27 ms</td><td class="num" data-label="速さの比">2.40 倍・2.41 倍</td><td data-label="誤差">測っていない</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>速い版は、基数 2 の 1.9〜2.9 倍の速さでした。長さ 1,024〜4,096 で約 2.9 倍、65,536 で約 2.4 倍です。長さ 256 は 1 回が 2〜6 µs と短く、2 回の測定で 1.9 倍と 2.6 倍に分かれました。誤差はどちらの方法も 10<sup>−15</sup> 程度で、倍精度の丸めの大きさです。</p>
+  <p>再生中のスペクトル（長さ 2,048、画面の側で計算）では、FFT 1 回が速い版で 19〜23 µs、基数 2 で 67〜70 µs でした。曲全体のスペクトログラム（長さ 2,048 の FFT を 2,048 回、窓と dB の計算を含む）は、速い版で 94〜103 ms、基数 2 で 204〜282 ms でした。どちらも、確かめの台本を何度か流したときの範囲です。</p>
+  <figure><img src="img/bench.webp" width="944" height="961" alt="交互の測定の結果。長さごとに基数 2 の青い点と速い版の橙の点が線で結ばれ、右に 2.0 倍から 3.0 倍の比が並ぶ。下に時間と誤差の表" loading="lazy"><figcaption>「測る」を押したあとの画面。横は対数の目盛りで、点の間の長さが速さの比です</figcaption></figure>
+
+  <h3>論文の仕組みの模型</h3>
+  <div class="table-wrap" role="region" tabindex="0" aria-labelledby="r-model-cap">
+    <table class="stack">
+      <caption id="r-model-cap">窓の幅 D ごとの模型の結果（長さ 1,024 を 1,024 行、曲は「夜の和音」、3 回ずつ交互に測った中央値）</caption>
+      <thead><tr><th scope="col">D</th><th scope="col">窓</th><th scope="col">外れる行（周波数ごと）</th><th scope="col">外れる所の予測の値の最大</th><th scope="col">修理のあとの最大の差</th><th scope="col">時間（ふつう → 模型）</th><th scope="col">ゲート（1 標本あたり）</th></tr></thead>
+      <tbody>
+        <tr><th>4</th><td class="num" data-label="窓">3〜7</td><td class="num" data-label="外れる行">112 行（10.9%）</td><td class="num" data-label="予測の値の最大">351</td><td class="num" data-label="最大の差">4.1×10<sup>−8</sup></td><td class="num" data-label="時間">11 ms → 862 ms（80 倍）</td><td class="num" data-label="ゲート">10 → 830</td></tr>
+        <tr><th>5</th><td class="num" data-label="窓">2〜7</td><td class="num" data-label="外れる行">67 行（6.5%）</td><td class="num" data-label="予測の値の最大">1,023</td><td class="num" data-label="最大の差">5.1×10<sup>−7</sup></td><td class="num" data-label="時間">11 ms → 681 ms（65 倍）</td><td class="num" data-label="ゲート">10 → 720</td></tr>
+        <tr><th>6</th><td class="num" data-label="窓">2〜8</td><td class="num" data-label="外れる行">22 行（2.1%）</td><td class="num" data-label="予測の値の最大">769</td><td class="num" data-label="最大の差">2.4×10<sup>−7</sup></td><td class="num" data-label="時間">11 ms → 543 ms（51 倍）</td><td class="num" data-label="ゲート">10 → 619</td></tr>
+        <tr><th>7</th><td class="num" data-label="窓">1〜8</td><td class="num" data-label="外れる行">12 行（1.2%）</td><td class="num" data-label="予測の値の最大">1,793</td><td class="num" data-label="最大の差">2.7×10<sup>−6</sup></td><td class="num" data-label="時間">10 ms → 529 ms（51 倍）</td><td class="num" data-label="ゲート">10 → 666</td></tr>
+        <tr><th>8</th><td class="num" data-label="窓">1〜9</td><td class="num" data-label="外れる行">2 行（0.2%）</td><td class="num" data-label="予測の値の最大">511</td><td class="num" data-label="最大の差">1.7×10<sup>−7</sup></td><td class="num" data-label="時間">10 ms → 533 ms（51 倍）</td><td class="num" data-label="ゲート">10 → 713</td></tr>
+        <tr><th>9</th><td class="num" data-label="窓">0〜9</td><td class="num" data-label="外れる行">1 行（0.1%）</td><td class="num" data-label="予測の値の最大">1,023</td><td class="num" data-label="最大の差">1.6×10<sup>−6</sup></td><td class="num" data-label="時間">10 ms → 577 ms（56 倍）</td><td class="num" data-label="ゲート">10 → 797</td></tr>
+        <tr><th>10</th><td class="num" data-label="窓">0〜10</td><td class="num" data-label="外れる行">0 行</td><td data-label="予測の値の最大">外れる所が無い</td><td class="num" data-label="最大の差">2.3×10<sup>−12</sup></td><td class="num" data-label="時間">11 ms → 167 ms（15 倍）</td><td class="num" data-label="ゲート">10 → 220</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>どの D でも、修理のあとの答えはふつうの変換と一致しました。差は出力の最大の大きさ 6.25 に対して 10<sup>−6</sup> 以下です。D = 4〜9 の予測だけの差（250〜1,379）と比べると、8〜10 桁小さくなっています。差が 0 にならないのは、上に書いた P<sup>3</sup> の丸めのためです。</p>
+  <p>時間は、ふつうの変換の 15〜80 倍かかりました。ゲートの数（式で数えた値）も 22〜83 倍です。D を小さくすると予測の多項式は軽くなりますが、外れる行が増え、検査と持ち上げが重くなります。D = 4 では、予測 264 ms、検査の行 354 ms、持ち上げ 236 ms でした。外れる行が無い D = 10 が一番速いのは、修理が要らず予測が 1 回で済むためです。それでも予測の多項式は Ĉ を 10 回かけ、Ĉ 1 回に Q<sub>j</sub> が 10 個入るので、ふつうの変換の 10 段に対して 100 段ぶんの計算になります。</p>
+  <figure><img src="img/model.webp" width="944" height="1213" alt="模型の画面。左から、外れる所の地図（菱形の格子の模様）、予測だけの答え（全体が濃い青）、予測と修理の答え、ふつうの変換の答え（右の 2 枚は同じ縞模様）。下に結果の表" loading="lazy"><figcaption>D = 6 で「模型で計算する」を押したあとの画面。予測だけの答えは外れた分が全体に広がって一面が濃くなり、修理のあとはふつうの変換と同じ絵になります</figcaption></figure>
+
+  <h3>曲ごとの画面</h3>
+  <div class="pair">
+    <figure><img src="img/tool-arp.webp" width="944" height="1063" alt="夜の和音を再生中の画面。スペクトルは 100 Hz 前後が強く、2 kHz に鋭い山。スペクトログラムには和音の横線とアルペジオの細かい線" loading="lazy"><figcaption>「夜の和音」を再生中。下のスペクトログラムの黒い線が再生位置です</figcaption></figure>
+    <figure><img src="img/tool-drums.webp" width="944" height="1063" alt="ドラムとベースの画面。スペクトログラムに、ハイハットの縦の帯が規則正しく並ぶ" loading="lazy"><figcaption>「ドラムとベース」。音の頭ごとに縦の帯が出ます</figcaption></figure>
+    <figure><img src="img/tool-sweep.webp" width="944" height="1063" alt="上がる音と鐘と口笛の画面。スペクトログラムの左に右上がりの直線が 3 本、真ん中に鐘の横線、右に口笛の揺れる線" loading="lazy"><figcaption>「上がる音と鐘と口笛」。上がる音は対数の目盛りで直線になります（3 本は基音と 2 倍・3 倍の音）。真ん中の鐘は、倍音が整数倍からずれています</figcaption></figure>
+    <figure><img src="img/tool-file.webp" width="944" height="1063" alt="自分の音声ファイルとして 440 Hz の WAV を読んだ画面。スペクトルの山が 439.7 Hz（A4）" loading="lazy"><figcaption>音声ファイル（確かめ用に作った 2 秒の 440 Hz の WAV、48 kHz・ステレオ）を読んだところ。ピークは 439.7 Hz（A4、−1 セント）でした</figcaption></figure>
+  </div>
+  <figure style="max-inline-size: 22rem"><img src="img/phone.webp" width="390" height="844" alt="幅 390 の画面。曲の選択とボタンが縦に並び、グラフが画面の幅に収まる" loading="lazy"><figcaption>スマホの幅（390）。横にはみ出さずに収まります</figcaption></figure>
+
+  <h2 id="try">すぐ試せる手順</h2>
+  <ol class="steps">
+    <li><strong>このページの上で試す</strong>曲を選んで「再生」を押します。「計算の方法」を切り替えると、FFT 1 回の時間が変わります。「測る」で交互の測定、「模型で計算する」で論文の仕組みの模型が動きます。自分の音声ファイルも読めます（ブラウザの外へは送りません）。</li>
+    <li><strong>自分のコードで速い版を使う</strong><code>reports/fft/js/fft.mjs</code> を 1 つ写すだけで使えます（依存なしの ES モジュール）。
+<pre class="code"><code>import { createRealFFT } from './fft.mjs';
+
+const n = 2048;
+const fft = createRealFFT(n);            // 長さごとに 1 回作って使い回す
+const re = new Float64Array(n / 2 + 1);
+const im = new Float64Array(n / 2 + 1);
+fft.forward(samples, re, im);            // samples は長さ n の Float32Array か Float64Array
+const k = 100;                           // k 本目は k × 標本化周波数 ÷ n の周波数
+const amp = Math.hypot(re[k], im[k]);</code></pre>
+    窓（ハン窓）や dB の計算は <code>spectrum.mjs</code> の <code>hann</code> と <code>frameSpectrum</code> にあります。</li>
+    <li><strong>手元でテストを動かす</strong>Node.js 20 以上で動きます。
+<pre class="code"><code>git clone https://github.com/dikmri/ai-coding-notes.git
+cd ai-coding-notes
+node --test tests/fft-core.test.mjs tests/fft-repair.test.mjs tests/fft-spectrum.test.mjs</code></pre>
+    </li>
+    <li><strong>模型を Node.js で動かす</strong>リポジトリの一番上に <code>model.mjs</code> として保存し、<code>node model.mjs</code> で動かします。m = 8 なら 1 秒かかりません。
+<pre class="code"><code>import { predictRepairWHT } from './reports/fft/js/repair.mjs';
+import { fwht } from './reports/fft/js/fft.mjs';
+
+const m = 8, N = 1 &lt;&lt; m;                  // 長さ 256 を 256 行
+const X = Float64Array.from({ length: N * N }, () =&gt; Math.random() * 2 - 1);
+const { out, stats } = predictRepairWHT(X, m, { D: 4 });
+const want = Float64Array.from(X);
+for (let r = 0; r &lt; N; r++) fwht(want.subarray(r * N, (r + 1) * N));
+let diff = 0;
+for (let i = 0; i &lt; out.length; i++) diff = Math.max(diff, Math.abs(out[i] - want[i]));
+console.log({ 外れる行: stats.s, 予測だけの差: stats.predictOnlyErr, 修理後の差: diff });</code></pre>
+    </li>
+    <li><strong>このページを手元で開く</strong><code>node tools/serve.mjs</code> を動かし、<code>http://localhost:8765/reports/fft/</code> を開きます。手元で開いたときは、操作の記録が <code>logs/app.log</code> に残ります。</li>
+  </ol>
+
+  <h2 id="not-done">再現していないこと</h2>
+  <ul>
+    <li>論文の下限の証明（長方形の上の幾何で、行列の階数と 0 でない成分の数を一緒に調べる方法）。</li>
+    <li>第 6 節の、呼び出しを行の間で共有する作り方と、それをくり返す再帰。</li>
+    <li>ふつうの DFT（巡回群）への広げ方（第 III 部）。</li>
+    <li>Lean の形式化の中身の確認。</li>
+    <li>論文の作り方での実行時間。作れる大きさではないので、測っていません。</li>
+    <li>WebAssembly や SIMD を使った FFT。</li>
+  </ul>
+
+  <h2 id="sources">出典</h2>
+  <ul>
+    <li>XenoSpectrum「<a href="https://xenospectrum.com/finite-fourier-logarithmic-exponent/">OpenAI、高速フーリエ変換の計算量をさらに削減する数学的証明を公開、60年来の計算手法を超える可能性</a>」（2026 年 11 月 25 日、Y Kobayashi）</li>
+    <li>OpenAI「<a href="https://github.com/openai/math/blob/main/preprints/The-logarithmic-exponent-of-finite-Fourier-transforms-November-24-2026/paper.pdf">The logarithmic exponent of finite Fourier transforms</a>」（2026 年 11 月 24 日、PDF）。このページは同じ場所の LaTeX のソース（<code>intro.tex</code>・<code>repair.tex</code>・<code>kernel.tex</code>・<code>binary.tex</code>・<code>grids.tex</code>）を読んで作りました。</li>
+    <li>OpenAI「<a href="https://github.com/openai/math/blob/main/lean/docs/379.md">Lean の形式化の範囲</a>」（openai/math の lean/docs/379.md）</li>
+    <li>J. W. Cooley, J. W. Tukey「<a href="https://www.ece.ucdavis.edu/~bbaas/281/papers/CooleyTukey.1965.pdf">An Algorithm for the Machine Calculation of Complex Fourier Series</a>」（1965 年）</li>
+  </ul>
+
+  <h2 id="source">ソースコード</h2>
+  <ul>
+    <li>FFT（基数 2・速い版・ウォルシュ・アダマール変換）: <a href="js/fft.mjs"><code>reports/fft/js/fft.mjs</code></a></li>
+    <li>論文の模型（予測と修理、論文の窓の式、ゲートの数え方）: <a href="js/repair.mjs"><code>reports/fft/js/repair.mjs</code></a></li>
+    <li>スペクトルの計算（窓・dB・対数の目盛り・音名）: <a href="js/spectrum.mjs"><code>spectrum.mjs</code></a>、合成の曲: <a href="js/music.mjs"><code>music.mjs</code></a></li>
+    <li>測定と模型を画面の外で動かす部分: <a href="js/worker.mjs"><code>worker.mjs</code></a>、画面の配線: <a href="js/app.mjs"><code>app.mjs</code></a></li>
+    <li>テスト: <code>tests/fft-core.test.mjs</code>・<code>tests/fft-repair.test.mjs</code>・<code>tests/fft-spectrum.test.mjs</code></li>
+    <li>GitHub: <a href="https://github.com/dikmri/ai-coding-notes">dikmri/ai-coding-notes</a></li>
+  </ul>
+
+  <p class="foot">曲はすべてこのページが JavaScript でその場で合成したもので、既存の曲や外部の音源は使っていません。論文の内容の読み違いがあれば、それはこのページの誤りです。</p>
+</article>
+</main>
+<script type="module" src="js/app.mjs"></script>
+</body>
+</html>
