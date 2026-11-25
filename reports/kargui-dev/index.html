@@ -40,7 +40,7 @@
     <span class="box-title">今の kargui（2026 年 11 月 26 日）</span>
     <ul>
       <li>crates.io の版は 0.2.0（<a href="https://crates.io/crates/kargui">crates.io</a>）。0.3.0 の準備と作者の手の確かめが済み、GitHub の main に入りました（crates.io に出すのは作者）。ふつうのデスクトップアプリを kargui だけで書けるところまで来ました。</li>
-      <li>GitHub の main には、0.2.0 の後に足したドラッグ＆ドロップ（窓の中と、エクスプローラーから落とすファイル）と、第 6 章の動きの道具、第 7 章の書体、第 8 章の色と時刻の選択、第 9 章の書式付きの文字、第 10 章の Linux の窓（X11 の窓まで）、第 11 章の宿題・部品の見本・作者の手の確かめの直し、第 12 章のドッキング（1 段目）、第 13 章の浮いた枠（ドッキングの 2 段目）、第 14 章の別の窓（ドッキングの 3 段目）、第 15 章の題の帯が入っています（<a href="https://github.com/dikmri/kargui">github.com/dikmri/kargui</a>、MIT ライセンス）。</li>
+      <li>GitHub の main には、0.2.0 の後に足したドラッグ＆ドロップ（窓の中と、エクスプローラーから落とすファイル）と、第 6 章の動きの道具、第 7 章の書体、第 8 章の色と時刻の選択、第 9 章の書式付きの文字、第 10 章の Linux の窓（X11 の窓まで）、第 11 章の宿題・部品の見本・作者の手の確かめの直し、第 12 章のドッキング（1 段目）、第 13 章の浮いた枠（ドッキングの 2 段目）、第 14 章の別の窓（ドッキングの 3 段目）、第 15 章の題の帯、第 16 章のトレイが入っています（<a href="https://github.com/dikmri/kargui">github.com/dikmri/kargui</a>、MIT ライセンス）。</li>
       <li>窓を開けるのは Windows 10/11 と、Linux（Wayland と X11。Hyprland・GNOME・XWayland で確かめた。日本語入力は fcitx5 と IBus）です。macOS は、試験だけを毎回走らせています。</li>
     </ul>
   </div>
@@ -63,6 +63,7 @@
     <li><a href="13-floating.html"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dock2/float-dark.webp"><img src="img/dock2/float-light.webp" alt="" width="1200" height="720" loading="lazy" decoding="async"></picture><p class="ch-no">第 13 章</p><h3>浮いた枠</h3><p>窓の中に浮かせる形から作った理由、枠の下へ届いたホイールを描く順で隠す直し方。作者の記録から見つけた、F6 が枠を飛ばした理由と、元の場所へ戻らなかったパネル。</p></a></li>
     <li><a href="14-windows.html"><picture><source media="(prefers-color-scheme: dark)" srcset="img/dock3/main-dark.webp"><img src="img/dock3/main-light.webp" alt="" width="1200" height="720" loading="lazy" decoding="async"></picture><p class="ch-no">第 14 章</p><h3>別の窓</h3><p>Wayland では出さないと決めた理由、別の窓をアプリの App::window から同じ ui.dock で描く書き方、OS ごとに違う窓の場所の形と、最小化した窓の場所を覚えない理由。</p></a></li>
     <li><a href="15-titlebar.html"><picture><source media="(prefers-color-scheme: dark)" srcset="img/titlebar/windows-dark.webp"><img src="img/titlebar/windows-light.webp" alt="" width="1040" height="260" loading="lazy" decoding="async"></picture><p class="ch-no">第 15 章</p><h3>題の帯</h3><p>題の帯に部品を置ける形を選んだ理由、OS によって帯の中にも窓のいちばん上の行にもなる書き方、Windows に帯の場所を答える仕組み。作者の 4 回の確かめで見つけた、起動の直後に止まる・窓のメニューが出ない・窓の処理が二重に呼ばれる不具合。</p></a></li>
+    <li><a href="16-tray.html"><picture><source media="(prefers-color-scheme: dark)" srcset="img/tray/gallery-dark.webp"><img src="img/tray/gallery-light.webp" alt="" width="900" height="651" loading="lazy" decoding="async"></picture><p class="ch-no">第 16 章</p><h3>トレイ</h3><p>OS が描くメニューを kargui のメニューと同じ書き方で作る方法、OS ごとの知らせの届き方、Wayland で隠した窓が戻らなかった理由。作者の確かめで見つけた、アイコンを押しても届かなかった不具合と、手元でそれを見落とした確かめ方。</p></a></li>
 <!-- /gen:chapters -->
   </ul>
 
@@ -177,6 +178,7 @@
 
   <h2 id="updates">更新の履歴</h2>
   <ul>
+    <li>2026 年 11 月 26 日: 第 16 章「トレイ」を書いた</li>
     <li>2026 年 11 月 26 日: 第 15 章「題の帯」を書いた</li>
     <li>2026 年 11 月 25 日: 第 14 章「別の窓」を書いた</li>
     <li>2026 年 11 月 25 日: 第 13 章「浮いた枠」を書いた</li>
