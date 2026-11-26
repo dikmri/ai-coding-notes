@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>1 行に詰めたリーマン予想の証明を取り出して、正しく証明できているかを確かめた ― AI コーディングノート</title>
+<meta name="description" content="GitHub の riemann-hypothesis-minimal は、リーマン予想の Lean の証明を 1 行（7,279,198 文字）に詰めたもの。中の 807 ファイルが元の証明と同じことを確かめ、証明している定理が Mathlib の RiemannHypothesis そのものか、検査を抜ける書き方が無いかを調べた。このパソコンでも Lean で組み立て直し、証明が検査に通ることと、使う公理が標準の 3 つだけであることを確かめた。リーマン予想と、この証明の流れを図で説明する。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='800'%3EAI%3C/text%3E%3Cpath d='M15 51H49' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="riemann.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="report">
+<article>
+  <p class="kicker">解説と検証 ・ 2026 年 11 月 26 日（27 日に組み立ての結果を追記）</p>
+  <h1>1 行に詰めたリーマン予想の証明を取り出して、正しく証明できているかを確かめた</h1>
+  <p class="lede">GitHub の <a href="https://github.com/1337isnot1337/riemann-hypothesis-minimal">riemann-hypothesis-minimal</a> は、リーマン予想の証明を「1 行」の Lean のファイルにしたものです。開いてみると、その 1 行は 7,279,198 文字ありました。中身は、約 7.6 万行の証明を 807 個のファイルごと文字列にして並べたものです。証明そのものが短くなったわけではありません。</p>
+  <p class="lede">証明が正しいかどうかは、Lean（証明を計算機で確かめる道具）が 1 段ずつ確かめます。このページでは、リーマン予想とは何かと、この証明が何をしているかを図で説明します。あわせて、1 行版が元の証明と同じであることと、証明している定理がリーマン予想そのものであることを、自分でも確かめました。さらに、このパソコンで証明を Lean に組み立てさせ、検査に通ることも確かめました。</p>
+
+  <section class="verdict" aria-labelledby="verdict-h">
+    <h2 id="verdict-h">結論</h2>
+    <dl>
+      <dt>証明として</dt>
+      <dd>成り立っていると判断しました。定理の述べ方は Mathlib（Lean の数学の標準ライブラリ）の <code>RiemannHypothesis</code> そのもので、追加の公理や検査を止める書き方はありません（このページで確認）。このパソコンでも Lean で組み立て直し、証明の 794 個のモジュールがすべて検査に通りました。使っている公理は、Lean の標準の 3 つだけです（このページで確認）。複数の研究者も別々の計算機で組み立て、Lean のカーネルと、別に作られた検査器の両方が受け入れています（公開された報告）。</dd>
+      <dt>1 行版</dt>
+      <dd>中の 807 ファイルが、元の証明（compact 版）と 1 バイトも違いません（このページで確認）。1 行版から取り出したものは、検査に通った証明と同じものです。</dd>
+      <dt>まだ無いもの</dt>
+      <dd>人が読んで理解できる形の証明です。数学者が全部を読み通したという報告もまだありません。「正しいこと」は計算機が確かめましたが、「なぜ正しいか」の説明はこれからです。</dd>
+      <dt>しなかったこと</dt>
+      <dd>別に作られた検査器（nanoda など）での検査はしていません。この結果は第三者の報告を引いています。Mathlib 本体は組み立て済みのファイルを取得して使ったので、Mathlib の証明はこのパソコンでは検査し直していません。1 行版からの書き出し（<code>lean --run</code>）もしていません。代わりに、取り出した中身が元の証明と同じことを照合で確かめました。</dd>
+    </dl>
+  </section>
+
+  <h2 id="what">リーマン予想とは</h2>
+  <h3>素数の個数の予測と、そのずれ</h3>
+  <p>素数は 2, 3, 5, 7, 11, … のように、1 と自分でしか割り切れない数です。x 以下の素数の個数を π(x) と書きます。素数は大きくなるほどまばらになり、π(x) はだいたい対数積分 li(x) = ∫ dt / log t の値になります（素数定理、1896 年）。</p>
+  <p>問題は、予測 li(x) と本当の個数 π(x) のずれがどれくらいの大きさかです。リーマン予想は、このずれが √x 程度（正確には √x·log x の定数倍）に収まる、という主張と同じです（von Koch、1901 年）。Schoenfeld は 1976 年に、リーマン予想が正しければ、x ≥ 2,657 のすべての x でずれが √x·log x / 8π より小さいことを示しました。逆に、ずれがいつもこの範囲に収まれば、von Koch の結果からリーマン予想が出ます。下の灰色の帯がその範囲です。</p>
+
+  <section class="panel" aria-labelledby="prime-h">
+    <h3 id="prime-h">素数を数えて、予測とのずれを見る</h3>
+    <div class="row">
+      <label>どこまで数えるか
+        <select id="prime-limit">
+          <option value="10000">1 万</option>
+          <option value="100000">10 万</option>
+          <option value="1000000" selected>100 万</option>
+          <option value="10000000">1,000 万（少し時間がかかります）</option>
+        </select>
+      </label>
+    </div>
+    <figure class="viz">
+      <div class="chart-box">
+        <svg id="prime-chart" class="chart" tabindex="0" role="img" aria-label="素数の本当の個数から予測を引いたずれのグラフ。灰色の帯はリーマン予想が正しいときの範囲。点を選ぶと値が出ます（矢印のキーで動かせます）"></svg>
+        <div class="tip" id="prime-tip" hidden></div>
+      </div>
+      <figcaption>
+        <span class="legend"><span><i class="key-line"></i>本当の個数 π(x) − 予測 li(x)</span><span><i class="key-band"></i>リーマン予想が正しいときの範囲 ±√x·log x / 8π（x ≥ 2,657）</span></span>
+      </figcaption>
+    </figure>
+    <p id="prime-readout" class="readout" role="status"></p>
+    <p class="small">数は、このページがその場でエラトステネスのふるいで数えています。点を押すか、図を選んで矢印のキーを押すと、その点の値が出ます。</p>
+    <details>
+      <summary>表で見る（10 の累乗の所）</summary>
+      <div class="table-wrap" role="region" tabindex="0" aria-labelledby="prime-cap">
+        <table class="stack">
+          <caption id="prime-cap">素数の個数 π(x)、予測 li(x)、ずれ、帯の幅</caption>
+          <thead><tr><th scope="col">x</th><th scope="col">π(x)</th><th scope="col">li(x)</th><th scope="col">ずれ π(x) − li(x)</th><th scope="col">帯の幅 √x·log x / 8π</th></tr></thead>
+          <tbody>
+            <tr><th>100</th><td class="num" data-label="π(x)">25</td><td class="num" data-label="li(x)">30.13</td><td class="num" data-label="ずれ">−5.13</td><td class="num" data-label="帯の幅">1.83（帯は 2,657 から）</td></tr>
+            <tr><th>1,000</th><td class="num" data-label="π(x)">168</td><td class="num" data-label="li(x)">177.61</td><td class="num" data-label="ずれ">−9.61</td><td class="num" data-label="帯の幅">8.69（帯は 2,657 から）</td></tr>
+            <tr><th>1 万</th><td class="num" data-label="π(x)">1,229</td><td class="num" data-label="li(x)">1,246.14</td><td class="num" data-label="ずれ">−17.14</td><td class="num" data-label="帯の幅">36.65</td></tr>
+            <tr><th>10 万</th><td class="num" data-label="π(x)">9,592</td><td class="num" data-label="li(x)">9,629.81</td><td class="num" data-label="ずれ">−37.81</td><td class="num" data-label="帯の幅">144.86</td></tr>
+            <tr><th>100 万</th><td class="num" data-label="π(x)">78,498</td><td class="num" data-label="li(x)">78,627.55</td><td class="num" data-label="ずれ">−129.55</td><td class="num" data-label="帯の幅">549.70</td></tr>
+            <tr><th>1,000 万</th><td class="num" data-label="π(x)">664,579</td><td class="num" data-label="li(x)">664,918.41</td><td class="num" data-label="ずれ">−339.41</td><td class="num" data-label="帯の幅">2,028.03</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+  <p>1,000 万まで数えても、ずれは −339 で、帯の幅 ±2,028 の 17% ほどです。ただし、どこまで数えても「すべての x で」は確かめられません。リーマン予想を示すには、無限に先まで成り立つことを証明する必要があります。</p>
+  <figure><img src="img/primes.webp" width="944" height="659" alt="1,000 万まで数えた画面。青い線は 0 の少し下を細かく揺れながら右へ進み、上下に広がる灰色の帯の中に収まっている" loading="lazy"><figcaption>「1,000 万」を選んだあとの画面（このパソコンの Chrome で約 0.2 秒）。青い線は帯の中央より少し下を進みます。予測 li(x) の方が少し多いためです</figcaption></figure>
+
+  <h3>ゼータ関数と、その零点</h3>
+  <p>リーマン予想は、もともとリーマンのゼータ関数 ζ(s) の零点（値が 0 になる点）についての予想です。ζ(s) は、実部が 1 より大きい複素数 s では次の和で決まります。</p>
+  <p class="math" style="white-space: normal">ζ(s) = 1 + 1/2<sup>s</sup> + 1/3<sup>s</sup> + 1/4<sup>s</sup> + …</p>
+  <p>この和は、オイラーの積の式で素数とつながっています（すべての素数 p について 1/(1 − p<sup>−s</sup>) をかけたもの）。ζ(s) は s = 1 を除く複素平面の全体へ、1 通りに広げられます（解析接続）。広げた ζ(s) は −2, −4, −6, … で 0 になります。これを「自明な零点」と呼びます。それ以外の零点は、実部が 0 と 1 のあいだの帯（臨界帯）の中にあります。リーマン予想は「自明でない零点の実部は、すべて 1/2」という予想です。</p>
+  <figure>
+    <div class="diagram-wrap" role="region" tabindex="0" aria-labelledby="plane-cap">
+    <svg class="diagram" viewBox="0 0 720 425" role="img" aria-labelledby="plane-cap">
+      <rect class="bg" x="0.5" y="0.5" width="719" height="424" rx="10"/>
+      <rect class="strip" x="494" y="24" width="62" height="366"/>
+      <line class="ax" x1="40" y1="390" x2="690" y2="390"/>
+      <line class="ax" x1="494" y1="20" x2="494" y2="400"/>
+      <line class="crit" x1="525" y1="24" x2="525" y2="390"/>
+      <text x="690" y="383" text-anchor="end">実部</text>
+      <text x="488" y="34" text-anchor="end">虚部</text>
+      <g text-anchor="middle">
+        <text x="122" y="412">−6</text><text x="246" y="412">−4</text><text x="370" y="412">−2</text><text x="494" y="412">0</text><text x="556" y="412">1</text><text x="618" y="412">2</text>
+      </g>
+      <circle class="trivial" cx="122" cy="390" r="6"/><circle class="trivial" cx="246" cy="390" r="6"/><circle class="trivial" cx="370" cy="390" r="6"/>
+      <text x="246" y="370" text-anchor="middle">自明な零点 −2, −4, −6, …</text>
+      <path class="pole" d="M550 384L562 396M562 384L550 396"/>
+      <text x="566" y="378">極 s = 1</text>
+      <g>
+        <circle class="zero" cx="525" cy="292.5" r="5"/><circle class="zero" cx="525" cy="244.9" r="5"/><circle class="zero" cx="525" cy="217.4" r="5"/>
+        <circle class="zero" cx="525" cy="180.1" r="5"/><circle class="zero" cx="525" cy="162.7" r="5"/><circle class="zero" cx="525" cy="130.7" r="5"/>
+        <circle class="zero" cx="525" cy="107.7" r="5"/><circle class="zero" cx="525" cy="91.0" r="5"/><circle class="zero" cx="525" cy="58.8" r="5"/><circle class="zero" cx="525" cy="46.6" r="5"/>
+      </g>
+      <g font-size="12">
+        <text x="562" y="296.5">14.13</text><text x="562" y="248.9">21.02</text><text x="562" y="221.4">25.01</text><text x="562" y="184.1">30.42</text><text x="562" y="166.7">32.94</text>
+        <text x="562" y="134.7">37.59</text><text x="562" y="111.7">40.92</text><text x="562" y="95.0">43.33</text><text x="562" y="62.8">48.01</text><text x="562" y="50.6">49.77</text>
+      </g>
+      <text class="strong" x="478" y="230" text-anchor="end">自明でない零点</text>
+      <text x="478" y="250" text-anchor="end">（虚部 50 までの 10 個。どれも実部 1/2）</text>
+      <text x="478" y="120" text-anchor="end">臨界帯 0 &lt; 実部 &lt; 1</text>
+      <text x="478" y="140" text-anchor="end">破線は臨界線 実部 = 1/2</text>
+      <text x="658" y="200" text-anchor="middle">実部 &gt; 1 では</text>
+      <text x="658" y="218" text-anchor="middle">和が収束し、</text>
+      <text x="658" y="236" text-anchor="middle">零点は無い</text>
+    </svg>
+    </div>
+    <figcaption id="plane-cap">複素平面の上の ζ(s) の零点。縦（虚部）は 0〜52 だけを描き、縮めています。実軸より下にも、上と対称な位置に零点があります。画面が狭いときは、図を横にずらして見られます。</figcaption>
+  </figure>
+  <p>零点と素数のずれは、次のようにつながっています。自明でない零点 ρ = β + iγ が 1 つあるごとに、素数の数え方のずれに、大きさがおよそ x<sup>β</sup> の波が 1 つ足されます（リーマンの明示公式）。β がすべて 1/2 なら、ずれは √x 程度で済みます。実部が 1/2 より大きい零点が 1 つでもあると、ずれはそれより速く大きくなります。</p>
+
+  <section class="panel" aria-labelledby="zeta-h">
+    <h3 id="zeta-h">ゼータ関数の大きさを、縦の線に沿って見る</h3>
+    <p class="small">実部 σ を決めて、虚部 t を 0 から 50 まで動かしたときの |ζ(σ + it)| です。0 になる所が零点です。縦は対数の目盛りなので、0 に近づくほど下へ深く落ちます。</p>
+    <div class="row">
+      <label for="sigma">実部 σ</label>
+      <input type="range" id="sigma" min="20" max="80" step="1" value="50">
+      <output id="sigma-out" for="sigma">0.50</output>
+      <span class="presets">
+        <button type="button" data-sigma="40">0.40</button>
+        <button type="button" data-sigma="50">0.50</button>
+        <button type="button" data-sigma="60">0.60</button>
+      </span>
+    </div>
+    <figure class="viz">
+      <div class="chart-box">
+        <svg id="zeta-chart" class="chart" tabindex="0" role="img" aria-label="選んだ実部の線に沿ったゼータ関数の大きさのグラフ。点を選ぶと値が出ます（矢印のキーで動かせます）"></svg>
+        <div class="tip" id="zeta-tip" hidden></div>
+      </div>
+      <figcaption>
+        <span class="legend"><span><i class="key-line"></i>|ζ(σ + it)|</span><span><i class="key-mark"></i>知られている零点の虚部（実部 1/2 の上）</span></span>
+      </figcaption>
+    </figure>
+    <p id="zeta-readout" class="readout" role="status"></p>
+    <p class="small">値は、このページがオイラー・マクローリンの和の公式でその場で計算しています（相対誤差 10<sup>−12</sup> 程度）。0.0001 より小さい値は、下の端に描いています。</p>
+  </section>
+  <p>実部 0.50 では、知られている 10 個の零点のすべてで線が下の端まで落ちます。0.40 や 0.60 に動かすと、谷は浅くなり、0 には届きません。虚部 50 までの範囲では、零点は実部 1/2 の線の上にだけあります。</p>
+  <div class="pair">
+    <figure><img src="img/zeta-05.webp" width="944" height="730" alt="実部 0.50 の画面。青い線が 10 か所で下の端まで落ち、その位置に灰色の点がある" loading="lazy"><figcaption>実部 0.50。10 か所で 0 になり、知られている零点（灰色の点）と重なります</figcaption></figure>
+    <figure><img src="img/zeta-04.webp" width="944" height="704" alt="実部 0.40 の画面。青い線の谷は 0.1 のあたりで止まり、下の端まで落ちない" loading="lazy"><figcaption>実部 0.40。一番深い谷でも 0.083 で、0 にはなりません</figcaption></figure>
+  </div>
+  <p>計算機による確認は、これまでに 10<sup>13</sup> 個以上の零点まで進んでいて、どれも実部 1/2 の上にありました。それでも、無限にある零点のすべてについては、計算では確かめられません。それを示すのが証明です。</p>
+
+  <h2 id="oneline">「1 行」の正体</h2>
+  <p>1 行版のファイル <code>OneLineRH.lean</code> は、改行が最後に 1 つあるだけの 7,663,685 バイトのファイルです。中は 3 つの部分でできています。</p>
+  <ol>
+    <li><strong>説明のコメントと <code>import Lean</code></strong>（212 文字）。元の証明の場所（lsernau/grh-lean のコミット 72fead1 の <code>grh-compact</code>）が書いてあります。</li>
+    <li><strong><code>def proofSources : Array (String × String) := #[ … ]</code></strong>。「ファイルの名前」と「ファイルの中身」の組が 807 個並んだ配列です。中身の改行は <code>\n</code> と書いてあるので、全体が 1 行に収まります。</li>
+    <li><strong><code>def main</code></strong>（707 文字）。配列の中身をフォルダへ書き出すプログラムです。</li>
+  </ol>
+  <figure>
+    <img src="img/oneline-raw.webp" width="1280" height="150" alt="OneLineRH.lean の中身をブラウザで折り返さずに表示した画面。1 行目だけがあり、文字が右の端の外まで続いている" loading="lazy">
+    <figcaption>1 行版の中身を、ブラウザで折り返さずに表示した画面。2 行目はありません。全体を並べるとブラウザが止まるので、表示したのは先頭の 6,000 文字です（文字数と行数は全体で数えました）</figcaption>
+  </figure>
+  <p>ファイルの先頭は次のとおりです（長いので途中で切りました）。</p>
+<pre class="code"><code>/- Compact RH proof by Levent Alpöge with Claude, rewritten by Luke Sernau and colleagues. Apache-2.0. https://github.com/lsernau/grh-lean/tree/72fead102f663d5c7a407964a13dc0cf9d977207/grh-compact -/ import Lean def proofSources : Array (String × String) := #[(".gitignore","/.lake/\n*.olean\n*.ilean\n"),("ATTRIBUTION.md","# Attribution\n\nEach declaration below adapts …</code></pre>
+  <p>最後の <code>main</code> は次のとおりです（そのまま 1 行で載せます）。</p>
+<pre class="code"><code>def main (args : List String) : IO UInt32 := do { let destination : System.FilePath := args.headD "grh-compact"; let _ : Unit ← (if (← destination.pathExists) then throw (IO.userError "Extraction directory already exists") else pure ()); for entry in proofSources do { let file := destination / entry.1; IO.FS.createDirAll file.parent.get!; IO.FS.writeFile file entry.2 }; if args.contains "--build" then (do { let cache ← IO.Process.spawn {cmd := "lake", args := #["exe", "cache", "get"], cwd := some destination}; let status ← cache.wait; if status != 0 then pure status else (do { let build ← IO.Process.spawn {cmd := "lake", args := #["build"], cwd := some destination}; build.wait }) }) else pure 0 }</code></pre>
+  <p>このプログラムがすることは 3 つです。</p>
+  <ul>
+    <li>書き出し先のフォルダ（省くと <code>grh-compact</code>）が既にあれば、何もせずに止まる。</li>
+    <li>807 個のファイルを、そのフォルダの中へ書き出す。名前に <code>..</code> や絶対パスは無いので、フォルダの外へは書かない（このページで確認）。</li>
+    <li><code>--build</code> を付けたときだけ、<code>lake exe cache get</code>（Mathlib の組み立て済みのファイルを落とす）と <code>lake build</code>（証明を組み立てて検査する）を順に動かす。</li>
+  </ul>
+  <p>大事なのは、このファイルを Lean で動かしても、証明は検査されないことです。証明の Lean のコードは文字列の中にあるので、Lean にとってはただの文字の並びです。検査は、書き出したあとの <code>lake build</code> で行われます。</p>
+
+  <h3>行数と文字数</h3>
+  <p>証明の版ごとの大きさは次のとおりです。1 行版は行数が 1 ですが、文字数は compact 版とほとんど変わりません。1 行版の方が多いのは、改行や引用符を <code>\n</code> や <code>\"</code> の 2 文字で書いているためです。</p>
+  <div class="bars">
+    <figure>
+      <h4>行数（.lean のファイルの全行）</h4>
+      <div class="bar-row"><span>compact 版</span><span class="bar-track"><span class="bar-fill" style="inline-size: 100%"></span><span class="bar-val" style="inset-inline-start: 0; color: var(--viz-surface)">112,854 行</span></span></div>
+      <div class="bar-row"><span>1 行版</span><span class="bar-track"><span class="bar-fill" style="inline-size: 0%"></span><span class="bar-val" style="inset-inline-start: 2px">1 行</span></span></div>
+    </figure>
+    <figure>
+      <h4>文字数（全ファイルの合計）</h4>
+      <div class="bar-row"><span>compact 版</span><span class="bar-track"><span class="bar-fill" style="inline-size: 97.9%"></span><span class="bar-val" style="inset-inline-start: 0; color: var(--viz-surface)">7,123,453 文字</span></span></div>
+      <div class="bar-row"><span>1 行版</span><span class="bar-track"><span class="bar-fill" style="inline-size: 100%"></span><span class="bar-val" style="inset-inline-start: 0; color: var(--viz-surface)">7,279,198 文字</span></span></div>
+    </figure>
+  </div>
+  <div class="table-wrap" role="region" tabindex="0" aria-labelledby="ed-cap">
+    <table class="stack">
+      <caption id="ed-cap">証明の版と大きさ</caption>
+      <thead><tr><th scope="col">版</th><th scope="col">公開</th><th scope="col">大きさ</th><th scope="col">ファイル</th></tr></thead>
+      <tbody>
+        <tr><th>元の版（Levent Alpöge と Claude）</th><td data-label="公開">2026-11-20</td><td class="num" data-label="大きさ">約 1,700 万行</td><td class="num" data-label="ファイル">175,187</td></tr>
+        <tr><th>読みやすい版 <code>grh/</code>（Luke Sernau ほか、Anthropic と Claude）</th><td data-label="公開">2026-11-25</td><td class="num" data-label="大きさ">約 30 万行（コード）</td><td class="num" data-label="ファイル">818</td></tr>
+        <tr><th>compact 版 <code>grh-compact/</code>（同上）</th><td data-label="公開">2026-11-25</td><td class="num" data-label="大きさ">約 7.6 万行（コード）、112,854 行（全行）</td><td class="num" data-label="ファイル">807</td></tr>
+        <tr><th>1 行版（Cinna Davis）</th><td data-label="公開">2026-11-26</td><td class="num" data-label="大きさ">1 行（7,279,198 文字）</td><td class="num" data-label="ファイル">1</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>1 文字を 2 mm の幅で横に並べて印刷すると、1 行版の 1 行は約 14.6 km になります。1 行版は、行数という物差しが証明の大きさを表さないことを、目に見える形で示した版です。数学の中身は compact 版と同じです。</p>
+
+  <h2 id="formal">形式証明とは</h2>
+  <p>Lean は、決まった書き方で書いた証明を、計算機が 1 段ずつ確かめるための道具です。証明の各段が、前の段と規則だけから出てくるかを調べます。1 か所でも飛ばした所があれば、組み立ては失敗します。1 行版の元になった証明の、最後の定理は次のように書かれています。</p>
+<pre class="code"><code>theorem riemannHypothesis : RiemannHypothesis := New.zeta_zeros_on_line New.grh</code></pre>
+  <p><code>theorem 名前 : 主張 := 証明</code> の形です。主張は <code>RiemannHypothesis</code>、証明は「一般化リーマン予想 <code>New.grh</code> から、ζ の零点についての形に直す」です。<code>New.grh</code> の中身が、残りの約 7.6 万行です。</p>
+  <p>形式証明では、7.6 万行を人が読まなくても、正しさを判断できます。人が確かめる必要があるのは、次の左の枠だけです。</p>
+  <div class="trust">
+    <section class="human" aria-labelledby="trust-h1">
+      <h4 id="trust-h1">人が読んで確かめる所</h4>
+      <ul>
+        <li>定理の述べ方: <code>src/Statements.lean</code>（16 行）と、<code>src/Main.lean</code> の定理 5 つ</li>
+        <li>Mathlib の定義: <code>RiemannHypothesis</code>・<code>riemannZeta</code>・ディリクレの L 関数</li>
+        <li>使っている公理: <code>propext</code>・<code>Classical.choice</code>・<code>Quot.sound</code> の 3 つ（Mathlib のほぼすべての定理が使う標準の公理）</li>
+        <li>検査の道具: Lean のカーネル（証明を最後に確かめる小さな部分）と、別に作られた検査器</li>
+        <li>検査を実際に走らせたこと</li>
+      </ul>
+    </section>
+    <section aria-labelledby="trust-h2">
+      <h4 id="trust-h2">Lean が確かめる所</h4>
+      <ul>
+        <li>証明の本体: 796 個の Lean のファイル（約 7.6 万行のコード）</li>
+        <li>途中で使う約 7,100 個の定理と補題（<code>theorem</code>・<code>lemma</code> の宣言を数えた）。数論・保型形式・ガロア表現などの背景の結果を含む</li>
+      </ul>
+      <p class="size">ここに誤りがあれば、組み立ては失敗します。人が読んでいなくても、検査に通ったことで正しさが保証されます。</p>
+    </section>
+  </div>
+  <p>ただし、左の枠が崩れると話が変わります。たとえば、主張の定義を書き換えて意味を変える、公理を足して何でも証明できるようにする、カーネルの検査を止める設定を入れる、といった書き方です。そこで次の節では、こうした書き方が無いかを調べました。</p>
+
+  <h2 id="checked">確かめたこと</h2>
+  <h3>このページで確かめたこと</h3>
+  <div class="table-wrap" role="region" tabindex="0" aria-labelledby="mine-cap">
+    <table class="stack">
+      <caption id="mine-cap">自分で確かめたことと結果（2026 年 11 月 26〜27 日）</caption>
+      <thead><tr><th scope="col">確かめたこと</th><th scope="col">方法</th><th scope="col">結果</th></tr></thead>
+      <tbody>
+        <tr><th>1 行版と元の証明が同じか</th><td data-label="方法">1 行版の文字列を自分で書いた読み取り器で取り出し、git の識別子（中身から作る SHA-1）を、元の証明（lsernau/grh-lean のコミット 72fead1）の 807 ファイルと比べた</td><td data-label="結果">807 個すべて一致。過不足なし</td></tr>
+        <tr><th>書き出すプログラムの動き</th><td data-label="方法"><code>main</code> を読み、ファイル名に <code>..</code> や絶対パスが無いかを調べた</td><td data-label="結果">指定したフォルダの中へ書き出すだけ。<code>--build</code> のときだけ <code>lake</code> を動かす</td></tr>
+        <tr><th>定理の述べ方</th><td data-label="方法"><code>src/Main.lean</code> と <code>src/Statements.lean</code> を読み、Mathlib（コミット 56a0058）の定義と比べた</td><td data-label="結果"><code>riemannHypothesis</code> の型は Mathlib の <code>RiemannHypothesis</code> そのもの。<code>Statements.lean</code> は Mathlib だけを読み込む</td></tr>
+        <tr><th>Mathlib の ζ が教科書の ζ と同じか</th><td data-label="方法">Mathlib の定理を探した</td><td data-label="結果">実部 &gt; 1 で ζ(s) = Σ 1/n<sup>s</sup>（<code>zeta_eq_tsum_one_div_nat_cpow</code>）、s ≠ 1 で微分できる（<code>differentiableAt_riemannZeta</code>）。解析接続は 1 通りなので同じもの</td></tr>
+        <tr><th>検査を抜ける書き方</th><td data-label="方法">796 個の Lean のファイルを、コメントを除いて検索した</td><td data-label="結果"><code>axiom</code>・<code>native_decide</code>・カーネルの検査を止める設定・<code>implemented_by</code>・<code>unsafe</code>・記法を作る命令・<code>#eval</code> はどれも 0 か所。<code>sorry</code> は比べ用の <code>Challenge.lean</code> の 5 か所だけ</td></tr>
+        <tr><th>組み立てと検査</th><td data-label="方法">compact 版を Lean 4.35.0 の <code>lake build</code> で組み立てた。Mathlib は組み立て済みのファイルを取得して使った</td><td data-label="結果">9,843 件の処理がすべて成功。証明の 794 モジュールが組み上がった。証明を省いたときに出る警告は 0 件</td></tr>
+        <tr><th>使っている公理</th><td data-label="方法">元の証明の <code>scripts/PrintAxioms.lean</code> を動かした</td><td data-label="結果">5 つの定理のどれも、標準の 3 つ（<code>propext</code>・<code>Classical.choice</code>・<code>Quot.sound</code>）だけ</td></tr>
+        <tr><th>定理の型を Lean に確かめさせる</th><td data-label="方法">組み上がった環境で <code>example : RiemannHypothesis := riemannHypothesis</code> を検査した</td><td data-label="結果">誤りなく通った</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>照合に使った道具 <a href="tools/verify-oneline.mjs"><code>tools/verify-oneline.mjs</code></a> を、このパソコン（Node.js 24）で動かした結果です（後半の定理の表示は省きました）。3.4 秒で終わります。</p>
+<pre class="code"><code>■ 1 行版 1337isnot1337/riemann-hypothesis-minimal@a035fea/OneLineRH.lean
+  大きさ 7,663,685 バイト、1 行、1 行目の幅 7,279,198 文字
+  取り出したファイル 807 個（知らないエスケープ なし）
+  フォルダの外へ書き出すパス（.. や絶対パス）: なし
+
+■ 元の証明 lsernau/grh-lean@72fead1/grh-compact/ との比べ（git の識別子 SHA-1）
+  元の証明のファイル 807 個のうち、中身が 1 バイトも違わないもの 807 個
+  違うもの なし／1 行版にだけあるもの なし／1 行版に無いもの なし
+  Lean のファイル 796 個、合わせて 112,854 行。全ファイルの文字数 7,123,453 文字
+
+■ 検査を抜ける書き方（コメントの中は数えない）
+  公理の追加（axiom）: 0 か所
+  証明の省略（sorry）: 5 か所（Challenge.lean）
+  証明の省略（admit）: 0 か所
+  コンパイラの計算を信じる（native_decide）: 0 か所
+  カーネルの検査を止める設定: 0 か所
+  中身を差し替える指定（implemented_by・extern・unsafe・opaque）: 0 か所
+  記法や構文を作る命令: 0 か所
+  読み込み時にプログラムを動かす命令: 0 か所
+  Mathlib とこの証明の外からの import: 0 か所
+  使っている set_option: synthInstance.maxHeartbeats ×9、backward.isDefEq.respectTransparency ×30、synthInstance.maxSize ×5、warning.simp.varHead ×1
+  lakefile.toml の Lean への引数: ["--tstack=400000"]
+
+結果: 1 行版の中身は元の証明と同じで、検査を抜ける書き方は見つからなかった（sorry は比べ用の Challenge.lean にだけある）。</code></pre>
+  <p>使っている <code>set_option</code> は、型を推論するときの時間や大きさの上限と、警告の設定です。カーネルの検査には関わりません。<code>Challenge.lean</code> は、5 つの定理を「証明の欄を空けた問題用紙」として書いたファイルで、組み立ての対象に入っていません。検査の道具 Comparator が、この問題用紙と本物の証明の主張が同じかを比べるために使います。</p>
+  <p>定理の述べ方は次のとおりです。左が Lean、右がその意味です。</p>
+<pre class="code"><code>-- Mathlib の定義（Mathlib/NumberTheory/LSeries/RiemannZeta.lean、185 行目）
+def RiemannHypothesis : Prop :=
+  ∀ (s : ℂ) (_ : riemannZeta s = 0) (_ : ¬∃ n : ℕ, s = -2 * (n + 1)) (_ : s ≠ 1), s.re = 1 / 2
+--  どの複素数 s でも、ζ(s) = 0 で、s が −2, −4, … のどれでもなく、s ≠ 1 なら、s の実部は 1/2
+
+-- src/Statements.lean より（ディリクレの L 関数についての一般化リーマン予想）
+def DirichletLNonvanishingRightOfHalf : Prop :=
+  ∀ (N : ℕ) [NeZero N] (χ : DirichletCharacter ℂ N) (s : ℂ),
+    1 / 2 &lt; s.re → (χ ≠ 1 ∨ s ≠ 1) → DirichletCharacter.LFunction χ s ≠ 0
+--  どの法 N のどのディリクレ指標 χ でも、実部が 1/2 より大きい s では L(s, χ) ≠ 0
+--  （ただし、主指標の s = 1 は極なので除く）</code></pre>
+  <p>Mathlib の定義の <code>s ≠ 1</code> は、s = 1 が極で ζ の値が決まらないためです（Mathlib は s = 1 に便宜上の値を入れています）。この 1 点を除けば、ふつうに書かれるリーマン予想と同じ主張です。</p>
+
+  <h3 id="build">このパソコンでの組み立て</h3>
+  <p>compact 版（コミット 72fead1）を、このパソコンで Lean 4.35.0 を使って組み立てました。Mathlib は、組み立て済みのファイル（キャッシュ）を取得して使いました。証明の 794 個のモジュールは、このパソコンの Lean がすべて検査しています。</p>
+  <p>組み上がったあと、元の証明に入っている <code>scripts/PrintAxioms.lean</code> を動かしました（34 秒）。出力は次のとおりです。証明を <code>sorry</code> で省いた所があれば <code>sorryAx</code> が、独自に足した公理があればその名前が、この一覧に出ます。</p>
+<pre class="code"><code>'riemannHypothesis' depends on axioms: [propext, Classical.choice, Quot.sound]
+'riemannZeta_eq_zero_re' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LFunction_ne_zero_of_half_lt_re' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LFunction_eq_zero_re' depends on axioms: [propext, Classical.choice, Quot.sound]
+'LFunction_eq_zero_re_of_isPrimitive' depends on axioms: [propext, Classical.choice, Quot.sound]</code></pre>
+  <p>3 つの公理は、命題の外延性（<code>propext</code>）、選択公理（<code>Classical.choice</code>）、商についての公理（<code>Quot.sound</code>）です。Mathlib のふつうの定理も、この 3 つを使っています。</p>
+  <p>定理の主張も、組み上がった環境で Lean に確かめさせました。次のファイルを Lean で動かすと、誤りなく通りました。最後の行は「<code>riemannHypothesis</code> は Mathlib の <code>RiemannHypothesis</code> の証明である」という意味です。型が少しでも違えば、この行で誤りになります。</p>
+<pre class="code"><code>import Main
+
+#check @riemannHypothesis
+#print RiemannHypothesis
+example : RiemannHypothesis := riemannHypothesis</code></pre>
+  <p>出力は次のとおりです。<code>#print</code> が出した定義は、上で引いた Mathlib の定義と同じ式です。証明の側で同じ名前の定義を作ると Mathlib の定義とぶつかり、組み立てが失敗します。そのため、ここに出たのは Mathlib の定義です。</p>
+<pre class="code"><code>riemannHypothesis : RiemannHypothesis
+def RiemannHypothesis : Prop :=
+∀ (s : ℂ), riemannZeta s = 0 → (¬∃ n, s = -2 * (↑n + 1)) → s ≠ 1 → s.re = 1 / 2</code></pre>
+  <p>組み立ての途中で出た警告は、最後の回で 185 件ありました。どれも、古い名前や書き方を使っているという注意と、使っていない引数や命令の指摘です。証明を省いたときに出る <code>declaration uses 'sorry'</code> は、どの回のログにもありません。</p>
+  <p>このパソコンの CPU は 6 コア（Ryzen 5 3500）で、メモリは 64 GB です。組み立ては 5 回に分けて動かしました。途中で止まっても、組み上がったモジュールは次の回に引き継がれます。</p>
+  <div class="table-wrap" role="region" tabindex="0" aria-labelledby="build-cap">
+    <table class="stack">
+      <caption id="build-cap">組み立ての記録（2026 年 11 月 26〜27 日）</caption>
+      <thead><tr><th scope="col">回</th><th scope="col">同時に動いた lean</th><th scope="col">時間</th><th scope="col">結果</th></tr></thead>
+      <tbody>
+        <tr><th>1 回目</th><td data-label="同時に動いた lean">指定なし</td><td data-label="時間">約 2 分</td><td data-label="結果"><code>invalid argument</code> で止まった</td></tr>
+        <tr><th>2 回目</th><td data-label="同時に動いた lean">指定なし</td><td data-label="時間">33 分</td><td data-label="結果">同じく止まった</td></tr>
+        <tr><th>3 回目</th><td data-label="同時に動いた lean">指定なし（記録では 6 本）</td><td data-label="時間">約 2 分</td><td data-label="結果">同じく止まった。止まる直前のメモリのコミットは 106.9 GB（上限 107.6 GB）</td></tr>
+        <tr><th>4 回目</th><td data-label="同時に動いた lean">2 本</td><td data-label="時間">約 30 分</td><td data-label="結果">メモリが空いたので、3 本に増やすために止めた</td></tr>
+        <tr><th>5 回目</th><td data-label="同時に動いた lean">3 本</td><td data-label="時間">2 時間 51 分</td><td data-label="結果">9,843 件すべて成功。コミットの最大は 77.8 GB（上限 92.1 GB）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>1〜3 回目は、同時に動かす数を指定しませんでした。3 回目の記録では lean が 6 本同時に動き、1 本が 8 GB ほど使っていました。Windows は、実メモリとページファイルを合わせた「コミットの上限」を超えてメモリを確保できません。上限に届いたところで <code>error: invalid argument (error code: 22, invalid argument)</code> が出て、組み立てが止まりました。</p>
+  <p>4 回目からは、環境変数 <code>LEAN_NUM_THREADS</code> で同時に動く数を減らしました。止まった回も含めると、組み立てにかかった時間は合わせて約 4 時間です。ほかに、Mathlib のキャッシュの取得に 9 分かかりました。</p>
+
+  <h3>第三者の検査</h3>
+  <p>組み立てと検査は、次の人たちが別々の計算機で行い、結果を公開しています。</p>
+  <div class="table-wrap" role="region" tabindex="0" aria-labelledby="others-cap">
+    <table class="stack">
+      <caption id="others-cap">公開されている検査の報告（組み立てと公理の確認は、このページでも上で再現した。別に作られた検査器での確認は引用だけ）</caption>
+      <thead><tr><th scope="col">誰が・いつ</th><th scope="col">どの版</th><th scope="col">結果</th></tr></thead>
+      <tbody>
+        <tr><th>Lean FRO と Mathlib Initiative の共同声明（2026-11-21）</th><td data-label="どの版">元の版</td><td data-label="結果">主張が Mathlib の <code>RiemannHypothesis</code> と同じことを 2 つの道具で確認。多くの人の組み立てが成功し、Lean の公式のカーネルと、別の言語で書かれた複数の検査器が受け入れた。「証明は正しいと確信している」</td></tr>
+        <tr><th>Michael Rubinstein（Waterloo 大学、2026-11-21）</th><td data-label="どの版">元の版</td><td data-label="結果">175,187 モジュールがすべて組み上がり、5 つの定理の公理は標準の 3 つだけ。カーネルの再検査ですべて受け入れ。独立した検査器 nanoda も 1,484,729 個の宣言を誤りなしで確認</td></tr>
+        <tr><th>Michael Rubinstein（2026-11-26）</th><td data-label="どの版">compact 版（1 行版の中身）</td><td data-label="結果">794 モジュールがすべて組み上がり、公理は標準の 3 つだけ。カーネルの再検査ですべて受け入れ。<code>lake comparator --paranoid</code> で主張の一致を確認し、6 つのカーネルが受け入れた（隔離しない環境で実行）。MIT の Andrew Sutherland が隔離した環境で同じ結果</td></tr>
+        <tr><th>rohanarun/alpoge-rh-replay の issue #35052（2026-11-25）</th><td data-label="どの版">compact 版と読みやすい版</td><td data-label="結果">どちらも <code>sorry</code> 0 で組み上がり（128 コアで compact 版 1,290 秒）、公理は標準の 3 つだけ</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>compact 版の README の数え方では、<code>src/</code> の Lean のファイルは 792 個（<code>Lib</code> 573 個、<code>New</code> 219 個）です。これに <code>Main.lean</code> と <code>Statements.lean</code> を足すと、Rubinstein の報告の 794 モジュールと合います。このパソコンで組み上がったモジュールも 794 個でした。このページで数えた 796 個には、組み立ての対象でない <code>Challenge.lean</code> と <code>scripts/PrintAxioms.lean</code> が入っています。</p>
+
+  <h2 id="how">証明は何をしているか（分かる範囲で）</h2>
+  <p>人が読める形の証明はまだ公開されていません。この節は、compact 版の <code>src/New/Main.lean</code> の先頭の説明と <code>GUIDE.md</code>、Alpöge が発表のときに書いた 4 ページの文章から、全体の流れだけをまとめたものです。中心にある定理 A・B・C の中身は、このページでは説明できていません。</p>
+  <ol class="flow">
+    <li>
+      <span class="name">定理 A・B・C</span>
+      <span class="lean">Data.short_forms・Data.enough_forms・Data.integral_forms_long</span>
+      <p>テータリフト（ある群の上の保型形式から、別の群の上の保型形式を作る操作）で作る「形」の集まりについて、短い形が十分な数あること（A・B）と、整数の上の形は長いこと（C）を示します。</p>
+    </li>
+    <li>
+      <span class="name">主不等式 (⋆)</span>
+      <span class="lean">star_inequality : m · remainder ≤ (log b)² · budget</span>
+      <p>同じ量（テータリフトの体積）を、下と上から見積もります。下からの見積もりは「主な部分」、上からの見積もりは「主な部分 − m × ずれ」になり、主な部分が打ち消し合います。残るのは「m × ずれ ≤ 誤差」です。m はリフトの数で、√x 以上 2√x 以下に取ります。</p>
+    </li>
+    <li>
+      <span class="name">片側の評価</span>
+      <span class="lean">eventually_primeError_le_rpow</span>
+      <p>特別に選んだ素数の集まりを重みつきで数えたときのずれ（x で割った値）が、十分大きい x で x<sup>8ε − 1/2</sup> 以下になります。ε は 0 と 1/100 のあいだのどれでもかまいません。m ≈ √x で割ったことが、指数の −1/2 になっています。</p>
+    </li>
+    <li>
+      <span class="name">Landau の補題</span>
+      <span class="lean">entireL_ne_zero_of_primeError_le</span>
+      <p>ずれを上からだけ押さえれば、L 関数は実部が 1/2 + 8ε より大きい所で 0 になりません。下から押さえる必要はありません。係数が負にならない級数についての、1905 年の Landau の定理を使います。</p>
+    </li>
+    <li class="goal">
+      <span class="name">一般化リーマン予想</span>
+      <span class="lean">New.grh : DirichletLNonvanishingRightOfHalf</span>
+      <p>ε はいくらでも小さくできるので、どのディリクレ指標 χ でも、実部が 1/2 より大きい所で L(s, χ) ≠ 0 です。法 q の指標は、法 18480q に移して上の評価に当てはめます。</p>
+    </li>
+    <li class="goal">
+      <span class="name">リーマン予想</span>
+      <span class="lean">riemannHypothesis : RiemannHypothesis</span>
+      <p>関数等式は、s と 1 − s の値を結ぶ式です。これを使うと、実部が 1/2 より小さい所にも自明でない零点は無いと分かります。ζ は法 1 の L 関数なので、自明でない零点の実部はすべて 1/2 です。</p>
+    </li>
+  </ol>
+  <p>途中で出てくる数は、とても大きなものです。<code>Main.lean</code> の説明によると、x のほかに x<sub>1</sub> ≥ x<sup>10<sup>6</sup></sup> と b ≥ x<sub>1</sub><sup>10<sup>6</sup></sup> という大きさの尺度を使い、次数が x<sup>11</sup> を超える数体の上で議論します。この証明は「十分大きい x で成り立つ」ことを示す議論で、数値を計算して確かめる種類のものではありません。</p>
+  <h3>発想の元になった方法</h3>
+  <p>有限体の上の曲線についてのリーマン予想は、Weil が 1948 年に証明しました。その後 Stepanov（1969 年）が、より初等的な証明を見つけています。数えたい点のすべてで高い重複度で 0 になる多項式を作り、その次数から点の数を上から押さえる方法です。</p>
+  <p>Alpöge の説明では、今回の議論はこの Stepanov の方法の子孫にあたります。整数の上では「重複度」を作るのが難しく、Alpöge はこれを「整数を微分するようなもの」と書いています。そこで、テータリフトを鎖のようにつなぎ、1 回のリフトが重複度 1 つ分の役をするようにしました。鎖の長さを、数える範囲の大きさに合わせて伸ばす案を出したのは Claude だったそうです。上の流れの m（リフトの数）がこの鎖の長さで、m ≈ √x がリーマン予想の √x に対応します。</p>
+
+  <h2 id="open">まだ分かっていないこと・注意</h2>
+  <ul>
+    <li><strong>人が読める証明はまだ無い。</strong>compact 版の README は「機械の検査だけを通った。数学者が読み通してはおらず、論文も無い」と書いています。Rubinstein が Claude・Codex・Gemini と書いている解説の草稿（265 ページ、11 月 22 日の第 2 版）は、中心の不等式を 13 個の仮定に分けた段階で、仮定はまだどれも手で証明されていません。</li>
+    <li><strong>Lean そのものを信じる必要はある。</strong>カーネルに誤りがあれば、誤った証明が通る可能性は残ります。今回は、別々に作られた複数の検査器（nanoda など）も受け入れているので、この可能性はかなり小さくなっています。</li>
+    <li><strong>証明されたのは、ディリクレの L 関数までの一般化リーマン予想です。</strong>数体のデデキントのゼータ関数などを含む「拡張リーマン予想」は、Alpöge が「時間をかければ届くと思う」と書いている段階です。</li>
+    <li><strong>1 行版は、数学の中身を変えていません。</strong>元の証明をまとめ直した版で、証明の正しさは compact 版の検査に頼っています。1 行版の README も「この版は包み方だけを変えた」と書いています。</li>
+    <li><strong>このページを書いた AI は、証明を作った側と同じ会社のモデルです。</strong>このページは Anthropic の Claude が書きました。証明は Anthropic の研究者と Claude が作ったものです。そのため判定は、自分で再現できる照合と、第三者が公開した検査の結果だけを根拠にしました。</li>
+  </ul>
+
+  <h2 id="try">すぐ試せる手順</h2>
+  <ol class="steps">
+    <li><strong>このページの図で試す</strong>上の 2 つの図で、数える範囲や実部 σ を変えられます。図を押すか、図を選んで矢印のキーを押すと、その点の値が出ます。スマホでも同じように動きます。
+    <figure style="max-inline-size: 22rem"><img src="img/phone.webp" width="390" height="844" alt="幅 390 の画面。実部のつまみとボタンの下に、画面の幅に合わせたゼータ関数の図がある" loading="lazy"><figcaption>スマホの幅（390）。図は画面の幅に合わせて描き直し、文字の大きさは変わりません</figcaption></figure></li>
+    <li><strong>定理の述べ方を読む（1 分）</strong>人が確かめる所は 2 つのファイルだけです。<a href="https://github.com/lsernau/grh-lean/blob/72fead102f663d5c7a407964a13dc0cf9d977207/grh-compact/src/Statements.lean"><code>src/Statements.lean</code></a>（16 行）と <a href="https://github.com/lsernau/grh-lean/blob/72fead102f663d5c7a407964a13dc0cf9d977207/grh-compact/src/Main.lean"><code>src/Main.lean</code></a>（13 行）を開き、上の Mathlib の定義と見比べてください。</li>
+    <li><strong>1 行版が元の証明と同じかを確かめる（Node.js 18 以上、数秒）</strong>Lean は要りません。GitHub から 1 行版（約 7.7 MB）とファイルの一覧を読み、メモリの中で照合します。ファイルには保存しません。
+<pre class="code"><code>git clone https://github.com/dikmri/ai-coding-notes.git
+cd ai-coding-notes
+node reports/riemann/tools/verify-oneline.mjs</code></pre>
+    最後の行が「結果: 1 行版の中身は元の証明と同じで…」なら一致です。1 行版を手元に落としてあるときは <code>--file OneLineRH.lean</code> を付けると、そのファイルを読みます。読み取り器のテストは <code>node --test tests/riemann-oneline.test.mjs</code> で動きます。</li>
+    <li><strong>1 行版から元のファイルを取り出す（Lean 4.35.0 が要る）</strong>1 行版の README の手順です。このページでは動かしていません（取り出した中身が同じことは、上の 3 で代わりに確かめました）。
+<pre class="code"><code>lean --run OneLineRH.lean grh-compact</code></pre></li>
+    <li><strong>自分のパソコンで組み立てて、Lean に検査させる</strong>元の証明の README の手順です。README には、12 コアで 1〜2 時間、メモリ 24 GB が目安と書かれています。このパソコン（6 コア、メモリ 64 GB）では、lean を同時に 3 本にして 2 時間 51 分かかりました（上の「<a href="#build">このパソコンでの組み立て</a>」）。ダウンロードは、Lean が 623 MB、Mathlib などのソースが 6.6 GB、キャッシュが 454 MB で、終わったあとのフォルダは合わせて約 19 GB です。Windows では、同時に動かす数を先に減らしておくと、メモリが足りずに止まることを避けられます。PowerShell なら、<code>lake build</code> の前に <code>$env:LEAN_NUM_THREADS = 3</code> を実行します。Lean は公式の手順（<a href="https://lean-lang.org/install/">lean-lang.org/install</a>）で入れます。
+<pre class="code"><code>git clone https://github.com/lsernau/grh-lean.git
+cd grh-lean
+git checkout 72fead102f663d5c7a407964a13dc0cf9d977207
+cd grh-compact
+lake exe cache get
+lake build
+lake env lean scripts/PrintAxioms.lean</code></pre>
+    最後の命令の出力は、5 行すべてが <code>… depends on axioms: [propext, Classical.choice, Quot.sound]</code> の形になります（このパソコンで確認）。</li>
+    <li><strong>自分のコードでゼータ関数と素数の個数を計算する</strong><code>reports/riemann/js/math.mjs</code> は依存の無い ES モジュールで、ブラウザでも Node.js でも動きます。リポジトリの一番上に <code>example.mjs</code> として保存し、<code>node example.mjs</code> で動かします。
+<pre class="code"><code>import { zetaAbs, primeCountsAt, li } from './reports/riemann/js/math.mjs';
+
+console.log(zetaAbs(0.5, 14.134725141734693)); // 最初の零点: ほぼ 0
+console.log(zetaAbs(0.6, 14.134725141734693)); // 線から 0.1 ずらすと 0 にならない
+console.log(primeCountsAt([1e6])[0], li(1e6)); // 100 万までの素数の個数と予測</code></pre>
+    このパソコンでの出力は次のとおりでした。
+<pre class="code"><code>1.0560712988429426e-15
+0.07618825991508396
+78498 78627.54915946216</code></pre>
+    テストは <code>node --test tests/riemann-math.test.mjs</code> で動きます。</li>
+  </ol>
+
+  <h2 id="sources">出典</h2>
+  <ul>
+    <li>Cinna Davis「<a href="https://github.com/1337isnot1337/riemann-hypothesis-minimal/tree/a035fea0c2d86e6f6dbcfc5a11e596daba2e0a7a">riemann-hypothesis-minimal</a>」（1 行版。このページはコミット a035fea を読みました）</li>
+    <li>Luke Sernau ほか「<a href="https://github.com/lsernau/grh-lean/tree/72fead102f663d5c7a407964a13dc0cf9d977207">grh-lean</a>」（compact 版と読みやすい版。README・<code>grh-compact/README.md</code>・<code>GUIDE.md</code>・<code>src/New/Main.lean</code>）</li>
+    <li>Levent Alpöge「<a href="https://alpo.ge/remark.pdf">remark.pdf</a>」（2026 年 11 月 20 日、発表の文章 4 ページ）</li>
+    <li>Lean FRO・Mathlib Initiative「<a href="https://leanprover-community.github.io/blog/posts/riemann-hypothesis/">Lean verification of the Riemann Hypothesis</a>」（2026 年 11 月 21 日）</li>
+    <li>Michael Rubinstein「<a href="https://www.math.uwaterloo.ca/~mrubinst/alpoge_claude_grh/">Alpöge/Claude proof of the Generalized Riemann Hypothesis</a>」（検査の記録と解説の草稿）</li>
+    <li>leanprover-community「<a href="https://github.com/leanprover-community/riemann-hypothesis">riemann-hypothesis</a>」（Lean コミュニティが整理を進めている版）</li>
+    <li>rohanarun/alpoge-rh-replay「<a href="https://github.com/rohanarun/alpoge-rh-replay/issues/35052">issue #35052</a>」（compact 版の組み立ての報告）</li>
+    <li>Mathlib「<a href="https://github.com/leanprover-community/mathlib4/blob/56a005855ea17e0b0958f73ec801ae140b0a1679/Mathlib/NumberTheory/LSeries/RiemannZeta.lean">Mathlib/NumberTheory/LSeries/RiemannZeta.lean</a>」（コミット 56a0058）</li>
+    <li>L. Schoenfeld「Sharper bounds for the Chebyshev functions θ(x) and ψ(x). II」（Mathematics of Computation 30、1976 年）</li>
+    <li>A. Odlyzko「<a href="https://www-users.cse.umn.edu/~odlyzko/zeta_tables/">Tables of zeros of the Riemann zeta function</a>」（零点の虚部の値）</li>
+  </ul>
+
+  <h2 id="source">ソースコード</h2>
+  <ul>
+    <li>ゼータ関数・素数の個数・対数積分: <a href="js/math.mjs"><code>reports/riemann/js/math.mjs</code></a></li>
+    <li>1 行版の読み取り器と、抜け道の検索: <a href="js/oneline.mjs"><code>js/oneline.mjs</code></a>、照合の道具: <a href="tools/verify-oneline.mjs"><code>tools/verify-oneline.mjs</code></a></li>
+    <li>図の描画: <a href="js/app.mjs"><code>js/app.mjs</code></a></li>
+    <li>テスト: <code>tests/riemann-math.test.mjs</code>・<code>tests/riemann-oneline.test.mjs</code></li>
+    <li>GitHub: <a href="https://github.com/dikmri/ai-coding-notes">dikmri/ai-coding-notes</a></li>
+  </ul>
+
+  <p class="foot">証明の数学の内容の読み違いがあれば、それはこのページの誤りです。証明は Levent Alpöge と Claude によるもので、compact 版は Luke Sernau と Anthropic の同僚が Claude と書き直したもの、1 行版は Cinna Davis がまとめたものです。</p>
+</article>
+</main>
+<script type="module" src="js/app.mjs"></script>
+</body>
+</html>
