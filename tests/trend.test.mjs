@@ -2743,3 +2743,111 @@ test('音量の均一化: 散らばりは 0.4 秒ごとの大きさの上位 10%
   assert.ok(spread([out], fs) > 25, '無音だった所も数えると差が残る');
   assert.ok(Math.abs(spread([out], fs, 0.4, [src]) - 10) < 0.2, '同じ区間なら −20 dB と −10 dB の差');
 });
+
+const SCTL = 'tr-20261126-scroll-controller';
+const SC_NAMES = ['rateOf', 'nextTick', 'frameOf', 'finest', 'speedOf', 'recenter', 'dialOf', 'rotAxis', 'mul3', 'apply3', 'orth', 'rollBy'];
+
+test('スクロールのコントローラー: 読んだ回数はまとめた分も数え、新しい位置は 1 つ前と違う回だけ数える', () => {
+  const { rateOf } = trendCore(SCTL, SC_NAMES);
+  const s = [
+    { t: 100, x: 0, y: 0, n: 1 }, // 窓の外（1 つ前の値としては使う）
+    { t: 600, x: 0, y: 0, n: 1 },
+    { t: 700, x: 1, y: 0, n: 3 },
+    { t: 800, x: 1, y: 0, n: 1 },
+    { t: 900, x: 1, y: 2, n: 1 },
+    { t: 1200, x: 5, y: 5, n: 1 }, // 窓より後
+  ];
+  const q = rateOf(s, 1000, 500);
+  assert.equal(q.reads, (1 + 3 + 1 + 1) * 2);
+  assert.equal(q.changes, 2 * 2);
+  const empty = rateOf([], 1000, 1000);
+  assert.deepEqual([empty.reads, empty.changes], [0, 0]);
+  // 先頭の 1 つは比べる相手が無いので、変わった回に数えない
+  assert.equal(rateOf([{ t: 10, x: 3, y: 3 }], 100, 1000).changes, 0);
+  assert.equal(rateOf([{ t: 10, x: 3, y: 3 }], 100, 1000).reads, 1);
+});
+
+test('スクロールのコントローラー: 次に読む時刻は描画の拍を div 等分した位置にそろい、0.25 ms より近すぎる時は次へ送る', () => {
+  const { nextTick } = trendCore(SCTL, SC_NAMES);
+  assert.equal(nextTick(10, 0, 16, 2), 16);
+  assert.equal(nextTick(16, 0, 16, 2), 24);
+  assert.equal(nextTick(7.9, 0, 16, 2), 16);
+  assert.equal(nextTick(3, 0, 16, 1), 16);
+  // 拍の時刻 base が今より後でも、base からさかのぼった刻みの上に乗る
+  assert.equal(nextTick(100, 110, 10, 2), 105);
+  // 120 Hz の画面（8.33 ms）を 2 回に分けると 4.17 ms おき
+  const t = nextTick(1000, 1000, 1000 / 120, 2);
+  assert.ok(Math.abs(t - (1000 + 1000 / 240)) < 1e-9);
+  // おかしな値では 16 ms 後
+  assert.equal(nextTick(50, NaN, 16, 2), 66);
+  assert.equal(nextTick(50, 0, 0, 2), 66);
+});
+
+test('スクロールのコントローラー: 1 拍の長さは間隔の中央値で、止まっていた間の長い間隔に引っぱられない', () => {
+  const { frameOf } = trendCore(SCTL, SC_NAMES);
+  assert.equal(frameOf([16, 17, 16, 400, 16]), 16);
+  assert.equal(frameOf([8, 9]), 8.5);
+  assert.ok(Math.abs(frameOf([]) - 1000 / 60) < 1e-9);
+  assert.ok(Math.abs(frameOf([500, 1]) - 1000 / 60) < 1e-9);
+});
+
+test('スクロールのコントローラー: 細かさは隣どうしの 0 でない差の最小、速さは最初と最後の読みから', () => {
+  const { finest, speedOf } = trendCore(SCTL, SC_NAMES);
+  assert.equal(finest([0, 1, 3, 3, 3.25, 5]), 0.25);
+  assert.equal(finest([2, 2, 2]), 0);
+  assert.equal(finest([]), 0);
+  const s = [{ t: 0, x: 0, y: 0 }, { t: 50, x: 3, y: 4 }, { t: 100, x: 6, y: 8 }];
+  assert.ok(Math.abs(speedOf(s, 100, 200) - 100) < 1e-9);
+  assert.ok(Math.abs(speedOf(s, 100, 60) - 100) < 1e-9);
+  assert.equal(speedOf(s, 100, 10), 0); // 1 つしか入らない
+  assert.equal(speedOf([], 100, 100), 0);
+});
+
+test('スクロールのコントローラー: 端に近いときだけ真ん中へ戻し、目盛りは近い方へ丸めて範囲に収める', () => {
+  const { recenter, dialOf } = trendCore(SCTL, SC_NAMES);
+  assert.equal(recenter(500, 40000, 6000), 20000);
+  assert.equal(recenter(39000, 40000, 6000), 20000);
+  assert.equal(recenter(12345, 40000, 6000), 12345);
+  assert.equal(recenter(10, 100, 60), 10, '領域が小さすぎる時は戻さない');
+  let q = dialOf(0, 80, 21, -135, 135);
+  assert.deepEqual([q.idx, q.angle], [0, -135]);
+  q = dialOf(1600, 80, 21, -135, 135);
+  assert.deepEqual([q.idx, q.angle], [20, 135]);
+  q = dialOf(130, 80, 21, -135, 135);
+  assert.equal(q.idx, 2);
+  assert.ok(Math.abs(q.angle - (-135 + 1.625 * 13.5)) < 1e-9);
+  // 跳ね返りで範囲の外に出ても、目盛りは端に収め、角度はそのまま出す
+  q = dialOf(-40, 80, 21, -135, 135);
+  assert.equal(q.idx, 0);
+  assert.ok(q.angle < -135);
+  assert.equal(dialOf(9999, 80, 21, -135, 135).idx, 20);
+});
+
+test('スクロールのコントローラー: トラックボールは手前の点を指と同じ向きに r 分の d ラジアン回し、行列は回転のまま保つ', () => {
+  const { rollBy, apply3, mul3, orth, rotAxis } = trendCore(SCTL, SC_NAMES);
+  const I = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+  const close = (a, b) => a.every((v, i) => Math.abs(v - b[i]) < 1e-9);
+  // 右へ 10 px、半径 10 px なら 1 ラジアン右へ
+  assert.ok(close(apply3(rollBy(I, 10, 0, 10), [0, 0, 1]), [Math.sin(1), 0, Math.cos(1)]));
+  // 下へ動かすと手前の点は下（+y）へ
+  assert.ok(close(apply3(rollBy(I, 0, 10, 10), [0, 0, 1]), [0, Math.sin(1), Math.cos(1)]));
+  // 動かさなければそのまま
+  assert.equal(rollBy(I, 0, 0, 10), I);
+  // 半径 r の円周の長さだけ動かすと 1 周して戻る
+  let M = I;
+  for (let i = 0; i < 100; i++) M = rollBy(M, (2 * Math.PI * 30) / 100, 0, 30);
+  assert.ok(close(apply3(M, [0, 0, 1]), [0, 0, 1]));
+  // いろいろな向きに 2000 回回しても、行と列は長さ 1 で直交し、行列式は 1
+  M = I;
+  for (let i = 0; i < 2000; i++) M = rollBy(M, Math.sin(i) * 7, Math.cos(i * 1.3) * 5, 40);
+  const T = [M[0], M[3], M[6], M[1], M[4], M[7], M[2], M[5], M[8]];
+  assert.ok(close(mul3(M, T), I));
+  const det = M[0] * (M[4] * M[8] - M[5] * M[7]) - M[1] * (M[3] * M[8] - M[5] * M[6]) + M[2] * (M[3] * M[7] - M[4] * M[6]);
+  assert.ok(Math.abs(det - 1) < 1e-9);
+  // orth はゆがんだ行列を回転に戻し、回転にはほとんど手を加えない
+  const R = rotAxis(1, 2, 3, 0.7);
+  assert.ok(close(orth(R), R));
+  const bent = R.map((v, i) => v + (i % 4 === 0 ? 1e-3 : 0));
+  const O = orth(bent), OT = [O[0], O[3], O[6], O[1], O[4], O[7], O[2], O[5], O[8]];
+  assert.ok(close(mul3(O, OT), I));
+});

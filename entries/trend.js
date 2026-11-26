@@ -17726,3 +17726,657 @@ canvas { display: block; width: 100%; height: 300px; border-radius: 10px; backgr
     if ('ResizeObserver' in window) new ResizeObserver(() => frame()).observe(cv);
   },
 });
+
+dekiru.add({
+  id: 'tr-20261126-scroll-controller', c: 'trend', lv: 3, date: '2026-11-26',
+  t: 'スクロールできる領域を見えないコントローラーにして、慣性と目盛りの吸着をブラウザに任せる',
+  y: 'すくろーるできるりょういきをみえないこんとろーらーにして かんせいとめもりのきゅうちゃくをぶらうざにまかせる',
+  tags: ['iOS Safari の 60 FPS', 'スクロールのコントローラー', 'MessageChannel', 'scroll-snap', 'scrollsnapchanging', 'OffscreenCanvas', 'Worker'],
+  d: 'iPhone の Safari は、120 Hz の画面でも requestAnimationFrame を 1 秒に 60 回に抑え、指の動き（touch と pointer のイベント）も同じ回数に抑える。Rida F\'kih さんの記事（2026-11-20 公開。Hacker News で 2026-11-25 に 441 点・144 件）は、スクロールが JavaScript を通らずにブラウザの合成の処理（compositor）で動くことを使って、この制限を越えた。スクロールできる領域を見えない「コントローラー」として重ね、その位置を読んで入力にする。慣性・端の跳ね返り・目盛りの吸着はブラウザが付ける。位置は MessageChannel と setTimeout で描画の拍に合わせて読み、描く側は transferControlToOffscreen で Worker に渡して、メインの描画の拍を待たずに出す。記事の測定では、ドラッグの 3 秒間で、ポインターのイベントを使う版が 1 秒に 60 枚、コントローラーを使う版が平均 118 枚だった。'
+    + 'この見本の 1 枚目（読む速さ）は、同じ格子の位置を scroll イベント・requestAnimationFrame・MessageChannel＋setTimeout（1 拍に 2 回）・MessageChannel だけ（休まず）の 4 通りで読み、1 秒あたりの読んだ回数と新しい位置の数を並べ、読んだ時刻を図にする。黄色い正方形はブラウザがスクロールで動かし、水色の枠は JavaScript が読んだ位置に置く。「4 倍に広げて読む」では、格子を 4 倍の大きさで作って 1/4 に縮めて見せ、小数の位置まで読む。2 枚目は、どこまでも回せるトラックボール（端に近づいたら、止まったときに真ん中へ戻す）と、21 個の目盛りで止まるダイヤル（scroll-snap と scrollsnapchanging）。3 枚目は同じ絵をメインと Worker で描き、「JS を止める」でメインのスレッドを 0.6 秒ごとに 0.4 秒止める。'
+    + '145 Hz の画面の Chrome で動かすと、次のようになった。新しい位置の数は、1 拍に 1 回読んでも 2 回読んでも同じだった（Chrome は位置を描画の拍ごとに渡す）。休まず読むと 1 秒に約 10 万回読めたが、新しい位置は増えず、rAF は 1 秒に 145 回から 50 回前後に減った。4 倍に広げると細かさが 1 pt から 0.25 pt になり、ホイール 1 段で動く量も 1/4 になった。メインを止めると、メインの絵は 1 秒に 52 枚に減り、Worker の絵は 144 枚のままだった。'
+    + '再現できていない所: パソコンの Chrome などは描画を 60 回に抑えないので、iPhone での 60 と 120 の差はこの見本では見えない。記事の、ProMotion を 120 Hz に上げるために見えない領域をなめらかにスクロールし続ける工夫、ページ全体をコントローラーにする方法、Liquid Glass のタブバーは作っていない。マウスのドラッグではスクロールしないので、ホイール・トラックパッドの 2 本指・スマホの指・矢印キーで動かす。端の跳ね返りは、跳ね返る仕組みのあるブラウザ（Mac や iPhone の Safari など）でだけ見える。X の元の投稿は検索で見つからなかった。',
+  p: 'スクロールは JavaScript を通らずに合成の処理で動くので、指に付いてくる動き・慣性・吸着はブラウザに任せられる。見えない領域を重ね、scrollLeft と scrollTop を読むだけで入力になる。ただし、読む回数を増やしても、ブラウザが新しい位置を渡す回数より多くはならない。そこで requestAnimationFrame の時刻で拍の位置を決め、拍を 2 つに分けた時刻ごとに読む。setTimeout の待ち時間は整数の ms に切り捨てられるので切り上げて渡し、深い入れ子の setTimeout は 4 ms 以上に延ばされるので、MessageChannel のメッセージを挟んで入れ子を切る。scrollTop が整数に丸められる場合は、中身を k 倍に広げて外側を scale で 1/k に縮め、読んだ値を k で割ると 1/k pt まで読める。canvas の transferControlToOffscreen で得た OffscreenCanvas を Worker へ送ると、Worker の requestAnimationFrame で描いた絵は、メインのスレッドが止まっていても画面に出る。目盛りは scroll-snap-type: y mandatory で作り、scrollsnapchanging で止まる先を、scrollsnapchange で止まった目盛りを受け取る（無いブラウザでは位置から計算する）。',
+  refs: [
+    { title: 'Rida F\'kih: Bypassing iOS Safari’s 60 FPS Limit to Build Web Applications That Feel Native（2026-11-20）', url: 'https://rida.dev/blog/bypassing-ios-safari-60-fps-limit' },
+    { title: 'Hacker News: Bypassing iOS Safari\'s 60 FPS Limit to Build Web Applications That Feel Native', url: 'https://news.ycombinator.com/item?id=50637890' },
+  ],
+  html: `<div class="bar">
+  <div class="tabs" role="tablist" focusgroup="tablist nomemory" aria-label="見本の切り替え">
+    <button type="button" role="tab" id="tab1" aria-selected="true" focusgroupstart>読む速さ</button>
+    <button type="button" role="tab" id="tab2" aria-selected="false">慣性と吸着</button>
+    <button type="button" role="tab" id="tab3" aria-selected="false">描く処理を分ける</button>
+  </div>
+  <p class="meta"><span id="hz">画面の書き換え -- 回/秒</span><label><input type="checkbox" id="jank"> JS を止める（0.6 秒ごとに 0.4 秒）</label></p>
+</div>
+<section role="tabpanel" id="pan1" aria-labelledby="tab1">
+  <div class="p1">
+    <div class="pad" id="pad">
+      <div class="ctl" id="ctl" tabindex="0" role="region" aria-label="コントローラー（スクロールできる格子）"><div class="surf"><div class="sq"></div></div></div>
+      <div class="ring" id="ring" aria-hidden="true"></div>
+      <p class="tip">ここをスクロール（ホイール・2 本指・指・矢印キー）</p>
+    </div>
+    <div class="side">
+      <p class="pos">位置 <b id="pos">0.00, 0.00</b>　速さ <b id="spd">0</b> pt/秒　細かさ <b id="fine">--</b> pt</p>
+      <div class="tw"><table>
+        <thead><tr><th scope="col">読み方</th><th scope="col">読んだ回数/秒</th><th scope="col">新しい位置/秒</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table></div>
+      <canvas id="lanes" role="img" aria-label="直近 1 秒に読んだ時刻と位置の図。読み方ごとに 1 段。黄色い点は前と違う位置を読めた回"></canvas>
+      <div class="opts">
+        <label><input type="checkbox" id="busy"> MessageChannel だけで休まず読む（CPU を 1 つ使い切る。10 秒で止まる）</label>
+        <label><input type="checkbox" id="wide"> 4 倍に広げて読む（小数の位置を取る）</label>
+        <label><input type="checkbox" id="ghost"> 格子を見えなくする</label>
+        <button type="button" id="auto" aria-pressed="false">自動で動かす</button>
+      </div>
+      <p class="note" id="note1" aria-live="polite"></p>
+    </div>
+  </div>
+</section>
+<section role="tabpanel" id="pan2" aria-labelledby="tab2" hidden>
+  <div class="p2" id="p2">
+    <figure>
+      <div class="stage"><canvas id="ball" role="img" aria-label="スクロールで回る球"></canvas>
+        <div class="over" id="ballCtl" tabindex="0" role="region" aria-label="トラックボールのコントローラー（どこまでもスクロールできる）"><div class="huge"></div></div></div>
+      <figcaption>トラックボール（慣性）<br><span id="ballInfo">回る速さ 0°/秒</span></figcaption>
+    </figure>
+    <figure>
+      <div class="stage"><canvas id="dial" role="img" aria-label="目盛りで止まるつまみ"></canvas>
+        <div class="over snap" id="dialCtl" tabindex="0" role="region" aria-label="ダイヤルのコントローラー（目盛りで止まる）"></div></div>
+      <figcaption>ダイヤル（吸着）<br>値 <output id="dialVal">0</output> <span id="dialPend"></span></figcaption>
+    </figure>
+  </div>
+  <p class="hint">絵の上でスクロールしてください。マウスのドラッグではスクロールしません。
+    <label><input type="checkbox" id="show2"> コントローラーを見せる</label>
+    <button type="button" id="auto2" aria-pressed="false">自動で動かす</button></p>
+</section>
+<section role="tabpanel" id="pan3" aria-labelledby="tab3" hidden>
+  <div class="p3">
+    <figure><canvas id="cvMain" role="img" aria-label="メインのスレッドで描く、回る線と往復する玉"></canvas><figcaption>メインで描く（requestAnimationFrame） <b id="fpsMain">--</b> 枚/秒</figcaption></figure>
+    <figure><canvas id="cvWork" role="img" aria-label="Worker で描く、回る線と往復する玉"></canvas><figcaption>Worker で描く（transferControlToOffscreen） <b id="fpsWork">--</b> 枚/秒</figcaption></figure>
+  </div>
+  <p class="note" id="note3" aria-live="polite">上の「JS を止める」を入れると、0.6 秒ごとに 0.4 秒、メインのスレッドで JavaScript が動き続けて、ほかの処理が止まります。</p>
+</section>`,
+  css: `:root { color-scheme: dark; --bg: #0e1117; --fg: #d9e1ee; --mut: #8b97ab; --ac: #6fd3ff; --ac2: #ffcf5a; --line: #2a3242; }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; padding: 6px 10px 10px; background: var(--bg); color: var(--fg); font: 13px/1.5 system-ui, sans-serif; }
+    .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; margin-bottom: 6px; }
+    .tabs { display: flex; overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+    .tabs button { flex: none; position: relative; background: none; border: 0; border-radius: 0; padding: 5px 10px; color: var(--mut); }
+    .tabs [aria-selected="true"] { color: var(--fg); }
+    .tabs [aria-selected="true"]::after { content: ""; position: absolute; inset: auto 6px 0; border-block-end: 3px solid var(--ac); }
+    .meta { margin: 0; display: flex; flex-wrap: wrap; gap: 2px 12px; align-items: center; color: var(--mut); font-variant-numeric: tabular-nums; }
+    .p1 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 10px; }
+    @media (width < 600px) { .p1 { grid-template-columns: minmax(0, 1fr); } }
+    .pad { --k: 1; position: relative; height: 230px; overflow: hidden; border-radius: 10px; border: 1px solid var(--line); background: #0a0d13; }
+    .ctl { position: absolute; left: 0; top: 0; width: calc(100% * var(--k)); height: calc(100% * var(--k)); scale: calc(1 / var(--k)); transform-origin: 0 0; overflow: scroll; scrollbar-width: none; overscroll-behavior: contain; outline-offset: -3px; }
+    .surf { position: relative; width: calc(3000px * var(--k)); height: calc(3000px * var(--k));
+      background-image: linear-gradient(#ffffff1c calc(1px * var(--k)), transparent 0), linear-gradient(90deg, #ffffff1c calc(1px * var(--k)), transparent 0);
+      background-size: calc(40px * var(--k)) calc(40px * var(--k)); }
+    .sq { position: absolute; left: 50%; top: 50%; width: calc(44px * var(--k)); height: calc(44px * var(--k)); translate: -50% -50%; border-radius: calc(8px * var(--k)); background: var(--ac2); }
+    .pad.ghost .ctl { opacity: 0; }
+    .ring { position: absolute; left: 0; top: 0; width: 56px; height: 56px; border: 2px solid var(--ac); border-radius: 12px; pointer-events: none; }
+    .tip { position: absolute; left: 8px; bottom: 4px; margin: 0; color: var(--mut); font-size: 11px; pointer-events: none; }
+    .side p { margin: 0 0 4px; }
+    .pos { font-variant-numeric: tabular-nums; }
+    .pos b { color: var(--ac2); font-weight: 600; }
+    .tw { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 12px; }
+    th, td { padding: 2px 6px; text-align: right; border-bottom: 1px solid var(--line); font-weight: normal; white-space: nowrap; }
+    th[scope="row"], thead th:first-child { text-align: left; white-space: normal; }
+    thead th { color: var(--mut); }
+    #lanes { width: 100%; height: 96px; margin-top: 6px; border-radius: 6px; }
+    .opts { display: flex; flex-wrap: wrap; gap: 2px 12px; align-items: center; margin-top: 4px; }
+    .note { color: var(--mut); font-size: 12px; }
+    .p2, .p3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 10px; max-width: 640px; }
+    figure { margin: 0; }
+    .stage { position: relative; width: min(100%, 230px); aspect-ratio: 1; margin-inline: auto; border-radius: 12px; border: 1px solid var(--line); background: #0a0d13; overflow: hidden; }
+    .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .over { position: absolute; inset: 0; overflow: scroll; scrollbar-width: none; overscroll-behavior: contain; opacity: 0; outline-offset: -3px; }
+    .p2.show .over { opacity: 1; }
+    .huge { width: 40000px; height: 40000px; background-image: linear-gradient(#6fd3ff33 1px, transparent 0), linear-gradient(90deg, #6fd3ff33 1px, transparent 0); background-size: 40px 40px; }
+    .snap { scroll-snap-type: y mandatory; }
+    .snap .n { height: 80px; scroll-snap-align: start; }
+    .p2.show .snap .n { border-top: 2px dashed #6fd3ff66; }
+    .snap .end { height: calc(100% - 80px); }
+    figcaption { margin-top: 4px; text-align: center; color: var(--mut); font-variant-numeric: tabular-nums; }
+    figcaption b, output { color: var(--ac2); font-weight: 600; }
+    .hint { margin: 8px 0 0; color: var(--mut); }
+    .hint label { margin-inline: 8px; color: var(--fg); }
+    .p3 canvas { width: 100%; height: 150px; border-radius: 10px; border: 1px solid var(--line); background: #0a0d13; }`,
+  core() {
+    // 読んだ位置の列 s（{ t, x, y, n }。n は同じ値をまとめた回数）のうち、時刻が (now − win, now] のものから、
+    // 1 秒あたりの読んだ回数と、1 つ前に読んだ値から変わった回数を求める
+    function rateOf(s, now, win) {
+      let reads = 0, changes = 0;
+      for (let i = 0; i < s.length; i++) {
+        const a = s[i];
+        if (a.t <= now - win || a.t > now) continue;
+        reads += a.n || 1;
+        const b = s[i - 1];
+        if (b && (a.x !== b.x || a.y !== b.y)) changes++;
+      }
+      const k = win > 0 ? 1000 / win : 0;
+      return { reads: reads * k, changes: changes * k };
+    }
+    // 描画の拍に合わせて次に読む時刻。base は最後の requestAnimationFrame の時刻、frame は 1 拍の長さ（ms）、div は 1 拍に読む回数。
+    // base + k·frame/div の形の時刻のうち、now より 0.25 ms 以上あとの最初のものを返す
+    function nextTick(now, base, frame, div) {
+      const step = frame / Math.max(1, Math.floor(div));
+      if (!(step > 0) || !Number.isFinite(base)) return now + 16;
+      let t = base + (Math.floor((now - base) / step) + 1) * step;
+      if (t - now < 0.25) t += step;
+      return t;
+    }
+    // requestAnimationFrame の間隔の並びから 1 拍の長さ（ms）を求める。止まっていた間などの外れた値に引っぱられないよう中央値を使う
+    function frameOf(gaps) {
+      const a = gaps.filter((d) => d > 2 && d < 100).sort((p, q) => p - q);
+      if (!a.length) return 1000 / 60;
+      const m = a.length >> 1;
+      return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+    }
+    // 並んだ値の、隣どうしの差のうち 0 でない最小のもの（読める位置の細かさ）。動いていなければ 0
+    function finest(v) {
+      let m = Infinity;
+      for (let i = 1; i < v.length; i++) {
+        const d = Math.abs(v[i] - v[i - 1]);
+        if (d > 1e-6 && d < m) m = d;
+      }
+      return m === Infinity ? 0 : m;
+    }
+    // 直近 span ms に読んだ最初と最後の位置から、速さ（pt/秒）を求める
+    function speedOf(s, now, span) {
+      let a = null, b = null;
+      for (const p of s) if (p.t > now - span && p.t <= now) { if (!a) a = p; b = p; }
+      if (!a || b.t - a.t < 1) return 0;
+      return (Math.hypot(b.x - a.x, b.y - a.y) * 1000) / (b.t - a.t);
+    }
+    // どこまでも回せる領域: 位置 pos（0〜max）が端から margin より近ければ真ん中に戻した位置、そうでなければ pos のまま
+    function recenter(pos, max, margin) {
+      if (!(max > 2 * margin)) return pos;
+      return pos < margin || pos > max - margin ? Math.round(max / 2) : pos;
+    }
+    // ダイヤル: 位置 pos、目盛りの間隔 step、目盛りの数 n から、近い目盛り（0〜n−1）と、つまみの角度（度。目盛り 0 が from、n−1 が to）
+    function dialOf(pos, step, n, from, to) {
+      const f = step > 0 ? pos / step : 0;
+      const per = n > 1 ? (to - from) / (n - 1) : 0;
+      return { idx: Math.max(0, Math.min(n - 1, Math.round(f))), angle: from + f * per };
+    }
+    // 3×3 の回転行列（行ごとに 9 個）。単位ベクトルにした軸 (ax, ay, az) のまわりに a ラジアン回す（ロドリゲスの式）
+    function rotAxis(ax, ay, az, a) {
+      const L = Math.hypot(ax, ay, az) || 1;
+      ax /= L; ay /= L; az /= L;
+      const c = Math.cos(a), s = Math.sin(a), C = 1 - c;
+      return [c + ax * ax * C, ax * ay * C - az * s, ax * az * C + ay * s,
+        ay * ax * C + az * s, c + ay * ay * C, ay * az * C - ax * s,
+        az * ax * C - ay * s, az * ay * C + ax * s, c + az * az * C];
+    }
+    function mul3(A, B) {
+      const r = new Array(9);
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) r[i * 3 + j] = A[i * 3] * B[j] + A[i * 3 + 1] * B[3 + j] + A[i * 3 + 2] * B[6 + j];
+      return r;
+    }
+    function apply3(M, v) {
+      return [M[0] * v[0] + M[1] * v[1] + M[2] * v[2], M[3] * v[0] + M[4] * v[1] + M[5] * v[2], M[6] * v[0] + M[7] * v[1] + M[8] * v[2]];
+    }
+    // 掛け続けると誤差で行列がゆがむので、行を長さ 1 で互いに直交する形に戻す（グラム・シュミット）
+    function orth(M) {
+      const nz = (v) => { const L = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / L, v[1] / L, v[2] / L]; };
+      const a = nz([M[0], M[1], M[2]]), b0 = [M[3], M[4], M[5]];
+      const d = a[0] * b0[0] + a[1] * b0[1] + a[2] * b0[2];
+      const b = nz([b0[0] - d * a[0], b0[1] - d * a[1], b0[2] - d * a[2]]);
+      return [...a, ...b, a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    }
+    // トラックボール: 画面で (dx, dy) px 動かしたとき、半径 r px の球の手前の面が同じだけ動くように回す（x は右、y は下、z は手前）
+    function rollBy(M, dx, dy, r) {
+      const d = Math.hypot(dx, dy);
+      if (!(d > 0) || !(r > 0)) return M;
+      return orth(mul3(rotAxis(-dy / d, dx / d, 0, d / r), M));
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    // 一覧の小窓では、ページのスクロールバーを出さずに格子だけを見せる
+    if (window.THUMB) { document.body.classList.add('thumb'); document.documentElement.style.overflow = 'hidden'; }
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // スクロールが止まったときの処理。scrollend が無いブラウザでは、scroll が 120 ms 来なければ止まったとみなす
+    function onEnd(el, fn) {
+      if ('onscrollend' in window) { el.addEventListener('scrollend', fn); return; }
+      let t = 0;
+      el.addEventListener('scroll', () => { clearTimeout(t); t = setTimeout(fn, 120); }, { passive: true });
+    }
+
+    // ---- 1. 読む速さ ----
+    const pad = $('pad'), ctl = $('ctl'), ring = $('ring'), lanes = $('lanes'), lg = lanes.getContext('2d');
+    const SURF = 3000;
+    let K = 1, x0 = 0, y0 = 0, padW = 0, padH = 0, panel = 0, frameMs = 1000 / 60, vsync = performance.now();
+    const RD = [
+      { label: 'scroll イベント', short: 'scroll', s: [] },
+      { label: 'requestAnimationFrame（1 拍に 1 回）', short: 'rAF', s: [] },
+      { label: 'MessageChannel＋setTimeout（1 拍に 2 回）', short: 'MC＋setTimeout', s: [] },
+      { label: 'MessageChannel だけ（休まず）', short: 'MC だけ', s: [], merge: true },
+    ];
+    $('rows').innerHTML = RD.map((r, i) => `<tr><th scope="row">${r.label}</th><td id="ra${i}">--</td><td id="rc${i}">--</td></tr>`).join('');
+    // 位置を読んで記録する。休まず読むときは、同じ値が続いたら 1 つにまとめて回数だけ数える
+    function readInto(r) {
+      const t = performance.now(), x = ctl.scrollLeft / K - x0, y = ctl.scrollTop / K - y0, s = r.s, last = s[s.length - 1];
+      if (r.merge && last && last.x === x && last.y === y && t - last.t < 50) last.n++;
+      else s.push({ t, x, y, n: 1 });
+      while (s.length && s[0].t < t - 1500) s.shift();
+    }
+    // 正方形が枠の真ん中に来る位置を 0 にする。今の位置（0 からのずれ）は保つ
+    function center() {
+      const px = ctl.scrollLeft / K - x0, py = ctl.scrollTop / K - y0;
+      padW = pad.clientWidth; padH = pad.clientHeight;
+      x0 = SURF / 2 - padW / 2; y0 = SURF / 2 - padH / 2;
+      ctl.scrollTo({ left: (x0 + px) * K, top: (y0 + py) * K, behavior: 'instant' });
+    }
+    ctl.addEventListener('scroll', () => readInto(RD[0]), { passive: true });
+    // 1 拍に 2 回: setTimeout で拍の半分ごとの時刻まで待ち、MessageChannel のメッセージを挟んで読む（入れ子の setTimeout は 4 ms 以上に延ばされるため）
+    const mcT = new MessageChannel(), mcB = new MessageChannel();
+    let tickOn = false, tickGen = 0, busyOn = false, busyGen = 0, busyTimer = 0, noteHold = 0;
+    // setTimeout の待ち時間は整数の ms に切り捨てられ、早く来ることがあるので、切り上げて渡し、読み終えた刻みより後の刻みを選ぶ
+    let tickAt = 0;
+    mcT.port1.onmessage = (e) => {
+      if (!tickOn || e.data !== tickGen) return;
+      readInto(RD[2]);
+      const now = performance.now(), at = nextTick(Math.max(now, tickAt), vsync, frameMs, 2), g = tickGen;
+      tickAt = at;
+      setTimeout(() => mcT.port2.postMessage(g), Math.max(0, Math.ceil(at - now)));
+    };
+    function setTick(on) {
+      if (on === tickOn) return;
+      tickOn = on; tickGen++;
+      if (on) mcT.port2.postMessage(tickGen);
+    }
+    // 休まず読む: メッセージを受けるたびに読んで、すぐ次のメッセージを送る
+    mcB.port1.onmessage = (e) => {
+      if (!busyOn || e.data !== busyGen) return;
+      readInto(RD[3]);
+      mcB.port2.postMessage(busyGen);
+    };
+    function setBusy(on, why) {
+      busyOn = on; busyGen++; $('busy').checked = on; clearTimeout(busyTimer);
+      if (on) {
+        RD[3].s.length = 0;
+        mcB.port2.postMessage(busyGen);
+        busyTimer = setTimeout(() => setBusy(false, '10 秒たったので、休まず読むのを止めた。'), 10000);
+      }
+      if (why) { $('note1').textContent = why; noteHold = performance.now() + 3000; }
+    }
+    $('busy').onchange = (e) => setBusy(e.target.checked);
+    $('wide').onchange = (e) => {
+      const px = ctl.scrollLeft / K - x0, py = ctl.scrollTop / K - y0;
+      K = e.target.checked ? 4 : 1;
+      pad.style.setProperty('--k', K);
+      ctl.scrollTo({ left: (x0 + px) * K, top: (y0 + py) * K, behavior: 'instant' });
+      RD.forEach((r) => (r.s.length = 0));
+    };
+    $('ghost').onchange = (e) => pad.classList.toggle('ghost', e.target.checked);
+    let autoOn = false, autoT = 0;
+    const autoBtn = $('auto');
+    function setAuto(on) {
+      autoOn = on;
+      autoBtn.setAttribute('aria-pressed', String(on));
+      autoBtn.textContent = on ? '自動を止める' : '自動で動かす';
+    }
+    autoBtn.onclick = () => setAuto(!autoOn);
+    ['wheel', 'touchstart', 'keydown', 'pointerdown'].forEach((t) => ctl.addEventListener(t, () => { if (autoOn) setAuto(false); }, { passive: true }));
+    setAuto(!!window.THUMB || !reduce);
+
+    function fillTable(now) {
+      RD.forEach((r, i) => {
+        const off = i === 3 && !busyOn;
+        const q = rateOf(r.s, now, 1000);
+        $('ra' + i).textContent = off ? '--' : Math.round(q.reads).toLocaleString('ja-JP');
+        $('rc' + i).textContent = off ? '--' : String(Math.round(q.changes));
+      });
+    }
+    function noteRead(now) {
+      const a = Math.round(rateOf(RD[1].s, now, 1000).changes), b = Math.round(rateOf(RD[2].s, now, 1000).changes);
+      let m;
+      if (a < 5) m = '格子をスクロールするか「自動で動かす」を押すと、1 秒ごとに数え直します。';
+      else if (b > a * 1.15) m = `新しい位置は、1 拍に 1 回読むと ${a} 回/秒、1 拍に 2 回読むと ${b} 回/秒。このブラウザは描画の拍より細かく位置を渡している。`;
+      else m = `新しい位置は、1 拍に 1 回読むと ${a} 回/秒、2 回読んでも ${b} 回/秒。このブラウザでは位置が描画の拍ごとに届くので、読む回数を増やしても新しい位置は増えない。記事の iPhone では、60 回/秒の rAF に対して 80〜90 回/秒に増えた。`;
+      $('note1').textContent = m;
+    }
+    // 直近 1 秒に読んだ時刻（横）と位置（縦）を、読み方ごとに 1 段ずつ描く
+    function drawLanes(now) {
+      const dpr = Math.min(2, devicePixelRatio || 1), W = Math.max(1, lanes.clientWidth), H = Math.max(1, lanes.clientHeight);
+      if (lanes.width !== Math.round(W * dpr) || lanes.height !== Math.round(H * dpr)) { lanes.width = Math.round(W * dpr); lanes.height = Math.round(H * dpr); }
+      lg.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lg.clearRect(0, 0, W, H);
+      const t0 = now - 1000, LH = H / RD.length;
+      const span = (key) => {
+        let a = Infinity, b = -Infinity;
+        for (const r of RD) for (const p of r.s) if (p.t > t0) { a = Math.min(a, p[key]); b = Math.max(b, p[key]); }
+        return [a, b];
+      };
+      const [xa, xb] = span('x'), [ya, yb] = span('y');
+      const key = xb - xa >= yb - ya ? 'x' : 'y';
+      let [lo, hi] = key === 'x' ? [xa, xb] : [ya, yb];
+      if (!(hi - lo >= 1)) { const m = Number.isFinite(lo) ? (lo + hi) / 2 : 0; lo = m - 1; hi = m + 1; }
+      lg.font = '10px system-ui, sans-serif';
+      RD.forEach((r, i) => {
+        const top0 = i * LH, Y = (v) => top0 + LH - 4 - ((v - lo) / (hi - lo)) * (LH - 9);
+        lg.fillStyle = i % 2 ? '#ffffff07' : '#ffffff0e';
+        lg.fillRect(0, top0, W, LH);
+        lg.strokeStyle = '#6fd3ff99'; lg.lineWidth = 1; lg.beginPath();
+        let prev = null, started = false;
+        for (const p of r.s) {
+          if (p.t > t0) {
+            const X = ((p.t - t0) / 1000) * W;
+            if (!started) { lg.moveTo(X, Y(p[key])); started = true; } else { lg.lineTo(X, Y(prev[key])); lg.lineTo(X, Y(p[key])); }
+          }
+          prev = p;
+        }
+        if (started) lg.lineTo(W, Y(prev[key]));
+        lg.stroke();
+        prev = null;
+        for (const p of r.s) {
+          if (p.t > t0) {
+            const X = ((p.t - t0) / 1000) * W, moved = prev && (p.x !== prev.x || p.y !== prev.y);
+            lg.fillStyle = moved ? '#ffcf5a' : '#8b97ab88';
+            const z = moved ? 3 : 2;
+            lg.fillRect(X - z / 2, Y(p[key]) - z / 2, z, z);
+          }
+          prev = p;
+        }
+        lg.fillStyle = '#c4cee0';
+        lg.fillText(r.short, 4, top0 + 11);
+      });
+    }
+    let lastTable = 0, lastNote = 0;
+    function step1() {
+      readInto(RD[1]);
+      const t = performance.now(), s = RD[1].s, last = s[s.length - 1];
+      if (last) {
+        $('pos').textContent = `${last.x.toFixed(2)}, ${last.y.toFixed(2)}`;
+        ring.style.translate = `${padW / 2 - last.x - 28}px ${padH / 2 - last.y - 28}px`;
+      }
+      $('spd').textContent = String(Math.round(speedOf(s, t, 150)));
+      if (t - lastTable > 250) {
+        lastTable = t;
+        fillTable(t);
+        const fx = finest(s.map((p) => p.x)), fy = finest(s.map((p) => p.y)), f = fx && fy ? Math.min(fx, fy) : fx || fy;
+        $('fine').textContent = f ? String(+f.toFixed(3)) : '--';
+      }
+      if (t - lastNote > 1000 && t > noteHold) { lastNote = t; noteRead(t); }
+      drawLanes(t);
+      if (autoOn && t - autoT > 1400) {
+        autoT = t;
+        const r = () => Math.random() * 2 - 1;
+        ctl.scrollTo({ left: (x0 + r() * 220) * K, top: (y0 + r() * 130) * K, behavior: 'smooth' });
+      }
+    }
+
+    // ---- 2. 慣性と吸着 ----
+    const p2 = $('p2'), ballCv = $('ball'), bg = ballCv.getContext('2d'), ballCtl = $('ballCtl'), dialCv = $('dial'), dg = dialCv.getContext('2d'), dialCtl = $('dialCtl');
+    const STEP = 80, NOTCH = 21, FROM = -135, TO = 135;
+    dialCtl.innerHTML = Array.from({ length: NOTCH }, (_, i) => `<div class="n" data-i="${i}"></div>`).join('') + '<div class="end"></div>';
+    const PTS = Array.from({ length: 64 }, (_, i) => {
+      const y = 1 - (2 * (i + 0.5)) / 64, r = Math.sqrt(1 - y * y), a = i * 2.399963;
+      return { v: [r * Math.cos(a), y, r * Math.sin(a)], c: `hsl(${(i * 47) % 360} 80% 62%)` };
+    });
+    let M = [1, 0, 0, 0, 1, 0, 0, 0, 1], bLast = null, inited2 = false, dialVal = 0, dialPend = 0, spin = 0, auto2 = false, auto2T = 0;
+    function init2() {
+      if (inited2) return;
+      inited2 = true;
+      ballCtl.scrollTo({ left: (ballCtl.scrollWidth - ballCtl.clientWidth) / 2, top: (ballCtl.scrollHeight - ballCtl.clientHeight) / 2, behavior: 'instant' });
+      bLast = null;
+    }
+    // 端に近づいたら、止まったときに真ん中へ戻す（戻した分は回したことにしない）
+    onEnd(ballCtl, () => {
+      const mx = ballCtl.scrollWidth - ballCtl.clientWidth, my = ballCtl.scrollHeight - ballCtl.clientHeight;
+      const nx = recenter(ballCtl.scrollLeft, mx, 6000), ny = recenter(ballCtl.scrollTop, my, 6000);
+      if (nx !== ballCtl.scrollLeft || ny !== ballCtl.scrollTop) {
+        ballCtl.scrollTo({ left: nx, top: ny, behavior: 'instant' });
+        bLast = { x: ballCtl.scrollLeft, y: ballCtl.scrollTop };
+      }
+    });
+    // 目盛り: 動いている間に止まる先を知らせる scrollsnapchanging と、止まった目盛りを知らせる scrollsnapchange。無いブラウザでは位置から計算する
+    const snapEvents = 'onscrollsnapchanging' in HTMLElement.prototype;
+    if (snapEvents) {
+      dialCtl.addEventListener('scrollsnapchanging', (e) => { const t = e.snapTargetBlock; if (t && t.dataset && t.dataset.i) dialPend = +t.dataset.i; });
+      dialCtl.addEventListener('scrollsnapchange', (e) => { const t = e.snapTargetBlock; if (t && t.dataset && t.dataset.i) { dialVal = +t.dataset.i; dialPend = dialVal; } });
+    } else {
+      onEnd(dialCtl, () => { dialVal = dialOf(dialCtl.scrollTop, STEP, NOTCH, FROM, TO).idx; dialPend = dialVal; });
+    }
+    $('show2').onchange = (e) => p2.classList.toggle('show', e.target.checked);
+    $('auto2').onclick = () => {
+      auto2 = !auto2; auto2T = 0;
+      $('auto2').setAttribute('aria-pressed', String(auto2));
+      $('auto2').textContent = auto2 ? '自動を止める' : '自動で動かす';
+    };
+    function fit(cv) {
+      const dpr = Math.min(2, devicePixelRatio || 1), W = Math.max(1, cv.clientWidth), H = Math.max(1, cv.clientHeight);
+      const w = Math.round(W * dpr), h = Math.round(H * dpr);
+      if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+      return { W, H, dpr };
+    }
+    function drawBall() {
+      const { W, H, dpr } = fit(ballCv), cx = W / 2, cy = H / 2, R = Math.max(4, Math.min(W, H) * 0.4);
+      bg.setTransform(dpr, 0, 0, dpr, 0, 0);
+      bg.clearRect(0, 0, W, H);
+      const grd = bg.createRadialGradient(cx - R * 0.35, cy - R * 0.4, R * 0.1, cx, cy, R);
+      grd.addColorStop(0, '#2a4a6e'); grd.addColorStop(1, '#0d1726');
+      bg.fillStyle = grd; bg.beginPath(); bg.arc(cx, cy, R, 0, Math.PI * 2); bg.fill();
+      // 緯線と経線。手前の線は明るく、奥の線は薄く
+      const front = new Path2D(), back = new Path2D();
+      const add = (f) => {
+        let prev = null;
+        for (let k = 0; k <= 48; k++) {
+          const p = apply3(M, f(k / 48));
+          if (prev) { const P = prev[2] > 0 && p[2] > 0 ? front : back; P.moveTo(cx + prev[0] * R, cy + prev[1] * R); P.lineTo(cx + p[0] * R, cy + p[1] * R); }
+          prev = p;
+        }
+      };
+      for (let i = 1; i < 6; i++) {
+        const la = -Math.PI / 2 + (i * Math.PI) / 6, c = Math.cos(la), s = Math.sin(la);
+        add((u) => [c * Math.cos(u * 2 * Math.PI), s, c * Math.sin(u * 2 * Math.PI)]);
+      }
+      for (let i = 0; i < 6; i++) {
+        const lon = (i * Math.PI) / 6;
+        add((u) => { const la = u * 2 * Math.PI; return [Math.cos(la) * Math.cos(lon), Math.sin(la), Math.cos(la) * Math.sin(lon)]; });
+      }
+      bg.lineWidth = 1;
+      bg.strokeStyle = '#9fdcff22'; bg.stroke(back);
+      bg.strokeStyle = '#9fdcffcc'; bg.stroke(front);
+      for (const q of PTS) {
+        const p = apply3(M, q.v);
+        if (p[2] <= 0) continue;
+        bg.globalAlpha = 0.35 + 0.65 * p[2];
+        bg.fillStyle = q.c; bg.beginPath(); bg.arc(cx + p[0] * R, cy + p[1] * R, 1.5 + 3 * p[2], 0, Math.PI * 2); bg.fill();
+      }
+      bg.globalAlpha = 1;
+      bg.strokeStyle = '#6fd3ff'; bg.lineWidth = 1.5; bg.beginPath(); bg.arc(cx, cy, R, 0, Math.PI * 2); bg.stroke();
+      return R;
+    }
+    function drawDial(angle) {
+      const { W, H, dpr } = fit(dialCv), cx = W / 2, cy = H / 2 + 4, R = Math.max(4, Math.min(W, H) * 0.32);
+      dg.setTransform(dpr, 0, 0, dpr, 0, 0);
+      dg.clearRect(0, 0, W, H);
+      const rad = (deg) => ((deg - 90) * Math.PI) / 180;
+      for (let i = 0; i < NOTCH; i++) {
+        const a = rad(FROM + ((TO - FROM) * i) / (NOTCH - 1)), on = i === dialVal, pend = i === dialPend && dialPend !== dialVal;
+        const r1 = R * 1.14, r2 = R * (i % 5 === 0 ? 1.36 : 1.26);
+        dg.strokeStyle = on ? '#ffcf5a' : pend ? '#6fd3ff' : '#8b97ab99';
+        dg.lineWidth = on || pend ? 3 : 1.5;
+        dg.beginPath(); dg.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); dg.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2); dg.stroke();
+      }
+      if (angle > FROM) {
+        dg.strokeStyle = '#ffcf5a55'; dg.lineWidth = 4;
+        dg.beginPath(); dg.arc(cx, cy, R * 1.06, rad(FROM), rad(Math.min(angle, TO + 30))); dg.stroke();
+      }
+      const grd = dg.createRadialGradient(cx - R * 0.3, cy - R * 0.3, R * 0.1, cx, cy, R);
+      grd.addColorStop(0, '#3a4456'); grd.addColorStop(1, '#151a24');
+      dg.fillStyle = grd; dg.beginPath(); dg.arc(cx, cy, R, 0, Math.PI * 2); dg.fill();
+      dg.strokeStyle = '#2a3242'; dg.lineWidth = 2; dg.stroke();
+      const a = rad(angle);
+      dg.strokeStyle = '#ffcf5a'; dg.lineWidth = 4; dg.lineCap = 'round';
+      dg.beginPath(); dg.moveTo(cx + Math.cos(a) * R * 0.55, cy + Math.sin(a) * R * 0.55); dg.lineTo(cx + Math.cos(a) * R * 0.9, cy + Math.sin(a) * R * 0.9); dg.stroke();
+      dg.lineCap = 'butt';
+      dg.fillStyle = '#d9e1ee'; dg.font = `600 ${Math.max(8, Math.round(R * 0.36))}px system-ui, sans-serif`;
+      dg.textAlign = 'center'; dg.textBaseline = 'middle';
+      dg.fillText(String(dialVal), cx, cy);
+    }
+    function step2(now) {
+      const x = ballCtl.scrollLeft, y = ballCtl.scrollTop, R = Math.max(4, Math.min(ballCv.clientWidth, ballCv.clientHeight) * 0.4);
+      let turn = 0;
+      if (bLast) {
+        // 中身は指と同じ向きに動くので、スクロールの位置の増え方とは逆向きに回す
+        const dx = bLast.x - x, dy = bLast.y - y;
+        if (dx || dy) { M = rollBy(M, dx, dy, R); turn = Math.hypot(dx, dy) / R; }
+      }
+      bLast = { x, y };
+      spin = spin * 0.85 + ((turn * 180) / Math.PI) * (1000 / frameMs) * 0.15;
+      drawBall();
+      const q = dialOf(dialCtl.scrollTop, STEP, NOTCH, FROM, TO);
+      if (!snapEvents) dialPend = q.idx;
+      drawDial(q.angle);
+      $('ballInfo').textContent = `回る速さ ${Math.round(spin)}°/秒`;
+      $('dialVal').textContent = String(dialVal);
+      $('dialPend').textContent = dialPend !== dialVal ? `→ ${dialPend} で止まる` : '';
+      if (auto2 && now - auto2T > 1600) {
+        auto2T = now;
+        ballCtl.scrollBy({ left: (Math.random() * 2 - 1) * 500, top: (Math.random() * 2 - 1) * 300, behavior: 'smooth' });
+        dialCtl.scrollTo({ top: Math.floor(Math.random() * NOTCH) * STEP, behavior: 'smooth' });
+      }
+    }
+
+    // ---- 3. 描く処理を分ける ----
+    // メインと Worker の両方で同じ絵を描く。時刻は timeOrigin + now（ページの始まりからではなく、共通の時計）を使う
+    function drawSpin(g, w, h, t, dpr) {
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const W = w / dpr, H = h / dpr, cx = W / 2, cy = H / 2 - 8, R = Math.max(4, Math.min(W, H - 24) * 0.42);
+      g.fillStyle = '#0a0d13'; g.fillRect(0, 0, W, H);
+      const a = ((t % 2000) / 2000) * Math.PI * 2;
+      g.lineWidth = 3; g.lineCap = 'round';
+      for (let i = 0; i < 12; i++) {
+        const b = a - (i * Math.PI) / 16;
+        g.strokeStyle = `rgba(111, 211, 255, ${(1 - i / 12).toFixed(3)})`;
+        g.beginPath(); g.moveTo(cx + Math.cos(b) * R * 0.3, cy + Math.sin(b) * R * 0.3); g.lineTo(cx + Math.cos(b) * R, cy + Math.sin(b) * R); g.stroke();
+      }
+      const u = (t % 1600) / 1600, px = 10 + (W - 20) * (u < 0.5 ? u * 2 : 2 - u * 2);
+      g.fillStyle = '#ffcf5a'; g.beginPath(); g.arc(px, H - 10, 6, 0, Math.PI * 2); g.fill();
+    }
+    // Worker の中で動く部分。drawSpin と一緒に文字列にして Worker へ渡す
+    function workerMain() {
+      let cv = null, g = null, run = true, dpr = 1, n = 0, since = performance.now(), queued = false;
+      const raf = typeof requestAnimationFrame === 'function' ? (f) => requestAnimationFrame(f) : (f) => setTimeout(f, 16);
+      const loop = () => {
+        queued = false;
+        if (!run || !g) return;
+        drawSpin(g, cv.width, cv.height, performance.timeOrigin + performance.now(), dpr);
+        n++;
+        const now = performance.now();
+        if (now - since >= 500) { postMessage({ fps: (n * 1000) / (now - since) }); n = 0; since = now; }
+        queued = true;
+        raf(loop);
+      };
+      onmessage = (e) => {
+        const m = e.data || {};
+        if (m.canvas) { cv = m.canvas; g = cv.getContext('2d'); }
+        if (m.size && cv) { cv.width = Math.max(1, m.size[0]); cv.height = Math.max(1, m.size[1]); dpr = m.size[2] || 1; }
+        if ('run' in m) run = m.run;
+        if (run && g && !queued) { since = performance.now(); n = 0; queued = true; raf(loop); }
+      };
+    }
+    const cvMain = $('cvMain'), mg = cvMain.getContext('2d'), cvWork = $('cvWork');
+    let worker = null, m3n = 0, m3since = 0;
+    const say3 = (m) => { $('note3').textContent = m; };
+    function sizeOf(cv) {
+      const dpr = Math.min(2, devicePixelRatio || 1);
+      return [Math.max(1, Math.round(cv.clientWidth * dpr)), Math.max(1, Math.round(cv.clientHeight * dpr)), dpr];
+    }
+    function start3() {
+      if (worker) { worker.postMessage({ run: true, size: sizeOf(cvWork) }); return; }
+      if (worker === false) return;
+      if (!('transferControlToOffscreen' in HTMLCanvasElement.prototype) || typeof Worker === 'undefined') {
+        worker = false;
+        say3('このブラウザでは transferControlToOffscreen か Worker が使えないため、右の絵は描けない。');
+        return;
+      }
+      try {
+        const url = URL.createObjectURL(new Blob([`${drawSpin}\n(${workerMain})();`], { type: 'text/javascript' }));
+        worker = new Worker(url);
+        const off = cvWork.transferControlToOffscreen();
+        worker.onmessage = (e) => { if (e.data && e.data.fps != null) $('fpsWork').textContent = String(Math.round(e.data.fps)); };
+        worker.onerror = (e) => say3('Worker で失敗した: ' + (e.message || '理由は不明'));
+        worker.postMessage({ canvas: off, size: sizeOf(cvWork), run: true }, [off]);
+      } catch (err) {
+        worker = false;
+        say3('Worker を作れなかった: ' + err.message);
+      }
+    }
+    function step3(now) {
+      const [w, h, dpr] = sizeOf(cvMain);
+      if (cvMain.width !== w || cvMain.height !== h) { cvMain.width = w; cvMain.height = h; }
+      drawSpin(mg, w, h, performance.timeOrigin + performance.now(), dpr);
+      m3n++;
+      if (!m3since) m3since = now;
+      if (now - m3since >= 500) { $('fpsMain').textContent = String(Math.round((m3n * 1000) / (now - m3since))); m3n = 0; m3since = now; }
+    }
+    let jankT = 0;
+    $('jank').onchange = (e) => {
+      clearInterval(jankT);
+      if (e.target.checked) jankT = setInterval(() => { const t = performance.now(); while (performance.now() - t < 400) { /* わざとメインを止める */ } }, 600);
+    };
+
+    // ---- タブ（focusgroup が無いブラウザでは、矢印キーでの移動を自分で書く） ----
+    const tabs = [...document.querySelectorAll('.tabs [role="tab"]')], pans = [$('pan1'), $('pan2'), $('pan3')];
+    const nativeFG = 'focusGroup' in HTMLElement.prototype;
+    function pick(i) {
+      if (i === panel) return;
+      panel = i;
+      tabs.forEach((t, j) => {
+        const on = j === i - 1;
+        t.setAttribute('aria-selected', String(on));
+        t.toggleAttribute('focusgroupstart', on);
+        if (!nativeFG) t.tabIndex = on ? 0 : -1;
+      });
+      pans.forEach((p, j) => { p.hidden = j !== i - 1; });
+      setTick(i === 1);
+      if (i !== 1 && busyOn) setBusy(false);
+      if (i === 1) center();
+      if (i === 2) init2();
+      if (i === 3) start3(); else if (worker) worker.postMessage({ run: false });
+    }
+    tabs.forEach((t, j) => { t.addEventListener('click', () => pick(j + 1)); t.addEventListener('focus', () => pick(j + 1)); });
+    if (!nativeFG) {
+      tabs[0].parentElement.addEventListener('keydown', (e) => {
+        const k = tabs.indexOf(document.activeElement);
+        if (k < 0) return;
+        let n = -1;
+        if (e.key === 'ArrowRight') n = (k + 1) % tabs.length;
+        else if (e.key === 'ArrowLeft') n = (k - 1 + tabs.length) % tabs.length;
+        else if (e.key === 'Home') n = 0;
+        else if (e.key === 'End') n = tabs.length - 1;
+        if (n < 0) return;
+        e.preventDefault();
+        tabs[n].focus();
+      });
+    }
+
+    // ---- 毎フレームの処理 ----
+    const gaps = [];
+    let lastNow = 0, lastHz = 0;
+    function tickAll(now) {
+      if (lastNow) { gaps.push(now - lastNow); if (gaps.length > 90) gaps.shift(); }
+      lastNow = now; vsync = now; frameMs = frameOf(gaps);
+      if (now - lastHz > 500) { lastHz = now; $('hz').textContent = `画面の書き換え ${Math.round(1000 / frameMs)} 回/秒`; }
+      if (panel === 1) step1();
+      else if (panel === 2) step2(now);
+      else if (panel === 3) step3(now);
+      requestAnimationFrame(tickAll);
+    }
+    pick(1);
+    if ('ResizeObserver' in window) {
+      new ResizeObserver(() => {
+        if (panel === 1) center();
+        if (worker) worker.postMessage({ size: sizeOf(cvWork) });
+      }).observe(document.body);
+    }
+    requestAnimationFrame(tickAll);
+  },
+});
