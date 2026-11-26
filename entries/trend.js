@@ -18380,3 +18380,1198 @@ dekiru.add({
     requestAnimationFrame(tickAll);
   },
 });
+
+dekiru.add({
+  id: 'tr-20261126-quadratic-sieve', c: 'trend', lv: 3, date: '2026-11-26',
+  t: '48 桁の数を、二次ふるい法でブラウザの中で 2 秒ほどで素因数分解する',
+  y: 'よんじゅうはちけたのかずを にじふるいほうでぶらうざのなかでにびょうほどでそいんすうぶんかいする',
+  tags: ['Cogentic', '素因数分解', '二次ふるい法', 'BigInt', 'scheduler.yield', 'canvas'],
+  d: '2026-11-25 に Google Research が、Gemini 4 を使ったエージェントの仕組み Cogentic が作った 6 本の論文を GitHub に置いた（Hacker News で 494 点・356 件）。その 1 本「Unconditional Integer Factorization in Time L_N[1/3, O(1)]」は、どんな整数 N でも、期待値で L_N[1/3, 105] 以内の時間に完全に素因数分解する方法を作り、証明されていない仮定を使わずに示したと書いている。L_N[α, c] = exp(c (ln N)^α (ln ln N)^(1−α)) は、素因数分解の速さを表す式で、α が小さいほど速い。今いちばん速い数体ふるい法も L_N[1/3, 1.923] だが、その見積もりは証明されていない仮定に頼っている。論文は Lean 4 で全部を形式化したとも書いているが、その Lean のファイルはまだ公開されていない。X の Ryan Yan さんの投稿（2026-11-25）も「どれもまだ独立に確かめられていない」と書いている。'
+    + 'この見本は、論文の方法ではなく、同じ「準指数時間」の仲間で一番わかりやすい二次ふるい法（多項式を取り替える MPQS と、大きな素数 1 つの式を組み合わせる工夫）を一から書き、ブラウザの中で動かす。桁数のボタンを押すと、その桁数の 2 つの素数の積 N を作って分解する。上の図の左は、1 本の多項式でふるった値（割り切れる素数の対数の合計）と、しきい値を越えた点。右は、集めた式の 0 と 1 の表（行が式、列が素数、指数が奇数なら点）で、消去が進む様子と、全部 0 になった行（掛けると平方になる式の組）を見せる。下の欄には、選んだ式から作った X と Y、gcd(X − Y, N) を出す。同じ N を割り算とポラードの ρ 法でも 2 秒ずつ試し、全部やるとどれだけかかるかを出す。最後に、割り算・ρ 法・二次ふるい法・数体ふるい法・論文の上限の 5 つの式を桁数ごとに比べる。'
+    + 'パソコンの Chrome（画面を出さずに動かしたもの）で 4〜5 回ずつ動かすと、二次ふるい法は 40 桁で 0.1〜0.3 秒、48 桁で 1.2〜2 秒だった。同じ 40 桁の N（2 つの素数はどちらも 20 桁）を割り算で順に試すと、1 秒に約 1,300 万回の速さで数万年、ρ 法は 1 秒に約 650 万回の速さで十数分という見積もりになった。48 桁では、割り算が数億年、ρ 法が 1 日近くになった。式の上では、論文の上限 L[1/3, 105] が割り算の √N より小さくなるのは約 13,700 桁から、二次ふるい法の式より小さくなるのは約 1.8 × 10^13 桁からで、定数 105 が大きいので、今使われている暗号の大きさ（617 桁の RSA-2048 など）では、この式は割り算よりもずっと大きい。'
+    + '再現できていない所: 論文の方法と証明そのもの、数体ふるい法は作っていない（論文の中身は読み比べていない）。L の式は指数の中の小さな項（o(1)）を省いた形なので、入れ替わる桁数は目安。素数かどうかはミラー–ラビン法で決め、3.3 × 10^24 以上では確率的な判定になる。',
+  p: '二次ふるい法は、N を法として X² ≡ Y² だが X ≢ ±Y となる組を作り、gcd(X − Y, N) で約数を取り出す。X² ≡ q² · Q(x) (mod N) となる多項式 Q(x) = a x² + 2 b x + c（a = q²、b² ≡ N (mod a)）を作り、小さな素数だけで割り切れる Q(x)（なめらかな値）を集める。どの x で p が割り切れるかは、p を法とした N の平方根 t から x ≡ (±t − b) / a (mod p) と決まるので、割り算をせずに、その位置へ log₂ p を足していき（ふるい）、合計がしきい値を越えた所だけを BigInt で割って確かめる。集めた式の指数を 2 で割った余りを 0 と 1 の表にして、2 を法とした消去（XOR）で、足すと全部 0 になる行の組を探すと、その式を全部掛けた値の指数はすべて偶数になり、平方根 Y が作れる。割り切れずに大きな素数 L が 1 つだけ残った式も取っておき、同じ L の式が 2 つそろったら掛けて L² を平方根の側へ回す。ふるいの配列は Uint8Array、素数ごとの根は Int32Array と Number で計算し、大きな N の割り算の余りは 2^24 ごとに分けた桁から Number だけで求める。長い計算は 30 ms ごとに scheduler.yield()（無いブラウザは setTimeout）で区切り、図と数字を描き直す。',
+  refs: [
+    { title: 'Google Research: cogentic_research_papers（2026-11-25 に 6 本を追加）', url: 'https://github.com/google-research/google-research/tree/master/cogentic_research_papers' },
+    { title: 'Unconditional Integer Factorization in Time L_N[1/3, O(1)]（README と PDF）', url: 'https://github.com/google-research/google-research/tree/master/cogentic_research_papers/integer_factorization' },
+    { title: 'Hacker News: Google releases Cogentic papers on integer factorization, discrete logs and more', url: 'https://news.ycombinator.com/item?id=50642086' },
+    { title: 'Ryan Yan さんの X の投稿（2026-11-25）', url: 'https://x.com/RyanYanBuilds/status/2125563516119851195' },
+  ],
+  html: `<div class="wrap">
+  <header class="head">
+    <p class="nline"><span class="lbl">N =</span> <output id="nOut" class="num">-</output></p>
+    <p class="sub" id="nInfo">-</p>
+  </header>
+  <canvas id="board" class="board" role="img" aria-label="左はふるいの値としきい値、右は集めた式の 0 と 1 の表"></canvas>
+  <p id="status" class="status" role="status">準備しています</p>
+  <div class="side">
+    <div class="row" role="group" aria-label="桁数を選んで新しい N を作って分解する">
+      <span class="k">桁数</span>
+      <button type="button" class="dg" data-d="20">20</button>
+      <button type="button" class="dg" data-d="24">24</button>
+      <button type="button" class="dg" data-d="28">28</button>
+      <button type="button" class="dg" data-d="32">32</button>
+      <button type="button" class="dg" data-d="36">36</button>
+      <button type="button" class="dg" data-d="40">40</button>
+      <button type="button" class="dg" data-d="44">44</button>
+      <button type="button" class="dg" data-d="48">48</button>
+    </div>
+    <div class="row">
+      <label for="nIn">自分で入れる（50 桁まで）</label>
+      <input id="nIn" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="例 1000000016000000063">
+    </div>
+    <div class="row">
+      <button type="button" id="go" class="main">二次ふるい法で分解</button>
+      <button type="button" id="stop" disabled>止める</button>
+      <label class="ck"><input type="checkbox" id="slow"> ゆっくり見せる</label>
+    </div>
+    <ol class="steps">
+      <li><b>① 因数の候補を決める</b><span id="s1">-</span></li>
+      <li><b>② ふるって、小さな素数だけで割り切れる値を集める</b><progress id="prog" max="1" value="0" aria-label="集めた式の数"></progress><span id="s2">-</span></li>
+      <li><b>③ 0 と 1 の表を消去する</b><span id="s3">-</span></li>
+      <li><b>④ 平方の一致から約数を取り出す</b><span id="s4">-</span></li>
+    </ol>
+    <div id="detail" class="detail"></div>
+    <p id="result" class="result"></p>
+  </div>
+  <section class="box">
+    <h3>同じ N を別の方法で（それぞれ 2 秒まで）</h3>
+    <button type="button" id="cmp" disabled>割り算と ρ 法でも試す</button>
+    <div class="tw"><table><thead><tr><th>方法</th><th>2 秒での結果</th><th>試した回数</th><th>見つかるまでの見積もり</th></tr></thead><tbody id="cmpBody"></tbody></table></div>
+  </section>
+  <section class="box">
+    <h3>この端末での記録（二次ふるい法）</h3>
+    <div class="tw"><table><thead><tr><th>桁</th><th>合計</th><th>ふるい / 表</th><th>多項式</th><th>式</th><th>前の行からの伸び（実際 / 式の比）</th></tr></thead><tbody id="logBody"></tbody></table></div>
+    <p class="note">桁数の順に並べ、すぐ上の、桁数の少ない行と比べる。式の比は L[1/2, 1] の値の比で、定数や小さな項を省いた式なので目安。「ゆっくり見せる」で動かしたときは待ち時間が入るので記録しない。</p>
+  </section>
+  <section class="box">
+    <h3>計算量の式 L[α, c] を桁数で比べる</h3>
+    <canvas id="chart" class="chart" role="img" aria-label="桁数ごとの、5 つの方法の手数の式の値"></canvas>
+    <div class="row"><label for="dg">桁数</label><input type="range" id="dg" min="10" max="700" step="1" value="309"><output id="dgOut" for="dg">309</output> 桁</div>
+    <div class="tw"><table><thead><tr><th>方法</th><th>式の値（手数）</th><th>1 秒に 10 億回として</th></tr></thead><tbody id="lBody"></tbody></table></div>
+    <p id="cross" class="note"></p>
+  </section>
+</div>`,
+  css: `:root { color-scheme: dark; --bg: #0e1117; --fg: #d9e1ee; --mut: #8b97ab; --ac: #6fd3ff; --ac2: #ffcf5a; --line: #2a3242; --card: #151a23; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.6 system-ui, sans-serif; }
+.wrap { padding: 12px 16px 24px; display: grid; gap: 10px; max-width: 980px; margin: 0 auto; }
+.nline { margin: 0; font: 600 15px/1.45 ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
+.lbl { color: var(--mut); }
+.sub, .status { margin: 0; color: var(--mut); font-size: 13px; }
+.board { width: 100%; height: 250px; display: block; background: #0a0d12; border: 1px solid var(--line); border-radius: 8px; }
+@media (width < 520px) { .board { height: 390px; } }
+.side { display: grid; gap: 8px; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.k { color: var(--mut); margin-right: 2px; }
+button { font: inherit; color: var(--fg); background: #1d2430; border: 1px solid var(--line); border-radius: 6px; padding: 3px 10px; cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--ac); }
+button:disabled { opacity: 0.45; cursor: default; }
+button.main { background: #12384a; border-color: #2f6f8a; }
+button[aria-pressed="true"] { border-color: var(--ac); color: var(--ac); }
+#nIn { font: 14px ui-monospace, Consolas, monospace; width: min(100%, 36em); background: #0a0d12; color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+.ck { color: var(--mut); }
+.steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.steps li { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font-size: 13px; overflow-wrap: anywhere; }
+.steps b { display: block; color: var(--ac2); font-weight: 600; }
+progress { accent-color: var(--ac); width: min(100%, 260px); display: block; margin: 2px 0; }
+.detail { display: grid; gap: 2px; font: 12.5px/1.55 ui-monospace, Consolas, monospace; overflow-wrap: anywhere; color: #c5cfdf; }
+.detail:empty { display: none; }
+.result { margin: 0; font: 600 14px/1.5 ui-monospace, Consolas, monospace; overflow-wrap: anywhere; color: #7ee787; }
+.result:empty { display: none; }
+.box { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 8px; }
+.box h3 { margin: 0; font-size: 14px; }
+.box > button { justify-self: start; }
+.tw { overflow-x: auto; }
+table { border-collapse: collapse; font-size: 12.5px; }
+th, td { padding: 3px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+th { color: var(--mut); font-weight: 500; }
+td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.chart { width: 100%; height: 270px; display: block; background: #0a0d12; border-radius: 6px; }
+#dg { width: min(100%, 360px); accent-color: var(--ac); }
+.note { color: var(--mut); font-size: 12.5px; margin: 0; }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.thumb .side, .thumb .box, .thumb .status, .thumb .sub { display: none; }
+.thumb .wrap { padding: 8px 10px; gap: 6px; }
+.thumb .board { height: 205px; }`,
+  core() {
+    // ---- 大きな整数（BigInt）の道具 ----
+    function bmod(a, m) { const r = a % m; return r < 0n ? r + m : r; }
+    function powmod(b, e, m) {
+      let r = 1n;
+      b = bmod(b, m);
+      while (e > 0n) {
+        if (e & 1n) r = (r * b) % m;
+        b = (b * b) % m;
+        e >>= 1n;
+      }
+      return r;
+    }
+    function gcd(a, b) {
+      if (a < 0n) a = -a;
+      if (b < 0n) b = -b;
+      while (b) { const t = a % b; a = b; b = t; }
+      return a;
+    }
+    function invmod(a, m) {
+      let r0 = m, r1 = bmod(a, m), s0 = 0n, s1 = 1n;
+      while (r1) {
+        const q = r0 / r1;
+        [r0, r1] = [r1, r0 - q * r1];
+        [s0, s1] = [s1, s0 - q * s1];
+      }
+      if (r0 !== 1n) throw new RangeError('逆数がない');
+      return bmod(s0, m);
+    }
+    function bitLen(n) { return n <= 0n ? 0 : n.toString(2).length; }
+    // n の k 乗根の整数部分（ニュートン法。上から近づける）
+    function iroot(n, k) {
+      if (n < 2n) return n;
+      const K = BigInt(k);
+      let x = 1n << BigInt(Math.ceil(bitLen(n) / k));
+      for (;;) {
+        const y = ((K - 1n) * x + n / x ** (K - 1n)) / K;
+        if (y >= x) return x;
+        x = y;
+      }
+    }
+    function isqrt(n) { return iroot(n, 2); }
+    // n が r の k 乗（k ≥ 2）なら { r, k }、違えば null
+    function perfectPower(n) {
+      for (let k = 2; k <= bitLen(n); k++) {
+        const r = iroot(n, k);
+        if (r > 1n && r ** BigInt(k) === n) return { r, k };
+      }
+      return null;
+    }
+    // ミラー–ラビン法。最初の 13 個の素数で試すと 3.3×10^24 未満では必ず正しい。それより大きい数では確率的な判定
+    const MR = [2n, 3n, 5n, 7n, 11n, 13n, 17n, 19n, 23n, 29n, 31n, 37n, 41n, 43n, 47n, 53n, 59n, 61n];
+    function isPrime(n) {
+      if (n < 2n) return false;
+      for (const p of MR) {
+        if (n === p) return true;
+        if (n % p === 0n) return false;
+      }
+      let d = n - 1n, s = 0;
+      while ((d & 1n) === 0n) { d >>= 1n; s++; }
+      outer: for (const a of MR) {
+        let x = powmod(a, d, n);
+        if (x === 1n || x === n - 1n) continue;
+        for (let i = 1; i < s; i++) {
+          x = (x * x) % n;
+          if (x === n - 1n) continue outer;
+        }
+        return false;
+      }
+      return true;
+    }
+
+    // ---- 種を決めた乱数と、桁数を決めた素数・2 つの素数の積 ----
+    function seeded(seed) {
+      let s = seed >>> 0;
+      return () => {
+        s = (s + 0x6D2B79F5) >>> 0;
+        let t = s;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    function randomDigits(d, rand) {
+      let s = String(1 + Math.floor(rand() * 9));
+      while (s.length < d) s += Math.floor(rand() * 10);
+      return BigInt(s);
+    }
+    function randomPrime(d, rand) {
+      for (;;) {
+        let n = randomDigits(d, rand) | 1n;
+        while (!isPrime(n)) n += 2n;
+        if (n.toString().length === d) return n;
+      }
+    }
+    // ちょうど d 桁で、2 つの素数の桁数がほぼ同じ積 N = p × q（p < q）
+    function semiprime(d, rand) {
+      const dp = Math.floor(d / 2);
+      for (;;) {
+        const p = randomPrime(dp, rand), q = randomPrime(d - dp, rand);
+        const N = p * q;
+        if (p !== q && N.toString().length === d) return p < q ? { N, p, q } : { N, p: q, q: p };
+      }
+    }
+
+    // ---- 小さな数（Number）の道具。法 m は 2^26 未満とし、掛け算が 2^53 を越えないようにする ----
+    function primesUpTo(n) {
+      const s = new Uint8Array(n + 1), out = [];
+      for (let i = 2; i <= n; i++) {
+        if (s[i]) continue;
+        out.push(i);
+        for (let j = i * i; j <= n; j += i) s[j] = 1;
+      }
+      return out;
+    }
+    function powmodN(b, e, m) {
+      let r = 1;
+      b %= m;
+      while (e > 0) {
+        if (e & 1) r = (r * b) % m;
+        b = (b * b) % m;
+        e = Math.floor(e / 2);
+      }
+      return r;
+    }
+    function invmodN(a, m) {
+      let r0 = m, r1 = a % m, s0 = 0, s1 = 1;
+      while (r1) {
+        const q = Math.floor(r0 / r1);
+        [r0, r1] = [r1, r0 - q * r1];
+        [s0, s1] = [s1, s0 - q * s1];
+      }
+      return r0 === 1 ? ((s0 % m) + m) % m : -1;
+    }
+    // p を法とした n の平方根（トネリ–シャンクス法）。n は平方剰余とする
+    function sqrtModN(n, p) {
+      n %= p;
+      if (n === 0) return 0;
+      if (p === 2) return n;
+      if (p % 4 === 3) return powmodN(n, (p + 1) / 4, p);
+      let q = p - 1, s = 0;
+      while (q % 2 === 0) { q /= 2; s++; }
+      let z = 2;
+      while (powmodN(z, (p - 1) / 2, p) !== p - 1) z++;
+      let m = s, c = powmodN(z, q, p), t = powmodN(n, q, p), r = powmodN(n, (q + 1) / 2, p);
+      while (t !== 1) {
+        let i = 0, tt = t;
+        while (tt !== 1) { tt = (tt * tt) % p; i++; }
+        let b = c;
+        for (let j = 0; j < m - i - 1; j++) b = (b * b) % p;
+        m = i; c = (b * b) % p; t = (t * c) % p; r = (r * b) % p;
+      }
+      return r;
+    }
+    // 大きな N を 2^24 ごとの桁に分け、小さな p で割った余りを Number だけで求める（p < 2^29）
+    function limbsOf(N) {
+      const out = [];
+      for (let v = N; v > 0n; v >>= 24n) out.unshift(Number(v & 0xFFFFFFn));
+      return out;
+    }
+    function modSmall(limbs, p) {
+      let r = 0;
+      for (let i = 0; i < limbs.length; i++) r = (r * 16777216 + limbs[i]) % p;
+      return r;
+    }
+
+    // ---- 二次ふるい法（多項式を取り替える版 MPQS と、大きな素数 1 つの式の組み合わせ） ----
+    // 桁数ごとの、因数の候補の数 F と、ふるう幅の半分 M（実際に動かして決めた）
+    const QS_TABLE = [[12, 40, 1000], [16, 60, 1500], [20, 90, 2500], [24, 130, 4000], [28, 190, 6000], [32, 270, 10000], [36, 400, 16000], [40, 580, 26000], [44, 820, 42000], [48, 1100, 55000], [52, 1400, 65536], [56, 1800, 65536]];
+    function qsParams(digits) {
+      const T = QS_TABLE;
+      if (digits <= T[0][0]) return { F: T[0][1], M: T[0][2] };
+      for (let i = 1; i < T.length; i++) {
+        if (digits <= T[i][0]) {
+          const u = (digits - T[i - 1][0]) / (T[i][0] - T[i - 1][0]);
+          return { F: Math.round(T[i - 1][1] + u * (T[i][1] - T[i - 1][1])), M: Math.round(T[i - 1][2] + u * (T[i][2] - T[i - 1][2])) };
+        }
+      }
+      const L = T[T.length - 1];
+      return { F: L[1], M: L[2] };
+    }
+    // N は 2 で割れない合成数で、累乗でないこと。因数の候補の素数で N が割れたら { factor } を返す
+    function qsStart(N, opt = {}) {
+      const digits = N.toString().length, par = qsParams(digits);
+      const F = opt.F || par.F, M = opt.M || par.M;
+      const limbs = limbsOf(N);
+      const P = [-1, 2], T = [0, 1];
+      let lim = Math.max(500, F * 24), primes = primesUpTo(lim), k = 1;
+      while (P.length < F + 1) {
+        if (k >= primes.length) { lim *= 2; primes = primesUpTo(lim); continue; }
+        const p = primes[k++];
+        const nm = modSmall(limbs, p);
+        if (nm === 0) return { factor: BigInt(p) };
+        if (powmodN(nm, (p - 1) / 2, p) === 1) { P.push(p); T.push(sqrtModN(nm, p)); }
+      }
+      const n = P.length, pmax = P[n - 1];
+      // 因数の候補より小さい素数で N が割れないかを確かめる（候補にならなかった素数も含む）
+      for (let i = 1; i < k; i++) if (modSmall(limbs, primes[i]) === 0) return { factor: BigInt(primes[i]) };
+      const LG = new Uint8Array(n);
+      for (let i = 1; i < n; i++) LG[i] = Math.round(Math.log2(P[i]));
+      const large = Math.min(pmax * pmax, pmax * (opt.lp || 128));
+      const logN = Math.log2(Number(N));
+      // 値の大きさ |Q(x)| ≤ M √(N/2) の 2 を底とした対数から、大きな素数 1 つ分と、ふるわない小さな素数の分を引いた値を、しきい値にする
+      const thr = Math.max(1, Math.round(Math.log2(M) + logN / 2 - 0.5 - Math.log2(large) - (opt.fudge ?? 4)));
+      // 多項式の a = q^2 の q は (2N)^(1/4) / √M のあたりで、q ≡ 3 (mod 4)、N が q を法として平方剰余の素数
+      let q0 = BigInt(Math.max(pmax + 1, Math.round(Math.sqrt(Math.sqrt(2 * Number(N)) / M))));
+      q0 = q0 - (q0 % 4n) + 3n;
+      return {
+        N, digits, F, M, P, T, LG, PB: P.map((p) => BigInt(p)), pmax, large, largeB: BigInt(large), thr,
+        need: n + 10, full: [], combined: [], partial: new Map(),
+        qNext: q0, polys: 0, sieved: 0, cand: 0, partials: 0,
+        S: new Uint8Array(2 * M), R1: new Int32Array(n), R2: new Int32Array(n), skip: P.findIndex((p) => p > 30),
+        last: null,
+      };
+    }
+    function qsCount(st) { return st.full.length + st.combined.length; }
+    function qsEnough(st) { return qsCount(st) >= st.need; }
+    function nextPoly(st) {
+      const N = st.N;
+      let q = st.qNext;
+      for (;;) {
+        if (isPrime(q) && powmod(N % q, (q - 1n) / 2n, q) === 1n) break;
+        q += 4n;
+      }
+      st.qNext = q + 4n;
+      const a = q * q;
+      const s = powmod(N % q, (q + 1n) / 4n, q);
+      // ヘンゼルの持ち上げ: b ≡ s (mod q) で b^2 ≡ N (mod q^2) となる b を作る
+      const k = bmod(((N - s * s) / q) * invmod(2n * s, q), q);
+      const b = s + q * k;
+      const c = (b * b - N) / a;
+      return { q, a, b, c };
+    }
+    // 多項式を 1 本作ってふるい、見つかった式を足す。最後の 1 本のふるいの値は st.last に残す（絵に使う）
+    function qsPoly(st) {
+      const { P, T, LG, S, R1, R2, M } = st, n = P.length, len = 2 * M;
+      const poly = nextPoly(st), qn = Number(poly.q);
+      const bh = Number(poly.b >> 26n), bl = Number(poly.b & 0x3FFFFFFn);
+      for (let i = 2; i < n; i++) {
+        const p = P[i];
+        const qm = qn % p, am = (qm * qm) % p, ai = invmodN(am, p);
+        const bm = ((bh % p) * (67108864 % p) + bl) % p;
+        const t = T[i];
+        R1[i] = (((t - bm + p) % p) * ai) % p;
+        R2[i] = ((((p - t) % p - bm + p) % p) * ai) % p;
+      }
+      S.fill(0);
+      for (let i = Math.max(2, st.skip); i < n; i++) {
+        const p = P[i], lg = LG[i];
+        const s1 = (R1[i] + M) % p, s2 = (R2[i] + M) % p;
+        for (let j = s1; j < len; j += p) S[j] += lg;
+        if (s2 !== s1) for (let j = s2; j < len; j += p) S[j] += lg;
+      }
+      const hits = [];
+      for (let j = 0; j < len; j++) {
+        if (S[j] < st.thr) continue;
+        st.cand++;
+        const r = checkAt(st, poly, j - M);
+        if (r) hits.push(j, r);
+      }
+      st.polys++;
+      st.sieved += len;
+      st.last = { S, hits, thr: st.thr, M, poly };
+      return hits;
+    }
+    // x の位置の値 Q(x) を因数の候補で割り切れるかを確かめる。全部割れたら 1、大きな素数が 1 つ残ったら 2、だめなら 0
+    function checkAt(st, poly, x) {
+      const { P, PB, R1, R2, N } = st, n = P.length;
+      const xb = BigInt(x);
+      const Q = (poly.a * xb + 2n * poly.b) * xb + poly.c;
+      let v = Q;
+      const ex = [];
+      if (v < 0n) { v = -v; ex.push(0, 1); }
+      if (v === 0n) return 0;
+      let e = 0;
+      while ((v & 1n) === 0n) { v >>= 1n; e++; }
+      if (e) ex.push(1, e);
+      for (let i = 2; i < n; i++) {
+        const p = P[i], xm = ((x % p) + p) % p;
+        if (xm !== R1[i] && xm !== R2[i]) continue;
+        const pb = PB[i];
+        e = 0;
+        while (v % pb === 0n) { v /= pb; e++; }
+        if (e) ex.push(i, e);
+      }
+      const X = bmod(poly.a * xb + poly.b, N);
+      if (v === 1n) {
+        st.full.push({ X, sq: poly.q, ex, L: 1, x, Q });
+        return 1;
+      }
+      if (v >= st.largeB) return 0;
+      const L = Number(v);
+      st.partials++;
+      const other = st.partial.get(L);
+      const rel = { X, sq: poly.q, ex, L, x, Q };
+      if (!other) { st.partial.set(L, rel); return 2; }
+      // 同じ大きな素数 L が残った 2 つの式を掛けると、L は 2 乗になって平方根の側へ回せる
+      st.combined.push({ X: (other.X * X) % N, sq: (other.sq * poly.q * v) % N, ex: mergeEx(other.ex, ex), L, pair: [other, rel] });
+      return 3;
+    }
+    function mergeEx(a, b) {
+      const m = new Map();
+      for (const ex of [a, b]) for (let k = 0; k < ex.length; k += 2) m.set(ex[k], (m.get(ex[k]) || 0) + ex[k + 1]);
+      const out = [];
+      for (const [i, e] of [...m].sort((u, w) => u[0] - w[0])) out.push(i, e);
+      return out;
+    }
+    function qsRelations(st) { return st.full.concat(st.combined).slice(0, st.need); }
+
+    // ---- 2 を法とした行列（0 と 1 の表）の消去 ----
+    // 行は式、列は因数の候補（0 列目は符号）。指数が奇数なら 1。右側に、どの式を足し合わせたかの記録（単位行列）を付ける
+    function buildMatrix(rels, cols) {
+      const n = rels.length, wc = (cols + 31) >>> 5, wh = (n + 31) >>> 5, W = wc + wh;
+      const m = new Uint32Array(n * W);
+      for (let i = 0; i < n; i++) {
+        const ex = rels[i].ex;
+        for (let k = 0; k < ex.length; k += 2) if (ex[k + 1] & 1) m[i * W + (ex[k] >>> 5)] ^= 1 << (ex[k] & 31);
+        m[i * W + wc + (i >>> 5)] |= 1 << (i & 31);
+      }
+      return { n, cols, wc, wh, W, m, used: new Uint8Array(n), piv: new Int32Array(cols).fill(-1), col: 0, xors: 0 };
+    }
+    function bitAt(mx, i, j) { return (mx.m[i * mx.W + (j >>> 5)] >>> (j & 31)) & 1; }
+    // 列 mx.col から upto の手前まで消去する。軸に選んだ行を、その列が 1 の他の全部の行へ足す（XOR）
+    function elimCols(mx, upto) {
+      const { n, W, m, used } = mx, end = Math.min(upto, mx.cols);
+      for (; mx.col < end; mx.col++) {
+        const j = mx.col, w = j >>> 5, bit = 1 << (j & 31);
+        let pr = -1;
+        for (let i = 0; i < n; i++) if (!used[i] && (m[i * W + w] & bit)) { pr = i; break; }
+        if (pr < 0) continue;
+        used[pr] = 1;
+        mx.piv[j] = pr;
+        const po = pr * W;
+        for (let i = 0; i < n; i++) {
+          if (i === pr || !(m[i * W + w] & bit)) continue;
+          const io = i * W;
+          for (let k = w; k < W; k++) m[io + k] ^= m[po + k];
+          mx.xors++;
+        }
+      }
+      return mx.col >= mx.cols;
+    }
+    // 軸にならなかった行は表の側が全部 0 になっている。その行の記録から、足し合わせた式の番号を取り出す
+    function dependencies(mx) {
+      const out = [];
+      for (let i = 0; i < mx.n; i++) {
+        if (mx.used[i]) continue;
+        let zero = true;
+        for (let k = 0; k < mx.wc; k++) if (mx.m[i * mx.W + k]) { zero = false; break; }
+        if (!zero) continue;
+        const idx = [];
+        for (let r = 0; r < mx.n; r++) if ((mx.m[i * mx.W + mx.wc + (r >>> 5)] >>> (r & 31)) & 1) idx.push(r);
+        out.push(idx);
+      }
+      return out;
+    }
+    // 選んだ式を全部掛けて X^2 ≡ Y^2 (mod N) を作り、gcd(X − Y, N) を求める
+    function trySquare(st, rels, idx) {
+      const N = st.N, cnt = new Array(st.P.length).fill(0);
+      let X = 1n, Y = 1n;
+      for (const i of idx) {
+        const r = rels[i];
+        X = (X * r.X) % N;
+        Y = (Y * r.sq) % N;
+        for (let k = 0; k < r.ex.length; k += 2) cnt[r.ex[k]] += r.ex[k + 1];
+      }
+      for (let j = 0; j < cnt.length; j++) if (cnt[j] & 1) throw new Error('指数が偶数になっていない');
+      for (let j = 1; j < cnt.length; j++) if (cnt[j]) Y = (Y * powmod(st.PB[j], BigInt(cnt[j] / 2), N)) % N;
+      return { X, Y, d: gcd(X - Y, N), cnt };
+    }
+    // まとめて動かす版（テスト用）。N を 2 つに分ける約数 d を返す
+    function qsSplit(N, opt = {}) {
+      const st = qsStart(N, opt);
+      if (st.factor) return { d: st.factor, st: null };
+      for (let round = 0; round < 4; round++) {
+        while (!qsEnough(st)) qsPoly(st);
+        const rels = qsRelations(st), mx = buildMatrix(rels, st.P.length);
+        elimCols(mx, mx.cols);
+        for (const idx of dependencies(mx)) {
+          const r = trySquare(st, rels, idx);
+          if (r.d > 1n && r.d < N) return { d: r.d, st, mx, idx, sq: r };
+        }
+        st.need += 20;
+      }
+      return { d: 0n, st };
+    }
+
+    // ---- ポラードの ρ 法（ブレントの書き方）。少しずつ進められる ----
+    function rhoStart(N, c = 1n) { return { N, c, y: 2n, x: 2n, ys: 2n, q: 1n, r: 1, k: 0, steps: 0, d: 1n, m: 64 }; }
+    function rhoSteps(st, budget) {
+      const { N, c } = st;
+      const f = (v) => (v * v + c) % N;
+      let left = budget;
+      while (st.d === 1n && left > 0) {
+        if (st.k >= st.r) { st.x = st.y; st.k = 0; st.r *= 2; for (let i = 0; i < st.r; i++) st.y = f(st.y); st.steps += st.r; left -= st.r; continue; }
+        st.ys = st.y;
+        const lim = Math.min(st.m, st.r - st.k);
+        for (let i = 0; i < lim; i++) { st.y = f(st.y); st.q = (st.q * (st.x > st.y ? st.x - st.y : st.y - st.x)) % N; }
+        st.steps += lim; left -= lim;
+        st.d = gcd(st.q, N);
+        if (st.d === 1n) { st.k += lim; continue; }
+        if (st.d === N) {
+          // まとめた範囲で行き過ぎたので、1 歩ずつやり直す
+          let g = 1n;
+          do { st.ys = f(st.ys); g = gcd(st.x > st.ys ? st.x - st.ys : st.ys - st.x, N); } while (g === 1n);
+          st.d = g;
+        }
+      }
+      return st.d !== 1n && st.d !== N ? st.d : st.d === N ? N : 0n;
+    }
+
+    // ---- 割り算（小さい奇数から順に） ----
+    function tdStart(N) { return { N, limbs: limbsOf(N), d: 3, tried: 0, root: isqrt(N), done: 0n }; }
+    function tdSteps(st, count) {
+      const L = st.limbs;
+      if (st.N % 2n === 0n) { st.done = 2n; return 2n; }
+      for (let i = 0; i < count; i++) {
+        const d = st.d;
+        if (BigInt(d) > st.root) { st.done = st.N; return st.N; }
+        if (d > 5e8) return 0n;
+        if (modSmall(L, d) === 0) { st.done = BigInt(d); return st.done; }
+        st.d += 2;
+        st.tried++;
+      }
+      return 0n;
+    }
+
+    // ---- 計算量の式 L_N[α, c] = exp(c (ln N)^α (ln ln N)^(1−α)) の、10 を底とした対数 ----
+    function log10L(digits, alpha, c) {
+      const ln = digits * Math.LN10, lnln = Math.log(ln);
+      return (c * ln ** alpha * lnln ** (1 - alpha)) / Math.LN10;
+    }
+    const METHODS = [
+      { id: 'td', name: '割り算', f: (d) => d / 2 },
+      { id: 'rho', name: 'ρ 法', f: (d) => d / 4 },
+      { id: 'qs', name: '二次ふるい法 L[1/2, 1]', f: (d) => log10L(d, 1 / 2, 1) },
+      { id: 'nfs', name: '数体ふるい法 L[1/3, 1.923]', f: (d) => log10L(d, 1 / 3, Math.cbrt(64 / 9)) },
+      { id: 'paper', name: '論文の上限 L[1/3, 105]', f: (d) => log10L(d, 1 / 3, 105) },
+    ];
+    // 2 つの式の大小が入れ替わる桁数を、桁数の対数で二分探索して求める（f(d) − g(d) の符号が変わる所）
+    function crossDigits(f, g, lo = 1, hi = 1e30) {
+      let a = Math.log10(lo), b = Math.log10(hi);
+      const sa = Math.sign(f(lo) - g(lo));
+      if (sa === Math.sign(f(hi) - g(hi))) return NaN;
+      for (let i = 0; i < 200; i++) {
+        const m = (a + b) / 2, d = 10 ** m;
+        if (Math.sign(f(d) - g(d)) === sa) a = m; else b = m;
+      }
+      return 10 ** ((a + b) / 2);
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const THUMB = !!window.THUMB;
+    if (THUMB) document.body.classList.add('thumb');
+    const yieldNow = () => (globalThis.scheduler && typeof globalThis.scheduler.yield === 'function'
+      ? globalThis.scheduler.yield()
+      : new Promise((r) => setTimeout(r, 0)));
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const STOP = Symbol('stop');
+    const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+    const sup = (n) => String(n).replace(/\d/g, (c) => SUP[c]);
+    const fmtInt = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    // 負の数の符号は、画面では長い「−」で書く
+    const sgn = (v) => String(v).replace(/^-/, '−');
+    function short(v, keep = 12) {
+      const s = String(v), neg = s.startsWith('-'), u = neg ? s.slice(1) : s;
+      return (neg ? '−' : '') + (u.length <= keep * 2 + 2 ? u : `${u.slice(0, keep)}…${u.slice(-keep)}（${u.length} 桁）`);
+    }
+    function fmtMs(ms) {
+      ms = Math.max(0, ms);
+      return ms < 1000 ? `${ms.toFixed(ms < 10 ? 1 : 0)} ms` : `${(ms / 1000).toFixed(ms < 10000 ? 2 : 1)} 秒`;
+    }
+    // 10 を底とした対数 k を「1.3 × 10¹⁵」の形にする
+    function pow10(k) {
+      if (!isFinite(k)) return '-';
+      if (k < 6) return fmtInt(Math.round(10 ** k));
+      let e = Math.floor(k), m = 10 ** (k - e);
+      if (m >= 9.95) { m = 1; e++; }
+      return `${m.toFixed(1)} × 10${sup(e)}`;
+    }
+    // 秒の 10 を底とした対数から、ふだんの単位の長さにする
+    function fmtDurLog(lg) {
+      if (!isFinite(lg)) return '-';
+      if (lg < 9) {
+        const s = 10 ** lg;
+        if (s < 1e-3) return '1 ms 未満';
+        if (s < 1) return fmtMs(s * 1000);
+        if (s < 120) return `約 ${s.toFixed(0)} 秒`;
+        if (s < 7200) return `約 ${(s / 60).toFixed(0)} 分`;
+        if (s < 172800) return `約 ${(s / 3600).toFixed(0)} 時間`;
+        if (s < 63115200) return `約 ${(s / 86400).toFixed(0)} 日`;
+      }
+      const ly = lg - Math.log10(31557600);
+      return ly < 6 ? `約 ${fmtInt(Math.round(10 ** ly))} 年` : `約 ${pow10(ly)} 年`;
+    }
+    function fmtEx(ex, P, limit = 14) {
+      const parts = [];
+      for (let k = 0; k < ex.length; k += 2) {
+        const i = ex[k], e = ex[k + 1];
+        if (!e) continue;
+        parts.push(i === 0 ? `(−1)${e > 1 ? sup(e) : ''}` : `${P[i]}${e > 1 ? sup(e) : ''}`);
+      }
+      return parts.length > limit ? `${parts.slice(0, limit).join(' · ')} · …（全 ${parts.length} 種類）` : parts.join(' · ');
+    }
+    function fmtFactors(primes) {
+      const m = new Map();
+      for (const p of primes) m.set(p, (m.get(p) || 0) + 1);
+      return [...m].map(([p, e]) => `${p}${e > 1 ? sup(e) : ''}`).join(' × ');
+    }
+
+    const ui = {
+      nOut: $('nOut'), nInfo: $('nInfo'), status: $('status'), s1: $('s1'), s2: $('s2'), s3: $('s3'), s4: $('s4'),
+      prog: $('prog'), detail: $('detail'), result: $('result'), slow: $('slow'), go: $('go'), stop: $('stop'),
+      nIn: $('nIn'), cmp: $('cmp'), cmpBody: $('cmpBody'), logBody: $('logBody'),
+    };
+    let view = { st: null, rels: null, mx: null, deps: null, idx: null };
+    let cur = null, runId = 0, cmpId = 0;
+    const records = [];
+    const rand = seeded((Math.random() * 4294967296) >>> 0);
+
+    // ---- 上の図（左: ふるい、右: 0 と 1 の表） ----
+    const board = $('board'), bctx = board.getContext('2d');
+    const off = document.createElement('canvas'), octx = off.getContext('2d');
+    function fit(cv) {
+      const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+      const w = Math.max(1, Math.round(cv.clientWidth * dpr)), h = Math.max(1, Math.round(cv.clientHeight * dpr));
+      if (cv.width !== w) cv.width = w;
+      if (cv.height !== h) cv.height = h;
+      return dpr;
+    }
+    function drawBoard() {
+      const dpr = fit(board), W = board.width, H = board.height, g = bctx;
+      g.fillStyle = '#0a0d12';
+      g.fillRect(0, 0, W, H);
+      if (W < 60 || H < 60) return;
+      const pad = 8 * dpr, wide = W / dpr >= 520;
+      const A = wide ? { x: pad, y: pad, w: W * 0.6 - pad * 1.5, h: H - 2 * pad } : { x: pad, y: pad, w: W - 2 * pad, h: H * 0.45 - pad * 1.5 };
+      const B = wide ? { x: W * 0.6 + pad * 0.5, y: pad, w: W * 0.4 - pad * 1.5, h: H - 2 * pad } : { x: pad, y: H * 0.45 + pad * 0.5, w: W - 2 * pad, h: H * 0.55 - pad * 1.5 };
+      g.font = `${12 * dpr}px system-ui, sans-serif`;
+      g.textBaseline = 'top';
+      g.textAlign = 'left';
+      drawSieve(g, A, dpr);
+      drawMatrix(g, B, dpr);
+    }
+    const HIT = { 1: '#7ee787', 2: '#ffb35a', 3: '#ff8fc8' };
+    function drawSieve(g, A, dpr) {
+      const st = view.st, last = st && st.last;
+      g.fillStyle = '#8b97ab';
+      g.fillText(last ? `ふるいの値（多項式 ${fmtInt(st.polys)} 本目、x = −${fmtInt(st.M)}〜${fmtInt(st.M)}）` : 'ふるいの値', A.x, A.y, A.w);
+      const top = A.y + 18 * dpr, bot = A.y + A.h - 18 * dpr, ph = Math.max(1, bot - top), pw = Math.max(1, Math.floor(A.w));
+      g.strokeStyle = '#2a3242';
+      g.lineWidth = 1;
+      g.strokeRect(A.x + 0.5, top + 0.5, pw - 1, ph - 1);
+      if (!last) return;
+      const S = last.S, len = S.length;
+      let hi = last.thr + 8;
+      for (let j = 0; j < len; j++) if (S[j] > hi) hi = S[j];
+      const sc = (ph - 12 * dpr) / hi;
+      for (let c = 0; c < pw; c++) {
+        const j0 = Math.floor((c * len) / pw), j1 = Math.max(j0 + 1, Math.floor(((c + 1) * len) / pw));
+        let v = 0;
+        for (let j = j0; j < j1 && j < len; j++) if (S[j] > v) v = S[j];
+        g.fillStyle = v >= last.thr ? '#6fd3ff' : '#2b5068';
+        const h = v * sc;
+        g.fillRect(A.x + c, bot - h, 1, h);
+      }
+      const ty = Math.round(bot - last.thr * sc) + 0.5;
+      g.strokeStyle = '#ffcf5a';
+      g.setLineDash([4 * dpr, 3 * dpr]);
+      g.beginPath();
+      g.moveTo(A.x, ty);
+      g.lineTo(A.x + pw, ty);
+      g.stroke();
+      g.setLineDash([]);
+      g.fillStyle = '#ffcf5a';
+      g.textBaseline = 'bottom';
+      g.fillText(`しきい値 ${last.thr}`, A.x + 4 * dpr, ty - 2 * dpr);
+      g.textBaseline = 'top';
+      for (let k = 0; k < last.hits.length; k += 2) {
+        const x = A.x + ((last.hits[k] + 0.5) / len) * pw;
+        g.fillStyle = HIT[last.hits[k + 1]];
+        g.beginPath();
+        g.arc(x, top + 6 * dpr, 3.2 * dpr, 0, Math.PI * 2);
+        g.fill();
+      }
+      // 色の見分け方
+      const items = [[1, '割り切れた'], [2, '大きな素数が 1 つ残った'], [3, '同じ素数の式と組んだ']];
+      let lx = A.x;
+      const ly = bot + 4 * dpr;
+      g.font = `${11 * dpr}px system-ui, sans-serif`;
+      for (const [k, s] of items) {
+        g.fillStyle = HIT[k];
+        g.beginPath();
+        g.arc(lx + 4 * dpr, ly + 6 * dpr, 3.2 * dpr, 0, Math.PI * 2);
+        g.fill();
+        g.fillStyle = '#8b97ab';
+        g.fillText(s, lx + 10 * dpr, ly);
+        lx += g.measureText(s).width + 22 * dpr;
+      }
+      g.font = `${12 * dpr}px system-ui, sans-serif`;
+    }
+    function drawMatrix(g, B, dpr) {
+      const st = view.st, mx = view.mx;
+      const top = B.y + 18 * dpr, ph = Math.max(1, Math.floor(B.h - 18 * dpr)), pw = Math.max(1, Math.floor(B.w - 8 * dpr)), x0 = B.x + 6 * dpr;
+      g.fillStyle = '#8b97ab';
+      if (!st) { g.fillText('0 と 1 の表', B.x, B.y, B.w); return; }
+      const cols = st.P.length, rows = mx ? mx.n : st.need;
+      g.fillText(`0 と 1 の表（行: 式 ${fmtInt(rows)}、列: 素数 ${fmtInt(cols)}）`, B.x, B.y, B.w);
+      const gw = Math.max(1, Math.min(cols, pw)), gh = Math.max(1, Math.min(rows, ph));
+      if (off.width !== gw) off.width = gw;
+      if (off.height !== gh) off.height = gh;
+      const img = octx.createImageData(gw, gh), d = img.data;
+      for (let o = 0; o < d.length; o += 4) { d[o] = 18; d[o + 1] = 24; d[o + 2] = 34; d[o + 3] = 255; }
+      const put = (gx, gy, r, gg, b) => { const o = (gy * gw + gx) * 4; d[o] = r; d[o + 1] = gg; d[o + 2] = b; };
+      if (!mx) {
+        const rels = st.full.concat(st.combined);
+        for (let i = 0; i < rels.length && i < rows; i++) {
+          const gy = Math.floor((i * gh) / rows), ex = rels[i].ex, pink = !!rels[i].pair;
+          for (let k = 0; k < ex.length; k += 2) if (ex[k + 1] & 1) put(Math.floor((ex[k] * gw) / cols), gy, pink ? 255 : 111, pink ? 143 : 211, pink ? 200 : 255);
+        }
+      } else {
+        for (let i = 0; i < mx.n; i++) {
+          const gy = Math.floor((i * gh) / mx.n), o = i * mx.W, piv = mx.used[i];
+          for (let w = 0; w < mx.wc; w++) {
+            let v = mx.m[o + w];
+            while (v) {
+              const b = 31 - Math.clz32(v & -v);
+              v &= v - 1;
+              const j = w * 32 + b;
+              if (j < cols) put(Math.floor((j * gw) / cols), gy, piv ? 70 : 111, piv ? 140 : 211, piv ? 165 : 255);
+            }
+          }
+        }
+        if (mx.col < cols) {
+          const gx = Math.floor((mx.col * gw) / cols);
+          for (let y = 0; y < gh; y++) put(gx, y, 255, 207, 90);
+        }
+      }
+      octx.putImageData(img, 0, 0);
+      g.imageSmoothingEnabled = false;
+      g.drawImage(off, x0, top, pw, ph);
+      // 全部 0 になった行（掛けると平方になる組）を左に緑、約数が出た組に使った式を右に桃色で示す
+      if (mx && view.deps) {
+        const rh = Math.max(1, ph / mx.n);
+        g.fillStyle = '#7ee787';
+        for (let i = 0; i < mx.n; i++) if (!mx.used[i]) g.fillRect(B.x, top + (i / mx.n) * ph, 4 * dpr, rh);
+        if (view.idx) {
+          g.fillStyle = '#ff8fc8';
+          for (const i of view.idx) g.fillRect(x0 + pw + 1 * dpr, top + (i / mx.n) * ph, 3 * dpr, rh);
+        }
+      }
+    }
+
+    // ---- 段階ごとの数字 ----
+    function showGather(st) {
+      ui.prog.max = st.need;
+      ui.prog.value = Math.min(st.need, qsCount(st));
+      ui.s2.textContent = `式 ${fmtInt(qsCount(st))} / ${fmtInt(st.need)}（そのまま割り切れた ${fmtInt(st.full.length)}、大きな素数で組んだ ${fmtInt(st.combined.length)}）。多項式 ${fmtInt(st.polys)} 本、調べた x ${fmtInt(st.sieved)} 個、しきい値を越えた ${fmtInt(st.cand)} 個`;
+    }
+    function showElim(mx, deps) {
+      ui.s3.textContent = `${fmtInt(mx.n)} 行 × ${fmtInt(mx.cols)} 列。${fmtInt(mx.col)} 列目まで消去、行どうしの XOR ${fmtInt(mx.xors)} 回`
+        + (deps ? `。軸にならずに全部 0 になった行 ${deps.length} 本（どれも、掛けると平方になる式の組）` : '');
+    }
+    function line(text) {
+      const el = document.createElement('div');
+      el.textContent = text;
+      ui.detail.append(el);
+    }
+    function showSquare(st, rels, idx, sq, tried, total) {
+      const nComb = idx.filter((i) => rels[i].pair).length;
+      ui.s4.textContent = `残った ${total} 本の行のうち ${tried} 本目で約数が出た`;
+      ui.detail.replaceChildren();
+      line(`選んだ式 ${idx.length} 本（そのうち大きな素数で組んだもの ${nComb} 本）を全部掛ける`);
+      const one = rels[idx.find((i) => !rels[i].pair) ?? -1];
+      if (one) line(`例の式: x = ${sgn(one.x)}、q = ${one.sq}、(a·x + b)² ≡ q² · Q(x) (mod N)、Q(x) = ${short(one.Q, 10)} = ${fmtEx(one.ex, st.P, 10)}`);
+      const pair = rels[idx.find((i) => rels[i].pair) ?? -1];
+      if (pair) line(`組んだ式の例: 大きな素数 ${fmtInt(pair.L)} が残った 2 つの式を掛けると、${fmtInt(pair.L)}² になる`);
+      const ex = [];
+      sq.cnt.forEach((e, i) => { if (e) ex.push(i, e); });
+      line(`掛けた値の指数（すべて偶数）: ${fmtEx(ex, st.P, 12)}`);
+      line(`X ≡ ${short(sq.X)}　Y ≡ ${short(sq.Y)}（mod N）`);
+      line(`X² ≡ Y² (mod N) で X ≢ ±Y なので、gcd(X − Y, N) = ${sq.d}`);
+    }
+    function resetSteps() {
+      ui.s1.textContent = '-';
+      ui.s2.textContent = '-';
+      ui.s3.textContent = '-';
+      ui.s4.textContent = '-';
+      ui.prog.value = 0;
+      ui.detail.replaceChildren();
+      ui.result.textContent = '';
+      view = { st: null, rels: null, mx: null, deps: null, idx: null };
+    }
+
+    // ---- 二次ふるい法を、区切りながら動かす ----
+    // ゆっくり見せた実行は待ち時間が入るので、記録しないように印を付ける
+    let slowUsed = false;
+    const isSlow = () => {
+      const s = THUMB || ui.slow.checked;
+      if (s) slowUsed = true;
+      return s;
+    };
+    async function runQS(N, id) {
+      const t0 = performance.now();
+      slowUsed = false;
+      const st = qsStart(N);
+      if (st.factor) return { d: st.factor, st: null };
+      view = { st, rels: null, mx: null, deps: null, idx: null };
+      ui.s1.textContent = `N が平方剰余になる素数を小さい順に ${fmtInt(st.P.length - 1)} 個（最大 ${fmtInt(st.pmax)}）と、符号の −1。割り切れずに残った数が ${fmtInt(st.large)} 未満なら、大きな素数 1 つとして取っておく。ふるう幅は x = −${fmtInt(st.M)}〜${fmtInt(st.M)}`;
+      ui.s3.textContent = '-';
+      ui.s4.textContent = '-';
+      async function gather() {
+        let deadline = performance.now() + 30;
+        while (!qsEnough(st)) {
+          if (id !== runId) throw STOP;
+          qsPoly(st);
+          if (isSlow()) {
+            showGather(st);
+            drawBoard();
+            await sleep(THUMB ? 45 : 35);
+            deadline = performance.now() + 30;
+          } else if (performance.now() >= deadline) {
+            showGather(st);
+            drawBoard();
+            await yieldNow();
+            deadline = performance.now() + 30;
+          }
+        }
+        if (id !== runId) throw STOP;
+        showGather(st);
+      }
+      await gather();
+      const tSieve = performance.now() - t0;
+      let tMat = 0, tried = 0;
+      for (let round = 0; round < 4; round++) {
+        const t1 = performance.now();
+        const rels = qsRelations(st), mx = buildMatrix(rels, st.P.length);
+        view.rels = rels;
+        view.mx = mx;
+        view.deps = null;
+        view.idx = null;
+        let deadline = performance.now() + 30;
+        for (;;) {
+          if (id !== runId) throw STOP;
+          const step = isSlow() ? Math.max(2, Math.ceil(mx.cols / 40)) : 16;
+          if (elimCols(mx, mx.col + step)) break;
+          if (isSlow()) {
+            showElim(mx);
+            drawBoard();
+            await sleep(30);
+            deadline = performance.now() + 30;
+          } else if (performance.now() >= deadline) {
+            showElim(mx);
+            drawBoard();
+            await yieldNow();
+            deadline = performance.now() + 30;
+          }
+        }
+        const deps = dependencies(mx);
+        view.deps = deps;
+        tMat += performance.now() - t1;
+        showElim(mx, deps);
+        for (const idx of deps) {
+          tried++;
+          const sq = trySquare(st, rels, idx);
+          if (sq.d > 1n && sq.d < N) {
+            view.idx = idx;
+            showSquare(st, rels, idx, sq, tried, deps.length);
+            drawBoard();
+            return { d: sq.d, st, tSieve, tMat, ms: performance.now() - t0, digits: String(N).length, slow: slowUsed };
+          }
+        }
+        ui.s4.textContent = `${deps.length} 組とも X ≡ ±Y で、約数が出なかった。式を 20 本足して集め直す`;
+        st.need += 20;
+        await gather();
+      }
+      throw new Error('二次ふるい法で分けられなかった');
+    }
+    // N を全部の素数に分ける。小さな素数は割り算、14 桁未満は ρ 法、それより大きな合成数は二次ふるい法
+    async function factorAll(N, id) {
+      const t0 = performance.now(), primes = [], qsRuns = [];
+      let rest = N;
+      for (const p of primesUpTo(1000)) {
+        const pb = BigInt(p);
+        while (rest % pb === 0n) { primes.push(pb); rest /= pb; }
+      }
+      const stack = rest > 1n ? [rest] : [];
+      while (stack.length) {
+        const m = stack.pop();
+        if (m === 1n) continue;
+        if (isPrime(m)) { primes.push(m); continue; }
+        const pp = perfectPower(m);
+        if (pp) { for (let i = 0; i < pp.k; i++) stack.push(pp.r); continue; }
+        if (m < 10n ** 14n) {
+          let c = 1n, d = 0n;
+          while (!d || d === m) {
+            const rs = rhoStart(m, c++);
+            d = 0n;
+            while (!d) d = rhoSteps(rs, 100000);
+          }
+          stack.push(d, m / d);
+          continue;
+        }
+        const r = await runQS(m, id);
+        if (r.st) qsRuns.push(r);
+        stack.push(r.d, m / r.d);
+      }
+      primes.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+      return { primes, qsRuns, ms: performance.now() - t0 };
+    }
+    function setN(N, note) {
+      ui.nOut.textContent = String(N);
+      ui.nInfo.textContent = `${String(N).length} 桁・${bitLen(N)} ビット${note ? '・' + note : ''}`;
+    }
+    async function start(N, note) {
+      const id = ++runId;
+      cmpId++;
+      cur = { N, primes: null, qs: null };
+      setN(N, note);
+      resetSteps();
+      ui.cmpBody.replaceChildren();
+      ui.stop.disabled = false;
+      ui.cmp.disabled = true;
+      ui.status.textContent = '分解しています…';
+      drawBoard();
+      try {
+        const out = await factorAll(N, id);
+        if (id !== runId) return;
+        cur.primes = out.primes;
+        cur.qs = out.qsRuns[out.qsRuns.length - 1] || null;
+        ui.result.textContent = out.primes.length > 1 ? `N = ${fmtFactors(out.primes)}` : 'N は素数';
+        if (out.qsRuns.length) ui.status.textContent = `二次ふるい法で分解した（${fmtMs(out.ms)}）`;
+        else if (out.primes.length === 1) ui.status.textContent = 'N は素数だった（ミラー–ラビン法の判定）。二次ふるい法は使っていない';
+        else ui.status.textContent = `小さな素数の割り算・累乗の見分け・ρ 法だけで分解できた（${fmtMs(out.ms)}）。二次ふるい法は使っていない`;
+        for (const r of out.qsRuns) if (!r.slow) addRecord(r);
+        ui.cmp.disabled = out.primes.length < 2;
+      } catch (e) {
+        if (e === STOP) return;
+        if (id === runId) ui.status.textContent = `止まった: ${e.message}`;
+        throw e;
+      } finally {
+        if (id === runId) {
+          ui.stop.disabled = true;
+          drawBoard();
+        }
+      }
+    }
+    // 記録は桁数の順に並べ、それぞれ桁数が 1 段下の記録と比べる。多すぎたら古い記録から消す
+    let recNo = 0;
+    const fmtRatio = (x) => (x < 10 ? x.toFixed(1) : x < 1000 ? x.toFixed(0) : pow10(Math.log10(x)));
+    function addRecord(r) {
+      r.no = ++recNo;
+      records.push(r);
+      if (records.length > 16) records.splice(records.findIndex((a) => a.no === Math.min(...records.map((b) => b.no))), 1);
+      records.sort((a, b) => a.digits - b.digits || a.no - b.no);
+      const f = METHODS.find((m) => m.id === 'qs').f;
+      ui.logBody.replaceChildren();
+      records.forEach((a, i) => {
+        let prev = null;
+        for (let k = i - 1; k >= 0; k--) if (records[k].digits < a.digits) { prev = records[k]; break; }
+        const grow = prev ? `×${fmtRatio(a.ms / Math.max(0.1, prev.ms))} / ×${fmtRatio(10 ** (f(a.digits) - f(prev.digits)))}` : '-';
+        const cells = [a.digits, fmtMs(a.ms), `${fmtMs(a.tSieve)} / ${fmtMs(a.tMat)}`, fmtInt(a.st.polys), fmtInt(qsCount(a.st)), grow];
+        const tr = document.createElement('tr');
+        cells.forEach((c, j) => {
+          const td = document.createElement('td');
+          td.textContent = c;
+          if (j < 5) td.className = 'n';
+          tr.append(td);
+        });
+        ui.logBody.append(tr);
+      });
+    }
+
+    // ---- 割り算と ρ 法で 2 秒ずつ試す ----
+    function cmpRow(name) {
+      const tr = document.createElement('tr');
+      const cells = [name, '試しています…', '-', '-'].map((s, i) => {
+        const td = document.createElement('td');
+        td.textContent = s;
+        if (i === 2) td.className = 'n';
+        tr.append(td);
+        return td;
+      });
+      ui.cmpBody.append(tr);
+      return cells;
+    }
+    async function compare() {
+      if (!cur || !cur.primes || cur.primes.length < 2) return;
+      const id = ++cmpId, N = cur.N, p = cur.primes[0], lp = Math.log10(Number(p));
+      ui.cmp.disabled = true;
+      ui.cmpBody.replaceChildren();
+      const LIMIT = 2000;
+      // 割り算: 3, 5, 7, … と奇数で順に割る。小さいほうの素数 p まで試せば見つかる
+      const a = cmpRow('割り算（3, 5, 7, … と順に）'), td = tdStart(N);
+      let t0 = performance.now(), found = 0n;
+      while (performance.now() - t0 < LIMIT && !found && td.d <= 5e8) {
+        found = tdSteps(td, 20000);
+        if (id !== cmpId) return;
+        await yieldNow();
+      }
+      let el = Math.max(1e-3, (performance.now() - t0) / 1000);
+      const tdRate = td.tried / el;
+      a[1].textContent = found ? `見つかった: ${found}` : `見つからない（${fmtInt(td.d)} まで）`;
+      a[2].textContent = fmtInt(td.tried);
+      a[3].textContent = found ? `${fmtMs(el * 1000)}（実際）` : `${fmtDurLog(lp - Math.log10(2) - Math.log10(tdRate))}（1 秒に ${pow10(Math.log10(tdRate))} 回で p まで）`;
+      // ρ 法: 平均でおよそ √p 回で見つかる
+      const b = cmpRow('ポラードの ρ 法'), rs = rhoStart(N);
+      t0 = performance.now();
+      found = 0n;
+      while (performance.now() - t0 < LIMIT && !found) {
+        found = rhoSteps(rs, 4000);
+        if (id !== cmpId) return;
+        await yieldNow();
+      }
+      el = Math.max(1e-3, (performance.now() - t0) / 1000);
+      const rhoRate = rs.steps / el;
+      b[1].textContent = found && found !== N ? `見つかった: ${found}` : '見つからない';
+      b[2].textContent = fmtInt(rs.steps);
+      b[3].textContent = found && found !== N ? `${fmtMs(el * 1000)}（実際）` : `${fmtDurLog(lp / 2 - Math.log10(rhoRate))}（1 秒に ${pow10(Math.log10(rhoRate))} 回で √p 回）`;
+      if (cur.qs) {
+        const c = cmpRow('二次ふるい法（上で動かした結果）');
+        c[1].textContent = `見つかった: ${cur.qs.d}`;
+        c[2].textContent = `多項式 ${fmtInt(cur.qs.st.polys)} 本`;
+        c[3].textContent = `${fmtMs(cur.qs.ms)}（実際）`;
+      }
+      ui.cmp.disabled = false;
+    }
+
+    // ---- 計算量の式の図と表 ----
+    const chart = $('chart'), cctx = chart.getContext('2d'), range = $('dg'), dgOut = $('dgOut'), lBody = $('lBody');
+    const CC = { td: '#8b97ab', rho: '#c792ea', qs: '#6fd3ff', nfs: '#7ee787', paper: '#ffcf5a' };
+    const XMIN = 10, XMAX = 700, YMAX = 80;
+    function drawChart() {
+      const dpr = fit(chart), W = chart.width, H = chart.height, g = cctx;
+      g.fillStyle = '#0a0d12';
+      g.fillRect(0, 0, W, H);
+      if (W < 80 || H < 80) return;
+      const L = 46 * dpr, R = 12 * dpr, T = 30 * dpr, B = 26 * dpr, pw = W - L - R, ph = H - T - B;
+      const X = (d) => L + ((d - XMIN) / (XMAX - XMIN)) * pw, Y = (k) => T + ph - (k / YMAX) * ph;
+      g.font = `${11 * dpr}px system-ui, sans-serif`;
+      g.lineWidth = 1;
+      g.textBaseline = 'middle';
+      for (let k = 0; k <= YMAX; k += 20) {
+        g.strokeStyle = '#1e2633';
+        g.beginPath(); g.moveTo(L, Math.round(Y(k)) + 0.5); g.lineTo(L + pw, Math.round(Y(k)) + 0.5); g.stroke();
+        g.fillStyle = '#8b97ab';
+        g.textAlign = 'right';
+        g.fillText(`10${sup(k)}`, L - 6 * dpr, Y(k));
+      }
+      g.textBaseline = 'top';
+      g.textAlign = 'center';
+      for (let d = 100; d <= XMAX; d += 100) {
+        g.strokeStyle = '#1e2633';
+        g.beginPath(); g.moveTo(Math.round(X(d)) + 0.5, T); g.lineTo(Math.round(X(d)) + 0.5, T + ph); g.stroke();
+        g.fillStyle = '#8b97ab';
+        // 右の端の目盛りは、はみ出さないように右に揃える
+        g.textAlign = d === XMAX ? 'right' : 'center';
+        g.fillText(`${d} 桁`, X(d), T + ph + 6 * dpr);
+      }
+      g.textAlign = 'center';
+      g.textAlign = 'left';
+      g.fillStyle = '#ffcf5a';
+      g.fillText(`論文の上限 L[1/3, 105] は、この図の上の外（10 桁で ${pow10(METHODS[4].f(10))}）`, L, 8 * dpr, pw);
+      g.save();
+      g.beginPath();
+      g.rect(L, T, pw, ph);
+      g.clip();
+      for (const m of METHODS) {
+        if (m.id === 'paper') continue;
+        g.strokeStyle = CC[m.id];
+        g.lineWidth = 2 * dpr;
+        g.beginPath();
+        for (let px = 0; px <= pw; px += 2 * dpr) {
+          const d = XMIN + (px / pw) * (XMAX - XMIN), y = Y(m.f(d));
+          if (px === 0) g.moveTo(L + px, y); else g.lineTo(L + px, y);
+        }
+        g.stroke();
+      }
+      const dv = Number(range.value);
+      g.strokeStyle = '#d9e1ee';
+      g.lineWidth = 1;
+      g.setLineDash([3 * dpr, 3 * dpr]);
+      g.beginPath(); g.moveTo(X(dv), T); g.lineTo(X(dv), T + ph); g.stroke();
+      g.setLineDash([]);
+      for (const m of METHODS) {
+        const k = m.f(dv);
+        if (k > YMAX) continue;
+        g.fillStyle = CC[m.id];
+        g.beginPath(); g.arc(X(dv), Y(k), 3.5 * dpr, 0, Math.PI * 2); g.fill();
+      }
+      g.restore();
+      // 線の名前: 図の上へ出る線は出る所に、出ない線は右の端に書く
+      g.font = `${11 * dpr}px system-ui, sans-serif`;
+      g.textBaseline = 'bottom';
+      const NAMES = { td: '割り算 √N', rho: 'ρ 法 N^¼', qs: '二次ふるい法', nfs: '数体ふるい法' };
+      for (const m of METHODS) {
+        if (m.id === 'paper') continue;
+        const out = m.f(XMAX) > YMAX;
+        let d = XMAX;
+        if (out) { let lo = XMIN, hi = XMAX; for (let i = 0; i < 40; i++) { const md = (lo + hi) / 2; if (m.f(md) > YMAX) hi = md; else lo = md; } d = lo; }
+        g.fillStyle = CC[m.id];
+        g.textAlign = out ? 'left' : 'right';
+        g.fillText(NAMES[m.id], out ? X(d) + 6 * dpr : X(d) - 2 * dpr, out ? T + 14 * dpr : Y(m.f(d)) - 4 * dpr);
+      }
+    }
+    function fillTable() {
+      const dv = Number(range.value);
+      dgOut.textContent = dv;
+      lBody.replaceChildren();
+      for (const m of METHODS) {
+        const k = m.f(dv), tr = document.createElement('tr');
+        const name = document.createElement('td'), sw = document.createElement('span');
+        sw.className = 'sw';
+        sw.style.background = CC[m.id];
+        name.append(sw, m.name);
+        const v = document.createElement('td'), t = document.createElement('td');
+        v.className = 'n';
+        t.className = 'n';
+        v.textContent = pow10(k);
+        t.textContent = fmtDurLog(k - 9);
+        tr.append(name, v, t);
+        lBody.append(tr);
+      }
+    }
+    function fillCross() {
+      const f = Object.fromEntries(METHODS.map((m) => [m.id, m.f]));
+      const a = crossDigits(f.paper, f.td), b = crossDigits(f.paper, f.qs), c = crossDigits(f.nfs, f.qs), e = crossDigits(f.qs, f.rho);
+      $('cross').textContent = `式の値が入れ替わる桁数（小さな項を省いた式なので目安）: 二次ふるい法の式が ρ 法の N^¼ より小さくなるのは約 ${Math.round(e)} 桁から、数体ふるい法の式が二次ふるい法の式より小さくなるのは約 ${Math.round(c)} 桁から。論文の上限 L[1/3, 105] が割り算の √N より小さくなるのは約 ${fmtInt(Math.round(a / 100) * 100)} 桁から、二次ふるい法の式より小さくなるのは約 ${pow10(Math.log10(b))} 桁から。数体ふるい法の式とは、同じ 1/3 の形で定数が 105 と 1.923 なので、桁数が増えるほど差が開き、入れ替わらない。`;
+    }
+    range.addEventListener('input', () => { fillTable(); drawChart(); });
+
+    // ---- 操作 ----
+    for (const b of document.querySelectorAll('.dg')) {
+      b.addEventListener('click', () => {
+        const d = Number(b.dataset.d), s = semiprime(d, rand);
+        for (const o of document.querySelectorAll('.dg')) o.setAttribute('aria-pressed', String(o === b));
+        ui.nIn.value = String(s.N);
+        start(s.N, `${String(s.p).length} 桁と ${String(s.q).length} 桁の素数の積`);
+      });
+    }
+    ui.go.addEventListener('click', () => {
+      const raw = ui.nIn.value.replace(/[\s,_]/g, '');
+      if (!/^\d+$/.test(raw)) { ui.status.textContent = '0〜9 の数字だけで入れてください'; return; }
+      const N = BigInt(raw);
+      if (N < 2n) { ui.status.textContent = '2 以上の数を入れてください'; return; }
+      if (raw.replace(/^0+/, '').length > 50) { ui.status.textContent = '時間がかかりすぎるので、50 桁までにしています'; return; }
+      for (const o of document.querySelectorAll('.dg')) o.setAttribute('aria-pressed', 'false');
+      start(N, '入れた数');
+    });
+    ui.nIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') ui.go.click(); });
+    ui.stop.addEventListener('click', () => {
+      runId++;
+      ui.stop.disabled = true;
+      ui.status.textContent = '止めました';
+    });
+    ui.cmp.addEventListener('click', () => { compare(); });
+    new ResizeObserver(() => { drawBoard(); drawChart(); }).observe(document.body);
+
+    fillTable();
+    fillCross();
+    drawBoard();
+    drawChart();
+    if (THUMB) {
+      (async () => {
+        for (;;) {
+          const s = semiprime(24, rand);
+          await start(s.N);
+          await sleep(2500);
+        }
+      })();
+    } else {
+      const first = document.querySelector('.dg[data-d="32"]');
+      const s = semiprime(32, rand);
+      first.setAttribute('aria-pressed', 'true');
+      ui.nIn.value = String(s.N);
+      start(s.N, `${String(s.p).length} 桁と ${String(s.q).length} 桁の素数の積`);
+    }
+  },
+});

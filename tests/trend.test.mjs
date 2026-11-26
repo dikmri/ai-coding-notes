@@ -2851,3 +2851,137 @@ test('スクロールのコントローラー: トラックボールは手前の
   const O = orth(bent), OT = [O[0], O[3], O[6], O[1], O[4], O[7], O[2], O[5], O[8]];
   assert.ok(close(mul3(O, OT), I));
 });
+
+// ---- 二次ふるい法（2026-11-26） ----
+const QSID = 'tr-20261126-quadratic-sieve';
+const QS_NAMES = ['bmod', 'powmod', 'gcd', 'isqrt', 'iroot', 'perfectPower', 'isPrime', 'seeded', 'semiprime', 'primesUpTo', 'sqrtModN',
+  'limbsOf', 'modSmall', 'qsParams', 'qsStart', 'qsPoly', 'qsEnough', 'qsRelations', 'buildMatrix', 'elimCols', 'dependencies', 'trySquare',
+  'qsSplit', 'rhoStart', 'rhoSteps', 'tdStart', 'tdSteps', 'log10L', 'METHODS', 'crossDigits'];
+
+test('二次ふるい法: 素数の判定・整数の平方根と累乗根・累乗の見分け', () => {
+  const { isPrime, isqrt, iroot, perfectPower } = trendCore(QSID, QS_NAMES);
+  for (const p of [2n, 3n, 97n, 7919n, 2n ** 61n - 1n, 2n ** 89n - 1n, 10n ** 18n + 3n]) assert.equal(isPrime(p), true, String(p));
+  // 561 と 41041 はカーマイケル数（フェルマーの判定はすり抜ける）
+  for (const n of [0n, 1n, 4n, 561n, 41041n, 3215031751n, (2n ** 61n - 1n) * (2n ** 31n - 1n), 10n ** 18n + 1n]) assert.equal(isPrime(n), false, String(n));
+  assert.equal(isqrt(10n ** 40n), 10n ** 20n);
+  assert.equal(isqrt(10n ** 40n - 1n), 10n ** 20n - 1n);
+  assert.equal(isqrt(99n), 9n);
+  assert.equal(iroot(10n ** 30n + 5n, 3), 10n ** 10n);
+  assert.equal(iroot(10n ** 30n - 1n, 3), 10n ** 10n - 1n);
+  const pp = perfectPower(3n ** 40n);
+  assert.deepEqual([pp.r ** BigInt(pp.k), pp.k >= 2], [3n ** 40n, true]);
+  assert.equal(perfectPower(12345678901234567n), null);
+  assert.equal(perfectPower(2n ** 61n - 1n), null);
+});
+
+test('二次ふるい法: 小さな数の道具（平方根・2^24 ごとの桁での余り）', () => {
+  const { sqrtModN, primesUpTo, limbsOf, modSmall, powmod } = trendCore(QSID, QS_NAMES);
+  const N = 123456789012345678901234567890123n, L = limbsOf(N);
+  for (const p of primesUpTo(3000).slice(1)) {
+    assert.equal(modSmall(L, p), Number(N % BigInt(p)), String(p));
+    // 平方剰余のときだけ平方根を求め、2 乗すると戻る（p ≡ 1 (mod 8) の素数も含む）
+    const n = modSmall(L, p);
+    if (n === 0 || Number(powmod(BigInt(n), BigInt((p - 1) / 2), BigInt(p))) !== 1) continue;
+    const t = sqrtModN(n, p);
+    assert.equal((t * t) % p, n, String(p));
+  }
+});
+
+test('二次ふるい法: 種を決めた N はちょうどその桁数の 2 つの素数の積で、同じ種なら同じ N', () => {
+  const { semiprime, seeded, isPrime } = trendCore(QSID, QS_NAMES);
+  for (const d of [12, 20, 31, 40]) {
+    const s = semiprime(d, seeded(d));
+    assert.equal(String(s.N).length, d);
+    assert.equal(s.p * s.q, s.N);
+    assert.ok(isPrime(s.p) && isPrime(s.q) && s.p < s.q);
+    assert.equal(semiprime(d, seeded(d)).N, s.N);
+  }
+});
+
+test('二次ふるい法: 2 を法とした消去で見つけた行の組は、足すと全部 0 になる', () => {
+  const { buildMatrix, elimCols, dependencies, seeded } = trendCore(QSID, QS_NAMES);
+  const rand = seeded(3), cols = 40, rels = [];
+  for (let i = 0; i < 50; i++) {
+    const ex = [];
+    for (let j = 0; j < cols; j++) if (rand() < 0.15) ex.push(j, 1 + Math.floor(rand() * 3));
+    rels.push({ ex });
+  }
+  const mx = buildMatrix(rels, cols);
+  assert.equal(elimCols(mx, 10), false);
+  assert.equal(elimCols(mx, cols), true);
+  const deps = dependencies(mx);
+  // 行が列より 10 多いので、組は 10 本以上ある
+  assert.ok(deps.length >= 10);
+  for (const idx of deps) {
+    const par = new Array(cols).fill(0);
+    for (const i of idx) for (let k = 0; k < rels[i].ex.length; k += 2) par[rels[i].ex[k]] ^= rels[i].ex[k + 1] & 1;
+    assert.ok(idx.length > 0 && par.every((v) => v === 0));
+  }
+});
+
+test('二次ふるい法: 20〜36 桁の 2 つの素数の積を分け、X² ≡ Y² (mod N) になっている', () => {
+  const { semiprime, seeded, qsSplit } = trendCore(QSID, QS_NAMES);
+  for (const d of [20, 26, 36]) {
+    const s = semiprime(d, seeded(100 + d));
+    const r = qsSplit(s.N);
+    assert.ok(r.d === s.p || r.d === s.q, `${d} 桁`);
+    assert.equal((r.sq.X * r.sq.X - r.sq.Y * r.sq.Y) % s.N, 0n);
+    // 指数はすべて偶数で、選んだ式は 2 本以上
+    assert.ok(r.sq.cnt.every((e) => e % 2 === 0) && r.idx.length >= 2);
+    assert.ok(r.st.full.length + r.st.combined.length >= r.st.need);
+  }
+});
+
+test('二次ふるい法: 多項式ごとの値 Q(x) は、ふるいで印を付けた素数で本当に割り切れる', () => {
+  const { semiprime, seeded, qsStart, qsPoly } = trendCore(QSID, QS_NAMES);
+  const s = semiprime(30, seeded(9)), st = qsStart(s.N);
+  for (let k = 0; k < 5; k++) {
+    qsPoly(st);
+    const { a, b, c } = st.last.poly;
+    // a·Q(x) = (a x + b)² − N
+    assert.equal(a * c, b * b - s.N);
+    for (let i = 2; i < 60; i++) {
+      const x = BigInt(st.R1[i]), Q = (a * x + 2n * b) * x + c;
+      assert.equal(Q % st.PB[i], 0n);
+    }
+  }
+  // 集めた式は X² ≡ q² Q(x) (mod N) を満たし、Q(x) は指数の通りに素因数分解されている
+  for (const r of st.full.slice(0, 20)) {
+    let v = 1n;
+    for (let k = 0; k < r.ex.length; k += 2) v *= (r.ex[k] === 0 ? -1n : st.PB[r.ex[k]]) ** BigInt(r.ex[k + 1]);
+    assert.equal(v, r.Q);
+    assert.equal((r.X * r.X - r.sq * r.sq * r.Q) % s.N, 0n);
+  }
+});
+
+test('二次ふるい法: ρ 法と割り算で小さな因数を見つける', () => {
+  const { rhoStart, rhoSteps, tdStart, tdSteps } = trendCore(QSID, QS_NAMES);
+  let st = rhoStart(10403n), d = 0n;
+  while (!d) d = rhoSteps(st, 50);
+  assert.ok(d === 101n || d === 103n);
+  st = rhoStart(1000000016000000063n);
+  d = 0n;
+  while (!d) d = rhoSteps(st, 5000);
+  assert.ok(d === 1000000007n || d === 1000000009n);
+  const t = tdStart(1009n * 1000000007n);
+  assert.equal(tdSteps(t, 10), 0n);
+  assert.equal(tdSteps(t, 1000), 1009n);
+});
+
+test('二次ふるい法: 計算量の式の値と、入れ替わる桁数', () => {
+  const { log10L, METHODS, crossDigits } = trendCore(QSID, QS_NAMES);
+  const f = Object.fromEntries(METHODS.map((m) => [m.id, m.f]));
+  // L[1, c] は N^c なので、10 を底とした対数は c × 桁数
+  assert.ok(Math.abs(log10L(100, 1, 0.5) - 50) < 1e-9);
+  assert.ok(Math.abs(f.td(100) - 50) < 1e-9 && Math.abs(f.rho(100) - 25) < 1e-9);
+  // 100 桁の二次ふるい法の式は √(ln N · ln ln N) / ln 10 ≈ 15.37
+  assert.ok(Math.abs(f.qs(100) - 15.3695) < 1e-3);
+  const a = crossDigits(f.paper, f.td), b = crossDigits(f.paper, f.qs), c = crossDigits(f.nfs, f.qs);
+  assert.ok(a > 13000 && a < 14500, String(a));
+  assert.ok(b > 1e13 && b < 3e13, String(b));
+  assert.ok(c > 100 && c < 150, String(c));
+  // 入れ替わった後は大小が逆になる
+  assert.ok(f.paper(a * 0.9) > f.td(a * 0.9) && f.paper(a * 1.1) < f.td(a * 1.1));
+  // 論文の上限と数体ふるい法は、同じ 1/3 の形なので入れ替わらない
+  assert.ok(Number.isNaN(crossDigits(f.paper, f.nfs)));
+});
