@@ -19575,3 +19575,1225 @@ td.n { text-align: right; font-variant-numeric: tabular-nums; }
     }
   },
 });
+
+dekiru.add({
+  id: 'tr-20261127-permanent-det', c: 'trend', lv: 3, date: '2026-11-27',
+  t: 'パーマネントと行列式の手数を数え、パーマネントを 2ⁿ − 1 行の行列式に作り直す',
+  y: 'ぱーまねんとと ぎょうれつしきの てかずをかぞえ ぱーまねんとを にのえぬじょう まいなすいちぎょうの ぎょうれつしきに つくりなおす',
+  tags: ['VP ≠ VNP', 'パーマネント', '行列式', 'BigInt', 'ジェネレーター関数', 'scheduler.yield', 'canvas'],
+  d: '2026-11-23 に Anthropic が GitHub の anthropics/formal-math に、論文「VP ≠ VNP over every field」と Lean 4 の証明を置いた（Hacker News で 368 点・337 件）。README によると、社内の研究用の Claude が見つけた結果で、論文も Lean の証明も AI が書き、人の数学者はまだ証明を確かめていない。翌日には OpenAI も同じ結論の論文「VP and VNP are different」を GitHub に置いた。11-25 の Scott Aaronson さんの記事（Hacker News で 1947 点）もこの 2 本を取り上げ、11-26 にはこの結果を使った別の分離の結果（NP_R ≠ PAR_R）も出ている。'
+    + 'VP ≠ VNP は、足し算と掛け算だけで多項式を計算する回路の世界での P ≠ NP にあたる問題で、Valiant が 1979 年に出した。中心にあるのはパーマネントで、行列式の式から置換の符号 (−1)^σ を取っただけの式なのに、行列式はガウスの消去法などで n³ ほどの手数で計算できる一方、パーマネントを速く計算する方法は知られていない。Lance Fortnow さんのまとめ（2026-11-25）によると、論文は n×n のパーマネントの回路に 2^(Ω((log n)^(4/3))) の大きさが要ることを示しており、これはどんな多項式よりも大きい。'
+    + 'この見本は、その差を手で動かして見られるようにした。① 0 と 1 の行列を押して変えると、1 の所だけを通る置換（2 部グラフの完全マッチング）を全部並べ、偶数の置換と奇数の置換の数から、パーマネント = 偶数 + 奇数、行列式 = 偶数 − 奇数 になる様子を見せる。② 割り算を使わない行列式の計算（Berkowitz の方法）、パーマネントの Ryser の式、定義どおりの n! 個の和について、プログラムが実際に行う足し算と掛け算の回数を数えて n = 30 まで比べ、この端末で時間も測る。③ 3×3 の 9 個の成分の符号を付け替えて行列式をパーマネントに合わせようとすると、512 通りのどれでも 6 個の項のうち 5 個までしか合わないことを確かめる。④ Grenet の作り方で、n×n のパーマネントを 2ⁿ − 1 行の行列式に作り直し、ランダムな整数の行列で値が一致することを BigInt で確かめる。論文の結果が正しければ、このように行列式で書き直すとき、行数を n の多項式で抑えることはできない。'
+    + 'パソコンの Chrome（画面を出さずに動かしたもの）で測ると、1 回 0.3〜0.4 秒の中で、行列式は n = 192（0.32 秒）、パーマネントは n = 23（0.40 秒）まで計算できた。同じ速さで手数の式の比から延ばすと、パーマネントは n = 40 で約 1 日、n = 60 で約 4,500 年かかり、行列式は n = 1000 でも約 4 分で済む。'
+    + '再現できていない所: 論文の証明そのもの（Fortnow さんによると、Strassen の漸近スペクトルの変形で 2 つの場合に分け、階数の議論と対角化を使う）、Lean の検査、ハミルトン閉路の多項式は扱っていない。論文の下限の式は Ω の中の定数が分からないので、図と表では定数を 1 と置いた形を目安として描いた。この形が n⁴ を越えるのは log₂ n > 64、つまり n > 2⁶⁴ からで、「どんな多項式よりも大きい」は n がとても大きい所での話である。',
+  p: 'パーマネントは Ryser の式 perm A = (−1)ⁿ Σ_S (−1)^|S| Π_i Σ_(j∈S) a_ij で計算する。列の部分集合 S をグレイ符号の順にたどると、1 歩ごとに 1 列を出し入れするだけで各行の和を更新でき、手数は (2ⁿ − 1) · 2n 回になる。行列式の Berkowitz の方法は、右下の 1×1 から 1 行 1 列ずつ広げながら、特性多項式 det(λI − A) の係数を作る。広げるたびに、新しい行 R・新しい列 S・それまでの行列 M から 1, −a, −RS, −RMS, −RM²S, … を並べた下三角のテプリッツ行列を作り、前の係数に掛ける。割り算を使わないので、足し算と掛け算だけの回路になる。Grenet の作り方では、使い終わった列の集合を頂点にして、k 個の列を使った集合から列 j を足した集合へ、重み x_(k+1, j) の辺を引く。空集合から全部の集合への道 1 本が置換 1 つに当たり、道の重みの和がパーマネントになる。全部の集合を空集合と同じ頂点にまとめ、ほかの頂点に重み 1 の輪を付けた行列を作ると、行列式の項（巡回置換の組）は「道 1 本 + 残りの頂点の輪」だけになる。項の符号はどれも (−1)ⁿ⁻¹ なので、n が偶数のときは最初の段の辺の符号を変えて合わせる。値は、BigInt で割り切れる割り算だけを使う Bareiss の消去法で確かめる。時間を測る計算はジェネレーター関数で書き、40 ms ごとに scheduler.yield()（無いブラウザは setTimeout）で画面の処理に戻り、待った時間は計算の時間に入れない。',
+  refs: [
+    { title: 'Anthropic: VP ≠ VNP over every field（論文と Lean 4 の証明、README）', url: 'https://github.com/anthropics/formal-math/tree/main/vp-vnp' },
+    { title: 'Hacker News: VP ≠ VNP over Every Field', url: 'https://news.ycombinator.com/item?id=50620102' },
+    { title: 'Lance Fortnow: VP ≠ VNP（Computational Complexity ブログ、2026-11-25）', url: 'https://blog.computationalcomplexity.org/2026/11/vp-vnp.html' },
+    { title: 'Lance Fortnow さんの X の投稿（2026-11-23）', url: 'https://x.com/fortnow/status/2125005191577502168' },
+    { title: 'OpenAI: VP and VNP are different（2026-11-23 版）', url: 'https://github.com/openai/math/tree/main/preprints/VP-and-VNP-are-different-November-23-2026' },
+    { title: 'Alper, Bogart, Velasco: A lower bound for the determinantal complexity of a hypersurface（3×3 のパーマネントは 7 行が最小）', url: 'https://arxiv.org/abs/1505.02205' },
+  ],
+  html: `<div class="wrap">
+  <section class="box s1">
+    <h3>① 同じ項を、そのまま足すか、符号を付けて足すか</h3>
+    <canvas id="board" class="board" role="img" aria-label="左は行と列を結ぶ 2 部グラフと、いま選んでいる完全マッチング。右は偶数の置換と奇数の置換の数と、パーマネントと行列式の値"></canvas>
+    <p id="now" class="now">-</p>
+    <div class="ctl">
+      <div class="row" role="group" aria-label="行列の大きさ">
+        <span class="k">大きさ</span>
+        <button type="button" class="nb1" data-n="2">2</button>
+        <button type="button" class="nb1" data-n="3">3</button>
+        <button type="button" class="nb1" data-n="4">4</button>
+        <button type="button" class="nb1" data-n="5">5</button>
+        <button type="button" class="nb1" data-n="6">6</button>
+      </div>
+      <div class="mx">
+        <div id="grid" class="grid" role="group" aria-label="行列の成分。押すと 0 と 1 が入れ替わる"></div>
+        <div class="row col">
+          <button type="button" id="rnd">ランダム</button>
+          <button type="button" id="ones">全部 1</button>
+          <button type="button" id="play" aria-pressed="true">順に見せる</button>
+        </div>
+      </div>
+      <p id="sum" class="sum">-</p>
+      <div id="chips" class="chips" role="group" aria-label="1 の所だけを通る置換の一覧。押すと上の図で見せる"></div>
+      <p class="note">行 i から列 p(i) へ 1 本ずつ線を引き、どの列も 1 回ずつ使う選び方が置換 p。選んだ成分の積を全部足すとパーマネント、奇数の置換（2 つの入れ替えを奇数回して作れる並び）だけ引くと行列式になる。0 と 1 の行列では、積は 1 の所だけを通る置換で 1、ほかは 0 なので、パーマネントは完全マッチングの数そのもの。この数を数える問題は、0 と 1 の行列でも #P 完全（Valiant、1979 年）。</p>
+    </div>
+  </section>
+
+  <section class="box">
+    <h3>② 足し算と掛け算の回数を数える</h3>
+    <canvas id="chart" class="chart" role="img" aria-label="n ごとの、行列式とパーマネントを計算する手数。縦は 10 の何乗かで描く"></canvas>
+    <p class="legend">
+      <span><i class="sw" style="background:#6fd3ff"></i>行列式（Berkowitz の方法）</span>
+      <span><i class="sw" style="background:#ff9f5a"></i>パーマネント（Ryser の式）</span>
+      <span><i class="sw" style="background:#ff7b9c"></i>パーマネント（定義どおり n! 個の和）</span>
+      <span><i class="sw dash"></i>論文の下限の形 2^((log₂ n)^(4/3))（定数は 1 と置いた目安）</span>
+    </p>
+    <div class="tw" tabindex="0" role="region" aria-labelledby="cntCap">
+      <table>
+        <caption id="cntCap">プログラムが実際に行う足し算（引き算を含む）と掛け算の合計。符号を変えるだけの計算は数えない</caption>
+        <thead><tr><th scope="col">n</th><th scope="col">行列式（Berkowitz）</th><th scope="col">パーマネント（Ryser）</th><th scope="col">パーマネント（定義どおり）</th><th scope="col">論文の下限の形</th></tr></thead>
+        <tbody id="cntBody"></tbody>
+      </table>
+    </div>
+    <div class="row">
+      <button type="button" id="benchBtn" class="main">この端末で時間を測る</button>
+      <button type="button" id="benchStop" disabled>止める</button>
+    </div>
+    <p id="benchStatus" class="note" role="status"></p>
+    <div class="tw" tabindex="0" role="region" aria-labelledby="bCap">
+      <table>
+        <caption id="bCap">1 回の計算にかかった時間（1 回が 0.25 秒を超えたら、その方法は止める）</caption>
+        <thead><tr><th scope="col">方法</th><th scope="col">n</th><th scope="col">時間</th><th scope="col">1 秒あたりの足し算と掛け算</th></tr></thead>
+        <tbody id="benchBody"></tbody>
+      </table>
+    </div>
+    <p id="benchSum" class="note"></p>
+    <p class="note">行列式の手数は約 n⁴/2 で、n を 2 倍にすると約 16 倍になる。パーマネントの Ryser の式は約 2ⁿ · 2n で、n を 1 増やすだけで 2 倍を少し超える。論文が示したのは「パーマネントの回路はどんな多項式よりも大きい」ことで、2ⁿ ほどかかることまでは示していない。定数を 1 と置いた下限の形が n⁴ を越えるのは、log₂ n が 64 を越えてから（n > 2⁶⁴）。</p>
+  </section>
+
+  <section class="box">
+    <h3>③ 符号を付け替えて、行列式をパーマネントに合わせる</h3>
+    <p class="note">2×2 なら、右上の成分の符号を変えるだけでよい。行列 (a −b / c d) の行列式は ad + bc で、元の行列のパーマネントと同じ式になる。3×3 ではどうか。9 個の成分に付ける符号を押して変え、6 個の項がすべて + になる付け方を探す。</p>
+    <div class="pol">
+      <div id="sg" class="grid g3" role="group" aria-label="3 行 3 列の成分に付ける符号。押すと + と − が入れ替わる"></div>
+      <ul id="terms" class="terms"></ul>
+    </div>
+    <p id="polRes" class="sum"></p>
+    <div class="row"><button type="button" id="polAll">512 通りを全部調べる</button></div>
+    <div id="hist" class="hist"></div>
+    <p class="note">どう付けても 6 個全部は合わない理由: 6 個の項の符号を全部掛けると、どの成分もちょうど 2 個の項に出てくるので、付けた符号は 2 回ずつ掛かって消える。残るのは置換の符号の積 (+1)³ × (−1)³ = −1 だけ。全部が + なら積は +1 になるはずなので、少なくとも 1 個は − になる。1913 年に Pólya がこの問いを出し、3×3 以上ではどう付けてもできないことを Szegő が示した。なお、1 + 1 = 0 になる標数 2 の世界では −1 = +1 なので、行列式とパーマネントは同じ式になる。論文がパーマネントについて標数 2 を除いているのはこのため。</p>
+  </section>
+
+  <section class="box">
+    <h3>④ パーマネントを 2ⁿ − 1 行の行列式に作り直す（Grenet の作り方）</h3>
+    <div class="row" role="group" aria-label="パーマネントの大きさ n">
+      <span class="k">n</span>
+      <button type="button" class="nb4" data-n="1">1</button>
+      <button type="button" class="nb4" data-n="2">2</button>
+      <button type="button" class="nb4" data-n="3">3</button>
+      <button type="button" class="nb4" data-n="4">4</button>
+      <button type="button" class="nb4" data-n="5">5</button>
+      <button type="button" class="nb4" data-n="6">6</button>
+    </div>
+    <div class="gwrap">
+      <canvas id="lat" class="lat" role="img" aria-label="使い終わった列の集合を頂点にした道の網と、いま選んでいる道"></canvas>
+      <canvas id="mat" class="mat" role="img" aria-label="作った行列 B。色の付いたマスは元の行列の成分、灰色は 1、空いた所は 0。いまの道が使う成分を明るく描く"></canvas>
+    </div>
+    <p id="gPath" class="now">-</p>
+    <div class="row">
+      <button type="button" id="gNew">別の数で確かめる</button>
+      <button type="button" id="gPlay" aria-pressed="true">道を順に見せる</button>
+    </div>
+    <p id="gRes" class="result"></p>
+    <div class="tw" tabindex="0" role="region" aria-labelledby="gCap">
+      <table>
+        <caption id="gCap">n×n のパーマネントを、成分が変数か定数の行列の行列式で書くときの行数</caption>
+        <thead><tr><th scope="col">n</th><th scope="col">Grenet の作り方（2ⁿ − 1）</th><th scope="col">0 でない成分</th><th scope="col">知られている下限（n²/2）</th><th scope="col">備考</th></tr></thead>
+        <tbody id="gBody"></tbody>
+      </table>
+    </div>
+    <p class="note">左の図の頂点は、使い終わった列の集合で、左から 0 個・1 個・…・n 個の順に並ぶ。k 段目の頂点から列 j を足した頂点へ進む辺の重みが x_(k+1, j) で、道 1 本が置換 1 つに当たる。右の行列 B は、全部の集合を ∅ と同じ頂点にまとめた網の隣り合いの表に、対角の 1 を足したもの。下限 n²/2 は Mignon と Ressayre（2004 年、標数 0）による。n = 3 では 7 行が最小だと Alper・Bogart・Velasco が示した。論文の結果が正しければ、必要な行数は n のどんな多項式よりも速く増える（Fortnow さんのまとめ）。</p>
+  </section>
+</div>`,
+  css: `:root { color-scheme: dark; --bg: #0e1117; --fg: #d9e1ee; --mut: #8b97ab; --ac: #6fd3ff; --even: #6fd3ff; --odd: #ff9f5a; --line: #2a3242; --card: #151a23; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.6 system-ui, sans-serif; }
+.wrap { padding: 12px 16px 24px; display: grid; gap: 12px; max-width: 980px; margin: 0 auto; }
+.box { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 8px; min-width: 0; }
+.box h3 { margin: 0; font-size: 14px; }
+.board { width: 100%; height: 250px; display: block; background: #0a0d12; border: 1px solid var(--line); border-radius: 8px; }
+.now, .sum { margin: 0; font-size: 13px; }
+.now { color: var(--mut); min-height: 3.2em; }
+.ctl { display: grid; gap: 8px; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.col { flex-direction: column; align-items: stretch; }
+.k { color: var(--mut); margin-right: 2px; }
+button { font: inherit; color: var(--fg); background: #1d2430; border: 1px solid var(--line); border-radius: 6px; padding: 3px 10px; cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--ac); }
+button:disabled { opacity: 0.45; cursor: default; }
+button.main { background: #12384a; border-color: #2f6f8a; }
+button[aria-pressed="true"] { border-color: var(--ac); color: var(--ac); }
+.mx { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+.grid { display: grid; gap: 3px; }
+.cell { width: 2.1em; height: 2.1em; padding: 0; font: 600 13px/1 ui-monospace, Consolas, monospace; }
+.cell[aria-pressed="false"] { color: #4c566b; }
+.cell[aria-pressed="true"] { background: #23314a; color: var(--fg); border-color: #3d4d6b; }
+.cell.on { background: var(--even); color: #0a0d12; border-color: var(--even); }
+.cell.on.odd { background: var(--odd); border-color: var(--odd); }
+.g3 { grid-template-columns: repeat(3, 2.4em); }
+.g3 .cell { width: 2.4em; height: 2.4em; font-size: 16px; }
+.g3 .cell[aria-pressed="false"] { color: var(--even); background: #1d2430; border-color: var(--line); }
+.g3 .cell[aria-pressed="true"] { color: var(--odd); background: #2c2218; border-color: #6b4a2c; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; max-height: 9.5em; overflow-y: auto; }
+.chip { font: 12px/1.5 ui-monospace, Consolas, monospace; padding: 1px 6px; border-color: #2c3a4f; }
+.chip.even { color: var(--even); }
+.chip.odd { color: var(--odd); }
+.chip[aria-pressed="true"] { background: #2a3550; border-color: currentColor; }
+.more { color: var(--mut); font-size: 12px; align-self: center; }
+.chart { width: 100%; height: 260px; display: block; background: #0a0d12; border: 1px solid var(--line); border-radius: 8px; }
+.legend { display: flex; flex-wrap: wrap; gap: 2px 14px; margin: 0; font-size: 12.5px; color: var(--mut); }
+.sw { display: inline-block; width: 14px; height: 3px; margin-right: 6px; vertical-align: middle; }
+.sw.dash { border-top: 2px dashed #9aa5b8; height: 0; }
+.tw { overflow-x: auto; max-inline-size: 100%; }
+table { border-collapse: collapse; font-size: 12.5px; }
+caption { text-align: left; color: var(--mut); font-size: 12px; padding-bottom: 2px; }
+th, td { padding: 3px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+th { color: var(--mut); font-weight: 500; }
+td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.note { color: var(--mut); font-size: 12.5px; margin: 0; }
+.pol { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.terms { margin: 0; padding: 0; list-style: none; display: grid; gap: 1px; font: 12.5px/1.55 ui-monospace, Consolas, monospace; }
+.terms .good { color: var(--even); }
+.terms .bad { color: var(--odd); }
+.hist { display: grid; gap: 3px; font-size: 12.5px; max-width: 560px; }
+.hist:empty { display: none; }
+.hrow { display: grid; grid-template-columns: 8em 1fr 4.5em; gap: 8px; align-items: center; }
+.hrow .cnt { text-align: right; font-variant-numeric: tabular-nums; }
+.bar { height: 10px; background: var(--even); border-radius: 2px; }
+.gwrap { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 10px; }
+.lat, .mat { width: 100%; height: 300px; display: block; background: #0a0d12; border: 1px solid var(--line); border-radius: 8px; }
+.result { margin: 0; font: 13px/1.55 ui-monospace, Consolas, monospace; overflow-wrap: anywhere; color: #7ee787; }
+.result.bad { color: #ff7b72; }
+.thumb .wrap { padding: 8px 10px; }
+.thumb .box:not(.s1), .thumb .ctl, .thumb .now, .thumb .s1 h3 { display: none; }
+.thumb .s1 { padding: 0; border: 0; background: none; }
+.thumb .board { height: 226px; }`,
+  core() {
+    // ---- 計算に使う数の入れ物: 足し算・引き算・掛け算・符号の反転だけを使う ----
+    // Number の反転は 0 − a で書く（-a だと 0 が −0 になる）
+    const NUM = { zero: 0, one: 1, add: (a, b) => a + b, sub: (a, b) => a - b, mul: (a, b) => a * b, neg: (a) => 0 - a };
+    const BIG = { zero: 0n, one: 1n, add: (a, b) => a + b, sub: (a, b) => a - b, mul: (a, b) => a * b, neg: (a) => -a };
+    // 回数を数える入れ物。値は Number で計算し、足し算（引き算を含む）と掛け算の回数を c に数える。符号の反転は数えない
+    function counting() {
+      const c = { add: 0, mul: 0 };
+      return {
+        c, zero: 0, one: 1,
+        add: (a, b) => { c.add++; return a + b; },
+        sub: (a, b) => { c.add++; return a - b; },
+        mul: (a, b) => { c.mul++; return a * b; },
+        neg: (a) => 0 - a,
+      };
+    }
+    function popcount(x) {
+      let c = 0;
+      while (x) { x &= x - 1; c++; }
+      return c;
+    }
+    function factorial(n) {
+      let f = 1;
+      for (let k = 2; k <= n; k++) f *= k;
+      return f;
+    }
+    function log10Fact(n) {
+      let s = 0;
+      for (let k = 2; k <= n; k++) s += Math.log10(k);
+      return s;
+    }
+    // 論文の下限 2^(Ω((log n)^(4/3))) の、定数を 1 と置いた形（10 を底とした対数）
+    function lowerLog10(n) { return n <= 1 ? 0 : Math.log2(n) ** (4 / 3) * Math.LOG10E * Math.LN2; }
+
+    // Berkowitz の方法: 割り算を使わずに特性多項式 det(λI − A) の係数 [1, c1, …, cn] を作る
+    function charPoly(A, R) {
+      const n = A.length;
+      if (!n) return [R.one];
+      let p = [R.one, R.neg(A[n - 1][n - 1])];
+      for (let r = n - 2; r >= 0; r--) {
+        const m = n - 1 - r;
+        // テプリッツ行列の 1 列目: 1, −a, −R S, −R M S, …, −R M^(m−1) S
+        const t = [R.one, R.neg(A[r][r])];
+        let v = [];
+        for (let i = 0; i < m; i++) v.push(A[r + 1 + i][r]);
+        for (let k = 0; k < m; k++) {
+          let s = R.mul(A[r][r + 1], v[0]);
+          for (let i = 1; i < m; i++) s = R.add(s, R.mul(A[r][r + 1 + i], v[i]));
+          t.push(R.neg(s));
+          if (k < m - 1) {
+            const w = [];
+            for (let i = 0; i < m; i++) {
+              const row = A[r + 1 + i];
+              let u = R.mul(row[r + 1], v[0]);
+              for (let l = 1; l < m; l++) u = R.add(u, R.mul(row[r + 1 + l], v[l]));
+              w.push(u);
+            }
+            v = w;
+          }
+        }
+        // 新しい係数 = 下三角のテプリッツ行列 × 前の係数（t[0] = 1 の項は掛けずにそのまま足す）
+        const q = [];
+        for (let i = 0; i <= m + 1; i++) {
+          let s = i <= m ? p[i] : null;
+          for (let j = Math.max(0, i - m - 1); j < i && j <= m; j++) {
+            const term = R.mul(t[i - j], p[j]);
+            s = s === null ? term : R.add(s, term);
+          }
+          q.push(s);
+        }
+        p = q;
+      }
+      return p;
+    }
+    function detBerkowitz(A, R) {
+      const n = A.length;
+      if (!n) return R.one;
+      const c = charPoly(A, R)[n];
+      return n % 2 ? R.neg(c) : c;
+    }
+    // 上の charPoly が行う回数を式で出す（m は広げる前の大きさ）
+    function countsBerkowitz(n) {
+      let add = 0, mul = 0;
+      for (let m = 1; m <= n - 1; m++) {
+        mul += m ** 3 + (m * (m + 1)) / 2 + m + 1;
+        add += m * m * (m - 1) + (m * (m + 1)) / 2 + m;
+      }
+      return { add, mul };
+    }
+
+    // Ryser の式: perm A = (−1)^n Σ_S (−1)^|S| Π_i Σ_(j∈S) a_ij。S はグレイ符号の順に 1 列ずつ出し入れする
+    function permRyser(A, R) {
+      const n = A.length;
+      if (!n) return R.one;
+      const row = new Array(n).fill(R.zero);
+      let total = R.zero, size = 0;
+      for (let k = 1; k < 2 ** n; k++) {
+        const j = 31 - Math.clz32(k & -k);
+        const inS = ((k ^ (k >> 1)) >> j) & 1;
+        size += inS ? 1 : -1;
+        for (let i = 0; i < n; i++) row[i] = inS ? R.add(row[i], A[i][j]) : R.sub(row[i], A[i][j]);
+        let prod = row[0];
+        for (let i = 1; i < n; i++) prod = R.mul(prod, row[i]);
+        total = (n - size) % 2 === 0 ? R.add(total, prod) : R.sub(total, prod);
+      }
+      return total;
+    }
+    function countsRyser(n) {
+      const s = 2 ** n - 1;
+      return { add: s * (n + 1), mul: s * (n - 1) };
+    }
+
+    // 定義どおり: n! 個の置換を Heap の方法で 1 回の入れ替えずつ作り、[行列式, パーマネント] を返す
+    function leibniz(A, R) {
+      const n = A.length;
+      if (!n) return [R.one, R.one];
+      const p = [...Array(n).keys()], c = new Array(n).fill(0);
+      let odd = false, det = null, per = null;
+      const visit = () => {
+        let prod = A[0][p[0]];
+        for (let i = 1; i < n; i++) prod = R.mul(prod, A[i][p[i]]);
+        per = per === null ? prod : R.add(per, prod);
+        det = det === null ? (odd ? R.neg(prod) : prod) : (odd ? R.sub(det, prod) : R.add(det, prod));
+      };
+      visit();
+      let i = 1;
+      while (i < n) {
+        if (c[i] < i) {
+          const k = i % 2 ? c[i] : 0;
+          [p[k], p[i]] = [p[i], p[k]];
+          odd = !odd;
+          visit();
+          c[i]++;
+          i = 1;
+        } else {
+          c[i] = 0;
+          i++;
+        }
+      }
+      return [det, per];
+    }
+
+    // BigInt の行列式: 割り切れる割り算だけを使う Bareiss の消去法
+    function detBareiss(M0) {
+      const M = M0.map((r) => r.slice()), n = M.length;
+      if (!n) return 1n;
+      let sign = 1n, prev = 1n;
+      for (let k = 0; k < n - 1; k++) {
+        if (M[k][k] === 0n) {
+          let r = k + 1;
+          while (r < n && M[r][k] === 0n) r++;
+          if (r === n) return 0n;
+          [M[k], M[r]] = [M[r], M[k]];
+          sign = -sign;
+        }
+        for (let i = k + 1; i < n; i++) {
+          for (let j = k + 1; j < n; j++) M[i][j] = (M[i][j] * M[k][k] - M[i][k] * M[k][j]) / prev;
+        }
+        prev = M[k][k];
+      }
+      return sign * M[n - 1][n - 1];
+    }
+
+    // ---- 置換 ----
+    function allPerms(n) {
+      const p = [...Array(n).keys()], out = [p.slice()];
+      for (;;) {
+        let i = n - 2;
+        while (i >= 0 && p[i] > p[i + 1]) i--;
+        if (i < 0) return out;
+        let j = n - 1;
+        while (p[j] < p[i]) j--;
+        [p[i], p[j]] = [p[j], p[i]];
+        for (let a = i + 1, b = n - 1; a < b; a++, b--) [p[a], p[b]] = [p[b], p[a]];
+        out.push(p.slice());
+      }
+    }
+    function inversions(p) {
+      let c = 0;
+      for (let i = 0; i < p.length; i++) for (let j = i + 1; j < p.length; j++) if (p[i] > p[j]) c++;
+      return c;
+    }
+    // 0 と 1 の行列で、選ぶ成分が全部 1 の置換（2 部グラフの完全マッチング）
+    function matchings(A) {
+      return allPerms(A.length).filter((p) => p.every((j, i) => A[i][j])).map((p) => ({ p, odd: inversions(p) % 2 === 1 }));
+    }
+    // 成分に符号 s（+1 か −1）を付けた行列式で、項の符号が +1（パーマネントと同じ）になる置換の数
+    function polyaGood(s) {
+      let good = 0;
+      for (const p of allPerms(s.length)) {
+        let v = inversions(p) % 2 ? -1 : 1;
+        for (let i = 0; i < p.length; i++) v *= s[i][p[i]];
+        if (v > 0) good++;
+      }
+      return good;
+    }
+    // n×n の符号の付け方 2^(n²) 通りを全部調べ、合う項の数ごとの通り数を返す
+    function polyaAll(n) {
+      const hist = new Array(factorial(n) + 1).fill(0);
+      for (let mask = 0; mask < 2 ** (n * n); mask++) {
+        const s = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => ((mask >> (i * n + j)) & 1 ? -1 : 1)));
+        hist[polyaGood(s)]++;
+      }
+      return hist;
+    }
+
+    // ---- Grenet の作り方: 使い終わった列の集合を頂点にした道の網 ----
+    function grenet(n) {
+      const full = 2 ** n - 1;
+      const verts = [];
+      for (let s = 0; s < full; s++) verts.push(s);
+      verts.sort((a, b) => popcount(a) - popcount(b) || a - b);
+      const index = new Map(verts.map((s, i) => [s, i]));
+      const cells = [];
+      for (const S of verts) {
+        const k = popcount(S);
+        for (let j = 0; j < n; j++) {
+          if (S & (1 << j)) continue;
+          const T = S | (1 << j);
+          // 全部の集合は ∅ と同じ頂点。n が偶数なら最初の段の辺の符号を変えて、行列式の符号をそろえる
+          cells.push({ r: index.get(S), c: T === full ? 0 : index.get(T), k, j, neg: k === 0 && n % 2 === 0 });
+        }
+      }
+      for (let v = 1; v < verts.length; v++) cells.push({ r: v, c: v, one: true });
+      return { n, full, size: verts.length, verts, index, cells };
+    }
+    function grenetMatrix(g, A, R) {
+      const M = Array.from({ length: g.size }, () => new Array(g.size).fill(R.zero));
+      for (const e of g.cells) M[e.r][e.c] = e.one ? R.one : (e.neg ? R.neg(A[e.k][e.j]) : A[e.k][e.j]);
+      return M;
+    }
+    // 置換 p（行 k に列 p[k]）に当たる道が、行列式の項で使う成分 [行, 列] の一覧
+    function grenetCover(g, p) {
+      const used = [], on = new Set();
+      let S = 0;
+      for (let k = 0; k < g.n; k++) {
+        const T = S | (1 << p[k]);
+        const r = g.index.get(S), c = T === g.full ? 0 : g.index.get(T);
+        used.push([r, c]);
+        on.add(r);
+        S = T;
+      }
+      for (let v = 1; v < g.size; v++) if (!on.has(v)) used.push([v, v]);
+      return used;
+    }
+
+    // ---- 時間を測るための Float64 版。ジェネレーター関数で書き、途中で区切れるようにする ----
+    function* berkowitzF64(A) {
+      const n = A.length;
+      if (!n) return 1;
+      let p = new Float64Array([1, -A[n - 1][n - 1]]);
+      for (let r = n - 2; r >= 0; r--) {
+        const m = n - 1 - r, t = new Float64Array(m + 2), Ar = A[r];
+        t[0] = 1;
+        t[1] = -Ar[r];
+        let v = new Float64Array(m), w = new Float64Array(m);
+        for (let i = 0; i < m; i++) v[i] = A[r + 1 + i][r];
+        for (let k = 0; k < m; k++) {
+          let s = 0;
+          for (let i = 0; i < m; i++) s += Ar[r + 1 + i] * v[i];
+          t[k + 2] = -s;
+          if (k < m - 1) {
+            for (let i = 0; i < m; i++) {
+              const row = A[r + 1 + i];
+              let u = 0;
+              for (let l = 0; l < m; l++) u += row[r + 1 + l] * v[l];
+              w[i] = u;
+            }
+            const tmp = v;
+            v = w;
+            w = tmp;
+          }
+        }
+        const q = new Float64Array(m + 2);
+        for (let i = 0; i <= m + 1; i++) {
+          let s = i <= m ? p[i] : 0;
+          for (let j = Math.max(0, i - m - 1); j < i && j <= m; j++) s += t[i - j] * p[j];
+          q[i] = s;
+        }
+        p = q;
+        yield r;
+      }
+      return n % 2 ? -p[n] : p[n];
+    }
+    function* ryserF64(A, every = 4096) {
+      const n = A.length;
+      if (!n) return 1;
+      const cols = Array.from({ length: n }, (_, j) => Float64Array.from({ length: n }, (_, i) => A[i][j]));
+      const row = new Float64Array(n);
+      let total = 0, size = 0;
+      const end = 2 ** n;
+      for (let k = 1; k < end; k++) {
+        const j = 31 - Math.clz32(k & -k), col = cols[j];
+        if (((k ^ (k >> 1)) >> j) & 1) {
+          for (let i = 0; i < n; i++) row[i] += col[i];
+          size++;
+        } else {
+          for (let i = 0; i < n; i++) row[i] -= col[i];
+          size--;
+        }
+        let prod = row[0];
+        for (let i = 1; i < n; i++) prod *= row[i];
+        total += (n - size) % 2 ? -prod : prod;
+        if (k % every === 0) yield k;
+      }
+      return total;
+    }
+    function runSync(gen) {
+      let r = gen.next();
+      while (!r.done) r = gen.next();
+      return r.value;
+    }
+    function seeded(seed) {
+      let a = seed >>> 0;
+      return () => {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const THUMB = !!window.THUMB;
+    if (THUMB) document.body.classList.add('thumb');
+    const yieldNow = () => (globalThis.scheduler && typeof globalThis.scheduler.yield === 'function'
+      ? globalThis.scheduler.yield()
+      : new Promise((r) => setTimeout(r, 0)));
+    const SUBS = '₀₁₂₃₄₅₆₇₈₉', SUPS = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+    const sub = (v) => String(v).replace(/\d/g, (c) => SUBS[c]);
+    const sup = (v) => String(v).replace(/\d/g, (c) => SUPS[c]);
+    const fmtInt = (v) => String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    // 負の数の符号は、画面では長い「−」で書く
+    const minus = (v) => String(v).replace(/^-/, '−');
+    // 10 を底とした対数 lg の値を「1.3 × 10¹⁵」の形で書く
+    function fmtLog(lg) {
+      if (!isFinite(lg) || lg <= 0) return lg === 0 ? '1' : '0';
+      if (lg < 6) return fmtInt(Math.round(10 ** lg));
+      let e = Math.floor(lg), m = 10 ** (lg - e);
+      if (m >= 9.95) { m = 1; e++; }
+      return `${m.toFixed(1)} × 10${sup(e)}`;
+    }
+    function fmtMs(ms) {
+      if (ms < 1) return `${(ms * 1000).toFixed(0)} µs`;
+      return ms < 1000 ? `${ms.toFixed(ms < 10 ? 2 : 1)} ms` : `${(ms / 1000).toFixed(2)} 秒`;
+    }
+    // 秒の 10 を底とした対数から、ふだんの単位の長さにする
+    function fmtDurLog(lg) {
+      if (!isFinite(lg)) return '-';
+      if (lg < 9) {
+        const s = 10 ** lg;
+        if (s < 1e-3) return '1 ms 未満';
+        if (s < 1) return fmtMs(s * 1000);
+        if (s < 120) return `約 ${s.toFixed(0)} 秒`;
+        if (s < 7200) return `約 ${(s / 60).toFixed(0)} 分`;
+        if (s < 172800) return `約 ${(s / 3600).toFixed(0)} 時間`;
+        if (s < 63115200) return `約 ${(s / 86400).toFixed(0)} 日`;
+      }
+      const ly = lg - Math.log10(31557600);
+      return ly < 6 ? `約 ${fmtInt(Math.round(10 ** ly))} 年` : `約 ${fmtLog(ly)} 年`;
+    }
+    const EVEN = '#6fd3ff', ODD = '#ff9f5a', NAIVE = '#ff7b9c';
+    const HUE = ['#6fd3ff', '#ffcf5a', '#7ee787', '#ff9f5a', '#c49bff', '#ff7b9c'];
+    const rand = seeded((Math.random() * 4294967296) >>> 0);
+    // canvas の大きさを表示の大きさ × 画素の比にそろえ、CSS の px で描けるようにする
+    function fit(cv) {
+      const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+      const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+      if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+      const g = cv.getContext('2d');
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { g, w: Math.max(1, r.width), h: Math.max(1, r.height) };
+    }
+    function disc(g, x, y, r) {
+      g.beginPath();
+      g.arc(x, y, r, 0, Math.PI * 2);
+    }
+    function seg(g, x1, y1, x2, y2) {
+      g.beginPath();
+      g.moveTo(x1, y1);
+      g.lineTo(x2, y2);
+      g.stroke();
+    }
+    const ui = {
+      board: $('board'), now: $('now'), grid: $('grid'), sum: $('sum'), chips: $('chips'), play: $('play'),
+      chart: $('chart'), cntBody: $('cntBody'), benchBtn: $('benchBtn'), benchStop: $('benchStop'),
+      benchStatus: $('benchStatus'), benchBody: $('benchBody'), benchSum: $('benchSum'),
+      sg: $('sg'), terms: $('terms'), polRes: $('polRes'), polAll: $('polAll'), hist: $('hist'),
+      lat: $('lat'), mat: $('mat'), gPath: $('gPath'), gNew: $('gNew'), gPlay: $('gPlay'), gRes: $('gRes'), gBody: $('gBody'),
+    };
+
+    // ---- ① 完全マッチングを偶数と奇数の置換に分ける ----
+    const PRESET = [[1, 1, 0, 1], [1, 1, 1, 0], [0, 1, 1, 1], [1, 0, 1, 1]];
+    const S1 = { n: 4, A: PRESET.map((r) => r.slice()), list: [], pos: [], even: 0, odd: 0, cur: 0, playing: true, timer: 0, shown: 0 };
+    function randomA(n, dens) {
+      return Array.from({ length: n }, () => Array.from({ length: n }, () => (rand() < dens ? 1 : 0)));
+    }
+    function setN1(n, A) {
+      S1.n = n;
+      S1.A = A || randomA(n, n <= 3 ? 0.7 : 0.6);
+      for (const b of document.querySelectorAll('.nb1')) b.setAttribute('aria-pressed', String(+b.dataset.n === n));
+      buildGrid();
+      recompute1();
+    }
+    function buildGrid() {
+      ui.grid.style.gridTemplateColumns = `repeat(${S1.n}, 2.1em)`;
+      ui.grid.replaceChildren();
+      for (let i = 0; i < S1.n; i++) {
+        for (let j = 0; j < S1.n; j++) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'cell';
+          b.dataset.i = i;
+          b.dataset.j = j;
+          b.setAttribute('aria-label', `${i + 1} 行 ${j + 1} 列`);
+          ui.grid.append(b);
+        }
+      }
+    }
+    function paintGrid() {
+      const m = S1.list[S1.cur];
+      for (const b of ui.grid.children) {
+        const i = +b.dataset.i, j = +b.dataset.j, v = S1.A[i][j];
+        b.textContent = v;
+        b.setAttribute('aria-pressed', String(!!v));
+        b.classList.toggle('on', !!(m && m.p[i] === j));
+        b.classList.toggle('odd', !!(m && m.odd));
+      }
+    }
+    function recompute1() {
+      S1.list = matchings(S1.A);
+      let ev = 0, od = 0;
+      S1.pos = S1.list.map((m) => (m.odd ? od++ : ev++));
+      S1.even = ev;
+      S1.odd = od;
+      S1.cur = 0;
+      S1.shown = 0;
+      ui.sum.textContent = S1.list.length
+        ? `1 の所だけを通る置換（2 部グラフの完全マッチング）は ${S1.list.length} 通り。偶数の置換が ${ev} 個、奇数の置換が ${od} 個なので、パーマネント = ${ev} + ${od} = ${ev + od}、行列式 = ${ev} − ${od} = ${minus(ev - od)}。`
+        : '1 の所だけを通る置換がありません。パーマネントも行列式も 0 です。';
+      renderChips();
+      show1();
+      tick1();
+    }
+    function renderChips() {
+      ui.chips.replaceChildren();
+      const max = 120;
+      S1.list.slice(0, max).forEach((m, k) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip ' + (m.odd ? 'odd' : 'even');
+        b.dataset.k = k;
+        b.textContent = m.p.map((j) => j + 1).join(' ');
+        b.setAttribute('aria-label', `置換 ${b.textContent}（${m.odd ? '奇数' : '偶数'}）`);
+        ui.chips.append(b);
+      });
+      if (S1.list.length > max) {
+        const s = document.createElement('span');
+        s.className = 'more';
+        s.textContent = `ほか ${S1.list.length - max} 個`;
+        ui.chips.append(s);
+      }
+    }
+    function show1() {
+      const m = S1.list[S1.cur];
+      if (m) {
+        const inv = inversions(m.p);
+        ui.now.textContent = `いま: ${m.p.map((j, i) => `${i + 1}→${j + 1}`).join('、')}（行→列）。大小が逆になった組（転倒）が ${inv} 個なので${m.odd ? '奇数' : '偶数'}の置換。パーマネントでは +1、行列式では ${m.odd ? '−1' : '+1'} として数える。`;
+      } else {
+        ui.now.textContent = '1 の所だけを通る置換はありません。';
+      }
+      for (const b of ui.chips.children) if (b.dataset.k) b.setAttribute('aria-pressed', String(+b.dataset.k === S1.cur));
+      paintGrid();
+      draw1();
+    }
+    function setPlay1(on) {
+      S1.playing = on;
+      ui.play.setAttribute('aria-pressed', String(on));
+      tick1();
+    }
+    function tick1() {
+      clearTimeout(S1.timer);
+      if (!S1.playing) return;
+      S1.timer = setTimeout(() => {
+        if (THUMB && (++S1.shown >= 10 || S1.list.length < 2)) {
+          S1.A = randomA(4, 0.7);
+          recompute1();
+          return;
+        }
+        if (S1.list.length) {
+          S1.cur = (S1.cur + 1) % S1.list.length;
+          show1();
+        }
+        tick1();
+      }, THUMB ? 600 : 1000);
+    }
+    function draw1() {
+      const { g, w, h } = fit(ui.board);
+      g.clearRect(0, 0, w, h);
+      const n = S1.n, A = S1.A, m = S1.list[S1.cur];
+      const gw = Math.max(120, Math.min(w * 0.45, 300));
+      const xa = 30, xb = gw - 26, ya = 36, yb = h - 18;
+      const yy = (i) => (n === 1 ? (ya + yb) / 2 : ya + (i * (yb - ya)) / (n - 1));
+      g.font = '12px system-ui, sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillStyle = '#8b97ab';
+      g.fillText('行', xa, 14);
+      g.fillText('列', xb, 14);
+      g.lineWidth = 1.5;
+      g.strokeStyle = '#33405a';
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (A[i][j]) seg(g, xa, yy(i), xb, yy(j));
+      if (m) {
+        g.lineWidth = 3.5;
+        g.strokeStyle = m.odd ? ODD : EVEN;
+        for (let i = 0; i < n; i++) seg(g, xa, yy(i), xb, yy(m.p[i]));
+      }
+      const rad = Math.max(7, Math.min(12, (yb - ya) / Math.max(1, n - 1) / 2.6));
+      g.font = `600 ${Math.round(rad * 1.05)}px system-ui, sans-serif`;
+      for (let i = 0; i < n; i++) {
+        for (const x of [xa, xb]) {
+          disc(g, x, yy(i), rad);
+          g.fillStyle = '#1d2430';
+          g.fill();
+          g.lineWidth = 1.2;
+          g.strokeStyle = '#8b97ab';
+          g.stroke();
+          g.fillStyle = '#d9e1ee';
+          g.fillText(String(i + 1), x, yy(i) + 0.5);
+        }
+      }
+      // 右: 偶数と奇数の置換を 1 つずつ四角で並べ、合計を出す
+      const rx = gw + 16, rw = Math.max(1, w - rx - 10);
+      const avail = Math.max(10, (h - 104) / 2);
+      const most = Math.max(1, S1.even, S1.odd);
+      let sz = 3;
+      for (const s of [16, 12, 9, 6, 4, 3]) {
+        const cols = Math.max(1, Math.floor(rw / (s + 2)));
+        if (Math.ceil(most / cols) * (s + 2) <= avail) { sz = s; break; }
+      }
+      const cols = Math.max(1, Math.floor(rw / (sz + 2)));
+      let y = 10;
+      g.textAlign = 'left';
+      g.textBaseline = 'top';
+      for (const [cnt, odd] of [[S1.even, false], [S1.odd, true]]) {
+        g.fillStyle = odd ? ODD : EVEN;
+        g.font = '600 12.5px system-ui, sans-serif';
+        g.fillText(`${odd ? '奇数' : '偶数'} ${cnt} 個（行列式で ${odd ? '−1' : '+1'}）`, rx, y);
+        y += 19;
+        g.globalAlpha = 0.75;
+        for (let k = 0; k < cnt; k++) g.fillRect(rx + (k % cols) * (sz + 2), y + Math.floor(k / cols) * (sz + 2), sz, sz);
+        g.globalAlpha = 1;
+        if (m && m.odd === odd) {
+          const k = S1.pos[S1.cur];
+          g.fillRect(rx + (k % cols) * (sz + 2), y + Math.floor(k / cols) * (sz + 2), sz, sz);
+          g.strokeStyle = '#ffffff';
+          g.lineWidth = 1.5;
+          g.strokeRect(rx + (k % cols) * (sz + 2) - 1, y + Math.floor(k / cols) * (sz + 2) - 1, sz + 2, sz + 2);
+        }
+        y += Math.max(sz + 2, Math.ceil(cnt / cols) * (sz + 2)) + 10;
+      }
+      g.fillStyle = '#d9e1ee';
+      g.font = '600 13.5px system-ui, sans-serif';
+      g.fillText(`パーマネント = ${S1.even} + ${S1.odd} = ${S1.even + S1.odd}`, rx, Math.min(y, h - 42));
+      g.fillText(`行列式 = ${S1.even} − ${S1.odd} = ${minus(S1.even - S1.odd)}`, rx, Math.min(y, h - 42) + 20);
+    }
+    ui.grid.addEventListener('click', (e) => {
+      const b = e.target.closest('.cell');
+      if (!b) return;
+      S1.A[+b.dataset.i][+b.dataset.j] ^= 1;
+      recompute1();
+    });
+    ui.chips.addEventListener('click', (e) => {
+      const b = e.target.closest('.chip');
+      if (!b) return;
+      S1.cur = +b.dataset.k;
+      setPlay1(false);
+      show1();
+    });
+    for (const b of document.querySelectorAll('.nb1')) b.addEventListener('click', () => setN1(+b.dataset.n));
+    $('rnd').addEventListener('click', () => setN1(S1.n));
+    $('ones').addEventListener('click', () => setN1(S1.n, Array.from({ length: S1.n }, () => new Array(S1.n).fill(1))));
+    ui.play.addEventListener('click', () => setPlay1(!S1.playing));
+
+    // ---- ② 手数を数える ----
+    const NMAX = 30;
+    const logBerk = (n) => {
+      const c = countsBerkowitz(n);
+      return Math.log10(Math.max(1, c.add + c.mul));
+    };
+    const logRyser = (n) => Math.log10(Math.max(1, (2 ** n - 1) * 2 * n));
+    const logNaive = (n) => (n < 18 ? Math.log10(Math.max(1, factorial(n) * n - 1)) : log10Fact(n) + Math.log10(n));
+    const series = [];
+    for (let n = 1; n <= NMAX; n++) series.push({ n, det: logBerk(n), ryser: logRyser(n), naive: logNaive(n), lower: lowerLog10(n) });
+    function fillCount() {
+      for (const n of [2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30]) {
+        const s = series[n - 1], tr = document.createElement('tr');
+        for (const v of [String(n), fmtLog(s.det), fmtLog(s.ryser), fmtLog(s.naive), fmtLog(s.lower)]) {
+          const td = document.createElement('td');
+          td.className = 'n';
+          td.textContent = v;
+          tr.append(td);
+        }
+        ui.cntBody.append(tr);
+      }
+    }
+    function drawChart() {
+      const { g, w, h } = fit(ui.chart);
+      g.clearRect(0, 0, w, h);
+      const L = 46, Rt = 12, T = 10, B = 30, YMAX = 16;
+      const X = (n) => L + ((n - 1) / (NMAX - 1)) * (w - L - Rt);
+      const Y = (lg) => T + (1 - lg / YMAX) * (h - T - B);
+      g.font = '11px system-ui, sans-serif';
+      g.strokeStyle = '#1f2735';
+      g.lineWidth = 1;
+      g.fillStyle = '#8b97ab';
+      g.textAlign = 'right';
+      g.textBaseline = 'middle';
+      for (let e = 0; e <= YMAX; e += 4) {
+        seg(g, L, Y(e), w - Rt, Y(e));
+        g.fillText(`10${sup(e)}`, L - 6, Y(e));
+      }
+      g.textAlign = 'center';
+      g.textBaseline = 'top';
+      for (const n of [1, 5, 10, 15, 20, 25, 30]) {
+        seg(g, X(n), T, X(n), h - B);
+        g.fillText(String(n), X(n), h - B + 4);
+      }
+      g.fillText('n（行列の大きさ）', (L + w - Rt) / 2, h - 14);
+      g.save();
+      g.beginPath();
+      g.rect(L, T, w - L - Rt, h - T - B);
+      g.clip();
+      const line = (key, color, dash) => {
+        g.strokeStyle = color;
+        g.lineWidth = 2.2;
+        g.setLineDash(dash || []);
+        g.beginPath();
+        series.forEach((s, i) => (i ? g.lineTo(X(s.n), Y(s[key])) : g.moveTo(X(s.n), Y(s[key]))));
+        g.stroke();
+        g.setLineDash([]);
+        for (const s of series) {
+          disc(g, X(s.n), Y(s[key]), 2.2);
+          g.fillStyle = color;
+          g.fill();
+        }
+      };
+      line('lower', '#9aa5b8', [5, 4]);
+      line('det', EVEN);
+      line('ryser', ODD);
+      line('naive', NAIVE);
+      g.restore();
+    }
+
+    let benchId = 0;
+    const STOP = Symbol('stop');
+    // ジェネレーターを進め、40 ms ごとに画面の処理へ戻す。戻っていた時間は計算の時間に入れない
+    async function timeGen(gen, my) {
+      let busy = 0, t0 = performance.now();
+      for (;;) {
+        const r = gen.next();
+        if (r.done) break;
+        const now = performance.now();
+        if (now - t0 > 40) {
+          busy += now - t0;
+          await yieldNow();
+          if (my !== benchId) throw STOP;
+          t0 = performance.now();
+        }
+      }
+      return busy + performance.now() - t0;
+    }
+    // 短い計算は合計 20 ms を超えるまで繰り返し、1 回あたりの時間にする
+    async function measure(make, my) {
+      let total = 0, reps = 0;
+      do {
+        total += await timeGen(make(), my);
+        reps++;
+      } while (total < 20 && reps < 2000);
+      await yieldNow();
+      if (my !== benchId) throw STOP;
+      return total / reps;
+    }
+    function addBenchRow(name, n, ms, lgOps) {
+      const tr = document.createElement('tr');
+      const rate = 10 ** lgOps / (ms / 1000);
+      for (const [v, cls] of [[name, ''], [String(n), 'n'], [fmtMs(ms), 'n'], [`${fmtLog(Math.log10(rate))} 回`, 'n']]) {
+        const td = document.createElement('td');
+        if (cls) td.className = cls;
+        td.textContent = v;
+        tr.append(td);
+      }
+      ui.benchBody.append(tr);
+    }
+    function benchSummary(res) {
+      const parts = [];
+      if (res.det) parts.push(`行列式は n = ${res.det.n} で ${fmtMs(res.det.ms)}`);
+      if (res.perm) parts.push(`パーマネントは n = ${res.perm.n} で ${fmtMs(res.perm.ms)}`);
+      if (!parts.length) return;
+      let s = `この端末で最後に測った大きさは、${parts.join('、')} だった。`;
+      if (res.perm) {
+        const base = Math.log10(res.perm.ms / 1000) - logRyser(res.perm.n);
+        s += `同じ速さで手数の式の比から延ばすと、パーマネントは n = 40 で${fmtDurLog(base + logRyser(40))}、n = 60 で${fmtDurLog(base + logRyser(60))}、n = 100 で${fmtDurLog(base + logRyser(100))}かかる。`;
+      }
+      if (res.det) {
+        const base = Math.log10(res.det.ms / 1000) - logBerk(res.det.n);
+        s += `行列式は n = 1000 でも${fmtDurLog(base + logBerk(1000))}ほどの見積もりになる（Berkowitz の方法は割り算を使わない分、消去法の約 n³ より手数が多い）。`;
+      }
+      ui.benchSum.textContent = s;
+    }
+    async function runBench() {
+      const my = ++benchId, LIMIT = 250, res = { det: null, perm: null };
+      ui.benchBtn.disabled = true;
+      ui.benchStop.disabled = false;
+      ui.benchBody.replaceChildren();
+      ui.benchSum.textContent = '';
+      try {
+        for (const n of [8, 16, 24, 32, 48, 64, 96, 128, 160, 192, 256, 320]) {
+          ui.benchStatus.textContent = `行列式（Berkowitz の方法）の n = ${n} を計算しています`;
+          const A = Array.from({ length: n }, () => Float64Array.from({ length: n }, () => (rand() * 2 - 1) / Math.sqrt(n)));
+          const ms = await measure(() => berkowitzF64(A), my);
+          addBenchRow('行列式（Berkowitz）', n, ms, logBerk(n));
+          res.det = { n, ms };
+          if (ms > LIMIT) break;
+        }
+        for (let n = 8; n <= 30; n += n < 16 ? 2 : 1) {
+          ui.benchStatus.textContent = `パーマネント（Ryser の式）の n = ${n} を計算しています`;
+          const A = Array.from({ length: n }, () => Array.from({ length: n }, () => rand()));
+          const ms = await measure(() => ryserF64(A), my);
+          addBenchRow('パーマネント（Ryser）', n, ms, logRyser(n));
+          res.perm = { n, ms };
+          if (ms > LIMIT) break;
+        }
+        ui.benchStatus.textContent = '測り終えました';
+        benchSummary(res);
+      } catch (e) {
+        if (e !== STOP) throw e;
+        benchSummary(res);
+      } finally {
+        if (my === benchId) {
+          ui.benchBtn.disabled = false;
+          ui.benchStop.disabled = true;
+        }
+      }
+    }
+    ui.benchBtn.addEventListener('click', () => { runBench(); });
+    ui.benchStop.addEventListener('click', () => {
+      benchId++;
+      ui.benchBtn.disabled = false;
+      ui.benchStop.disabled = true;
+      ui.benchStatus.textContent = '止めました';
+    });
+
+    // ---- ③ 符号を付け替える ----
+    const S3 = { s: [[1, 1, 1], [1, 1, 1], [1, 1, 1]] };
+    const P3 = allPerms(3);
+    function buildSg() {
+      ui.sg.replaceChildren();
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 3; j++) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'cell';
+          b.dataset.i = i;
+          b.dataset.j = j;
+          ui.sg.append(b);
+        }
+      }
+      paintSg();
+    }
+    function paintSg() {
+      for (const b of ui.sg.children) {
+        const i = +b.dataset.i, j = +b.dataset.j, v = S3.s[i][j];
+        b.textContent = v > 0 ? '+' : '−';
+        b.setAttribute('aria-pressed', String(v < 0));
+        b.setAttribute('aria-label', `${i + 1} 行 ${j + 1} 列の符号 ${v > 0 ? 'プラス' : 'マイナス'}`);
+      }
+      ui.terms.replaceChildren();
+      let good = 0;
+      for (const p of P3) {
+        const odd = inversions(p) % 2 === 1;
+        let sv = 1;
+        p.forEach((j, i) => { sv *= S3.s[i][j]; });
+        const t = (odd ? -1 : 1) * sv;
+        if (t > 0) good++;
+        const li = document.createElement('li');
+        li.className = t > 0 ? 'good' : 'bad';
+        li.textContent = `${p.map((j, i) => `a${sub(i + 1)}${sub(j + 1)}`).join(' ')}　置換 ${odd ? '−' : '+'} × 付けた符号 ${sv > 0 ? '+' : '−'} → ${t > 0 ? '+（合う）' : '−（合わない）'}`;
+        ui.terms.append(li);
+      }
+      ui.polRes.textContent = `6 個の項のうち ${good} 個が + になった。6 個全部が + になれば、行列式がパーマネントと同じ式になる。`;
+    }
+    ui.sg.addEventListener('click', (e) => {
+      const b = e.target.closest('.cell');
+      if (!b) return;
+      S3.s[+b.dataset.i][+b.dataset.j] *= -1;
+      paintSg();
+    });
+    ui.polAll.addEventListener('click', () => {
+      const hist = polyaAll(3), most = Math.max(...hist);
+      ui.hist.replaceChildren();
+      hist.forEach((c, k) => {
+        const row = document.createElement('div');
+        row.className = 'hrow';
+        const a = document.createElement('span');
+        a.textContent = `${k} 個が合う`;
+        const barBox = document.createElement('span');
+        const bar = document.createElement('span');
+        bar.className = 'bar';
+        bar.style.display = 'block';
+        bar.style.width = `${(100 * c) / most}%`;
+        barBox.append(bar);
+        const n = document.createElement('span');
+        n.className = 'cnt';
+        n.textContent = `${c} 通り`;
+        row.append(a, barBox, n);
+        ui.hist.append(row);
+      });
+      let best = hist.length - 1;
+      while (best > 0 && !hist[best]) best--;
+      const note = document.createElement('p');
+      note.className = 'note';
+      note.textContent = `512 通りのうち、一番多く合うのは ${best} 個（${hist[best]} 通り）。6 個全部が合う付け方は ${hist[6]} 通り。合う数はいつも奇数になる（全部掛けると −1 なので、− の項の数はいつも奇数）。`;
+      ui.hist.append(note);
+    });
+
+    // ---- ④ Grenet の作り方 ----
+    const S4 = { n: 3, g: null, A: null, perms: [], cur: 0, cover: [], playing: !THUMB, timer: 0 };
+    const setName = (s) => {
+      if (!s) return '∅';
+      const a = [];
+      for (let j = 0; j < 6; j++) if (s & (1 << j)) a.push(j + 1);
+      return a.join('');
+    };
+    // 文の中では {1,2} のように書く
+    const setText = (s) => (s ? `{${setName(s).split('').join(',')}}` : '∅');
+    function setN4(n) {
+      S4.n = n;
+      S4.g = grenet(n);
+      S4.perms = allPerms(n);
+      S4.cur = 0;
+      for (const b of document.querySelectorAll('.nb4')) b.setAttribute('aria-pressed', String(+b.dataset.n === n));
+      newA4();
+      show4();
+      tick4();
+    }
+    function newA4() {
+      const n = S4.n;
+      S4.A = Array.from({ length: n }, () => Array.from({ length: n }, () => BigInt(Math.floor(rand() * 7) - 3)));
+      const per = permRyser(S4.A, BIG);
+      const t0 = performance.now();
+      const d = detBareiss(grenetMatrix(S4.g, S4.A, BIG));
+      const ms = performance.now() - t0;
+      ui.gRes.textContent = `A = ${S4.A.map((r) => r.map(minus).join(' ')).join(' / ')}　→　perm A = ${minus(per)}（Ryser の式）、det B = ${minus(d)}（B は ${S4.g.size} 行 ${S4.g.size} 列、Bareiss の消去法で ${ms < 0.2 ? '0.2 ms 未満' : fmtMs(ms)}）。${per === d ? '一致した。' : '一致しない。'}`;
+      ui.gRes.classList.toggle('bad', per !== d);
+    }
+    function show4() {
+      const p = S4.perms[S4.cur], n = S4.n;
+      S4.cover = grenetCover(S4.g, p);
+      const steps = ['∅'];
+      let S = 0;
+      for (let k = 0; k < n; k++) {
+        S |= 1 << p[k];
+        steps.push(k === n - 1 ? `${setText(S)}（= ∅）` : setText(S));
+      }
+      ui.gPath.textContent = `道 ${S4.cur + 1} / ${S4.perms.length}: ${steps.join(' → ')}。${p.map((j, k) => `行 ${k + 1} は列 ${j + 1}`).join('、')} を使い、重みは ${p.map((j, k) => `x${sub(k + 1)}${sub(j + 1)}`).join(' · ')}${n % 2 === 0 ? '（最初の辺は符号を変えてあり、道の巡回の符号 −1 と打ち消す）' : ''}。行列式では、この道の巡回 1 つと、道に乗らない ${S4.g.size - n} 個の頂点の対角の 1 を掛けた項になる。`;
+      drawLat();
+      drawMat();
+    }
+    function tick4() {
+      clearTimeout(S4.timer);
+      if (!S4.playing) return;
+      S4.timer = setTimeout(() => {
+        S4.cur = (S4.cur + 1) % S4.perms.length;
+        show4();
+        tick4();
+      }, 1500);
+    }
+    function drawLat() {
+      if (!S4.g) return;
+      const { g, w, h } = fit(ui.lat);
+      g.clearRect(0, 0, w, h);
+      const n = S4.n, full = S4.g.full, p = S4.perms[S4.cur];
+      const layers = Array.from({ length: n + 1 }, () => []);
+      for (let s = 0; s <= full; s++) layers[popcount(s)].push(s);
+      const pos = new Map();
+      layers.forEach((Ly, k) => Ly.forEach((s, i) => {
+        pos.set(s, [22 + (k * (w - 44)) / n, 14 + ((i + 0.5) * (h - 28)) / Ly.length]);
+      }));
+      const onPath = new Set([0]), pathEdge = new Set();
+      let S = 0;
+      for (let k = 0; k < n; k++) {
+        const T = S | (1 << p[k]);
+        pathEdge.add(S * 64 + T);
+        onPath.add(T);
+        S = T;
+      }
+      const labels = [];
+      for (let s = 0; s < full; s++) {
+        const k = popcount(s);
+        for (let j = 0; j < n; j++) {
+          if (s & (1 << j)) continue;
+          const t = s | (1 << j), [x1, y1] = pos.get(s), [x2, y2] = pos.get(t), on = pathEdge.has(s * 64 + t);
+          g.strokeStyle = HUE[k];
+          g.globalAlpha = on ? 1 : (n >= 5 ? 0.13 : 0.25);
+          g.lineWidth = on ? 3.2 : 1;
+          seg(g, x1, y1, x2, y2);
+          if (on) labels.push([(x1 + x2) / 2, (y1 + y2) / 2, `${k === 0 && n % 2 === 0 ? '−' : ''}x${sub(k + 1)}${sub(j + 1)}`, HUE[k]]);
+        }
+      }
+      g.globalAlpha = 1;
+      const rad = n <= 3 ? 13 : n === 4 ? 10 : n === 5 ? 6 : 4.5;
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      for (const [s, [x, y]] of pos) {
+        disc(g, x, y, rad);
+        g.fillStyle = onPath.has(s) ? '#2a3550' : '#151a23';
+        g.fill();
+        g.lineWidth = onPath.has(s) ? 2 : 1;
+        g.strokeStyle = onPath.has(s) ? '#d9e1ee' : '#56607a';
+        g.stroke();
+        if (n <= 4) {
+          g.fillStyle = '#d9e1ee';
+          g.font = `${n <= 3 ? 11 : 9}px system-ui, sans-serif`;
+          g.fillText(s === full ? '全部' : setName(s), x, y + 0.5);
+        }
+      }
+      g.font = '600 12px system-ui, sans-serif';
+      for (const [x, y, text, color] of labels) {
+        const tw = g.measureText(text).width + 8;
+        g.fillStyle = '#0a0d12';
+        g.fillRect(x - tw / 2, y - 9, tw, 18);
+        g.fillStyle = color;
+        g.fillText(text, x, y + 0.5);
+      }
+    }
+    function drawMat() {
+      if (!S4.g) return;
+      const { g, w, h } = fit(ui.mat);
+      g.clearRect(0, 0, w, h);
+      const G = S4.g, N = G.size, lab = N <= 15 ? 24 : 6;
+      const side = Math.max(1, Math.min(w - lab - 8, h - lab - 8));
+      const cs = side / N, ox = lab + Math.max(0, (w - lab - 8 - side) / 2), oy = lab;
+      const used = new Set(S4.cover.map(([r, c]) => r * 64 + c));
+      g.fillStyle = '#0e131b';
+      g.fillRect(ox, oy, side, side);
+      if (N <= 31) {
+        g.strokeStyle = '#1b2230';
+        g.lineWidth = 1;
+        for (let i = 0; i <= N; i++) {
+          seg(g, ox + i * cs, oy, ox + i * cs, oy + side);
+          seg(g, ox, oy + i * cs, ox + side, oy + i * cs);
+        }
+      }
+      const gap = cs > 6 ? 1 : 0;
+      for (const pass of [0, 1]) {
+        for (const e of G.cells) {
+          const on = used.has(e.r * 64 + e.c);
+          if (pass === 1 && !on) continue;
+          const x = ox + e.c * cs, y = oy + e.r * cs;
+          g.globalAlpha = on ? 1 : 0.35;
+          g.fillStyle = e.one ? '#7d88a3' : HUE[e.k];
+          g.fillRect(x + gap, y + gap, Math.max(1, cs - 2 * gap), Math.max(1, cs - 2 * gap));
+          g.globalAlpha = 1;
+          if (pass === 1 && cs >= 5) {
+            g.strokeStyle = '#ffffff';
+            g.lineWidth = 1.5;
+            g.strokeRect(x + 0.5, y + 0.5, cs - 1, cs - 1);
+          }
+          // 文字は、そのマスを最後に塗る回に書く（明るいマスは 2 回目、暗いマスは 1 回目）
+          if (N <= 7 && pass === (on ? 1 : 0)) {
+            g.fillStyle = on ? '#0a0d12' : '#c9d2e3';
+            g.font = `600 ${Math.max(8, Math.floor(cs * 0.3))}px system-ui, sans-serif`;
+            g.textAlign = 'center';
+            g.textBaseline = 'middle';
+            g.fillText(e.one ? '1' : `${e.neg ? '−' : ''}x${sub(e.k + 1)}${sub(e.j + 1)}`, x + cs / 2, y + cs / 2 + 0.5);
+          } else if (e.neg && N > 7 && cs >= 3) {
+            g.fillStyle = '#0a0d12';
+            g.fillRect(x + cs * 0.25, y + cs / 2 - Math.max(0.5, cs * 0.06), cs * 0.5, Math.max(1, cs * 0.12));
+          }
+        }
+      }
+      if (N <= 15) {
+        g.fillStyle = '#8b97ab';
+        g.font = `${N <= 7 ? 11 : 9}px system-ui, sans-serif`;
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        G.verts.forEach((s, i) => {
+          g.fillText(setName(s), ox + (i + 0.5) * cs, oy - 10);
+          g.fillText(setName(s), ox - 12, oy + (i + 0.5) * cs);
+        });
+      }
+    }
+    function fillGrenetTable() {
+      const note = { 1: '行列式と同じ 1 行', 2: '2 行で書ける（右上の符号を変える）', 3: '7 行が最小（Alper・Bogart・Velasco）' };
+      for (const n of [1, 2, 3, 4, 5, 6, 8, 10, 16, 20, 30]) {
+        const tr = document.createElement('tr');
+        for (const [v, cls] of [[String(n), 'n'], [fmtInt(2 ** n - 1), 'n'], [fmtInt(n * 2 ** (n - 1) + 2 ** n - 2), 'n'], [String(n * n / 2), 'n'], [note[n] || '', '']]) {
+          const td = document.createElement('td');
+          if (cls) td.className = cls;
+          td.textContent = v;
+          tr.append(td);
+        }
+        ui.gBody.append(tr);
+      }
+    }
+    for (const b of document.querySelectorAll('.nb4')) b.addEventListener('click', () => setN4(+b.dataset.n));
+    ui.gNew.addEventListener('click', () => newA4());
+    ui.gPlay.addEventListener('click', () => {
+      S4.playing = !S4.playing;
+      ui.gPlay.setAttribute('aria-pressed', String(S4.playing));
+      tick4();
+    });
+
+    new ResizeObserver(() => {
+      draw1();
+      if (!THUMB) {
+        drawChart();
+        drawLat();
+        drawMat();
+      }
+    }).observe(document.body);
+    setN1(4, PRESET.map((r) => r.slice()));
+    if (!THUMB) {
+      fillCount();
+      drawChart();
+      buildSg();
+      fillGrenetTable();
+      setN4(3);
+    }
+  },
+});

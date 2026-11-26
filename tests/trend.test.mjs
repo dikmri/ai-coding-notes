@@ -2985,3 +2985,124 @@ test('二次ふるい法: 計算量の式の値と、入れ替わる桁数', () 
   // 論文の上限と数体ふるい法は、同じ 1/3 の形なので入れ替わらない
   assert.ok(Number.isNaN(crossDigits(f.paper, f.nfs)));
 });
+
+// ---- パーマネントと行列式（VP ≠ VNP） ----
+const PDID = 'tr-20261127-permanent-det';
+const PD_NAMES = ['NUM', 'BIG', 'counting', 'detBerkowitz', 'countsBerkowitz', 'permRyser', 'countsRyser', 'leibniz', 'detBareiss',
+  'allPerms', 'inversions', 'matchings', 'polyaGood', 'polyaAll', 'grenet', 'grenetMatrix', 'grenetCover',
+  'berkowitzF64', 'ryserF64', 'runSync', 'seeded', 'factorial', 'lowerLog10'];
+function randomIntMatrix(rand, n, lo, hi) {
+  return Array.from({ length: n }, () => Array.from({ length: n }, () => BigInt(lo + Math.floor(rand() * (hi - lo + 1)))));
+}
+
+test('パーマネントと行列式: 知られた値（1 2 3 / 4 5 6 / 7 8 9 は行列式 0、パーマネント 450。全部 1 のパーマネントは n!）', () => {
+  const X = trendCore(PDID, PD_NAMES);
+  const A = [[1n, 2n, 3n], [4n, 5n, 6n], [7n, 8n, 9n]];
+  assert.equal(X.detBerkowitz(A, X.BIG), 0n);
+  assert.equal(X.detBareiss(A), 0n);
+  assert.equal(X.permRyser(A, X.BIG), 450n);
+  for (let n = 1; n <= 7; n++) {
+    const J = Array.from({ length: n }, () => new Array(n).fill(1));
+    assert.equal(X.permRyser(J, X.NUM), X.factorial(n));
+    assert.equal(X.detBerkowitz(J, X.NUM), n === 1 ? 1 : 0);
+  }
+  assert.equal(X.detBerkowitz([], X.BIG), 1n);
+  assert.equal(X.permRyser([], X.BIG), 1n);
+});
+
+test('パーマネントと行列式: Berkowitz・Bareiss・定義どおりの行列式、Ryser と定義どおりのパーマネント、Float64 版が一致する', () => {
+  const X = trendCore(PDID, PD_NAMES);
+  const rand = X.seeded(11);
+  for (let n = 1; n <= 7; n++) {
+    for (let t = 0; t < 6; t++) {
+      const A = randomIntMatrix(rand, n, -4, 4);
+      const pair = X.leibniz(A, X.BIG), d = pair[0], p = pair[1];
+      assert.equal(X.detBerkowitz(A, X.BIG), d, `n=${n}`);
+      assert.equal(X.detBareiss(A), d, `n=${n}`);
+      assert.equal(X.permRyser(A, X.BIG), p, `n=${n}`);
+      const F = A.map((r) => r.map(Number));
+      assert.equal(X.runSync(X.berkowitzF64(F)), Number(d), `n=${n}`);
+      assert.equal(X.runSync(X.ryserF64(F, 3)), Number(p), `n=${n}`);
+    }
+  }
+  // 先頭に 0 があって行を入れ替える場合
+  const Z = [[0n, 2n, 1n], [0n, 0n, 3n], [5n, 1n, 4n]];
+  assert.equal(X.detBareiss(Z), X.leibniz(Z, X.BIG)[0]);
+});
+
+test('パーマネントと行列式: 数える入れ物で数えた回数が式と同じ', () => {
+  const X = trendCore(PDID, PD_NAMES);
+  for (let n = 1; n <= 8; n++) {
+    const J = Array.from({ length: n }, () => new Array(n).fill(1));
+    let R = X.counting();
+    X.detBerkowitz(J, R);
+    const b = X.countsBerkowitz(n);
+    assert.deepEqual([R.c.add, R.c.mul], [b.add, b.mul], `Berkowitz n=${n}`);
+    R = X.counting();
+    X.permRyser(J, R);
+    const r = X.countsRyser(n);
+    assert.deepEqual([R.c.add, R.c.mul], [r.add, r.mul], `Ryser n=${n}`);
+    R = X.counting();
+    X.leibniz(J, R);
+    const f = X.factorial(n);
+    assert.deepEqual([R.c.add, R.c.mul], [2 * (f - 1), f * (n - 1)], `定義どおり n=${n}`);
+  }
+  // Berkowitz はおよそ n⁴/2、Ryser は (2ⁿ − 1)·2n
+  const b30 = X.countsBerkowitz(30);
+  assert.ok(Math.abs((b30.add + b30.mul) / (30 ** 4 / 2) - 1) < 0.15);
+  const r20 = X.countsRyser(20);
+  assert.equal(r20.add + r20.mul, (2 ** 20 - 1) * 40);
+  // 下限の形 2^((log₂ n)^(4/3)) は n = 2^64 で n⁴ と等しくなる
+  assert.ok(Math.abs(X.lowerLog10(2 ** 64) - 4 * 64 * Math.log10(2)) < 1e-6);
+});
+
+test('完全マッチング: 偶数 + 奇数がパーマネント、偶数 − 奇数が行列式', () => {
+  const X = trendCore(PDID, PD_NAMES);
+  const A = [[1, 1, 0, 1], [1, 1, 1, 0], [0, 1, 1, 1], [1, 0, 1, 1]];
+  const m = X.matchings(A), odd = m.filter((x) => x.odd).length, even = m.length - odd;
+  assert.deepEqual([even, odd], [3, 6]);
+  const pair = X.leibniz(A, X.NUM);
+  assert.deepEqual([pair[0], pair[1]], [even - odd, even + odd]);
+  assert.equal(X.allPerms(5).length, 120);
+  assert.equal(X.inversions([2, 1, 0]), 3);
+  assert.equal(X.matchings([[1, 0], [0, 0]]).length, 0);
+});
+
+test('符号の付け替え: 2×2 は合わせられるが、3×3 は 512 通りのどれでも 5 個まで', () => {
+  const X = trendCore(PDID, PD_NAMES);
+  const h2 = X.polyaAll(2);
+  assert.equal(h2.reduce((a, b) => a + b, 0), 16);
+  assert.ok(h2[2] > 0);
+  assert.equal(X.polyaGood([[1, -1], [1, 1]]), 2);
+  const h3 = X.polyaAll(3);
+  assert.equal(h3.reduce((a, b) => a + b, 0), 512);
+  assert.equal(h3[6], 0);
+  assert.ok(h3[5] > 0);
+  // 6 個の項の符号の積はいつも −1 なので、合う数はいつも奇数
+  for (let k = 0; k <= 6; k += 2) assert.equal(h3[k], 0, `k=${k}`);
+});
+
+test('Grenet の作り方: 2ⁿ − 1 行の行列式がパーマネントと一致し、道 1 本が置換行列 1 つになる', () => {
+  const X = trendCore(PDID, PD_NAMES);
+  const rand = X.seeded(5);
+  for (let n = 1; n <= 5; n++) {
+    const g = X.grenet(n);
+    assert.equal(g.size, 2 ** n - 1);
+    assert.equal(g.cells.length, n * 2 ** (n - 1) + 2 ** n - 2);
+    const seen = new Set(g.cells.map((e) => e.r * 64 + e.c));
+    assert.equal(seen.size, g.cells.length, '同じマスに 2 つ入れない');
+    for (let t = 0; t < 4; t++) {
+      const A = randomIntMatrix(rand, n, -3, 3);
+      assert.equal(X.detBareiss(X.grenetMatrix(g, A, X.BIG)), X.permRyser(A, X.BIG), `n=${n}`);
+    }
+    if (n <= 4) {
+      for (const p of X.allPerms(n)) {
+        const cover = X.grenetCover(g, p);
+        assert.equal(cover.length, g.size);
+        assert.equal(new Set(cover.map((c) => c[0])).size, g.size);
+        assert.equal(new Set(cover.map((c) => c[1])).size, g.size);
+        for (const [r, c] of cover) assert.ok(seen.has(r * 64 + c), '使う成分は 0 でない');
+      }
+    }
+  }
+});
