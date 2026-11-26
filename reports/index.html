@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>実験レポート ― AI コーディングノート</title>
-<meta name="description" content="図鑑の外で行った実験の記録。フーリエ変換の「指数 1/2」の論文で FFT が速くなるかを、合成した曲で試した実験。ドット絵のスキル 3 つでパチンコのゲームの絵を作った記録、回せるドット絵のスキルでゲームの絵を作った記録、コードだけで作る猫の目線の動画、WebGPU のゲームを AI で作り直した実験、Rust の GUI フレームワークの比べ方。">
+<meta name="description" content="図鑑の外で行った実験の記録。1 行に詰めたリーマン予想の Lean の証明が、正しく証明できているかを確かめた解説。フーリエ変換の「指数 1/2」の論文で FFT が速くなるかを、合成した曲で試した実験。ドット絵のスキル 3 つでパチンコのゲームの絵を作った記録、回せるドット絵のスキルでゲームの絵を作った記録、コードだけで作る猫の目線の動画、WebGPU のゲームを AI で作り直した実験、Rust の GUI フレームワークの比べ方。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='800'%3EAI%3C/text%3E%3Cpath d='M15 51H49' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="../css/site.css">
 <style>
@@ -43,6 +43,13 @@
   <h1>実験レポート</h1>
   <p>図鑑の項目には収まらない、手を動かして確かめた実験の記録です。新しいものから並べています。</p>
   <ul class="list">
+    <li>
+      <a href="riemann/">
+        <p class="kicker">解説と検証 ・ 2026 年 11 月 26 日</p>
+        <h2>1 行に詰めたリーマン予想の証明を取り出して、正しく証明できているかを確かめた</h2>
+        <p>Lean で書かれたリーマン予想の証明を 1 行に詰めた版から中身を取り出し、元の証明と同じか、定理の述べ方がリーマン予想そのものか、検査を抜ける書き方が無いかを調べました。リーマン予想とこの証明の流れを、その場で計算する図で説明しています。</p>
+      </a>
+    </li>
     <li>
       <a href="fft/">
         <p class="kicker">試せる実験 ・ 2026 年 11 月 26 日（音が出ます）</p>
