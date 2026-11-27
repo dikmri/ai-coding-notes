@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 20 章 多言語（kargui が出す文字） ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="アプリの仕組みの最後として、多言語の 1 段目を作りました。題の帯のボタンやドッキングのメニューなど、kargui が自分で出す文字を、OS の言語に合わせて英語か日本語にします。範囲の決め方、OS ごとの言語の読み方、試験を PC の言語に左右させない工夫、読み上げの木に出ない名前の確かめ方、0.4.0 を crates.io に出した話を紹介します。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 20 章</p>
+  <h1>多言語（kargui が出す文字）</h1>
+  <p class="lede">アプリの仕組みの最後として、多言語の 1 段目を作りました。題の帯のボタン、ドッキングのメニュー、日付の選択の文字など、kargui が自分で出す文字を、OS の言語に合わせて英語か日本語にします。この章では、範囲の決め方、OS ごとの言語の読み方、試験を PC の言語に左右させない工夫、読み上げの木に出ない名前の確かめ方を紹介します。最後に、0.4.0 を crates.io に出した話も書きます。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>フレームワークが自分で出す文字の集め方</li>
+      <li>Windows と Linux で、OS の言語を読む方法</li>
+      <li>OS の設定を読む処理を、試験できる形に分ける方法</li>
+      <li>読み上げの木に出ない名前を、どこで確かめるか</li>
+      <li>crates.io に出していない版があった時の、版の番号の決め方</li>
+    </ul>
+  </section>
+
+  <h2 id="scope">範囲を決めた</h2>
+  <p>ハイコントラストを作った夜に、多言語の案を 3 段に分けて作者に出していました。作者が選んだのは 1 段目です。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-scope">
+    <table>
+      <caption id="t-scope">多言語の 3 つの段</caption>
+      <thead><tr><th scope="col">段</th><th scope="col">中身</th><th scope="col">今回</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">1 段目</th><td data-label="中身">kargui が自分で出す文字を、OS の言語で英語か日本語にする</td><td data-label="今回">作った</td></tr>
+        <tr><th scope="row">2 段目</th><td data-label="中身">アプリ自身の文字の訳し方を、ガイドで紹介する（kargui に仕組みは入れない）</td><td data-label="今回">まだ。今の言語を読む <code>ui.locale()</code> だけ先に足した</td></tr>
+        <tr><th scope="row">3 段目</th><td data-label="中身">右から左に書く言語（並べ方の左右の反転、文字の並べ替え）</td><td data-label="今回">使う人が出てから</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="words">kargui が出していた文字</h2>
+  <p>部品のコードの中の英語の文字を探すと、利用者に見える物と、読み上げソフトに伝える名前が、合わせて 18 語ありました。日付と色の選択は、英語と日本語の組（<code>DateText</code>・<code>ColorText</code>）をアプリが選ぶ形が、前からありました。日本語の言葉は、日本語の Windows と同じ言葉にそろえました。題の帯のボタンは、Windows の吹き出しと同じです。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-words">
+    <table>
+      <caption id="t-words">kargui が出す文字（18 語）</caption>
+      <thead><tr><th scope="col">場所</th><th scope="col">英語</th><th scope="col">日本語</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">題の帯のボタン</th><td data-label="英語">Minimize・Maximize・Restore・Close</td><td data-label="日本語">最小化・最大化・元に戻す (縮小)・閉じる</td></tr>
+        <tr><th scope="row">数の入力欄のボタン</th><td data-label="英語">Increase・Decrease</td><td data-label="日本語">増やす・減らす</td></tr>
+        <tr><th scope="row">つまみ</th><td data-label="英語">Resize・Resize column</td><td data-label="日本語">大きさを変える・列の幅を変える</td></tr>
+        <tr><th scope="row">ツールバー</th><td data-label="英語">More options</td><td data-label="日本語">その他のオプション</td></tr>
+        <tr><th scope="row">ドッキングのメニュー</th><td data-label="英語">Dock・Float・Move to a new group・Move into group・Move to a new window</td><td data-label="日本語">ドッキング・フロート・新しいグループへ移動・グループへ移動・新しいウィンドウへ移動</td></tr>
+        <tr><th scope="row">メニューの向き</th><td data-label="英語">Left・Right・Above・Below</td><td data-label="日本語">左・右・上・下</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>パネルの閉じるボタンの名前は、言葉の順が言語で変わります（Close Editor ／ Editor を閉じる）。そこで、パネルの名前を受け取って文を作る関数を、表に持たせました。</p>
+  <!-- gen:dock -->
+<div class="pair">
+  <figure class="shot flat"><picture><img src="img/locale/dock-en-light.webp" alt="ドッキングのタブの右クリックのメニュー。Move to a new group の入れ子に Left・Right・Above・Below、その下に Move into group、Float、Move to a new window、Close" width="1200" height="560" loading="lazy" decoding="async"></picture><figcaption>英語（試験台で 2 倍に描いた）。</figcaption></figure>
+  <figure class="shot flat"><picture><img src="img/locale/dock-ja-light.webp" alt="同じメニューの日本語。新しいグループへ移動の入れ子に左・右・上・下、その下にグループへ移動、フロート、新しいウィンドウへ移動、閉じる" width="1200" height="560" loading="lazy" decoding="async"></picture><figcaption>日本語。入れ子の向きの言葉まで、表から取る。</figcaption></figure>
+</div>
+<!-- /gen:dock -->
+
+  <h2 id="api">書き方</h2>
+  <p>何も書かなければ、OS の言語に従います。アプリが決めたい時は <code>Options::locale</code> を使います。アプリ自身の文字は、<code>ui.locale()</code> を見て同じ言語で出せます。</p>
+  <pre><code>let mut options = Options::new("Notes");
+options.locale = Some(Locale::Japanese); // None（既定）は OS に従う
+
+let save = match ui.locale() {
+    Locale::Japanese =&gt; "保存",
+    _ =&gt; "Save",
+};</code></pre>
+  <p><code>Locale</code> は、後から言語を足しても、使う側のコードが組み立てられなくならない形（<code>#[non_exhaustive]</code>）にしました。<code>match</code> には、最後に <code>_</code> の腕が要ります。</p>
+
+  <h2 id="os">OS の言語の読み方</h2>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-os">
+    <table>
+      <caption id="t-os">OS ごとの読み方</caption>
+      <thead><tr><th scope="col">項目</th><th scope="col">Windows</th><th scope="col">Linux（と macOS）</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">読む物</th><td data-label="Windows">表示の言語（GetUserDefaultUILanguage）</td><td data-label="Linux（と macOS）">環境変数 LANGUAGE・LC_ALL・LC_MESSAGES・LANG</td></tr>
+        <tr><th scope="row">言語の決め方</th><td data-label="Windows">言語の番号の下の 10 ビットが 0x11 なら日本語</td><td data-label="Linux（と macOS）">LANGUAGE の並びから kargui が持つ最初の言語、無ければ LC_ALL・LC_MESSAGES・LANG の空でない最初の物</td></tr>
+        <tr><th scope="row">持たない言語</th><td data-label="Windows">英語</td><td data-label="Linux（と macOS）">英語（C と POSIX も英語）</td></tr>
+        <tr><th scope="row">読む時</th><td data-label="Windows">起動の時に 1 回。動かしたまま変えても、次の起動まで変わらない</td><td data-label="Linux（と macOS）">起動の時に 1 回。動かしたまま変えても、次の起動まで変わらない</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Windows の言語を読む関数は、windows クレートでは、まだ使っていない機能の切り替え（<code>Win32_Globalization</code>）の中にあります。この機能は大きく、組み立てる物が増えるので、関数 1 つだけを自分で宣言しました（第 18 章のハイコントラストの構造体と同じ考え方です）。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: OS の設定を読む所と、決める所を分ける</span>
+    <p>Linux の決め方は、環境変数を読む関数を引数で受け取る形にしました。試験では、本物の環境変数の代わりに表を渡して、「LC_ALL は LC_MESSAGES より先」「LANGUAGE は並びの中から持っている言語を探す」などを 8 通り確かめています。Windows の言語の番号から決める所も、番号を受け取る関数に分けたので、Linux の上でも試験が走ります。</p>
+  </div>
+
+  <h2 id="tests">試験を PC の言語に左右させない</h2>
+  <p>試験台が OS の言語を読むと、同じ試験が、日本語の PC では落ち、CI（英語）では通ることになります。今までの試験には、<code>h.find("Minimize")</code> のように英語の名前で部品を探す物がたくさんあります。そこで、言語は窓の処理が窓を作る時に入れることにし、試験台はいつも英語から始めます。日本語で確かめる試験は、<code>h.set_locale(Locale::Japanese)</code> で変えてから、「増やす」「最小化」「新しいグループへ移動」を名前で押します。</p>
+
+  <h2 id="dates">日付と色の選択</h2>
+  <p>日付・時刻・色の選択の文字は、窓を作る時に、その言語の組（<code>DateText</code>・<code>ColorText</code>）になります。アプリが <code>ui.set_date_text</code> で決めた物は、その後のビューで決め直されるので、アプリの指定が勝ちます。週の始まりは、英語（米国）も日本語も日曜なので、今回の 2 つの言語では変える所がありませんでした。</p>
+
+  <h2 id="checks">確かめた</h2>
+  <!-- gen:windows -->
+<figure class="shot flat"><picture><img src="img/locale/windows-light.webp" alt="部品の見本の日付と時刻のページを上下に 2 つ並べた絵。上は日付を選ぶ・時刻を選ぶ、下は Pick a date・Pick a time" width="660" height="520" loading="lazy" decoding="async"></picture><figcaption>Windows の見本の「日付と時刻」のページ（本物の窓の一部）。上は OS の言語（日本語）のまま、下は <code>--locale en</code>。</figcaption></figure>
+<!-- /gen:windows -->
+  <!-- gen:linux -->
+<figure class="shot flat"><picture><img src="img/locale/linux-light.webp" alt="検証機の部品の見本の窓を上下に 2 つ並べた絵。上は日付を選ぶ・時刻を選ぶ、下は Pick a date・Pick a time" width="944" height="680" loading="lazy" decoding="async"></picture><figcaption>検証機（Hyprland、<code>LANG=ja_JP.UTF-8</code>）の同じページ。上は OS の言語のまま、下は <code>--locale en</code>。見本の窓だけを切り出した。</figcaption></figure>
+<!-- /gen:linux -->
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-checks">
+    <table>
+      <caption id="t-checks">作者に渡す前の確かめ</caption>
+      <thead><tr><th scope="col">確かめたこと</th><th scope="col">結果</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Windows の見本</th><td data-label="結果">記録の locale の行に、OS の言語の番号（0x0411）と、選んだ言語が出た</td></tr>
+        <tr><th scope="row">検証機の見本</th><td data-label="結果">LANG=ja_JP.UTF-8 から日本語。引数で英語を選ぶと英語</td></tr>
+        <tr><th scope="row">UI オートメーション</th><td data-label="結果">日英とも落ちない。ただし、題の帯のボタンと数の入力欄のボタンは、読み上げの木に別の部品として出ない</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>数の入力欄は、読み上げソフトには 1 つの部品（名前は「部数」など、アプリが付けた物）として伝わり、上下のボタンは木に別々には出ません。題の帯のボタンは、英語でも木の中に名前が見つかりませんでした。理由はまだ調べていません。そのため、これらの名前が言語で変わることは、読み上げの道具では確かめられず、試験台の試験で、日本語の名前で探して押せることを確かめています。</p>
+
+  <h2 id="hand">作者の手の確かめ</h2>
+  <p>Windows は作者が 2 回開きました。検証機は、作者の「コマンドを打つのが面倒なので、アプリを立ち上げる所までやってほしい」という頼みで、私が見本を立ち上げ、画面の操作を作者がしました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-hand">
+    <table>
+      <caption id="t-hand">手の確かめの記録</caption>
+      <thead><tr><th scope="col">場所</th><th scope="col">記録</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Windows（OS の言語のまま）</th><td data-label="記録">日本語。日付と時刻の欄を開き、ドッキングのタブのメニューを開いた</td></tr>
+        <tr><th scope="row">Windows（--locale en）</th><td data-label="記録">英語。同じ操作</td></tr>
+        <tr><th scope="row">検証機</th><td data-label="記録">日本語。日付と時刻の欄、タブのメニュー、トレイを押した知らせ、通知の本文を押した答え（2 回）</td></tr>
+        <tr><th scope="row">異常の数</th><td data-label="記録">どれも panic 0、誤り 0（Windows は窓の処理の二重の呼び出しも 0）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>検証機の最後の「閉じる」では、見本は終わらずにトレイに隠れました。見本は、トレイを出していて「閉じるボタンでトレイに隠れる」に印がある時は隠れる作りで、印は最初から付いています。作りどおりの動きですが、手順に書いていなかったので、作者には閉じたように見えたはずです。隠れて動いていた見本は、私が終わらせました。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい作り方: ssh の命令の中で、pgrep -f に名前を渡して数える</span>
+    <p>見本を立ち上げる前に <code>pgrep -f gallery-kargui</code> で動いているかを調べたら、「動いている」と出ました。命令の文字そのものに「gallery-kargui」が入っているので、ssh が動かしている sh 自身に当たったのです。<code>ps</code> の一覧を <code>grep "[t]arget/release/gallery-kargui"</code> のように角かっこ付きで絞ると、自分自身に当たりません。</p>
+  </div>
+
+  <h2 id="release">0.4.0 を crates.io に出した</h2>
+  <p>多言語を作る前に、作者が「先に crates.io を最新にしたい」と言いました。調べると、crates.io は 0.2.0 のままで、0.3.0 は出していませんでした。今の main には、0.3.0 の後のドッキング・題の帯・トレイ・通知・ハイコントラスト・既定のアイコンが入っています。これを「0.3.0」として出すと、CHANGELOG の 0.3.0 の中身と食い違うので、0.4.0 としました。crates.io の版の並びは 0.1.0・0.2.0・0.4.0 になり、0.3.0 を出していないことは CHANGELOG に書きました。</p>
+  <ul>
+    <li>0.3 から上げる時に直す所を、差から調べて書いた（<code>Options</code> の 3 つの欄、既定のアイコンとハイコントラストの振る舞い）。公開の関数で、消えた物や形が変わった物は無かった。</li>
+    <li>README とガイドの 1 章に、<code>cargo add kargui</code> での入れ方を足した（前は手元の場所の形だけだった）。</li>
+    <li>手元で <code>cargo publish --dry-run</code> を走らせ、60 個のファイル（圧縮して 452 KB）の包みだけで組み立てられることを確かめた。</li>
+    <li>crates.io へ出す命令とタグは、作者が打った（crates.io の鍵は作者の物）。docs.rs も説明のページを組み立てた。</li>
+  </ul>
+  <p>多言語は 0.4.0 の後なので、次の版に入ります。</p>
+
+  <h2 id="numbers">数</h2>
+  <p>多言語で足した試験は 8 個です（言語の計算 5、試験台 2、見本の引数 1）。公開の項目は 530 から 538 に、説明は 634 から 640 に、動く例は 447 から 450 に増えました。説明の中の動く例（doc テスト）は 735 から 746 に増えました。言語の表と読み方（locale.rs）は 340 行です。記録 ee58946 は 24 のファイルを変え、597 行を足して 38 行を消しています。</p>
+
+  <h2 id="ci">CI</h2>
+  <p>記録 ee58946 は、作者の「送って」で GitHub に入り、CI は Windows・Linux・macOS で 1 回目から通りました。送る前に、CI の Windows と同じ 4 段と clippy を手元で走らせ、検証機でも試験 339 個と clippy を走らせています。</p>
+
+  <h2 id="next">次の段階</h2>
+  <p>これで、0.4 のアプリの仕組み（題の帯・トレイ・通知・ハイコントラスト・多言語）がそろいました。計画の次は、本物の Xorg のサーバーと macOS です。多言語の 2 段目（アプリ自身の文字の訳し方の紹介）は、使う人の声を聞いてから書きます。Windows で kargui が描く題の帯のボタンが、読み上げの木に見つからなかった理由も調べます。</p>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="19-icon.html">← 第 19 章 既定のアイコン</a>
+    <a href="./">目次 →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>
