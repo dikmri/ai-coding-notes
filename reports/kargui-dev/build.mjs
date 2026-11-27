@@ -152,6 +152,7 @@ const CHAPTERS = [
   { href: "17-notify.html", no: "第 17 章", title: "通知", text: "トーストを選んだ理由、キーで頼んでキーで答えを受け取る書き方、インストールしないアプリがトーストに名前を出す登録、OS ごとの違い。自分では押せなかったトーストのボタンを、作者の手の確かめで確かめた話。", thumb: "notify/gallery" },
   { href: "18-contrast.html", no: "第 18 章", title: "ハイコントラスト", text: "OS のハイコントラストに従う範囲を、作者が寝ている間に決めた理由。配色の写し方、強制した見本の写真で見つけた 3 つの不具合、検証機のポータル、作者の手の確かめが 1 回目に動かなかった理由。", thumb: "contrast/black" },
   { href: "19-icon.html", no: "第 19 章", title: "既定のアイコン", text: "アイコンを渡さないアプリに出す kargui のアイコン。3 つの案を計算で描いて比べ、16 画素でも読める 1 つを選んだ。画像のファイルを読まずに大きさごとに描く理由と、その時間。", thumb: "icon/sheet" },
+  { href: "20-locale.html", no: "第 20 章", title: "多言語（kargui が出す文字）", text: "題の帯のボタンやドッキングのメニューなど、kargui が自分で出す 18 語を、OS の言語で英語か日本語にした。OS ごとの言語の読み方、試験を PC の言語に左右させない工夫、読み上げの木に出ない名前の確かめ方。", thumb: "locale/dock-ja" },
 ];
 
 function chapters() {
@@ -549,6 +550,26 @@ ${figure("apps/expenses", "家計簿の見本", "家計簿（<code>examples/expe
         { name: "64 画素", v: "new", value: 4.083, label: "4.1 ms" },
         { name: "256 画素", v: "old", value: 61.418, label: "61.4 ms" },
       ]),
+  },
+  "20-locale.html": {
+    dock: () => `<div class="pair">
+  ${figure("locale/dock-en", "ドッキングのタブの右クリックのメニュー。Move to a new group の入れ子に Left・Right・Above・Below、その下に Move into group、Float、Move to a new window、Close", "英語（試験台で 2 倍に描いた）。", { flat: true })}
+  ${figure("locale/dock-ja", "同じメニューの日本語。新しいグループへ移動の入れ子に左・右・上・下、その下にグループへ移動、フロート、新しいウィンドウへ移動、閉じる", "日本語。入れ子の向きの言葉まで、表から取る。", { flat: true })}
+</div>`,
+    windows: () =>
+      figure(
+        "locale/windows",
+        "部品の見本の日付と時刻のページを上下に 2 つ並べた絵。上は日付を選ぶ・時刻を選ぶ、下は Pick a date・Pick a time",
+        "Windows の見本の「日付と時刻」のページ（本物の窓の一部）。上は OS の言語（日本語）のまま、下は <code>--locale en</code>。",
+        { flat: true },
+      ),
+    linux: () =>
+      figure(
+        "locale/linux",
+        "検証機の部品の見本の窓を上下に 2 つ並べた絵。上は日付を選ぶ・時刻を選ぶ、下は Pick a date・Pick a time",
+        "検証機（Hyprland、<code>LANG=ja_JP.UTF-8</code>）の同じページ。上は OS の言語のまま、下は <code>--locale en</code>。見本の窓だけを切り出した。",
+        { flat: true },
+      ),
   },
   "11-v030.html": {
     gallery: () =>
