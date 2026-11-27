@@ -3250,3 +3250,114 @@ test('ページの判定とグラデーション: 明るい所が半分以上な
   assert.ok(X.oklch(X.rgba(0.5, 0.5, 0.5)).C < 1e-6);
   assert.ok(Math.abs(X.oklch(X.parseColor('#f2c200')).h - 92) < 10);
 });
+
+// ---- 詐欺メールの見えない文字（tr-20261127-invisible-chars） ----
+const INVIS = 'tr-20261127-invisible-chars';
+
+test('見えない文字: 文字参照を 1 枚ずつはがし、2 枚目が要れば二重の符号化', () => {
+  const { decodeOnce, peel, isNested, findHidden } = trendCore(INVIS, ['decodeOnce', 'peel', 'isNested', 'findHidden']);
+  assert.equal(decodeOnce('営&#xfeff;業&#8205;所'), '営\uFEFF業\u200D所');
+  assert.equal(decodeOnce('&amp;#x200b;'), '&#x200b;');
+  assert.equal(decodeOnce('&ZeroWidthSpace;&shy;&unknown;&amp'), '\u200B\u00AD&unknown;&amp');
+  assert.equal(decodeOnce('&#0;&#x110000;&#xD800;'), '\uFFFD\uFFFD\uFFFD');
+  assert.equal(Array.from(peel('&amp;amp;#x200b;')).join('|'), '&amp;amp;#x200b;|&amp;#x200b;|&#x200b;|\u200B');
+  assert.equal(peel('ふつうの文').length, 1);
+  assert.equal(isNested('a&#x200b;b'), false);
+  assert.equal(isNested('a&amp;#x200b;b'), true);
+  assert.equal(isNested('?from=mail&amp;id=27'), false);
+  // 見えない文字が出た層で止める
+  const f = findHidden('パス&amp;#x200b;ワード', 'article');
+  assert.equal(f.hit, true);
+  assert.equal(f.depth, 2);
+  assert.equal(findHidden('ふつう', 'article').hit, false);
+});
+
+test('見えない文字: 種類と、絵文字・漢字の異体字として残す文字', () => {
+  const { invisInfo, hiddenIn, stripInvisible } = trendCore(INVIS, ['invisInfo', 'hiddenIn', 'stripInvisible']);
+  assert.equal(invisInfo(0x41), null);
+  assert.equal(invisInfo(0x2800), null);   // 点字の空白は既定で無視する文字ではない
+  assert.equal(invisInfo(0x3000), null);
+  assert.equal(invisInfo(0x200B).short, 'ZWSP');
+  assert.equal(invisInfo(0x202E).kind, 'bidi');
+  assert.equal(invisInfo(0xFE0F).short, 'VS16');
+  assert.equal(invisInfo(0xE0100).short, 'VS17');
+  assert.equal(invisInfo(0xE0041).short, 'A');
+  assert.equal(invisInfo(0x3164).kind, 'fill');
+  assert.equal(invisInfo(0x00AD).short, 'SHY');
+  const family = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}';
+  const flag = '\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}';
+  const s = '営\u200B業所' + family + '❤\uFE0F' + flag + '葛\u{E0100}';
+  assert.equal(hiddenIn(s, 'diAll').length, 1 + 2 + 1 + 6 + 1);
+  assert.equal(hiddenIn(s, 'di').length, 1);
+  assert.equal(hiddenIn(s, 'article').length, 3);   // 記事の範囲は家族の絵文字の ZWJ にも当たる
+  assert.equal(stripInvisible(s), '営業所' + family + '❤\uFE0F' + flag + '葛\u{E0100}');
+  assert.equal(stripInvisible('a\u00ADb\u3164c\uFFA0'), 'abc');
+  // 肌の色の付いた絵文字の ZWJ と、数字の後の異体字セレクタも残す
+  assert.equal(hiddenIn('\u{1F469}\u{1F3FD}\u200D\u{1F4BB} 1\uFE0F⃣', 'di').length, 0);
+  // 文字の間の ZWJ と、旗の無いタグ文字は残さない
+  assert.equal(hiddenIn('あ\u200Dい\u{E0041}', 'di').length, 2);
+});
+
+test('見えない文字: 画面の並び順・正規化・タグ文字', () => {
+  const { visualOrder, normalizeText, tagText, toTags } = trendCore(INVIS, ['visualOrder', 'normalizeText', 'tagText', 'toTags']);
+  assert.equal(visualOrder('請求書_\u202Efdp.exe'), '請求書_exe.pdf');
+  assert.equal(visualOrder('a\u202Ecba\u202Cd'), 'aabcd');
+  assert.equal(visualOrder('\u202Eルーモトナミ'), 'ミナトモール');
+  assert.equal(visualOrder('x\u202Ea\u{1F468}\u200D\u{1F469}b'), 'xb\u{1F468}\u200D\u{1F469}a');   // 絵文字の合成は崩さない
+  assert.equal(visualOrder('上\u202Eba\n下'), '上ab\n下');   // 改行で区間が終わる
+  assert.equal(normalizeText('\u202Eルーモトナミ'), 'ミナトモール');
+  assert.equal(normalizeText('ﾊﾙｶｾﾞ銀行'), 'ハルカゼ銀行');
+  assert.equal(normalizeText('配送営&#xfeff;業所&amp;#x200d;'), '配送営業所');
+  assert.equal(normalizeText('Ｍｉｎａｔｏ'), 'Minato');
+  assert.equal(Array.from(tagText('ok' + toTags('safe') + '!' + toTags('x'))).join('|'), 'safe|x');
+  assert.equal(tagText('\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}').length, 0);
+});
+
+test('見えない文字: URL を分解してドメインを取り出す', () => {
+  const { splitUrl, underDomain, impersonated } = trendCore(INVIS, ['splitUrl', 'underDomain', 'impersonated']);
+  const p1 = splitUrl('https://parcel-redeliver.test/18HMSa.minatomall.example');
+  assert.equal(p1.host, 'parcel-redeliver.test');
+  assert.equal(p1.rest, '/18HMSa.minatomall.example');
+  const p2 = splitUrl('https://harukaze-bank.example@login-check.test/reset');
+  assert.equal(p2.user, 'harukaze-bank.example');
+  assert.equal(p2.host, 'login-check.test');
+  const p3 = splitUrl('HTTPS:\\\\Yamabiko-Unyu.example.parcel-check.test:8443\\redelivery?x=1');
+  assert.equal(p3.scheme, 'https');
+  assert.equal(p3.host, 'yamabiko-unyu.example.parcel-check.test');
+  assert.equal(p3.port, '8443');
+  assert.equal(p3.rest, '\\redelivery?x=1');
+  assert.equal(splitUrl('https://a.example#x@b.test').host, 'a.example');
+  assert.equal(splitUrl('https://a.example/x@b.test').host, 'a.example');
+  assert.equal(splitUrl('https://u:p@a@b.test/').host, 'b.test');
+  assert.equal(splitUrl('mailto:x@y.test').host, '');
+  assert.equal(splitUrl('こんにちは'), null);
+  assert.ok(underDomain('www.minatomall.example', 'minatomall.example'));
+  assert.ok(underDomain('minatomall.example', 'minatomall.example'));
+  assert.ok(!underDomain('minatomall.example.parcel-check.test', 'minatomall.example'));
+  assert.ok(!underDomain('evilminatomall.example', 'minatomall.example'));
+  assert.equal(impersonated('ミナトモール', ['https://parcel-redeliver.test/minatomall.example']).length, 1);
+  assert.equal(impersonated('ミナトモール', ['https://www.minatomall.example/sale']).length, 0);
+  assert.equal(impersonated('ミナトモール', []).length, 0);   // リンクが無いメールは記事の決まりでは調べない
+});
+
+test('見えない文字: 5 通の判定（詐欺の 4 通は怪しい、本物は問題なし）', () => {
+  const { sampleMails, judgeMail } = trendCore(INVIS, ['sampleMails', 'judgeMail']);
+  const rs = Array.from(sampleMails(), (m) => judgeMail(m));
+  assert.equal(rs.map((r) => r.suspicious).join(','), 'true,true,true,true,false');
+  const [a, b, c, d, e] = rs;
+  assert.equal([a.from.hit, a.subject.hit, a.nested.html, a.brands.length].join(','), 'false,true,false,1');
+  assert.equal([b.from.hit, b.subject.hit, b.nested.html, b.brands.length].join(','), 'true,true,false,1');
+  assert.equal([c.from.hit, c.subject.hit, c.nested.html, c.brands.length].join(','), 'false,false,true,1');   // ソフトハイフンは記事の範囲の外
+  assert.equal([d.from.hit, d.subject.hit, d.nested.html, d.brands.length, d.tags.length].join(','), 'false,false,false,1,1');
+  assert.equal([e.from.hit, e.subject.hit, e.nested.html, e.named.length, e.brands.length].join(','), 'false,false,false,1,0');
+  // 単語の検索: 元の文字列では当たらず、正規化すると当たる
+  const word = (r, w) => r.words.find((x) => x.w === w);
+  assert.equal([word(a, '営業所').raw, word(a, '営業所').norm].join(','), 'false,true');
+  assert.equal([word(b, 'ミナトモール').raw, word(b, 'ミナトモール').norm].join(','), 'false,true');
+  assert.equal([word(c, 'パスワード').raw, word(c, 'パスワード').norm, word(c, 'ハルカゼ銀行').norm].join(','), 'false,true,true');
+  assert.equal([word(d, '還付金').raw].join(','), 'true');
+  // 本物のメールの絵文字は数えるが、残す文字なので di には入らない
+  assert.equal([e.count.article, e.count.diAll, e.count.di].join(','), '2,3,0');
+  assert.ok(d.count.diAll > 60 && d.count.article === 0);
+  assert.match(d.tags[0], /^AI assistant: /);
+});
