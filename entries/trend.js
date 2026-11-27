@@ -20797,3 +20797,994 @@ td.n { text-align: right; font-variant-numeric: tabular-nums; }
     }
   },
 });
+
+dekiru.add({
+  id: 'tr-20261127-adaptive-dark', c: 'trend', lv: 2, date: '2026-11-27',
+  t: 'ダークモードに対応していないページを、明るさだけ反転して自動で暗くする',
+  y: 'だーくもーどに たいおうしていない ぺーじを あかるさだけ はんてんして じどうで くらくする',
+  tags: ['Safari Adaptive Dark Mode', 'color-scheme', 'light-dark()', 'コントラスト比', 'getComputedStyle', 'getImageData'],
+  d: '2026-11-03 に WebKit が Safari 27.3 beta の Adaptive Dark Mode を発表した（Hacker News で 520 点・265 件）。OS の外観をダークにした人が、ダークモードに対応していないページを開くと、Safari がページの色を調べて暗い見た目に作り変える機能である。WebKit のブログによると、ページの読み込みの約 40% はダークモードの人によるもので、ダークモードに対応したページの読み込みは約 10% しかない。color-scheme: light dark か light only を宣言したページは変えない。2026-11-26 には chot さんの Zenn の記事が、宣言なし・light dark だけ・light dark とダーク用のスタイル・light only の 4 通りを Safari 27.3 beta で試し、「light dark だけを宣言すると表示が崩れる」ことを確かめた（11-27 の Zenn の日ごとの人気記事に入っている）。'
+    + 'この見本は、ブログに書かれた仕組みを JavaScript で組み立て直したもの。架空のお店のページ（上の帯・グラデーション・お知らせの枠・商品の写真・白黒のロゴ・SVG のアイコン・入力欄・canvas のグラフ・文字の色を指定していない文）を用意し、① ページの各所の背景を 16 × 24 点で調べて明るいページかどうかを判定する ② 明るい背景だけ明るさを反転し、色合いは残す ③ 文字は書き換えた後の背景とのコントラスト比を計算し、4.5:1（大きな文字は 3:1）に足りないときだけ明るさを変える ④ グラデーションの色の点と SVG の塗りも同じ決まりで変える ⑤ 画像は明るさの分布を数え、白黒のロゴだけを反転して写真はそのままにする ⑥ canvas は変えない、の順に書き換える。'
+    + '同じページを、ページ全体に filter: invert(1) hue-rotate(180deg) を掛ける単純な反転や、color-scheme の宣言を変えたページと並べ、全部の文字のコントラスト比を測って比べる。見本のページの 20 か所の文字では、自動で暗くした場合と単純な反転は足りない所が 0 か所、light dark だけを宣言した場合は 5 か所が足りなかった（色を指定していない文が白い背景の上で白くなり、比は 1.00:1）。単純な反転では写真がネガのようになり、濃い青の帯が明るくなる。見本のページを「もとから暗いページ」に替えると、自動の変換は明るい背景を 301 点のうち 5% と数えて何も変えず、単純な反転はページを明るくして、値段の文字が 4.27:1 に下がる。パソコンの Chrome（画面を出さずに動かしたもの）では、ページを読んで 47 か所の色を書き換えるまで 4 ms ほどだった（開いた直後の 1 回目は 23〜34 ms）。'
+    + '再現できていない所: Safari が使う行列の数・明るいと判定するしきい値・画像の判定の決まりは公開されていないので、この見本の数（明るさを 0.08〜0.92 の範囲で反転、明るさ 0.55 以上を明るい色とみなす、など）は自分で決めた。ホバーで開くメニュー、画像の上の文字、mask と mix-blend-mode を外す処理、::before などの疑似要素・影・下線の色は扱っていない。Safari はページの JavaScript に元の色を返して、変換したことを隠す。この見本は書き換えた色を CSS の規則として足すので、getComputedStyle は変えた後の色を返す。OS のダークは、見本のページの要素に color-scheme: dark を付けて真似している。',
+  p: '明るさ Y′ = 0.2126R + 0.7152G + 0.0722B（ガンマのかかった値）を Y″ = 0.92 − 0.84 Y′ に置き換え、色の成分 (R − Y′, G − Y′, B − Y′) はそのまま残す。これは 3 行 4 列の行列 1 つで書け、filter: invert(1) hue-rotate(180deg) の行列とほとんど同じ数になる。0〜1 からはみ出す色は、色の成分だけを同じ割合で縮めるので、色合いの向きは変わらない。単純な反転との違いは、行列を掛ける場所の選び方にある。要素ごとに getComputedStyle で背景・文字・枠・グラデーション・SVG の色を読み、親から順に背景を重ねて「文字の後ろに実際にある色」を求める。背景は明るいものだけ反転し、文字は WCAG のコントラスト比が足りないときだけ反転して、それでも足りなければ明るさを二分探索で動かす。画像は canvas に描いて getImageData で画素を数え、灰色の画素が 95% 以上・中間の明るさが 12% 以下のものを白黒のロゴとみなして filter: invert(1) を掛ける。自前のダークの例は、light-dark() で色を 2 つずつ書き、使えないブラウザ向けには @supports で外した書き方を先に置いた。',
+  refs: [
+    { title: 'WebKit: Introducing Adaptive Dark Mode（2026-11-03）', url: 'https://webkit.org/blog/18541/introducing-adaptive-dark-mode/' },
+    { title: 'Hacker News: Safari introduces Adaptive Dark Mode in 27.3', url: 'https://news.ycombinator.com/item?id=50358562' },
+    { title: 'chot: 【Adaptive Dark Mode】近い将来、Safari が未対応サイトを自動でダークテーマにするらしい（Zenn、2026-11-26）', url: 'https://zenn.dev/chot/articles/d7ebf61cc4391c' },
+    { title: 'IP さんの X の投稿（2026-11-04）', url: 'https://x.com/ipwanciu/status/2117894220509843581' },
+    { title: 'CSS Color Adjustment Module Level 1: color-scheme', url: 'https://drafts.csswg.org/css-color-adjust-1/#color-scheme-prop' },
+    { title: 'WCAG 2.2: 1.4.3 Contrast (Minimum)', url: 'https://www.w3.org/TR/WCAG22/#contrast-minimum' },
+  ],
+  html: `<div class="wrap">
+  <p class="lead">OS の外観をダークにした人が、ダークモードに対応していないページを開いたとみなして、ページの色を書き換える。ボタンで、ページの宣言と書き換え方を選ぶ。</p>
+  <div class="modes" role="group" aria-label="ページの宣言と書き換え方">
+    <button type="button" class="ui" data-m="orig" aria-pressed="true">元のページ</button>
+    <button type="button" class="ui" data-m="auto" aria-pressed="false">自動で暗く</button>
+    <button type="button" class="ui" data-m="invert" aria-pressed="false">単純な反転</button>
+    <button type="button" class="ui" data-m="ld" aria-pressed="false">light dark だけ宣言</button>
+    <button type="button" class="ui" data-m="own" aria-pressed="false">light dark ＋ 自前のダーク</button>
+    <button type="button" class="ui" data-m="only" aria-pressed="false">light only</button>
+  </div>
+  <div class="main">
+    <div id="stage" class="stage">
+      <p id="badge" class="badge" aria-hidden="true"></p>
+      <div id="site" class="site" role="region" aria-label="見本のページ" data-n="ページ全体">
+        <header class="s-head" data-n="上の帯">
+          <span class="s-logo"><svg viewBox="0 0 24 24" aria-hidden="true" data-n="帯のしるし（SVG）"><path d="M12 3c4 3 6 6 6 9a6 6 0 0 1-12 0c0-3 2-6 6-9z" fill="#ffffff"/></svg>こもれび雑貨店</span>
+          <nav class="s-nav" aria-label="見本のページの案内"><a href="#site" data-n="上のリンク">新着</a><a href="#site" data-n="上のリンク">特集</a><a href="#site" data-n="上のリンク">お店</a></nav>
+        </header>
+        <section class="s-hero" data-n="見出しの欄">
+          <h2 class="s-h" data-n="見出し">秋の木の器フェア</h2>
+          <p data-n="見出しの下の文（色の指定なし）">手ざわりのよい木の器を 30 点そろえました。11 月 30 日まで。</p>
+          <div class="s-btns"><a class="s-btn" href="#site" data-n="青いボタン">器を見る</a><a class="s-btn2" href="#site" data-n="白いボタン">お店の案内</a></div>
+        </section>
+        <p class="s-notice" data-n="お知らせ"><b>お知らせ</b> 12 月 1 日は棚の入れ替えのため、午後 3 時に閉めます。</p>
+        <div class="s-cards">
+          <article class="s-card" data-n="商品の枠">
+            <img id="photo" class="s-photo" alt="山と湖の写真（canvas で描いた絵）" width="320" height="150" data-n="写真">
+            <h3 class="s-t" data-n="商品名">くるみの木の小皿</h3>
+            <p class="s-meta" data-n="札の行（色の指定なし）"><span class="s-chip" data-n="在庫の札">在庫あり</span> <span class="s-price" data-n="値段">2,400 円</span></p>
+          </article>
+          <article class="s-card" data-n="商品の枠">
+            <img id="stamp" class="s-stamp" alt="お店のしるし（白黒の画像）" width="120" height="120" data-n="白黒のロゴ">
+            <h3 class="s-t" data-n="商品名">お店のしるし</h3>
+            <p class="s-meta" data-n="札の行（色の指定なし）"><svg class="s-ico" viewBox="0 0 24 24" aria-hidden="true" data-n="かごのアイコン（SVG）"><path d="M3 4h2l2 11h11l2-8H7" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="9" cy="19" r="1.6" fill="currentColor"/><circle cx="17" cy="19" r="1.6" fill="currentColor"/></svg>白黒の画像と SVG</p>
+          </article>
+        </div>
+        <div class="s-form" data-n="探す欄">
+          <input type="search" placeholder="店の中を探す" aria-label="店の中を探す（見本）" data-n="入力欄">
+          <button type="button" data-n="探すボタン（ブラウザの既定の見た目）">探す</button>
+        </div>
+        <figure class="s-fig">
+          <canvas id="chart" class="s-chart" width="320" height="90" role="img" aria-label="今週の来店数の棒グラフ（canvas）" data-n="canvas のグラフ"></canvas>
+          <figcaption data-n="図の説明（色の指定なし）">今週の来店数（canvas は変えない）</figcaption>
+        </figure>
+        <footer class="s-foot" data-n="下の帯（色の指定なし）">文字の色を指定していない文です。<a href="#site" data-n="下のリンク（色の指定なし）">お問い合わせ</a></footer>
+      </div>
+      <div id="marks" class="marks" aria-hidden="true"></div>
+    </div>
+    <div class="side">
+      <p id="mdesc" class="mdesc"></p>
+      <dl id="stats" class="stats"></dl>
+      <label class="opt"><input type="checkbox" id="showLow" class="ui" checked> コントラスト比が足りない文字を点線で囲む</label>
+      <div class="row" role="group" aria-label="見本のページの作り">
+        <span class="k">見本のページ</span>
+        <button type="button" class="ui" data-p="light" aria-pressed="true">明るいお店のページ</button>
+        <button type="button" class="ui" data-p="dark" aria-pressed="false">もとから暗いページ</button>
+      </div>
+      <p class="note">「元のページ」は OS がライトのときの見た目。ほかは OS がダークのときで、見本のページの要素に color-scheme を付けて真似している。コントラスト比は、文字の色と、親から順に重ねた背景の色から計算する（WCAG の式）。</p>
+    </div>
+  </div>
+
+  <section class="box">
+    <h3>6 通りを並べて比べる</h3>
+    <div class="tw" tabindex="0" role="region" aria-labelledby="cmpCap">
+      <table>
+        <caption id="cmpCap">見本のページの全部の文字について、文字と背景のコントラスト比を測った結果</caption>
+        <thead><tr><th scope="col">書き換え方</th><th scope="col">宣言</th><th scope="col">OS</th><th scope="col">足りない文字</th><th scope="col">いちばん低い比</th><th scope="col">写真</th><th scope="col">白黒のロゴ</th></tr></thead>
+        <tbody id="cmpBody"></tbody>
+      </table>
+    </div>
+    <p class="note">足りない文字は、4.5:1 未満の文字（24 px 以上か、18.66 px 以上の太字は 3:1 未満）の数。単純な反転では、filter を掛けた後の色を同じ行列で計算して測る。</p>
+  </section>
+
+  <section class="box">
+    <h3>明るさだけを反転する行列</h3>
+    <div class="mats">
+      <div class="tw" tabindex="0" role="region" aria-labelledby="m1Cap"><table class="mat"><caption id="m1Cap">この見本（明るさを 0.08〜0.92 に反転）</caption><tbody id="m1"></tbody></table></div>
+      <div class="tw" tabindex="0" role="region" aria-labelledby="m2Cap"><table class="mat"><caption id="m2Cap">filter: invert(1) hue-rotate(180deg)</caption><tbody id="m2"></tbody></table></div>
+    </div>
+    <p id="matNote" class="note"></p>
+    <div class="row">
+      <label class="k" for="pick">試す色</label>
+      <input type="color" id="pick" class="ui" value="#f2c200">
+      <div class="row" role="group" aria-label="試す色の使い方">
+        <button type="button" class="ui" data-u="bg" aria-pressed="true">背景の色として</button>
+        <button type="button" class="ui" data-u="fg" aria-pressed="false">白い背景の上の文字として</button>
+      </div>
+    </div>
+    <div id="tryOut" class="swg"></div>
+  </section>
+
+  <section class="box">
+    <h3>自動で暗くしたときに書き換えた色</h3>
+    <p id="chgNote" class="note" role="status"></p>
+    <div class="tw" tabindex="0" role="region" aria-labelledby="chgCap">
+      <table>
+        <caption id="chgCap">場所ごとの元の色と書き換えた色（同じ場所の同じ色は 1 行にまとめた）</caption>
+        <thead><tr><th scope="col">場所</th><th scope="col">何の色</th><th scope="col">元</th><th scope="col">後</th><th scope="col">理由</th></tr></thead>
+        <tbody id="chgBody"></tbody>
+      </table>
+    </div>
+  </section>
+</div>`,
+  css: `:root { color-scheme: light; --u-bg: #f3f1ec; --u-fg: #22201c; --u-mut: #5f594f; --u-line: #d8d2c6; --u-panel: #fffdf9; --u-acc: #2f5f9e; --u-low: #e0245e; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--u-bg); color: var(--u-fg); font: 14px/1.6 system-ui, sans-serif; }
+.wrap { padding: 12px 16px 24px; display: grid; gap: 12px; max-width: 980px; margin: 0 auto; }
+.lead { margin: 0; font-size: 13px; color: var(--u-mut); }
+.modes { display: flex; flex-wrap: wrap; gap: 6px; }
+button.ui { font: inherit; font-size: 13px; color: var(--u-fg); background: var(--u-panel); border: 1px solid var(--u-line); border-radius: 6px; padding: 3px 10px; min-block-size: 28px; cursor: pointer; }
+@media (hover: hover) { button.ui:hover { border-color: var(--u-acc); } }
+button.ui[aria-pressed="true"] { background: var(--u-acc); border-color: var(--u-acc); color: #ffffff; }
+.ui:focus-visible { outline: 2px solid var(--u-acc); outline-offset: 2px; }
+.main { display: grid; grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 760px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.stage { position: relative; background: #3a3d42; padding: 30px 10px 10px; border-radius: 12px; }
+.badge { position: absolute; top: 5px; left: 12px; right: 12px; margin: 0; color: #f2f3f5; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.marks { position: absolute; inset: 0; pointer-events: none; }
+.marks i { position: absolute; outline: 2px dashed var(--u-low); outline-offset: 1px; border-radius: 2px; }
+.side { display: grid; gap: 8px; min-width: 0; }
+.mdesc { margin: 0; font-size: 13px; }
+.stats { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 10px; font-size: 13px; }
+.stats dt { color: var(--u-mut); }
+.stats dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.stats .bad, td.bad { color: var(--u-low); font-weight: 600; }
+.opt { font-size: 13px; display: flex; gap: 6px; align-items: center; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.k { color: var(--u-mut); font-size: 13px; }
+.note { color: var(--u-mut); font-size: 12.5px; margin: 0; }
+.box { background: var(--u-panel); border: 1px solid var(--u-line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 8px; min-width: 0; }
+.box h3 { margin: 0; font-size: 14px; }
+.tw { overflow-x: auto; max-inline-size: 100%; }
+table { border-collapse: collapse; font-size: 12.5px; }
+caption { text-align: left; color: var(--u-mut); font-size: 12px; padding-bottom: 2px; }
+th, td { padding: 3px 8px; border-bottom: 1px solid var(--u-line); text-align: left; white-space: nowrap; }
+th { color: var(--u-mut); font-weight: 500; }
+td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.sw { display: inline-block; width: 1.1em; height: 1.1em; border-radius: 3px; border: 1px solid rgb(0 0 0 / 0.3); vertical-align: -0.2em; margin-right: 5px; }
+.hx { font: 12px/1.4 ui-monospace, Consolas, monospace; }
+.mats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 10px; }
+.mat td { font: 12.5px/1.4 ui-monospace, Consolas, monospace; text-align: right; }
+.mat th { text-align: right; }
+.swg { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); gap: 8px; }
+.swc { border: 1px solid var(--u-line); border-radius: 8px; overflow: hidden; font-size: 12px; background: var(--u-panel); }
+.swc .face { height: 56px; display: grid; place-items: center; font-size: 18px; font-weight: 700; }
+.swc .cap { padding: 4px 8px; display: grid; }
+.swc .cap b { font-weight: 600; }
+
+/* ---- 見本のページ（ダークモードに対応していないお店のページ） ---- */
+.site {
+  --x-bg-l: #ffffff; --x-bg-d: #16181d;
+  --x-ink-l: #1f2328; --x-ink-d: #dde3ea;
+  --x-h-l: #1b2733; --x-h-d: #eef2f7;
+  --x-head-l: #1f3a5f; --x-head-d: #1f3a5f;
+  --x-ha-l: #e6f4ff; --x-ha-d: #10233a;
+  --x-hb-l: #fff1dc; --x-hb-d: #2a1f12;
+  --x-nb-l: #fff8d6; --x-nb-d: #2a2510;
+  --x-nl-l: #f2c200; --x-nl-d: #9c7d00;
+  --x-ni-l: #5c4a00; --x-ni-d: #f0dc95;
+  --x-cl-l: #e3e6ea; --x-cl-d: #30353d;
+  --x-cb-l: #e8f5e9; --x-cb-d: #163a1c;
+  --x-ci-l: #2e7d32; --x-ci-d: #8fe39a;
+  --x-pr-l: #d0342c; --x-pr-d: #ff8a80;
+  --x-lk-l: #2563eb; --x-lk-d: #8ab4ff;
+  --x-b2-l: #ffffff; --x-b2-d: #1d2026;
+  --x-ft-l: #f3f4f6; --x-ft-d: #1d2026;
+  --x-bg: var(--x-bg-l); --x-ink: var(--x-ink-l); --x-h: var(--x-h-l); --x-head: var(--x-head-l);
+  --x-ha: var(--x-ha-l); --x-hb: var(--x-hb-l); --x-nb: var(--x-nb-l); --x-nl: var(--x-nl-l); --x-ni: var(--x-ni-l);
+  --x-cl: var(--x-cl-l); --x-cb: var(--x-cb-l); --x-ci: var(--x-ci-l); --x-pr: var(--x-pr-l); --x-lk: var(--x-lk-l);
+  --x-b2: var(--x-b2-l); --x-ft: var(--x-ft-l);
+  background: var(--x-bg); color: CanvasText; font: 13px/1.6 system-ui, sans-serif; border-radius: 8px; overflow: hidden;
+}
+/* もとから暗いページ。自前のダークも同じ色を使う（light-dark() が使えないブラウザはこの書き方のまま） */
+.site.darkp, .site.m-own {
+  --x-bg: var(--x-bg-d); --x-ink: var(--x-ink-d); --x-h: var(--x-h-d); --x-head: var(--x-head-d);
+  --x-ha: var(--x-ha-d); --x-hb: var(--x-hb-d); --x-nb: var(--x-nb-d); --x-nl: var(--x-nl-d); --x-ni: var(--x-ni-d);
+  --x-cl: var(--x-cl-d); --x-cb: var(--x-cb-d); --x-ci: var(--x-ci-d); --x-pr: var(--x-pr-d); --x-lk: var(--x-lk-d);
+  --x-b2: var(--x-b2-d); --x-ft: var(--x-ft-d);
+}
+.site.darkp { color: var(--x-ink); }
+@supports (color: light-dark(white, black)) {
+  .site.m-own {
+    --x-bg: light-dark(var(--x-bg-l), var(--x-bg-d)); --x-ink: light-dark(var(--x-ink-l), var(--x-ink-d));
+    --x-h: light-dark(var(--x-h-l), var(--x-h-d)); --x-head: light-dark(var(--x-head-l), var(--x-head-d));
+    --x-ha: light-dark(var(--x-ha-l), var(--x-ha-d)); --x-hb: light-dark(var(--x-hb-l), var(--x-hb-d));
+    --x-nb: light-dark(var(--x-nb-l), var(--x-nb-d)); --x-nl: light-dark(var(--x-nl-l), var(--x-nl-d));
+    --x-ni: light-dark(var(--x-ni-l), var(--x-ni-d)); --x-cl: light-dark(var(--x-cl-l), var(--x-cl-d));
+    --x-cb: light-dark(var(--x-cb-l), var(--x-cb-d)); --x-ci: light-dark(var(--x-ci-l), var(--x-ci-d));
+    --x-pr: light-dark(var(--x-pr-l), var(--x-pr-d)); --x-lk: light-dark(var(--x-lk-l), var(--x-lk-d));
+    --x-b2: light-dark(var(--x-b2-l), var(--x-b2-d)); --x-ft: light-dark(var(--x-ft-l), var(--x-ft-d));
+  }
+}
+/* OS がダークのときの宣言ごとの見た目（この要素には背景があるので、color-scheme を付けてよい） */
+.site.m-ld { color-scheme: dark; }
+.site.m-own { color-scheme: dark; color: var(--x-ink); }
+.site.m-only { color-scheme: light only; }
+.site.m-invert { filter: invert(1) hue-rotate(180deg); }
+.site.m-own a:not([class]), .site.darkp a:not([class]) { color: var(--x-lk); }
+.site.m-own .s-stamp { filter: invert(1); }
+.s-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 12px; padding: 8px 12px; background: var(--x-head); color: #ffffff; }
+.s-logo { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+.s-logo svg { width: 18px; height: 18px; }
+.s-nav { display: flex; gap: 12px; }
+.s-nav a { color: #dbe7ff; text-decoration: none; }
+.s-hero { padding: 14px 12px; background: linear-gradient(135deg, var(--x-ha), var(--x-hb)); }
+.s-h { margin: 0 0 4px; font-size: 20px; line-height: 1.3; color: var(--x-h); }
+.s-hero p { margin: 0 0 10px; }
+.s-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.s-btn { background: #2563eb; color: #ffffff; padding: 4px 12px; border-radius: 6px; text-decoration: none; font-weight: 600; }
+.s-btn2 { background: var(--x-b2); color: var(--x-lk); border: 1px solid #2563eb; padding: 3px 11px; border-radius: 6px; text-decoration: none; }
+.s-notice { margin: 10px 12px; padding: 6px 10px; background: var(--x-nb); border: 2px solid var(--x-nl); border-radius: 6px; color: var(--x-ni); }
+.s-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr)); gap: 10px; padding: 0 12px; }
+.s-card { border: 1px solid var(--x-cl); border-radius: 8px; padding: 8px; background: var(--x-bg); min-width: 0; }
+.s-photo { display: block; width: 100%; height: auto; aspect-ratio: 32 / 15; border-radius: 4px; }
+.s-stamp { display: block; width: 64px; height: 64px; margin: 0 auto; }
+.s-t { margin: 6px 0 2px; font-size: 14px; color: var(--x-h); }
+.s-meta { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.s-chip { background: var(--x-cb); color: var(--x-ci); padding: 0 6px; border-radius: 99px; font-size: 12px; }
+.s-price { color: var(--x-pr); font-weight: 700; }
+.s-ico { width: 18px; height: 18px; color: var(--x-h); }
+.s-form { display: flex; gap: 6px; padding: 10px 12px 0; }
+.s-form input { flex: 1; min-width: 0; }
+.s-fig { margin: 10px 12px; }
+.s-chart { display: block; width: 100%; max-width: 320px; height: auto; aspect-ratio: 32 / 9; border: 1px solid var(--x-cl); border-radius: 4px; }
+.s-fig figcaption { font-size: 12px; }
+.s-foot { padding: 8px 12px; background: var(--x-ft); }
+
+.thumb .wrap { padding: 6px 8px; }
+.thumb .lead, .thumb .modes, .thumb .side, .thumb .box { display: none; }
+.thumb .main { grid-template-columns: minmax(0, 1fr); }`,
+  core() {
+    // ---- 色は { r, g, b, a } で持つ（r・g・b・a は 0〜1。r・g・b は sRGB のガンマのかかった値） ----
+    const clamp01 = (v) => Math.min(1, Math.max(0, v));
+    const rgba = (r, g, b, a = 1) => ({ r, g, b, a });
+    // getComputedStyle が返す色の文字列を読む。rgb(1, 2, 3)・rgba(1, 2, 3, 0.5)・rgb(1 2 3 / 50%)・color(srgb …)・#rrggbb・transparent
+    function parseColor(str) {
+      const s = String(str || '').trim().toLowerCase();
+      if (s === 'transparent') return rgba(0, 0, 0, 0);
+      let m = /^#([0-9a-f]{6})([0-9a-f]{2})?$/.exec(s);
+      if (m) {
+        const n = parseInt(m[1], 16);
+        return rgba((n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255, m[2] ? parseInt(m[2], 16) / 255 : 1);
+      }
+      let scale = 255;
+      m = /^rgba?\(([^)]*)\)$/.exec(s);
+      if (!m) {
+        m = /^color\(srgb\s+([^)]*)\)$/.exec(s);
+        scale = 1;
+      }
+      if (!m) return null;
+      const parts = m[1].split(/[\s,/]+/).filter(Boolean);
+      if (parts.length < 3) return null;
+      const num = (p, sc) => (p.endsWith('%') ? parseFloat(p) / 100 : parseFloat(p) / sc);
+      const v = [num(parts[0], scale), num(parts[1], scale), num(parts[2], scale), parts.length > 3 ? num(parts[3], 1) : 1];
+      if (v.some((x) => !Number.isFinite(x))) return null;
+      return rgba(clamp01(v[0]), clamp01(v[1]), clamp01(v[2]), clamp01(v[3]));
+    }
+    const hex2 = (v) => Math.round(clamp01(v) * 255).toString(16).padStart(2, '0');
+    const toHex = (c) => '#' + hex2(c.r) + hex2(c.g) + hex2(c.b);
+    // CSS に書く形。透明度があるときだけ rgb( / a) にする
+    const toCss = (c) => (c.a >= 1 ? toHex(c) : `rgb(${Math.round(c.r * 255)} ${Math.round(c.g * 255)} ${Math.round(c.b * 255)} / ${+c.a.toFixed(3)})`);
+    // 明るさの目安 Y′: ガンマのかかった値に Rec. 709 の重みを掛けて足す（行列で書ける）
+    const W = [0.2126, 0.7152, 0.0722];
+    const luma = (c) => W[0] * c.r + W[1] * c.g + W[2] * c.b;
+    // WCAG の相対輝度とコントラスト比（1〜21）
+    const lin = (v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+    const relLum = (c) => W[0] * lin(c.r) + W[1] * lin(c.g) + W[2] * lin(c.b);
+    function contrast(a, b) {
+      const la = relLum(a), lb = relLum(b);
+      return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+    }
+    // 上の色 top を、下の色 bottom に重ねた色（ブラウザと同じく sRGB の値のまま混ぜる）
+    function over(top, bottom) {
+      const a = top.a + bottom.a * (1 - top.a);
+      if (a <= 0) return rgba(0, 0, 0, 0);
+      const mix = (t, b) => (t * top.a + b * bottom.a * (1 - top.a)) / a;
+      return rgba(mix(top.r, bottom.r), mix(top.g, bottom.g), mix(top.b, bottom.b), a);
+    }
+    // 色の平均（グラデーションの色の点を 1 色にまとめる。透明度で重みを付ける）
+    function average(list) {
+      let r = 0, g = 0, b = 0, a = 0;
+      for (const c of list) { r += c.r * c.a; g += c.g * c.a; b += c.b * c.a; a += c.a; }
+      if (a <= 0) return rgba(0, 0, 0, 0);
+      return rgba(r / a, g / a, b / a, a / list.length);
+    }
+    // 明るさ Y′ だけを y に変え、色の成分 (R − Y′, G − Y′, B − Y′) の向きは保つ。
+    // 0〜1 からはみ出すときは、色の成分だけを同じ割合で縮める（色合いの向きは変えない）
+    function setLuma(c, y) {
+      y = clamp01(y);
+      const Y = luma(c);
+      const d = [c.r - Y, c.g - Y, c.b - Y];
+      let k = 1;
+      for (const v of d) {
+        if (y + v * k > 1) k = Math.min(k, (1 - y) / v);
+        if (y + v * k < 0) k = Math.min(k, (0 - y) / v);
+      }
+      k = Math.max(0, k);
+      return rgba(clamp01(y + d[0] * k), clamp01(y + d[1] * k), clamp01(y + d[2] * k), c.a);
+    }
+    // 明るさを反転する: Y″ = hi − (hi − lo) · Y′。白は lo、黒は hi になる
+    const LO = 0.08, HI = 0.92, LIGHT = 0.55;
+    const invertLuma = (c, lo = LO, hi = HI) => setLuma(c, hi - (hi - lo) * luma(c));
+    const isLight = (c) => luma(c) >= LIGHT;
+    // 同じ計算を 3 行 4 列の行列で書く（はみ出しを縮める手間は行列の外）
+    function lumaMatrix(lo = LO, hi = HI) {
+      const k = 1 + (hi - lo);
+      return [0, 1, 2].map((i) => [0, 1, 2].map((j) => (i === j ? 1 : 0) - k * W[j]).concat(hi));
+    }
+    // filter: invert(1) hue-rotate(deg) の行列。hue-rotate は Filter Effects の式で、filter の関数は sRGB の値のまま計算する
+    function invertHueMatrix(deg = 180) {
+      const t = deg * Math.PI / 180, cs = Math.cos(t), sn = Math.sin(t);
+      const H = [
+        [0.213 + cs * 0.787 - sn * 0.213, 0.715 - cs * 0.715 - sn * 0.715, 0.072 - cs * 0.072 + sn * 0.928],
+        [0.213 - cs * 0.213 + sn * 0.143, 0.715 + cs * 0.285 + sn * 0.140, 0.072 - cs * 0.072 - sn * 0.283],
+        [0.213 - cs * 0.213 - sn * 0.787, 0.715 - cs * 0.715 + sn * 0.715, 0.072 + cs * 0.928 + sn * 0.072],
+      ];
+      // H(1 − c) = −H c + H·1
+      return H.map((row) => row.map((v) => 0 - v).concat(row[0] + row[1] + row[2]));
+    }
+    const applyMatrix = (M, c) => rgba(
+      clamp01(M[0][0] * c.r + M[0][1] * c.g + M[0][2] * c.b + M[0][3]),
+      clamp01(M[1][0] * c.r + M[1][1] * c.g + M[1][2] * c.b + M[1][3]),
+      clamp01(M[2][0] * c.r + M[2][1] * c.g + M[2][2] * c.b + M[2][3]), c.a);
+    const INV = invertHueMatrix(180);
+    const invertHue = (c) => applyMatrix(INV, c);
+    // 文字や線の色 fg を、背景 bg に対して need 以上のコントラスト比にする。
+    // 明るさ Y′ だけを動かし（背景が暗ければ明るい方へ）、足りる中で元に最も近い明るさを二分探索で探す
+    function fitContrast(fg, bg, need) {
+      if (contrast(fg, bg) >= need) return fg;
+      const up = relLum(bg) < 0.18;
+      const end = up ? 1 : 0;
+      if (contrast(setLuma(fg, end), bg) < need) return rgba(end, end, end, fg.a);
+      let a = luma(fg), b = end;
+      for (let i = 0; i < 32; i++) {
+        const m = (a + b) / 2;
+        if (contrast(setLuma(fg, m), bg) >= need) b = m;
+        else a = m;
+      }
+      return setLuma(fg, b);
+    }
+    // ---- この見本の決まり: 背景・文字・線の色をどう変えるか ----
+    function adaptBackground(c) {
+      if (c.a <= 0) return { to: c, why: '' };
+      if (!isLight(c)) return { to: c, why: '暗い背景なのでそのまま' };
+      return { to: invertLuma(c), why: '明るい背景なので明るさを反転' };
+    }
+    function adaptText(c, bg, need) {
+      if (contrast(over(c, bg), bg) >= need) return { to: c, why: `そのままで ${need}:1 以上` };
+      const t = invertLuma(c);
+      if (contrast(over(t, bg), bg) >= need) return { to: t, why: `${need}:1 に足りないので明るさを反転` };
+      return { to: fitContrast(t, bg, need), why: `反転しても足りないので、${need}:1 まで明るさを動かした` };
+    }
+    function adaptLine(c, bgOld, bgNew) {
+      if (c.a <= 0) return { to: c, why: '' };
+      if (isLight(c)) return { to: invertLuma(c), why: '明るい線なので明るさを反転' };
+      const want = Math.min(3, contrast(over(c, bgOld), bgOld));
+      if (contrast(over(c, bgNew), bgNew) >= want) return { to: c, why: '暗い線で、背景との差が残るのでそのまま' };
+      return { to: fitContrast(invertLuma(c), bgNew, want), why: '背景との差が消えるので明るさを反転' };
+    }
+    // 画像の画素（RGBA の並び）の明るさの分布を数える。
+    // 灰色ばかりで、中間の明るさが少なく、暗い画素があれば「白黒のロゴ」とみなす
+    function classifyPixels(data) {
+      let n = 0, gray = 0, dark = 0, light = 0, mid = 0;
+      for (let i = 0; i + 3 < data.length; i += 4) {
+        if (data[i + 3] < 16) continue;
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+        n++;
+        if (Math.max(r, g, b) - Math.min(r, g, b) <= 24) gray++;
+        const y = W[0] * r + W[1] * g + W[2] * b;
+        if (y < 64) dark++;
+        else if (y > 191) light++;
+        else mid++;
+      }
+      if (!n) return { kind: 'empty', n: 0, gray: 0, dark: 0, light: 0, mid: 0 };
+      const f = { kind: 'photo', n, gray: gray / n, dark: dark / n, light: light / n, mid: mid / n };
+      if (f.gray >= 0.95 && f.mid <= 0.12 && f.dark >= 0.02) f.kind = 'logo';
+      return f;
+    }
+    // ページの各所の背景の色から、明るい所の割合を出す。半分以上が明るければ明るいページ
+    function lightShare(samples) {
+      const s = samples.filter((c) => c && c.a > 0);
+      if (!s.length) return { share: 0, light: false, n: 0 };
+      const share = s.filter(isLight).length / s.length;
+      return { share, light: share >= 0.5, n: s.length };
+    }
+    // 文字列の中の rgb()・rgba() の色を fn で置き換える（グラデーションの色の点）
+    function mapColors(str, fn) {
+      return String(str).replace(/rgba?\([^)]*\)/g, (m) => {
+        const c = parseColor(m);
+        return c ? toCss(fn(c)) : m;
+      });
+    }
+    const colorsIn = (str) => (String(str).match(/rgba?\([^)]*\)/g) || []).map(parseColor).filter(Boolean);
+    // OKLCH（色合い h を比べるため）
+    function oklch(c) {
+      const r = lin(c.r), g = lin(c.g), b = lin(c.b);
+      const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+      const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+      const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+      const L = 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s;
+      const A = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s;
+      const B = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s;
+      let h = Math.atan2(B, A) * 180 / Math.PI;
+      if (h < 0) h += 360;
+      return { L, C: Math.hypot(A, B), h };
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const THUMB = !!window.THUMB;
+    if (THUMB) document.body.classList.add('thumb');
+    const site = $('site'), stage = $('stage'), marks = $('marks'), badge = $('badge');
+    const photo = $('photo'), stamp = $('stamp'), chart = $('chart');
+    const MODES = [
+      { id: 'orig', name: '元のページ', decl: 'なし', os: 'ライト', desc: 'OS がライトのときの見た目。作者は背景を白にし、一部の文の色を指定していない（ブラウザの既定の黒になる）。' },
+      { id: 'auto', name: '自動で暗く', decl: 'なし', os: 'ダーク', desc: 'color-scheme の宣言が無いので、ページの背景を調べて明るいページか判定する。明るければ、明るい背景だけ明るさを反転し、文字は背景とのコントラスト比が足りないときだけ明るさを変える。写真はそのままにし、白黒のロゴだけ反転する。' },
+      { id: 'invert', name: '単純な反転', decl: 'なし', os: 'ダーク', desc: 'ページ全体に filter: invert(1) hue-rotate(180deg) を掛けた。色の計算はほぼ同じでも、写真や canvas まで反転し、濃い色の帯は明るくなる。もとから暗いページも明るくしてしまう。' },
+      { id: 'ld', name: 'light dark だけ宣言', decl: 'light dark', os: 'ダーク', desc: 'color-scheme: light dark を宣言しただけで、ダーク用の色を書いていない。自動の変換は動かない。ブラウザの既定の色（指定していない文字・リンク・入力欄・ボタン）だけがダーク用に変わり、作者が白にした背景は白のまま残る。' },
+      { id: 'own', name: 'light dark ＋ 自前のダーク', decl: 'light dark', os: 'ダーク', desc: 'light dark を宣言し、light-dark() でダーク用の色も書いた。自動の変換は動かず、作者の決めた色で表示される。白黒のロゴは作者の CSS で反転している。' },
+      { id: 'only', name: 'light only', decl: 'light only', os: 'ダーク', desc: 'color-scheme: light only を宣言した。自動の変換はこのページを変えない。OS がダークでも、元のページと同じ見た目になる。' },
+    ];
+    const S = { mode: 'orig', last: null, auto: null, use: 'bg' };
+    const pct = (v) => Math.round(v * 100);
+    const nameOf = (el) => {
+      const n = el.closest('[data-n]');
+      return n ? n.dataset.n : el.tagName.toLowerCase();
+    };
+
+    // ---- 見本のページの画像を canvas で描く ----
+    const backup = new Map();  // getImageData で画像を読めなかったときに使う画素
+    function snap(cv) {
+      const w = Math.max(1, Math.min(96, cv.width)), h = Math.max(1, Math.round(cv.height * w / cv.width));
+      const c2 = document.createElement('canvas');
+      c2.width = w;
+      c2.height = h;
+      const x = c2.getContext('2d');
+      x.drawImage(cv, 0, 0, w, h);
+      return x.getImageData(0, 0, w, h).data;
+    }
+    function makePhoto() {
+      const cv = document.createElement('canvas');
+      cv.width = 320;
+      cv.height = 150;
+      const x = cv.getContext('2d');
+      const sky = x.createLinearGradient(0, 0, 0, 95);
+      sky.addColorStop(0, '#7fb6f0');
+      sky.addColorStop(1, '#f9d9a8');
+      x.fillStyle = sky;
+      x.fillRect(0, 0, 320, 98);
+      x.fillStyle = '#fff3c4';
+      x.beginPath();
+      x.arc(238, 52, 16, 0, Math.PI * 2);
+      x.fill();
+      const ridge = (base, amp, seed, col) => {
+        x.fillStyle = col;
+        x.beginPath();
+        x.moveTo(0, 150);
+        for (let i = 0; i <= 64; i++) {
+          const t = i / 64;
+          x.lineTo(t * 320, base - amp * (0.55 + 0.45 * Math.sin(t * 7 + seed) * Math.cos(t * 3.1 + seed * 2)));
+        }
+        x.lineTo(320, 150);
+        x.closePath();
+        x.fill();
+      };
+      ridge(92, 40, 0.4, '#6f8fb0');
+      ridge(98, 26, 2.1, '#3f5f73');
+      const lake = x.createLinearGradient(0, 98, 0, 150);
+      lake.addColorStop(0, '#4f86ad');
+      lake.addColorStop(1, '#244a63');
+      x.fillStyle = lake;
+      x.fillRect(0, 98, 320, 52);
+      x.fillStyle = 'rgba(255, 243, 196, 0.55)';
+      for (let i = 0; i < 9; i++) x.fillRect(226 + Math.sin(i * 1.7) * 6, 102 + i * 4.5, 24 - i * 2, 1.6);
+      x.fillStyle = '#2d4a2a';
+      for (let i = 0; i < 14; i++) {
+        const tx = 8 + i * 11 + (i % 3) * 3, th = 14 + (i * 7) % 11;
+        x.beginPath();
+        x.moveTo(tx, 100 - th);
+        x.lineTo(tx - 5, 101);
+        x.lineTo(tx + 5, 101);
+        x.closePath();
+        x.fill();
+      }
+      // 写真らしく、画素ごとに明るさを少しばらつかせる（種を決めた乱数なので毎回同じ絵）
+      const img = x.getImageData(0, 0, 320, 150), d = img.data;
+      let s = 7;
+      for (let i = 0; i < d.length; i += 4) {
+        s = (Math.imul(s, 1103515245) + 12345) >>> 0;
+        const n = ((s >>> 16) & 15) - 8;
+        d[i] += n;
+        d[i + 1] += n;
+        d[i + 2] += n;
+      }
+      x.putImageData(img, 0, 0);
+      backup.set(photo, snap(cv));
+      photo.src = cv.toDataURL('image/png');
+    }
+    function makeStamp() {
+      const cv = document.createElement('canvas');
+      cv.width = 120;
+      cv.height = 120;
+      const x = cv.getContext('2d');
+      x.fillStyle = '#ffffff';  // ページの背景の白を、画像の中に描きこんだロゴ
+      x.fillRect(0, 0, 120, 120);
+      x.strokeStyle = '#111111';
+      x.lineWidth = 7;
+      x.beginPath();
+      x.arc(60, 60, 46, 0, Math.PI * 2);
+      x.stroke();
+      x.fillStyle = '#111111';
+      x.beginPath();
+      x.moveTo(60, 24);
+      x.bezierCurveTo(88, 40, 90, 70, 60, 92);
+      x.bezierCurveTo(30, 70, 32, 40, 60, 24);
+      x.fill();
+      x.strokeStyle = '#ffffff';
+      x.lineWidth = 3;
+      x.beginPath();
+      x.moveTo(60, 34);
+      x.lineTo(60, 86);
+      x.stroke();
+      backup.set(stamp, snap(cv));
+      stamp.src = cv.toDataURL('image/png');
+    }
+    function drawChart() {
+      const x = chart.getContext('2d');
+      x.fillStyle = '#ffffff';
+      x.fillRect(0, 0, 320, 90);
+      const v = [12, 18, 15, 22, 30, 41, 36], days = ['月', '火', '水', '木', '金', '土', '日'];
+      x.font = '11px system-ui, sans-serif';
+      x.textAlign = 'center';
+      v.forEach((n, i) => {
+        const bx = 20 + i * 42, h = n * 1.5;
+        x.fillStyle = '#2563eb';
+        x.fillRect(bx, 72 - h, 26, h);
+        x.fillStyle = '#4b5563';
+        x.fillText(days[i], bx + 13, 86);
+      });
+    }
+    function readPixels(img) {
+      try {
+        const nw = Math.max(1, img.naturalWidth || 1), nh = Math.max(1, img.naturalHeight || 1);
+        const w = Math.max(1, Math.min(96, nw)), h = Math.max(1, Math.round(nh * w / nw));
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        const x = c.getContext('2d', { willReadFrequently: true });
+        x.drawImage(img, 0, 0, w, h);
+        return x.getImageData(0, 0, w, h).data;
+      } catch (err) {
+        return backup.get(img) || new Uint8ClampedArray(0);
+      }
+    }
+
+    // ---- 書き換えた色は、要素の style 属性ではなく、見本だけの <style> に規則として書く ----
+    // 要素には番号（data-ad）を付け、[data-ad="番号"] { 色: … !important } を並べる。元に戻すときは中身を空にする
+    const sheet = document.createElement('style');
+    (document.head || document.documentElement).append(sheet);
+    const rules = new Map();
+    let adNo = 0;
+    function put(el, prop, val) {
+      if (!el.dataset.ad) el.dataset.ad = String(++adNo);
+      if (!rules.has(el)) rules.set(el, new Map());
+      rules.get(el).set(prop, val);
+    }
+    function flush() {
+      sheet.textContent = [...rules].map(([el, r]) => `#site [data-ad="${el.dataset.ad}"], #site[data-ad="${el.dataset.ad}"] { ${[...r].map(([p, v]) => `${p}: ${v} !important;`).join(' ')} }`).join('\n');
+    }
+    function restore() {
+      rules.clear();
+      sheet.textContent = '';
+      site.classList.remove('m-invert', 'm-ld', 'm-own', 'm-only');
+    }
+
+    // ---- ページの色を読む: 要素ごとに色を写し取り、親から順に背景を重ねる ----
+    const ALL = () => [site, ...site.querySelectorAll('*')];
+    const hasText = (el) => [...el.childNodes].some((n) => n.nodeType === 3 && n.data.trim());
+    const TEXT = ALL().filter((el) => !(el instanceof SVGElement) && (hasText(el) || el.matches('input, textarea, select')));
+    const SHAPES = [...site.querySelectorAll('svg *')].filter((el) => el instanceof SVGGeometryElement);
+    const SIDES = ['top', 'right', 'bottom', 'left'];
+    function readTree() {
+      const base = over(parseColor(getComputedStyle(stage).backgroundColor) || rgba(0, 0, 0, 0), rgba(1, 1, 1, 1));
+      const tree = new Map();
+      for (const el of ALL()) {
+        const parent = el === site ? null : tree.get(el.parentElement);
+        if (el !== site && !parent) continue;
+        const cs = getComputedStyle(el);
+        const col = (p) => parseColor(cs.getPropertyValue(p));
+        const own = col('background-color') || rgba(0, 0, 0, 0);
+        const bgImage = cs.backgroundImage;
+        const grad = /gradient\(/.test(bgImage) ? colorsIn(bgImage) : [];
+        const under = parent ? parent.eff : base;
+        const layer = grad.length ? over(average(grad), own) : own;
+        const fontPx = parseFloat(cs.fontSize) || 13, bold = (parseFloat(cs.fontWeight) || 400) >= 700;
+        tree.set(el, {
+          own, grad, bgImage, under, eff: over(layer, under),
+          color: col('color'), fill: col('fill'), stroke: col('stroke'),
+          need: fontPx >= 24 || (bold && fontPx >= 18.66) ? 3 : 4.5,
+          borders: SIDES.map((s) => ({ s, w: parseFloat(cs.getPropertyValue(`border-${s}-width`)) || 0, st: cs.getPropertyValue(`border-${s}-style`), c: col(`border-${s}-color`) })),
+        });
+      }
+      return tree;
+    }
+    // ページの上に 16 × 24 の点を並べ、各点でいちばん内側にある要素の背景の色を集める（画像の中は数えない）
+    function sampleBackgrounds(tree) {
+      const sr = site.getBoundingClientRect();
+      if (sr.width < 2 || sr.height < 2) return [tree.get(site).eff];
+      const rects = new Map();
+      for (const el of tree.keys()) rects.set(el, el.getBoundingClientRect());
+      const out = [];
+      const NX = 16, NY = 24;
+      for (let j = 0; j < NY; j++) {
+        for (let i = 0; i < NX; i++) {
+          const px = sr.left + (i + 0.5) * sr.width / NX, py = sr.top + (j + 0.5) * sr.height / NY;
+          let node = site;
+          for (;;) {
+            let next = null;
+            for (const ch of node.children) {
+              const r = rects.get(ch);
+              if (r && px >= r.left && px < r.right && py >= r.top && py < r.bottom) next = ch;
+            }
+            if (!next) break;
+            node = next;
+          }
+          if (node.closest('img, canvas, svg')) continue;
+          out.push(tree.get(node).eff);
+        }
+      }
+      return out;
+    }
+
+    // ---- 自動で暗くする（この見本の Adaptive Dark Mode） ----
+    function adapt() {
+      const t0 = performance.now();
+      const tree = readTree();
+      const res = { light: lightShare(sampleBackgrounds(tree)), changes: [], imgs: [], ms: 0 };
+      if (!res.light.light) {
+        res.ms = performance.now() - t0;
+        return res;
+      }
+      const note = (el, kind, from, to, why) => {
+        if (toHex(from) !== toHex(to) || from.a !== to.a) res.changes.push({ name: nameOf(el), kind, from, to, why });
+      };
+      // 背景・グラデーション・枠の線（親から順に。書き換えた後の背景を重ね直す）
+      const effNew = new Map();
+      const base = tree.get(site).under;
+      for (const [el, it] of tree) {
+        const under = el === site ? base : effNew.get(el.parentElement) || base;
+        let own = it.own;
+        if (own.a > 0) {
+          const r = adaptBackground(own);
+          if (r.to !== own) {
+            put(el, 'background-color', toCss(r.to));
+            note(el, '背景', own, r.to, r.why);
+            own = r.to;
+          }
+        }
+        let layer = own;
+        if (it.grad.length) {
+          const mapped = mapColors(it.bgImage, (c) => adaptBackground(c).to);
+          const g2 = colorsIn(mapped);
+          if (mapped !== it.bgImage) {
+            put(el, 'background-image', mapped);
+            it.grad.forEach((c, i) => note(el, `グラデーションの色 ${i + 1}`, c, g2[i] || c, '明るい色の点なので明るさを反転'));
+          }
+          layer = over(average(g2), own);
+        }
+        effNew.set(el, over(layer, under));
+        for (const b of it.borders) {
+          if (b.w <= 0 || b.st === 'none' || b.st === 'hidden' || !b.c || b.c.a <= 0) continue;
+          const r = adaptLine(b.c, it.under, under);
+          if (r.to !== b.c) {
+            put(el, `border-${b.s}-color`, toCss(r.to));
+            note(el, '枠の線', b.c, r.to, r.why);
+          }
+        }
+      }
+      // 文字: 書き換えた後の背景とのコントラスト比で決める。親の色が変わっても引き継がないよう、全部に色を書く
+      for (const el of TEXT) {
+        const it = tree.get(el);
+        if (!it || !it.color) continue;
+        const r = adaptText(it.color, effNew.get(el), it.need);
+        put(el, 'color', toCss(r.to));
+        if (r.to !== it.color) note(el, '文字', it.color, r.to, r.why);
+      }
+      // SVG の塗りと線: アイコンとして 3:1 を目安にする（currentColor も、写し取った色で書き直す）
+      for (const el of SHAPES) {
+        const it = tree.get(el);
+        if (!it) continue;
+        for (const p of ['fill', 'stroke']) {
+          const c = it[p];
+          if (!c || c.a <= 0) continue;
+          const r = adaptText(c, effNew.get(el), 3);
+          put(el, p, toCss(r.to));
+          if (r.to !== c) note(el, p === 'fill' ? 'SVG の塗り' : 'SVG の線', c, r.to, r.why);
+        }
+      }
+      // 画像: 明るさの分布で、白黒のロゴだけ反転する。canvas は変えない
+      for (const img of site.querySelectorAll('img')) {
+        const f = classifyPixels(readPixels(img));
+        const inv = f.kind === 'logo';
+        if (inv) put(img, 'filter', 'invert(1)');
+        res.imgs.push({ name: nameOf(img), f, inv });
+      }
+      flush();
+      res.ms = performance.now() - t0;
+      return res;
+    }
+
+    // ---- 全部の文字のコントラスト比を測る（F があれば、filter と同じ行列を文字と背景に掛けてから測る） ----
+    function measure(F) {
+      const tree = readTree();
+      const list = [];
+      for (const el of TEXT) {
+        const it = tree.get(el);
+        if (!it || !it.color) continue;
+        let bg = it.eff, fg = over(it.color, bg);
+        if (F) {
+          bg = F(bg);
+          fg = F(fg);
+        }
+        list.push({ el, ratio: contrast(fg, bg), need: it.need });
+      }
+      let worst = null;
+      for (const x of list) if (!worst || x.ratio / x.need < worst.ratio / worst.need) worst = x;
+      return { list, low: list.filter((x) => x.ratio < x.need), worst };
+    }
+    function applyMode(m) {
+      restore();
+      let ad = null;
+      if (m === 'auto') ad = adapt();
+      else if (m !== 'orig') site.classList.add('m-' + m);
+      return { m, ad, ms: measure(m === 'invert' ? invertHue : null) };
+    }
+    function imgState(m, ad) {
+      if (m === 'invert') return { photo: '反転（ネガのよう）', logo: '反転' };
+      if (m === 'own') return { photo: 'そのまま', logo: '反転（作者の CSS）' };
+      if (m === 'auto' && ad && ad.light.light) {
+        const p = ad.imgs.find((x) => !x.inv), l = ad.imgs.find((x) => x.inv);
+        return { photo: p ? 'そのまま' : '反転', logo: l ? '反転' : 'そのまま' };
+      }
+      return { photo: 'そのまま', logo: 'そのまま' };
+    }
+    function judgeText(m, ad) {
+      if (m === 'orig') return 'OS がライトなので動かない';
+      if (m === 'auto') {
+        const sh = `明るい背景が ${pct(ad.light.share)}%（${ad.light.n} 点のうち）`;
+        return ad.light.light ? `明るいページと判定（${sh}）→ 色を書き換えた` : `暗いページと判定（${sh}）→ 何も変えない`;
+      }
+      if (m === 'invert') return '判定せず、ページ全体に filter を掛けた';
+      if (m === 'only') return 'light only なので動かない';
+      return 'color-scheme の宣言があるので動かない';
+    }
+
+    // ---- 画面を作る ----
+    function drawMarks() {
+      marks.replaceChildren();
+      if (!S.last || !$('showLow').checked) return;
+      const sr = stage.getBoundingClientRect();
+      for (const x of S.last.ms.low) {
+        for (const r of x.el.getClientRects()) {
+          const d = document.createElement('i');
+          d.style.left = (r.left - sr.left) + 'px';
+          d.style.top = (r.top - sr.top) + 'px';
+          d.style.width = Math.max(1, r.width) + 'px';
+          d.style.height = Math.max(1, r.height) + 'px';
+          marks.append(d);
+        }
+      }
+    }
+    function addRow(dl, k, v, bad) {
+      const dt = document.createElement('dt'), dd = document.createElement('dd');
+      dt.textContent = k;
+      dd.textContent = v;
+      if (bad) dd.className = 'bad';
+      dl.append(dt, dd);
+    }
+    function render() {
+      const st = S.last, M = MODES.find((x) => x.id === st.m);
+      for (const b of document.querySelectorAll('[data-m]')) b.setAttribute('aria-pressed', String(b.dataset.m === st.m));
+      $('mdesc').textContent = M.desc;
+      const low = st.ms.low.length, n = st.ms.list.length;
+      badge.textContent = `${M.name}（OS: ${M.os}）・足りない文字 ${low} / ${n}`;
+      const dl = $('stats');
+      dl.replaceChildren();
+      addRow(dl, 'ページの宣言', M.decl === 'なし' ? 'なし（color-scheme を書いていない）' : `color-scheme: ${M.decl}`);
+      addRow(dl, 'OS の外観', M.os);
+      addRow(dl, '自動の変換', judgeText(st.m, st.ad));
+      addRow(dl, '足りない文字', `${low} / ${n} か所（4.5:1 未満。大きな文字は 3:1 未満）`, low > 0);
+      if (st.ms.worst) addRow(dl, 'いちばん低い比', `${st.ms.worst.ratio.toFixed(2)}:1（${nameOf(st.ms.worst.el)}。必要なのは ${st.ms.worst.need}:1）`, st.ms.worst.ratio < st.ms.worst.need);
+      const im = imgState(st.m, st.ad);
+      addRow(dl, '写真', im.photo, im.photo !== 'そのまま');
+      addRow(dl, '白黒のロゴ', im.logo);
+      if (st.m === 'auto' && st.ad && st.ad.light.light) {
+        const info = st.ad.imgs.map((x) => `${x.name}: 灰色の画素 ${pct(x.f.gray)}%・中間の明るさ ${pct(x.f.mid)}% → ${x.inv ? '反転' : 'そのまま'}`).join('、');
+        addRow(dl, '画像の判定', info);
+        addRow(dl, '書き換えた色', `${st.ad.changes.length} か所（${st.ad.ms.toFixed(1)} ms）`);
+      }
+      drawMarks();
+    }
+    function setMode(m) {
+      S.mode = m;
+      S.last = applyMode(m);
+      render();
+    }
+    const td = (text, cls) => {
+      const c = document.createElement('td');
+      c.textContent = text;
+      if (cls) c.className = cls;
+      return c;
+    };
+    const tdColor = (c) => {
+      const cell = document.createElement('td'), sw = document.createElement('span'), t = document.createElement('span');
+      sw.className = 'sw';
+      sw.style.background = toCss(c);
+      t.className = 'hx';
+      t.textContent = toHex(c);
+      cell.append(sw, t);
+      return cell;
+    };
+    // 6 通りを順に当てて測り、表にする。終わったら選んでいた書き換え方に戻す
+    function compareAll() {
+      const tb = $('cmpBody');
+      tb.replaceChildren();
+      for (const M of MODES) {
+        const st = applyMode(M.id);
+        if (M.id === 'auto') S.auto = st.ad;
+        const im = imgState(M.id, st.ad), w = st.ms.worst;
+        const tr = document.createElement('tr');
+        tr.append(td(M.name), td(M.decl), td(M.os), td(`${st.ms.low.length} / ${st.ms.list.length}`, 'n' + (st.ms.low.length ? ' bad' : '')),
+          td(w ? `${w.ratio.toFixed(2)}:1（${nameOf(w.el)}）` : '-'), td(im.photo, im.photo !== 'そのまま' ? 'bad' : ''), td(im.logo));
+        tb.append(tr);
+      }
+      renderChanges();
+      setMode(S.mode);
+    }
+    function renderChanges() {
+      const tb = $('chgBody'), ad = S.auto;
+      tb.replaceChildren();
+      if (!ad || !ad.light.light) {
+        $('chgNote').textContent = '暗いページと判定したので、自動の変換は色を書き換えていない。';
+        return;
+      }
+      const seen = new Set();
+      for (const c of ad.changes) {
+        const key = c.name + c.kind + toHex(c.from);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const tr = document.createElement('tr');
+        tr.append(td(c.name), td(c.kind), tdColor(c.from), tdColor(c.to), td(c.why));
+        tb.append(tr);
+      }
+      $('chgNote').textContent = `書き換えた所は ${ad.changes.length} か所（同じ場所の同じ色をまとめて ${seen.size} 行）。ページを読んで書き換えるまでの時間は ${ad.ms.toFixed(1)} ms。`;
+    }
+    function matRows(tbody, M) {
+      tbody.replaceChildren();
+      const head = document.createElement('tr');
+      for (const h of ['', 'R', 'G', 'B', '1']) {
+        const th = document.createElement('th');
+        th.scope = 'col';
+        th.textContent = h;
+        head.append(th);
+      }
+      tbody.append(head);
+      M.forEach((row, i) => {
+        const tr = document.createElement('tr'), th = document.createElement('th');
+        th.scope = 'row';
+        th.textContent = ['R′', 'G′', 'B′'][i];
+        tr.append(th, ...row.map((v) => td((Math.abs(v) < 5e-4 ? 0 : v).toFixed(3).replace('-', '−'))));
+        tbody.append(tr);
+      });
+    }
+    function renderMatrices() {
+      matRows($('m1'), lumaMatrix());
+      matRows($('m2'), INV);
+      const z = lumaMatrix(0, 1)[0].map((v) => v.toFixed(3).replace('-', '−')).join('・');
+      const y = INV[0].map((v) => v.toFixed(3).replace('-', '−')).join('・');
+      $('matNote').textContent = `どちらも「明るさを反転し、色の成分はそのまま」の形になる。この見本の範囲を 0〜1 にすると R′ の行は ${z} で、単純な反転の ${y} とほぼ同じ（hue-rotate の式の重み 0.213・0.715・0.072 は、明るさの重みを丸めた数）。違いは、行列をページ全体に掛けるか、明るい背景と読みにくくなる文字だけに掛けるかにある。`;
+    }
+    // ---- 色を試す ----
+    function swatch(title, bg, fg, lines) {
+      const box = document.createElement('div'), face = document.createElement('div'), cap = document.createElement('div');
+      box.className = 'swc';
+      face.className = 'face';
+      face.style.background = toCss(bg);
+      face.style.color = toCss(fg);
+      face.textContent = 'あ Aa';
+      cap.className = 'cap';
+      const b = document.createElement('b');
+      b.textContent = title;
+      cap.append(b);
+      for (const l of lines) {
+        const s = document.createElement('span');
+        s.textContent = l;
+        cap.append(s);
+      }
+      box.append(face, cap);
+      return box;
+    }
+    function tryColor() {
+      const c = parseColor($('pick').value) || rgba(1, 0.76, 0, 1);
+      const out = $('tryOut');
+      out.replaceChildren();
+      const info = (x) => `${toHex(x)}・明るさ ${luma(x).toFixed(2)}・色合い ${oklch(x).C < 0.02 ? '（灰色）' : Math.round(oklch(x).h) + '°'}`;
+      if (S.use === 'bg') {
+        const fgOf = (bg) => (relLum(bg) < 0.18 ? rgba(1, 1, 1, 1) : rgba(0, 0, 0, 1));
+        const auto = adaptBackground(c).to, inv = invertHue(c);
+        out.append(
+          swatch('元の背景', c, fgOf(c), [info(c)]),
+          swatch('単純な反転', inv, fgOf(inv), [info(inv), '明るさに関係なく反転する']),
+          swatch('この見本', auto, fgOf(auto), [info(auto), adaptBackground(c).why]));
+      } else {
+        const white = rgba(1, 1, 1, 1), bgA = adaptBackground(white).to, bgI = invertHue(white);
+        const auto = adaptText(c, bgA, 4.5), inv = invertHue(c);
+        out.append(
+          swatch('元（白い背景）', white, c, [info(c), `比 ${contrast(c, white).toFixed(2)}:1`]),
+          swatch('単純な反転', bgI, inv, [info(inv), `比 ${contrast(inv, bgI).toFixed(2)}:1`]),
+          swatch('この見本', bgA, auto.to, [info(auto.to), `比 ${contrast(auto.to, bgA).toFixed(2)}:1`, auto.why]));
+      }
+    }
+
+    // ---- 操作 ----
+    for (const b of document.querySelectorAll('[data-m]')) b.addEventListener('click', () => setMode(b.dataset.m));
+    for (const b of document.querySelectorAll('[data-p]')) {
+      b.addEventListener('click', () => {
+        for (const o of document.querySelectorAll('[data-p]')) o.setAttribute('aria-pressed', String(o === b));
+        restore();
+        site.classList.toggle('darkp', b.dataset.p === 'dark');
+        compareAll();
+      });
+    }
+    for (const b of document.querySelectorAll('[data-u]')) {
+      b.addEventListener('click', () => {
+        S.use = b.dataset.u;
+        for (const o of document.querySelectorAll('[data-u]')) o.setAttribute('aria-pressed', String(o === b));
+        tryColor();
+      });
+    }
+    // 見本のページのリンクは飾りなので、押しても移動しない
+    site.addEventListener('click', (ev) => {
+      if (ev.target.closest('a')) ev.preventDefault();
+    });
+    $('pick').addEventListener('input', tryColor);
+    $('showLow').addEventListener('change', drawMarks);
+    new ResizeObserver(() => drawMarks()).observe(stage);
+
+    async function start() {
+      makePhoto();
+      makeStamp();
+      drawChart();
+      await Promise.all([photo, stamp].map((im) => (im.decode ? im.decode().catch(() => {}) : Promise.resolve())));
+      renderMatrices();
+      tryColor();
+      if (THUMB) {
+        // 一覧の小窓: 書き換え方を順に切り替えて見せる
+        const order = ['orig', 'auto', 'invert', 'ld', 'own'];
+        let i = 0;
+        const step = () => {
+          setMode(order[i % order.length]);
+          i++;
+          setTimeout(step, 1500);
+        };
+        step();
+      } else {
+        compareAll();
+      }
+    }
+    start();
+  },
+});

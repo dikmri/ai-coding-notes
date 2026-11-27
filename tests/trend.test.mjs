@@ -3106,3 +3106,147 @@ test('Grenet の作り方: 2ⁿ − 1 行の行列式がパーマネントと一
     }
   }
 });
+
+// ---- Adaptive Dark Mode（明るさだけ反転して自動で暗くする） ----
+const ADID = 'tr-20261127-adaptive-dark';
+const AD_NAMES = ['parseColor', 'toHex', 'toCss', 'luma', 'contrast', 'over', 'average', 'setLuma', 'invertLuma', 'isLight',
+  'lumaMatrix', 'invertHueMatrix', 'applyMatrix', 'invertHue', 'fitContrast', 'adaptBackground', 'adaptText', 'adaptLine',
+  'classifyPixels', 'lightShare', 'mapColors', 'colorsIn', 'oklch', 'rgba'];
+const rgbOf = (c) => [c.r, c.g, c.b, c.a];
+
+test('色の読み取り: getComputedStyle の形と #rrggbb と transparent を読む', () => {
+  const X = trendCore(ADID, AD_NAMES);
+  assert.deepEqual(rgbOf(X.parseColor('rgb(255, 0, 51)')), [1, 0, 0.2, 1]);
+  assert.deepEqual(rgbOf(X.parseColor('rgba(0, 0, 0, 0.5)')), [0, 0, 0, 0.5]);
+  assert.deepEqual(rgbOf(X.parseColor('rgb(255 255 255 / 25%)')), [1, 1, 1, 0.25]);
+  assert.deepEqual(rgbOf(X.parseColor('color(srgb 0.5 0.25 1)')), [0.5, 0.25, 1, 1]);
+  assert.equal(X.toHex(X.parseColor('#2563eb')), '#2563eb');
+  assert.equal(X.parseColor('transparent').a, 0);
+  assert.equal(X.parseColor('none'), null);
+  assert.equal(X.parseColor('url(#a)'), null);
+  assert.equal(X.toCss(X.rgba(1, 0, 0, 0.5)), 'rgb(255 0 0 / 0.5)');
+});
+
+test('コントラスト比: 白と黒で 21、同じ色で 1、#767676 と白で 4.54', () => {
+  const X = trendCore(ADID, AD_NAMES);
+  const W = X.rgba(1, 1, 1), K = X.rgba(0, 0, 0);
+  assert.ok(near(X.contrast(W, K), 21, 1e-9));
+  assert.ok(near(X.contrast(K, W), 21, 1e-9));
+  assert.ok(near(X.contrast(W, W), 1, 1e-12));
+  // #767676 は白に対して 4.54:1（4.5:1 にぎりぎり届く灰色として知られる値）
+  assert.ok(near(X.contrast(X.parseColor('#767676'), W), 4.54, 0.01));
+  // 半分透明な黒を白に重ねると (0.5, 0.5, 0.5)
+  assert.deepEqual(rgbOf(X.over(X.rgba(0, 0, 0, 0.5), W)), [0.5, 0.5, 0.5, 1]);
+});
+
+test('明るさだけの反転: 白は 0.08、黒は 0.92 になり、色の成分の向きは変わらない', () => {
+  const X = trendCore(ADID, AD_NAMES);
+  assert.ok(near(X.luma(X.invertLuma(X.rgba(1, 1, 1))), 0.08, 1e-12));
+  assert.ok(near(X.luma(X.invertLuma(X.rgba(0, 0, 0))), 0.92, 1e-12));
+  for (const hex of ['#f2c200', '#e6f4ff', '#d0342c', '#2e7d32', '#2563eb', '#fff8d6', '#808080']) {
+    const c = X.parseColor(hex), t = X.invertLuma(c), y = X.luma(c);
+    // 明るさは 0.92 − 0.84 Y′ になる
+    assert.ok(near(X.luma(t), 0.92 - 0.84 * y, 1e-9), hex);
+    // 0〜1 に収まる
+    for (const v of rgbOf(t)) assert.ok(v >= 0 && v <= 1, hex);
+    // 色の成分 (R − Y′, G − Y′, B − Y′) は同じ向きで、長さだけが縮む（k は 0〜1）
+    const d0 = [c.r - y, c.g - y, c.b - y], ty = X.luma(t), d1 = [t.r - ty, t.g - ty, t.b - ty];
+    const len = Math.hypot(...d0);
+    if (len > 1e-9) {
+      const k = (d0[0] * d1[0] + d0[1] * d1[1] + d0[2] * d1[2]) / (len * len);
+      assert.ok(k > -1e-9 && k <= 1 + 1e-9, hex);
+      for (let i = 0; i < 3; i++) assert.ok(near(d1[i], k * d0[i], 1e-9), hex);
+    }
+  }
+  // 明るい色だけを明るい背景とみなす（しきい値 0.55）
+  assert.equal(X.isLight(X.parseColor('#ffffff')), true);
+  assert.equal(X.isLight(X.parseColor('#1f3a5f')), false);
+  assert.equal(X.adaptBackground(X.parseColor('#1f3a5f')).why, '暗い背景なのでそのまま');
+});
+
+test('行列: 明るさだけの反転は行列を掛けた値と同じ。単純な反転の行列とほぼ同じ形', () => {
+  const X = trendCore(ADID, AD_NAMES);
+  const M = X.lumaMatrix();
+  // はみ出さない色では、行列の計算と setLuma の計算が一致する
+  for (const c of [X.rgba(0.5, 0.5, 0.5), X.rgba(0.55, 0.5, 0.45), X.rgba(1, 1, 1), X.rgba(0, 0, 0)]) {
+    const a = X.applyMatrix(M, c), b = X.invertLuma(c);
+    for (let i = 0; i < 3; i++) assert.ok(near(rgbOf(a)[i], rgbOf(b)[i], 1e-9));
+  }
+  // invert(1) hue-rotate(180deg): 白は黒に、黒は白に、灰色は反対の灰色になる
+  assert.deepEqual(rgbOf(X.invertHue(X.rgba(1, 1, 1))).map((v) => Math.round(v * 1000)), [0, 0, 0, 1000]);
+  assert.deepEqual(rgbOf(X.invertHue(X.rgba(0, 0, 0))).map((v) => Math.round(v * 1000)), [1000, 1000, 1000, 1000]);
+  const g = X.invertHue(X.rgba(0.3, 0.3, 0.3));
+  for (const v of [g.r, g.g, g.b]) assert.ok(near(v, 0.7, 1e-9));
+  // 範囲を 0〜1 にした行列と、単純な反転の行列は、どの成分も 0.005 以内
+  const Z = X.lumaMatrix(0, 1), I = X.invertHueMatrix(180);
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 4; j++) assert.ok(Math.abs(Z[i][j] - I[i][j]) < 0.005, i + ',' + j);
+});
+
+test('文字の色: 足りるときは変えず、足りないときは反転し、それでも足りなければ 4.5:1 まで動かす', () => {
+  const X = trendCore(ADID, AD_NAMES);
+  const dark = X.invertLuma(X.rgba(1, 1, 1));
+  const white = X.rgba(1, 1, 1);
+  const keep = X.adaptText(white, X.parseColor('#1f3a5f'), 4.5);
+  assert.equal(keep.to.r, 1);
+  assert.ok(keep.why.startsWith('そのまま'));
+  for (const hex of ['#000000', '#1b2733', '#d0342c', '#2e7d32', '#2563eb', '#5c4a00', '#767676']) {
+    const c = X.parseColor(hex), r = X.adaptText(c, dark, 4.5);
+    assert.ok(X.contrast(r.to, dark) >= 4.5 - 1e-9, hex);
+  }
+  // fitContrast は、足りる中でいちばん元に近い明るさを選ぶ（少しでも暗くすると足りない）
+  const bg = X.parseColor('#20252c'), fg = X.parseColor('#3a5a8a');
+  const f = X.fitContrast(fg, bg, 4.5);
+  assert.ok(X.contrast(f, bg) >= 4.5 - 1e-9);
+  assert.ok(X.contrast(X.setLuma(f, X.luma(f) - 0.01), bg) < 4.5);
+  // 明るい背景の上では、暗い方へ動かす
+  const f2 = X.fitContrast(X.parseColor('#9aa4b0'), white, 4.5);
+  assert.ok(X.contrast(f2, white) >= 4.5 - 1e-9);
+  assert.ok(X.luma(f2) < X.luma(X.parseColor('#9aa4b0')));
+  // 枠の線: 明るい線は反転、暗い線でも差が残ればそのまま
+  assert.equal(X.adaptLine(X.parseColor('#e3e6ea'), white, dark).why, '明るい線なので明るさを反転');
+  assert.equal(X.adaptLine(X.parseColor('#2563eb'), white, dark).why, '暗い線で、背景との差が残るのでそのまま');
+});
+
+test('画像の判定: 白黒のロゴ・写真・透明な画像を見分ける', () => {
+  const X = trendCore(ADID, AD_NAMES);
+  const img = (n, fn) => {
+    const d = new Uint8ClampedArray(n * 4);
+    for (let i = 0; i < n; i++) d.set(fn(i), i * 4);
+    return d;
+  };
+  // 白い地に黒い印（端に少しだけ中間の灰色）
+  const logo = img(1000, (i) => (i < 300 ? [17, 17, 17, 255] : i < 340 ? [128, 128, 128, 255] : [255, 255, 255, 255]));
+  assert.equal(X.classifyPixels(logo).kind, 'logo');
+  // 色の付いた画素が多いもの
+  const photo = img(1000, (i) => [(i * 37) % 256, (i * 91) % 256, (i * 53) % 256, 255]);
+  assert.equal(X.classifyPixels(photo).kind, 'photo');
+  // 灰色でも中間の明るさばかりなら写真（白黒の写真）
+  const grayPhoto = img(1000, (i) => {
+    const v = 40 + (i % 180);
+    return [v, v, v, 255];
+  });
+  assert.equal(X.classifyPixels(grayPhoto).kind, 'photo');
+  // 透明な地に黒い印だけでもロゴ
+  const clear = img(1000, (i) => (i < 200 ? [0, 0, 0, 255] : [0, 0, 0, 0]));
+  assert.equal(X.classifyPixels(clear).kind, 'logo');
+  assert.equal(X.classifyPixels(img(10, () => [0, 0, 0, 0])).kind, 'empty');
+  // 真っ白なだけの画像は反転しない
+  assert.equal(X.classifyPixels(img(100, () => [255, 255, 255, 255])).kind, 'photo');
+});
+
+test('ページの判定とグラデーション: 明るい所が半分以上なら明るいページ。色の点だけ置き換える', () => {
+  const X = trendCore(ADID, AD_NAMES);
+  const W = X.rgba(1, 1, 1), K = X.rgba(0.1, 0.1, 0.1);
+  assert.equal(X.lightShare([W, W, K]).light, true);
+  assert.equal(X.lightShare([W, K, K]).light, false);
+  assert.equal(X.lightShare([X.rgba(1, 1, 1, 0)]).n, 0);
+  const g = 'linear-gradient(135deg, rgb(230, 244, 255) 0%, rgba(31, 58, 95, 0.5) 100%)';
+  assert.equal(X.colorsIn(g).length, 2);
+  const out = X.mapColors(g, (c) => X.adaptBackground(c).to);
+  assert.ok(out.startsWith('linear-gradient(135deg, #'));
+  assert.ok(out.includes('rgb(31 58 95 / 0.5) 100%'), '暗い色の点はそのまま');
+  assert.deepEqual(rgbOf(X.average([X.rgba(1, 0, 0, 1), X.rgba(0, 0, 1, 1)])), [0.5, 0, 0.5, 1]);
+  // 色合いの角度: 灰色は彩度がほぼ 0、黄色は 90° あたり
+  assert.ok(X.oklch(X.rgba(0.5, 0.5, 0.5)).C < 1e-6);
+  assert.ok(Math.abs(X.oklch(X.parseColor('#f2c200')).h - 92) < 10);
+});
