@@ -150,6 +150,8 @@ const CHAPTERS = [
   { href: "15-titlebar.html", no: "第 15 章", title: "題の帯", text: "題の帯に部品を置ける形を選んだ理由、OS によって帯の中にも窓のいちばん上の行にもなる書き方、Windows に帯の場所を答える仕組み。作者の 4 回の確かめで見つけた、起動の直後に止まる・窓のメニューが出ない・窓の処理が二重に呼ばれる不具合。", thumb: "titlebar/windows" },
   { href: "16-tray.html", no: "第 16 章", title: "トレイ", text: "OS が描くメニューを kargui のメニューと同じ書き方で作る方法、OS ごとの知らせの届き方、Wayland で隠した窓が戻らなかった理由。作者の確かめで見つけた、アイコンを押しても届かなかった不具合と、手元でそれを見落とした確かめ方。", thumb: "tray/gallery" },
   { href: "17-notify.html", no: "第 17 章", title: "通知", text: "トーストを選んだ理由、キーで頼んでキーで答えを受け取る書き方、インストールしないアプリがトーストに名前を出す登録、OS ごとの違い。自分では押せなかったトーストのボタンを、作者の手の確かめで確かめた話。", thumb: "notify/gallery" },
+  { href: "18-contrast.html", no: "第 18 章", title: "ハイコントラスト", text: "OS のハイコントラストに従う範囲を、作者が寝ている間に決めた理由。配色の写し方、強制した見本の写真で見つけた 3 つの不具合、検証機のポータル、作者の手の確かめが 1 回目に動かなかった理由。", thumb: "contrast/black" },
+  { href: "19-icon.html", no: "第 19 章", title: "既定のアイコン", text: "アイコンを渡さないアプリに出す kargui のアイコン。3 つの案を計算で描いて比べ、16 画素でも読める 1 つを選んだ。画像のファイルを読まずに大きさごとに描く理由と、その時間。", thumb: "icon/sheet" },
 ];
 
 function chapters() {
@@ -498,6 +500,55 @@ ${figure("apps/expenses", "家計簿の見本", "家計簿（<code>examples/expe
         "検証機の通知の係（mako）に出た通知（確かめのアプリ）。mako はボタンを枠に並べず、命令やメニューで選ぶ形。枠の中だけを切り出した。",
         { flat: true },
       ),
+  },
+  "18-contrast.html": {
+    pair: () => `<div class="pair">
+  ${figure("contrast/black", "黒い地の部品の見本のボタンのページ。白い文字と白い縁のボタン、水色に塗った主な操作、水色の下線の付いたリンク。押せない状態の 3 つのボタンは、緑の縁と緑の文字", "暗い方（Windows の古典の High Contrast Black の色）。押せない 3 つは GrayText の緑で描く。", { flat: true })}
+  ${figure("contrast/white", "白い地の部品の見本の文字の入力のページ。黒い縁の 3 つの入力欄に、濃い赤のヒント。左の一覧の選んだ行は、薄い紫の地に濃い紫の縁", "明るい方（High Contrast White の色）。ヒントは GrayText の濃い赤、選んだ行には強調の紫の縁。", { flat: true })}
+</div>`,
+    ratio: () =>
+      `<div class="pair">
+  ${bars("c-ratio-gray", "押せない文字と背景の対比", "大きいほど読みやすい。WCAG の文字の目安は 4.5", [
+        { name: "ふつう 明", v: "old", value: 3.0, label: "3.0 : 1" },
+        { name: "ふつう 暗", v: "old", value: 3.9, label: "3.9 : 1" },
+        { name: "高対比 黒", v: "new", value: 14.0, label: "14.0 : 1" },
+        { name: "高対比 白", v: "new", value: 14.0, label: "14.0 : 1" },
+      ], 21)}
+  ${bars("c-ratio-border", "縁と背景の対比", "部品の境の見えやすさ。WCAG の目安は 3", [
+        { name: "ふつう 明", v: "old", value: 1.5, label: "1.5 : 1" },
+        { name: "ふつう 暗", v: "old", value: 1.8, label: "1.8 : 1" },
+        { name: "高対比 黒", v: "new", value: 21, label: "21 : 1" },
+        { name: "高対比 白", v: "new", value: 21, label: "21 : 1" },
+      ], 21)}
+</div>`,
+    linux: () =>
+      figure(
+        "contrast/linux",
+        "白い地の部品の見本の窓。選んだ行に濃い紫の縁、紫に塗った主な操作、押せない 3 つは濃い赤の縁と文字。右端のスクロールバーのつまみは黒",
+        "検証機（Hyprland）で、GNOME のハイコントラストの設定をポータル経由で読んで開いた見本。kargui の明るい方の配色になる。窓の上半分だけを切り出した。",
+        { flat: true },
+      ),
+  },
+  "19-icon.html": {
+    sheet: () =>
+      figure(
+        "icon/sheet",
+        "3 つの案のアイコンを 3 段に並べた一覧。上の段は光の線の小文字の k、中の段は重なった 3 枚の窓、下の段は 5 × 5 の光の粒で描いた K。左半分は暗い地、右半分は明るい地の上に、大きい物から小さい物の順に並ぶ",
+        "3 つの案（上から A「光の k」、B「重なる窓」、C「光の粒の k」）。左は暗い地、右は明るい地。どちらも 256・64・32・16 画素で描き、右の 2 つは 32 画素と 16 画素を 4 倍に拡大した。",
+        { flat: true },
+      ),
+    real: () => `<div class="pair">
+  ${figure("icon/title", "暗い題の帯の左上に、紺の角丸の地に光の線の k のアイコンと、家計簿（kargui）の文字", "Windows の家計簿の見本の題の帯（4 倍に拡大）。小さいアイコンの大きさ（この PC では 16 画素）で描いた。", { flat: true })}
+  ${figure("icon/tray", "暗い帯の上に、光の線の k のアイコンと、灰色のキーボードの形のアイコンが並ぶ", "検証機の上の帯のトレイ（4 倍に拡大）。左が kargui のアイコン、右は日本語入力。", { flat: true })}
+</div>`,
+    time: () =>
+      bars("c-icon-time", "1 枚を描く時間（ミリ秒）", "20 回の中央値。この PC の release。48 画素以下は 1 画素を 8 × 8、64 画素以上は 4 × 4 の点で数える", [
+        { name: "16 画素", v: "new", value: 0.932, label: "0.9 ms" },
+        { name: "32 画素", v: "new", value: 4.127, label: "4.1 ms" },
+        { name: "48 画素", v: "new", value: 8.751, label: "8.8 ms" },
+        { name: "64 画素", v: "new", value: 4.083, label: "4.1 ms" },
+        { name: "256 画素", v: "old", value: 61.418, label: "61.4 ms" },
+      ]),
   },
   "11-v030.html": {
     gallery: () =>

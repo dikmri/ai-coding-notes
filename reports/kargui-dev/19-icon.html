@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 19 章 既定のアイコン ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="アイコンを渡さない kargui のアプリに、kargui のアイコンを出すようにしました。3 つの案を計算で描いて比べ、16 画素でも読める案を選んだ理由、画像のファイルを読まずに大きさごとに描く方法とその時間、OS ごとの出し方、検証機で見つけた 2 つの落とし穴を紹介します。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 19 章</p>
+  <h1>既定のアイコン</h1>
+  <p class="lede">アプリがアイコンを渡さない時、これまでは OS の無地のアイコンが出ていました。作者は寝る前に「無地のアイコンは寂しいので、kargui の既定のアイコンが欲しい。変えることも、アイコンを出さないこともできるように。現代的で、少し抽象的で、未来っぽい絵がいい」と頼みました。この章では、3 つの案を計算で描いて比べた結果、画像のファイルを読まずに大きさごとに描く方法とその時間、OS ごとの出し方を紹介します。後半では、検証機で見つけた 2 つの落とし穴を書きます。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>アイコンの案を、小さい大きさで読めるかで比べる方法</li>
+      <li>画像のファイルを使わず、点までの距離で絵を描く方法</li>
+      <li>要る大きさだけを描く理由（256 画素は 61 ms かかる）</li>
+      <li>OS ごとのアイコンの渡し方の違い</li>
+      <li>tar で写したファイルの時刻が、組み立てを狂わせた話</li>
+    </ul>
+  </section>
+
+  <h2 id="options">3 つの案</h2>
+  <p>アイコンは、題の帯では 16 画素ほどの小ささで表示されます。大きい絵がきれいでも、小さくして読めなければ使えません。3 つの案を同じ地（濃い紺の角丸の四角）の上に描き、256・64・32・16 画素で並べて比べました。どの案も、どこかのロゴをまねずに、kargui の名前（軽い ＝ karui）と「光」から作りました。</p>
+  <!-- gen:sheet -->
+<figure class="shot flat"><picture><img src="img/icon/sheet-light.webp" alt="3 つの案のアイコンを 3 段に並べた一覧。上の段は光の線の小文字の k、中の段は重なった 3 枚の窓、下の段は 5 × 5 の光の粒で描いた K。左半分は暗い地、右半分は明るい地の上に、大きい物から小さい物の順に並ぶ" width="1400" height="888" loading="lazy" decoding="async"></picture><figcaption>3 つの案（上から A「光の k」、B「重なる窓」、C「光の粒の k」）。左は暗い地、右は明るい地。どちらも 256・64・32・16 画素で描き、右の 2 つは 32 画素と 16 画素を 4 倍に拡大した。</figcaption></figure>
+<!-- /gen:sheet -->
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-options">
+    <table>
+      <caption id="t-options">3 つの案の比べ</caption>
+      <thead><tr><th scope="col">案</th><th scope="col">形</th><th scope="col">16 画素</th><th scope="col">名前とのつながり</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">A 光の k（選んだ）</th><td data-label="形">光の管で描いた小文字の k。縦の線と、くの字の腕を少し離す</td><td data-label="16 画素">k と読める</td><td data-label="名前とのつながり">軽い線と光で、karui を表す</td></tr>
+        <tr><th scope="row">B 重なる窓</th><td data-label="形">ガラスの窓を 3 枚ずらして重ねる</td><td data-label="16 画素">32 画素以下で線が混み合う</td><td data-label="名前とのつながり">GUI の窓。ただし、よくある形</td></tr>
+        <tr><th scope="row">C 光の粒の k</th><td data-label="形">5 × 5 の粒のうち、K の形の粒だけを光らせる</td><td data-label="16 画素">粒がつぶれる</td><td data-label="名前とのつながり">未来っぽさは一番強い</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>16 画素でも読めることを一番重く見て、A を既定にしました。線の色は、水色から青紫、桃色へ移ります。ほかの案の描き方も残してあるので、作者が別の案を選べば入れ替えられます。</p>
+
+  <h2 id="draw">画像のファイルを使わずに描く</h2>
+  <p>アイコンを PNG のファイルにして kargui に入れる方法もあります。ただ、kargui の画像の読み込み（<code>Image::from_bytes</code>）は Windows の機能を使っていて、Linux では今は読めません。また、1 枚の絵を OS に縮めさせると、16 画素では線がにじみます。そこで、要る大きさごとに、計算で描くことにしました。</p>
+  <ul>
+    <li><strong>地:</strong> 角の丸みがなめらかな四角（超楕円。x と y の 5 乗の和が 1 以下の所）。上から下へ紺を暗くし、左上に淡い光を足す。</li>
+    <li><strong>k:</strong> 縦の線と、くの字の 2 本の腕を、線分として持つ。点から一番近い線分までの距離が線の太さの半分より近ければ、線の中。外では、距離が遠いほど光を薄くする。</li>
+    <li><strong>芯:</strong> 線の中心に近いほど白に近づけ、光の管のように見せる。</li>
+    <li><strong>縁をなめらかにする:</strong> 1 画素を 8 × 8（48 画素以下）か 4 × 4（64 画素以上）の点に分け、点の色を平均する。</li>
+  </ul>
+  <!-- gen:time -->
+<figure class="bars" id="c-icon-time">
+    <figcaption><span class="bars-title">1 枚を描く時間（ミリ秒）</span><span class="bars-hint">20 回の中央値。この PC の release。48 画素以下は 1 画素を 8 × 8、64 画素以上は 4 × 4 の点で数える</span></figcaption>
+    <div class="bar-rows">
+      <div class="bar-row" data-v="new"><span class="bar-name">16 画素</span><span class="bar-track"><span class="bar" style="--w: 1.5%"></span><span class="bar-val">0.9 ms</span></span></div>
+      <div class="bar-row" data-v="new"><span class="bar-name">32 画素</span><span class="bar-track"><span class="bar" style="--w: 6.7%"></span><span class="bar-val">4.1 ms</span></span></div>
+      <div class="bar-row" data-v="new"><span class="bar-name">48 画素</span><span class="bar-track"><span class="bar" style="--w: 14.2%"></span><span class="bar-val">8.8 ms</span></span></div>
+      <div class="bar-row" data-v="new"><span class="bar-name">64 画素</span><span class="bar-track"><span class="bar" style="--w: 6.6%"></span><span class="bar-val">4.1 ms</span></span></div>
+      <div class="bar-row" data-v="old"><span class="bar-name">256 画素</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">61.4 ms</span></span></div>
+    </div>
+  </figure>
+<!-- /gen:time -->
+  <p>48 画素より 64 画素の方が速いのは、1 画素を分ける点の数が 64 個から 16 個に減るためです。Windows で要るのは、大きいアイコンと小さいアイコン（この PC では 32 画素と 16 画素）の 2 枚で、合わせて約 5 ms です。256 画素を 1 枚描くと 61 ms かかるので、大きい絵を 1 枚描いて縮める形にはしませんでした。</p>
+
+  <h2 id="api">書き方</h2>
+  <p>アプリは何も書かなくても、kargui のアイコンが出ます。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-api">
+    <table>
+      <caption id="t-api">アプリの設定と、出るアイコン</caption>
+      <thead><tr><th scope="col">設定</th><th scope="col">窓のアイコン</th><th scope="col">トレイのアイコン（画像が無い時）</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">何も書かない</th><td data-label="窓のアイコン">kargui のアイコン</td><td data-label="トレイのアイコン（画像が無い時）">kargui のアイコン</td></tr>
+        <tr><th scope="row">options.icon に画像</th><td data-label="窓のアイコン">アプリの画像</td><td data-label="トレイのアイコン（画像が無い時）">アプリの画像</td></tr>
+        <tr><th scope="row">options.default_icon を false</th><td data-label="窓のアイコン">OS の無地のアイコン</td><td data-label="トレイのアイコン（画像が無い時）">赤い角丸の四角（前の既定）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>トレイは、アイコンが無いと通知領域に何も出せません。そのため、既定のアイコンを切ったアプリでも、トレイには前の赤い四角を出します。</p>
+
+  <h2 id="os">OS ごとの出し方</h2>
+  <ul>
+    <li><strong>Windows:</strong> 拡大率に合わせた大きいアイコンと小さいアイコンの大きさ（<code>GetSystemMetricsForDpi</code>）で 2 枚描き、窓に渡す。窓を閉じる時に片付ける。</li>
+    <li><strong>X11:</strong> 64 画素の絵を、窓のアイコンの欄（_NET_WM_ICON）に入れる。ウィンドウマネージャーが必要な大きさに縮める。</li>
+    <li><strong>Wayland:</strong> 窓のアイコンは、合成がアプリのデスクトップ ファイルから決める。kargui が変えられるのはトレイのアイコンだけ。</li>
+  </ul>
+  <!-- gen:real -->
+<div class="pair">
+  <figure class="shot flat"><picture><img src="img/icon/title-light.webp" alt="暗い題の帯の左上に、紺の角丸の地に光の線の k のアイコンと、家計簿（kargui）の文字" width="1040" height="176" loading="lazy" decoding="async"></picture><figcaption>Windows の家計簿の見本の題の帯（4 倍に拡大）。小さいアイコンの大きさ（この PC では 16 画素）で描いた。</figcaption></figure>
+  <figure class="shot flat"><picture><img src="img/icon/tray-light.webp" alt="暗い帯の上に、光の線の k のアイコンと、灰色のキーボードの形のアイコンが並ぶ" width="360" height="192" loading="lazy" decoding="async"></picture><figcaption>検証機の上の帯のトレイ（4 倍に拡大）。左が kargui のアイコン、右は日本語入力。</figcaption></figure>
+</div>
+<!-- /gen:real -->
+  <p>検証機の X11 では、xprop で窓の _NET_WM_ICON を読み、64 × 64 の絵が入っていることを確かめました。</p>
+
+  <h2 id="pitfalls">検証機で見つけた 2 つの落とし穴</h2>
+  <p>記録する前の変更は、tar で検証機へ写して試しています。今回はここで 2 つのことが起きました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-pitfalls">
+    <table>
+      <caption id="t-pitfalls">起きたことと直し方</caption>
+      <thead><tr><th scope="col">起きたこと</th><th scope="col">原因</th><th scope="col">直し方</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">見本の組み立てが「Options に default_icon が無い」で落ちた</th><td data-label="原因">tar は元のファイルの時刻を保つ。手元で直した時刻が、検証機で前に組み立てた時刻より古く、cargo が kargui を組み立て直さなかった</td><td data-label="直し方">写す時に時刻を今にする（tar xmf）</td></tr>
+        <tr><th scope="row">clippy が、試験の 1 行で止まった</th><td data-label="原因">検証機の Rust は手元より新しく、新しい注意（chunks_exact より as_chunks を使う）が出た</td><td data-label="直し方">as_chunks に書き直した</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい作り方: 時刻を保ったまま、組み立てる場所へファイルを写す</span>
+    <p>cargo は、ファイルの時刻が前の組み立てより新しいかで、組み立て直すかを決めます。tar や cp -p で時刻を保ったまま写すと、写した側では「前より古いファイル」に見え、変更が組み立てに入らないことがあります。試験の組み立ては直っていたのに、見本の組み立てだけが古いままで、誤りの理由が分かりにくくなりました。</p>
+  </div>
+
+  <h2 id="hand">作者の手の確かめ</h2>
+  <p>第 18 章と同じ手の確かめで、家計簿の見本を 2 回開いてもらいました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-hand">
+    <table>
+      <caption id="t-hand">手の確かめの記録（家計簿）</caption>
+      <thead><tr><th scope="col">手順</th><th scope="col">記録</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">ふつうに開く</th><td data-label="記録">window.icon は set=true from=kargui</td></tr>
+        <tr><th scope="row">--no-default-icon で開く</th><td data-label="記録">window.icon は set=false from=system（OS の無地のアイコン）</td></tr>
+        <tr><th scope="row">異常の数</th><td data-label="記録">panic 0、窓の処理の二重の呼び出し 0、誤り 0</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="numbers">数</h2>
+  <p>アイコンで足した試験は 3 個です（描いた絵 2、見本の引数 1）。描いた絵の試験は、角が透明で、地が暗く、縦の線の所が明るいことを、64 画素と 16 画素で確かめます。公開の項目の説明は 633 から 634 に増え、動く例（447）と説明の中の動く例（735）は変わりません。描く処理（logo.rs）は 160 行です。記録 52c6636 は 13 のファイルを変え、228 行を足して 19 行を消しています。</p>
+
+  <h2 id="ci">CI</h2>
+  <p>記録 52c6636 は、第 18 章の記録と一緒に、作者の「送って」で GitHub に入りました。CI は Windows・Linux・macOS で 1 回目から通りました。</p>
+
+  <h2 id="next">次の段階</h2>
+  <p>アプリの仕組みの次は、多言語です。アイコンでは、Wayland の窓のアイコン（合成にアイコンを渡す新しい取り決め）と、トーストの名前の横に出るアイコンを、まだ作っていません。</p>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="18-contrast.html">← 第 18 章 ハイコントラスト</a>
+    <a href="./">目次 →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>

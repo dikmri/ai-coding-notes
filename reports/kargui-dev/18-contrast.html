@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 18 章 ハイコントラスト ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="アプリの仕組みの 4 つ目として、ハイコントラストを作りました。OS の設定に従い、Windows ではコントラスト テーマの色をそのまま使います。作者が寝ている間に範囲を決めた理由、OS の色を kargui の配色へ写す方法、強制した見本の写真で見つけた 3 つの不具合、検証機のポータル、作者の手の確かめが 1 回目に動かなかった理由を紹介します。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 18 章</p>
+  <h1>ハイコントラスト</h1>
+  <p class="lede">アプリの仕組みの 4 つ目として、ハイコントラストを作りました。OS がハイコントラストの時、kargui は部品を高い対比の配色で描きます。Windows ではコントラスト テーマの色をそのまま使い、Linux では明暗に合わせた kargui の配色を使います。この章は、作者が寝ている間に作りました。範囲を決めた理由、OS の色を kargui の配色へ写す方法、強制した見本の写真で見つけた 3 つの不具合を紹介します。後半では、作者の手の確かめが 1 回目に動かなかった理由も書きます。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>OS のハイコントラストに、どこまで従うかの決め方</li>
+      <li>OS の 8 色を、kargui の配色の 14 の欄へ写す方法</li>
+      <li>ハイコントラストで描き方を変える所（影・選んだ文字・押せない部品）</li>
+      <li>配色の試験が全部通っていても、写真で見つかる不具合</li>
+      <li>手の確かめの手順を「Run」ボタンで動かす時の落とし穴</li>
+    </ul>
+  </section>
+
+  <h2 id="scope">範囲を決めた</h2>
+  <p>通知と README の写真を送った後、作者は「そろそろ寝るので、ここからは自動で進めて」と言いました。そこで、範囲は私（Claude）が推奨の形で決め、理由を朝の報告に書く約束にしました。GitHub へ送るのは、朝に作者が「送って」と言った後です。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-scope">
+    <table>
+      <caption id="t-scope">決めたことと理由</caption>
+      <thead><tr><th scope="col">項目</th><th scope="col">決めたこと</th><th scope="col">理由</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">OS の設定</th><td data-label="決めたこと">従う。アプリは強制することも、切ることもできる</td><td data-label="理由">利用者が OS で選んだ設定を、アプリごとに選び直さずに済む</td></tr>
+        <tr><th scope="row">Windows の色</th><td data-label="決めたこと">コントラスト テーマの色をそのまま使う</td><td data-label="理由">利用者は、テーマの色（黒地に水色、白地に紫など）まで選んでいる</td></tr>
+        <tr><th scope="row">Linux の色</th><td data-label="決めたこと">明暗に合わせた kargui の配色を使う</td><td data-label="理由">ポータルは「高いかどうか」だけを返し、色を返さない</td></tr>
+        <tr><th scope="row">配色の欄</th><td data-label="決めたこと">増やさない</td><td data-label="理由">配色を自分で組み立てているアプリが、書き直さずに済む</td></tr>
+        <tr><th scope="row">確かめ方</th><td data-label="決めたこと">作者の PC の設定は変えず、kargui の中で強制して撮る</td><td data-label="理由">寝ている作者の画面の設定を、無断で変えない</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="api">書き方</h2>
+  <p>何も書かなければ、OS の設定に従います。アプリが決めたい時は <code>Options::high_contrast</code> を使います。</p>
+  <pre><code>let mut options = Options::new("Notes");
+// None（既定）は OS に従う。Some(true) はいつもハイコントラスト、Some(false) は使わない
+options.high_contrast = Some(true);</code></pre>
+  <ul>
+    <li><code>ui.high_contrast()</code> で、今ハイコントラストで描いているかが分かる。<code>canvas</code> で自分で絵を描く時は、これを見て <code>ui.theme()</code> の色だけで描く。</li>
+    <li><code>Theme::high_contrast_dark()</code> と <code>Theme::high_contrast_light()</code> は、Windows の古典の High Contrast Black と White の色。Linux と、アプリが強制した時に使う。</li>
+    <li>試験台では、<code>h.set_high_contrast(true)</code> で OS のハイコントラストを入れたことにする。</li>
+  </ul>
+
+  <h2 id="palette">配色の写し方</h2>
+  <p>Windows のコントラスト テーマは、<code>GetSysColor</code> で 8 つの色を返します。kargui の配色には 14 の欄があるので、次のように写しました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-palette">
+    <table>
+      <caption id="t-palette">OS の色から kargui の配色へ</caption>
+      <thead><tr><th scope="col">kargui の欄</th><th scope="col">OS の色</th><th scope="col">ねらい</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">背景・入力欄</th><td data-label="OS の色">Window</td><td data-label="ねらい">地の色</td></tr>
+        <tr><th scope="row">文字・薄い文字・区切り</th><td data-label="OS の色">WindowText</td><td data-label="ねらい">薄い文字を作らない</td></tr>
+        <tr><th scope="row">押せない文字</th><td data-label="OS の色">GrayText</td><td data-label="ねらい">押せないことを色で分ける</td></tr>
+        <tr><th scope="row">縁</th><td data-label="OS の色">ButtonText</td><td data-label="ねらい">部品の境を見せる</td></tr>
+        <tr><th scope="row">強調・選んだ文字の背景</th><td data-label="OS の色">Highlight</td><td data-label="ねらい">主なボタンと選んだ所</td></tr>
+        <tr><th scope="row">強調の上の文字</th><td data-label="OS の色">HighlightText</td><td data-label="ねらい">強調の上でも読める</td></tr>
+        <tr><th scope="row">ボタン</th><td data-label="OS の色">ButtonFace</td><td data-label="ねらい">ボタンの地</td></tr>
+        <tr><th scope="row">乗った・押した・選んだ時</th><td data-label="OS の色">ButtonFace に Highlight を 25%・40%・35% 混ぜる</td><td data-label="ねらい">状態の違いを出しつつ、文字が読める濃さにする</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>ふつうの配色では、ヒントや数のような重要でない文字を薄い色で描きます。ハイコントラストでは、文字の濃さで重要さを分けません。薄い文字も WindowText にしました。文字と背景・ボタン・入力欄の対比は 7 : 1 以上（WCAG の AAA の目安）、押した時や選んだ時の背景の上でも 4.5 : 1 以上になることを、試験で確かめています。下のグラフの「高対比」は、ハイコントラストの配色のことです。</p>
+  <!-- gen:ratio -->
+<div class="pair">
+  <figure class="bars" id="c-ratio-gray">
+    <figcaption><span class="bars-title">押せない文字と背景の対比</span><span class="bars-hint">大きいほど読みやすい。WCAG の文字の目安は 4.5</span></figcaption>
+    <div class="bar-rows">
+      <div class="bar-row" data-v="old"><span class="bar-name">ふつう 明</span><span class="bar-track"><span class="bar" style="--w: 14.3%"></span><span class="bar-val">3.0 : 1</span></span></div>
+      <div class="bar-row" data-v="old"><span class="bar-name">ふつう 暗</span><span class="bar-track"><span class="bar" style="--w: 18.6%"></span><span class="bar-val">3.9 : 1</span></span></div>
+      <div class="bar-row" data-v="new"><span class="bar-name">高対比 黒</span><span class="bar-track"><span class="bar" style="--w: 66.7%"></span><span class="bar-val">14.0 : 1</span></span></div>
+      <div class="bar-row" data-v="new"><span class="bar-name">高対比 白</span><span class="bar-track"><span class="bar" style="--w: 66.7%"></span><span class="bar-val">14.0 : 1</span></span></div>
+    </div>
+  </figure>
+  <figure class="bars" id="c-ratio-border">
+    <figcaption><span class="bars-title">縁と背景の対比</span><span class="bars-hint">部品の境の見えやすさ。WCAG の目安は 3</span></figcaption>
+    <div class="bar-rows">
+      <div class="bar-row" data-v="old"><span class="bar-name">ふつう 明</span><span class="bar-track"><span class="bar" style="--w: 7.1%"></span><span class="bar-val">1.5 : 1</span></span></div>
+      <div class="bar-row" data-v="old"><span class="bar-name">ふつう 暗</span><span class="bar-track"><span class="bar" style="--w: 8.6%"></span><span class="bar-val">1.8 : 1</span></span></div>
+      <div class="bar-row" data-v="new"><span class="bar-name">高対比 黒</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">21 : 1</span></span></div>
+      <div class="bar-row" data-v="new"><span class="bar-name">高対比 白</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">21 : 1</span></span></div>
+    </div>
+  </figure>
+</div>
+<!-- /gen:ratio -->
+
+  <h2 id="draw">描き方を変えた所</h2>
+  <p>色を入れ替えるだけでは足りない所があります。ハイコントラストの間は、次の所の描き方を変えます。</p>
+  <ul>
+    <li>影と半透明の塗りを描かない。薄い黒の影は、配色に無い色になるため。部品の境は縁で見せる。</li>
+    <li>一覧やメニューの選んだ行に、強調の色の縁を 2 画素付ける。背景の色だけでは見分けにくいため。</li>
+    <li>選んだ文字は、強調の上の文字の色で描き直す（下で説明）。</li>
+    <li>題の帯の閉じるボタンは、赤の代わりに強調の色で塗る。</li>
+    <li>押せない部品とヒントは、GrayText で描く。</li>
+    <li>スクロールバーのつまみは透かさない。透かすと、配色に無い灰色になるため。</li>
+  </ul>
+  <!-- gen:pair -->
+<div class="pair">
+  <figure class="shot flat"><picture><img src="img/contrast/black-light.webp" alt="黒い地の部品の見本のボタンのページ。白い文字と白い縁のボタン、水色に塗った主な操作、水色の下線の付いたリンク。押せない状態の 3 つのボタンは、緑の縁と緑の文字" width="900" height="651" loading="lazy" decoding="async"></picture><figcaption>暗い方（Windows の古典の High Contrast Black の色）。押せない 3 つは GrayText の緑で描く。</figcaption></figure>
+  <figure class="shot flat"><picture><img src="img/contrast/white-light.webp" alt="白い地の部品の見本の文字の入力のページ。黒い縁の 3 つの入力欄に、濃い赤のヒント。左の一覧の選んだ行は、薄い紫の地に濃い紫の縁" width="900" height="651" loading="lazy" decoding="async"></picture><figcaption>明るい方（High Contrast White の色）。ヒントは GrayText の濃い赤、選んだ行には強調の紫の縁。</figcaption></figure>
+</div>
+<!-- /gen:pair -->
+
+  <h3 id="selection">選んだ文字を描き直す</h3>
+  <p>入力欄の文字は、1 回の配置でまとめて描きます。選んだ範囲の中だけ色を変えるのは、配置を分けないとできません。そこで、全体をふつうの文字の色で描いた後、選んだ範囲の四角に切り抜きをかけ、同じ配置をもう一度、強調の上の文字の色で描きます。複数行の欄では、選んだ範囲の行ごとの四角で切り抜きます。明るい方では、紫の上に黒の文字が乗らず、白の文字になります。</p>
+
+  <h2 id="os">OS ごとの違い</h2>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-os">
+    <table>
+      <caption id="t-os">Windows と Linux の読み方</caption>
+      <thead><tr><th scope="col">項目</th><th scope="col">Windows</th><th scope="col">Linux</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">設定を読む</th><td data-label="Windows">SystemParametersInfoW の SPI_GETHIGHCONTRAST</td><td data-label="Linux">ポータルの contrast（1 が高い）</td></tr>
+        <tr><th scope="row">色</th><td data-label="Windows">GetSysColor の 8 色</td><td data-label="Linux">無し（kargui の配色）</td></tr>
+        <tr><th scope="row">切り替えた時</th><td data-label="Windows">設定や色が変わった知らせで読み直す</td><td data-label="Linux">起動の時だけ読む（明暗と同じ）</td></tr>
+        <tr><th scope="row">記録</th><td data-label="Windows">theme.contrast</td><td data-label="Linux">portal.contrast と theme.contrast</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Windows の設定は HIGHCONTRASTW という構造体で返ります。windows クレートでは、この構造体を使うのに別の機能の切り替え（<code>Win32_UI_Accessibility</code>）が要ります。3 つの欄だけなので、同じ並びの構造体を自分で書きました。<code>GetSysColor</code> の色は 0x00BBGGRR の順に並ぶので、赤と青を入れ替えて読みます。別の窓を開いた時は、主の窓の設定を引き継ぎます。</p>
+
+  <h2 id="shots">写真で見つけた 3 つの不具合</h2>
+  <p>共通の部分と描き方を作り、試験 317 個が通った後に、見本をハイコントラストで強制して撮りました（6 ページを明暗で 12 枚）。写真を見ると、試験では分からなかった不具合が 3 つありました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-shots">
+    <table>
+      <caption id="t-shots">見つけた不具合と直し方</caption>
+      <thead><tr><th scope="col">見えたこと</th><th scope="col">原因</th><th scope="col">直し方</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">押せない主のボタンが、押せるボタンより目立つ</th><td data-label="原因">押せない主のボタンを縁の色で塗っていた。ハイコントラストの縁は白（明るい方では黒）なので、一番強い色になった</td><td data-label="直し方">押せない部品を描く間だけ、縁・文字・強調をどれも GrayText にした配色に差し替える</td></tr>
+        <tr><th scope="row">入力欄のヒントが、入力済みに見える</th><td data-label="原因">ヒントを薄い文字の色で描いていた。ハイコントラストでは薄い文字も WindowText</td><td data-label="直し方">WinUI と同じく、GrayText で描く</td></tr>
+        <tr><th scope="row">スクロールバーのつまみが灰色</th><td data-label="原因">文字の色を 45% の濃さで描いていた</td><td data-label="直し方">不透明の文字の色で描き、乗った時と引っ張る時は強調の色</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>1 つ目は、部品ごとに直すと直し漏れが出ます。押せない部品は、ボタン・入力欄・チェック・ドロップダウンなど、たくさんあるからです。部品を描く関数の入口で、押せない部品を描く間だけ配色を差し替える形にしました。押せない部品の中は、どの部品でも GrayText で描かれます。</p>
+  <div class="insight">
+    <span class="box-title">分かったこと: 対比の試験は「どの色をどこに使うか」を見ない</span>
+    <p>配色の試験は、文字と背景の組み合わせがどれも読める濃さかを確かめていて、全部通っていました。それでも、押せないボタンに強い色を使うという「使い方の誤り」は、写真で見るまで分かりませんでした。見つけた 2 つ（押せないボタンとヒント）は、先に画素の色を数える試験を書き、直す前に落ちることを確かめてから直しました。</p>
+  </div>
+
+  <h2 id="linux">検証機で確かめた</h2>
+  <p>検証機（Hyprland）では、ポータルの係は GNOME の設定 <code>org.gnome.desktop.a11y.interface</code> の high-contrast を読みます。この設定を一時的に入れるとポータルは 1 を返し、見本はハイコントラストで開きました。確かめた後、設定は元（false）に戻しています。</p>
+  <!-- gen:linux -->
+<figure class="shot flat"><picture><img src="img/contrast/linux-light.webp" alt="白い地の部品の見本の窓。選んだ行に濃い紫の縁、紫に塗った主な操作、押せない 3 つは濃い赤の縁と文字。右端のスクロールバーのつまみは黒" width="948" height="520" loading="lazy" decoding="async"></picture><figcaption>検証機（Hyprland）で、GNOME のハイコントラストの設定をポータル経由で読んで開いた見本。kargui の明るい方の配色になる。窓の上半分だけを切り出した。</figcaption></figure>
+<!-- /gen:linux -->
+  <p>検証機では、試験が 1 つ落ちました。選んだ文字を白で描き直したかを、真っ白の画素の数（20 より多い）で確かめる試験です。Linux の書体は線が細く、真っ白の画素は 19 個でした。直す前は 0 個なので、描き直しは働いています。基準を「どの色も 0xc0 以上の、白に近い画素」に直し、Windows と Linux の両方で通るようにしました。</p>
+
+  <h2 id="hand">作者の手の確かめ</h2>
+  <p>朝、作者に 7 つの手順を渡しました。1 回目は、見本が 1 度も開きませんでした。作者の「試しました」の後に記録を読むと、新しい行がありません。アプリの端末の画面を読むと、次の誤りが 3 回出ていました。</p>
+  <pre><code>error: could not find `Cargo.toml` in `D:\soft\dekiru-html\.claude\worktrees\…` or any parent directory</code></pre>
+  <p>手順の文には「kargui のフォルダで」と書きましたが、命令そのものには場所が入っていませんでした。アプリの「Run」ボタンは、この会話の作業場所で命令を打つので、cargo が kargui を見つけられなかったのです。命令に <code>--manifest-path D:\soft\kargui\Cargo.toml</code> を付けて渡し直しました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-hand">
+    <table>
+      <caption id="t-hand">2 回目の手の確かめの記録（見本）</caption>
+      <thead><tr><th scope="col">手順</th><th scope="col">記録</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">暗い方で開く</th><td data-label="記録">theme.contrast は forced=Some(true)。入力欄に 3 文字打って Ctrl+A を押した</td></tr>
+        <tr><th scope="row">明るい方で開く</th><td data-label="記録">42 回押し、そのうち 29 回は左の一覧でページを行き来した</td></tr>
+        <tr><th scope="row">異常の数</th><td data-label="記録">panic 0、窓の処理の二重の呼び出し 0、誤り 0</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="insight">
+    <span class="box-title">分かったこと: 手順の命令には、動かす場所を入れる</span>
+    <p>手順を文で書くと、場所の指定が命令に届きません。作業場所の外のものを動かす命令は、場所を命令の中に入れます（cargo なら <code>--manifest-path</code>）。また、作者が「試しました」と言ったのに記録に新しい行が無い時は、アプリが動かなかった可能性が高いので、推測で進めず端末の画面を読みます。</p>
+  </div>
+  <p>アプリを開いたまま OS のコントラスト テーマを切り替える手順は、任意にしていて、まだ試していません。</p>
+
+  <h2 id="numbers">数</h2>
+  <p>ハイコントラストで足した試験は 10 個です（試験台 5、配色 4、見本の引数 1）。公開の項目の説明は 630 から 633 に、動く例は 445 から 447 に増えました。説明の中の動く例（doc テスト）は 727 から 735 に増えました。記録 b506313 は 17 のファイルを変え、669 行を足して 27 行を消しています。</p>
+
+  <h2 id="ci">CI</h2>
+  <p>記録 b506313 は、次の章の記録 52c6636 と一緒に、作者の「送って」で GitHub に入りました。CI は Windows・Linux・macOS で 1 回目から通りました。送る前に、CI の Windows と同じ 4 段と clippy を手元で走らせ、検証機でも試験と clippy を走らせています。その前の記録（README の写真）では、GitHub の macOS の実行機が空かずに 15 分で取り消されましたが、今回は 3 つとも走りました。</p>
+
+  <h2 id="next">次の段階</h2>
+  <p>アプリの仕組みの次は、多言語です。作者には、kargui が自分で出す約 30 語（題の帯のボタン、ドッキングのメニューなど）を英語と日本語の表にまとめ、OS の表示の言語で選ぶ案を出しています。ハイコントラストでは、Linux で設定を切り替えた時にすぐ描き直すことと、リンクの色（HotLight）を使うことを、まだ作っていません。</p>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="17-notify.html">← 第 17 章 通知</a>
+    <a href="19-icon.html">第 19 章 既定のアイコン →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>
