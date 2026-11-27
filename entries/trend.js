@@ -22742,3 +22742,897 @@ td.good { color: var(--u-ok); }
     }
   },
 });
+
+dekiru.add({
+  id: 'tr-20261128-bounce-market', c: 'trend', lv: 2, date: '2026-11-28',
+  t: '落ちる玉の行き先を売り買いする市場を作り、値段と計算した確率を比べる',
+  y: 'おちるたまの いきさきを うりかいする しじょうを つくり ねだんと けいさんした かくりつを くらべる',
+  tags: ['bouncemarket', '予測市場', 'LMSR', 'カオス', '物理シミュレーション', 'canvas'],
+  d: '2026-11-27 に Hacker News の Show HN で、Minh-Anh Day さんのゲーム bouncemarket が 299 点・92 件のコメントを集めた。ピンの並んだ盤を玉が落ち、左右どちらに着くかの株を、落ちている最中に売り買いする予測市場のゲームで、着いた側の株は 1 株 1 点になる。作者の説明では、玉の落下はサーバーで計算して SSE で配る。開始位置だけで道が決まるので同じ回を正確に再生できるが、開始位置がわずかに違うと行き先が変わる。市場を動かすために、作者が書いた単純な決まりで売り買いする AI も参加する。'
+    + 'この見本は、盤の物理・市場・AI をすべてブラウザの中で作った。玉は 1/600 秒の決まった刻みで動かし、四則演算と平方根だけで計算するので、同じ開始位置からはいつも同じ道をたどる。「同じ玉をもう一度」と「開始位置を 10⁻⁹ px ずらしてもう一度」は、前の玉の道を灰色の線で残し、今の玉との差を数字で出す。40 個の玉で試すと、10⁻⁹ px ずらしただけで 28 個の着いた位置が 1 px より大きく変わった。値段は Hanson の LMSR（対数のマーケットスコアリングルール）で決める。'
+    + '青と橙の線の「雲」は、今の玉の位置に標準偏差 σ px の誤差があるとして、48 個の写しを最後まで落とした道で、左に着いた割合を「雲の確率」として値段と並べる。種 1〜20 の玉で放す前の雲を作ると、確率が 0.9 以上か 0.1 以下になって行き先がほぼ分かったのは、σ = 10⁻⁹ px で 14 回、10⁻⁶ px で 5 回、10⁻³ px で 2 回、1 px で 0 回だった。'
+    + '下の早送りは、AI だけで 100 回か 300 回まわし、締め切りの時の値段と雲の確率が、実際に左へ落ちた割合と合っているかを信頼度の図で見せる（HN のコメントにあった提案）。σ = 1 px で 300 回まわすと、雲を見る AI がいない市場では、玉を見ずに 0.25 より安い側だけを買う「安値買い」が一番もうけた（+242.6 点。HN のコメントにも「玉を無視して安い株だけ買うのが意外に強い」とあった）。値段の外れ具合（Brier スコア）は 0.180 で、雲の 0.108 より大きい。雲を見る AI を入れると、その AI が +519.2 点を得て、安値買いは +27.8 点に下がり、値段の Brier スコアは 0.116 になった。開始位置と同じ側に着いた玉は 62% で、HN の「始めの側に賭け続けると得をするのでは」という問いは、この盤では当たっていた。'
+    + '再現できていない所: 元のゲームの盤の形と大きさ、物理の決まり、値段の式、AI の決まりは確かめていないので、すべてこの見本で決めた。人どうしで売り買いする仕組み（サーバー、SSE、順位表、再生の共有）は無く、相手は見本の中の AI だけ。',
+  p: '玉は位置と速さだけを持ち、1/600 秒ごとに「重力で速さを足す → 位置を進める → 近くのピン 9 本・壁・仕切りに重なっていれば押し出して跳ね返す」を繰り返す。跳ね返りは、当たった向きの速さを −0.45 倍、すべる向きの速さを 0.96 倍にするだけ。JavaScript の四則演算は仕様で IEEE 754 どおりの丸めに決まっていて、平方根も主なブラウザは丸めの決まった CPU の命令で計算する。Math.sin や Math.hypot は環境によって最後の桁が違うことがあるので、玉の計算には使わない。'
+    + 'LMSR では、売れた株の数 qL・qR から費用 C = b·ln(e^(qL/b) + e^(qR/b)) を決める。n 株の代金は買う前と後の C の差で、今の左の値段は e^(qL/b) / (e^(qL/b) + e^(qR/b))。左右の値段の和はいつも 1 で、左右を 1 株ずつ買うとちょうど 1 点かかる。胴元の損は 1 回で多くても b·ln 2（b = 4 で 2.77 点）。'
+    + '雲は、正規分布の乱数でずらした写しを、画面に描く玉とは別に最後まで計算する（48 個 × 残りの数千歩を 0.2 秒ごと）。早送りは 1 回の勝負を画面なしでまとめて計算し、40 ms ごとに scheduler.yield() で画面へ順番を返す。',
+  refs: [
+    { title: 'bouncemarket（Minh-Anh Day さんのゲーム）', url: 'https://bouncemarket.minhanhday.com/' },
+    { title: 'Hacker News: Show HN: bouncemarket – a live prediction market game for a bouncing ball', url: 'https://news.ycombinator.com/item?id=50667726' },
+    { title: 'Robin Hanson: Logarithmic Market Scoring Rules for Modular Combinatorial Information Aggregation（LMSR の論文）', url: 'https://mason.gmu.edu/~rhanson/mktscore.pdf' },
+  ],
+  html: `<div class="wrap">
+  <div class="game">
+    <canvas id="board" role="img" aria-label="ピンの並んだ盤を玉が落ちる様子。青と橙の線は、誤差を入れた写しの行き先"></canvas>
+    <div class="side">
+      <p id="phase" class="phase" aria-live="polite"></p>
+      <div class="prices">
+        <div class="pc l"><span>左の値段</span><b id="pL">0.50</b></div>
+        <div class="pc c"><span>雲の確率<i>（左）</i></span><b id="pC">—</b></div>
+        <div class="pc r"><span>右の値段</span><b id="pR">0.50</b></div>
+      </div>
+      <div class="buy">
+        <button id="bL1" class="bl" type="button">左を 1 株<small id="cL1"></small></button>
+        <button id="bR1" class="br" type="button">右を 1 株<small id="cR1"></small></button>
+        <button id="bL5" class="bl" type="button">左を 5 株<small id="cL5"></small></button>
+        <button id="bR5" class="br" type="button">右を 5 株<small id="cR5"></small></button>
+      </div>
+      <p id="mine"></p>
+      <p id="msg" aria-live="polite"></p>
+      <canvas id="chart" role="img" aria-label="左の値段と雲の確率の動き"></canvas>
+    </div>
+  </div>
+  <div class="ctl">
+    <label>速さ <select id="speed"><option value="0.25">0.25 倍</option><option value="0.5">0.5 倍</option><option value="1" selected>1 倍</option></select></label>
+    <label class="sg"><span>観測の誤差 σ</span><input type="range" id="sig" min="-9" max="1" step="0.5" value="0"><output id="sigO" for="sig"></output></label>
+    <label><input type="checkbox" id="showCloud" checked> 雲を見せる</label>
+    <label><input type="checkbox" id="useCloud"> 雲を見て売買する AI を入れる（次の玉から）</label>
+    <label><input type="checkbox" id="auto" checked> 自動で次の玉</label>
+  </div>
+  <div class="ctl">
+    <button id="next" type="button">次の玉</button>
+    <button id="same" type="button">同じ玉をもう一度</button>
+    <button id="shift" type="button">開始位置を 10⁻⁹ px ずらしてもう一度</button>
+  </div>
+  <p id="chaos"></p>
+  <div class="tw"><table id="tbl"><thead><tr><th>参加者</th><th>残高</th><th>この玉の株</th><th>この玉の損得</th></tr></thead><tbody></tbody></table></div>
+  <section class="fast">
+    <h3>早送りで何回もまわし、値段が当たっているか確かめる</h3>
+    <div class="ctl"><label>回数 <select id="runN"><option value="100" selected>100 回</option><option value="300">300 回</option></select></label><button id="run" type="button">AI だけでまわす</button><progress id="prog" value="0" max="1" hidden></progress></div>
+    <p class="note">上の σ と「雲を見て売買する AI」の設定でまわす。雲を見る AI を入れると、0.2 秒ごとに雲を計算するので、1 回に 90 ms ほどかかる（300 回で 30 秒ほど）。種は毎回同じ（100000 から）なので、同じ設定なら同じ結果になる。</p>
+    <canvas id="rel" role="img" aria-label="締め切りの時の値段と雲の確率ごとに、実際に左へ落ちた割合を並べた図"></canvas>
+    <p id="relInfo"></p>
+  </section>
+  <p class="note">1 株は、その側に着いたら 1 点になる。値段は LMSR で決まり、左と右の値段の和はいつも 1。買うほどその側が高くなる。雲（青と橙の線）は、今の位置に σ px の誤差があるとして 48 個の写しを最後まで落とした道で、青は左、橙は右に着いたもの。左に着いた割合が「雲の確率」。σ を 10⁻⁹ px まで小さくすると、放す前から行き先が分かることが多い。</p>
+</div>`,
+  css: `:root { color-scheme: dark; --l: #6cb4ee; --r: #f0a35e; --ac: #f0b44c; }
+body { margin: 0; background: #1f2128; color: #ece8df; font: 14px/1.6 system-ui, sans-serif; accent-color: var(--ac); }
+.wrap { display: grid; gap: 12px; padding: 14px; max-width: 900px; margin: 0 auto; }
+.game { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 14px; align-items: start; }
+#board { display: block; width: 100%; aspect-ratio: 360 / 560; border-radius: 10px; background: #16181d; }
+.side { display: grid; gap: 8px; min-width: 0; }
+.phase { margin: 0; min-height: 3.2em; }
+.prices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.pc { display: grid; padding: 6px 10px; border-radius: 8px; background: #2a2d35; }
+.pc span { font-size: 12px; color: #b8b2a6; }
+.pc i { font-style: normal; }
+.pc b { font: 700 22px/1.2 ui-monospace, monospace; }
+.pc.l b { color: var(--l); }
+.pc.r b { color: var(--r); }
+.pc.c b { color: #cfd6e6; }
+.buy { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+button { padding: 7px 12px; border: 1px solid #4a4f5c; border-radius: 8px; background: #2f333d; color: #ece8df; font: inherit; cursor: pointer; touch-action: manipulation; }
+button:hover:not(:disabled) { background: #3a3f4b; }
+button:active:not(:disabled) { scale: 0.97; }
+button:disabled { opacity: 0.5; cursor: default; }
+@media (prefers-reduced-motion: no-preference) { button { transition: scale 120ms ease-out, background-color 120ms ease-out; } }
+:focus-visible { outline: 2px solid #f6d58e; outline-offset: 3px; }
+.bl { border-color: #3d6b8f; }
+.br { border-color: #8f6a3d; }
+.buy small { display: block; font: 12px ui-monospace, monospace; color: #b8b2a6; }
+#mine, #msg { margin: 0; }
+#msg { min-height: 1.6em; color: #f6d58e; }
+#chart { display: block; width: 100%; height: 170px; border-radius: 10px; background: #16181d; }
+.ctl { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
+.sg { display: inline-grid; grid-template-columns: auto minmax(0, 12em) 6.5em; gap: 8px; align-items: center; }
+.sg input { width: 100%; margin: 0; }
+output { font: 12px ui-monospace, monospace; color: #cfc9bd; }
+#chaos { margin: 0; min-height: 3.2em; color: #cfc9bd; }
+.tw { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 4px 8px; border-bottom: 1px solid #343843; text-align: left; vertical-align: top; }
+th { color: #b8b2a6; font-weight: 600; }
+td.n { font-family: ui-monospace, monospace; text-align: right; white-space: nowrap; }
+td small { display: block; color: #9a958b; }
+tr.off { opacity: 0.45; }
+.fast { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid #3b3f4a; border-radius: 10px; }
+.fast h3 { margin: 0; font-size: 15px; }
+#rel { display: block; width: 100%; max-width: 460px; height: 300px; border-radius: 10px; background: #16181d; }
+#relInfo { margin: 0; white-space: pre-line; font: 12.5px/1.6 ui-monospace, monospace; color: #cfc9bd; overflow-wrap: anywhere; }
+.note { margin: 0; color: #b8b2a6; font-size: 13px; }
+@media (max-width: 560px) { .game { grid-template-columns: minmax(0, 1fr); } #board { max-width: 300px; margin: 0 auto; } }
+.thumb { overflow: hidden; }
+.thumb .wrap { padding: 6px; max-width: none; }
+.thumb .ctl, .thumb #chaos, .thumb .tw, .thumb .fast, .thumb .wrap > .note, .thumb .buy, .thumb #mine, .thumb #msg, .thumb .phase { display: none; }
+.thumb .game { grid-template-columns: auto minmax(0, 1fr); gap: 8px; height: calc(100vh - 12px); }
+.thumb #board { width: auto; height: calc(100vh - 12px); }
+.thumb .side { gap: 6px; }
+.thumb .pc { padding: 4px 6px; }
+.thumb .pc span { font-size: 10px; white-space: nowrap; overflow: hidden; }
+.thumb .pc b { font-size: 18px; }
+.thumb .pc i { display: none; }
+.thumb #chart { height: 160px; }`,
+  core() {
+    // 種（seed）から決まった乱数の列を出す（mulberry32）
+    function rng(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a = (a + 0x6d2b79f5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    // 平均 0・標準偏差 1 の正規分布の乱数（ボックス＝ミュラー法）。雲の写しをずらすのにだけ使う
+    function gauss(r) {
+      const u = Math.max(1e-12, r());
+      return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * r());
+    }
+
+    // 盤。単位は px で、左上が原点、下向きが +y。ピンは千鳥に並べ、壁とピンのすき間も玉の直径より広くして、玉が挟まらないようにする
+    function makeBoard() {
+      const W = 360, H = 560, R = 7, P = 4, DX = 32, DY = 28, Y0 = 96, ROWS = 12;
+      const rows = [];
+      for (let i = 0; i < ROWS; i++) {
+        const xs = [];
+        const off = i % 2 ? DX / 2 : 0;
+        for (let k = -6; k <= 6; k++) {
+          const x = W / 2 + off + k * DX;
+          if (x - P > 2 * R + 1 && W - x - P > 2 * R + 1) xs.push(x);
+        }
+        rows.push({ y: Y0 + i * DY, xs });
+      }
+      return {
+        W, H, R, P, DX, DY, Y0, ROWS, rows,
+        G: 600,          // 重力の加速度（px/秒²）
+        E: 0.45,         // ピンに当たったときの跳ね返りの強さ（垂直の成分に掛ける）
+        F: 0.96,         // ピンに当たったときに、すべる向きの速さに掛ける値
+        EW: 0.5,         // 壁と仕切りの跳ね返りの強さ
+        DT: 1 / 600,     // 1 歩の時間（秒）。いつも同じ刻みで進める
+        START_Y: 40,     // 玉を放す高さ
+        DIV_Y: 470,      // 真ん中の仕切りの上の端
+        DIV_T: 2,        // 仕切りの厚さの半分
+        CLOSE_Y: 300,    // 玉の中心がここを越えたら売り買いを締め切る
+        LIMIT: 30,       // 30 秒たっても着かなければ、その時の左右で決める（ピンの真上に止まる場合の備え）
+      };
+    }
+
+    function makeBall(B, x) {
+      return { x, y: B.START_Y, vx: 0, vy: 0, t: 0, hits: 0, done: false, side: '' };
+    }
+
+    // 玉を円 (px, py, rad) から押し出して跳ね返す。四則演算と平方根だけを使う
+    function bounce(B, s, px, py, rad) {
+      const dx = s.x - px, dy = s.y - py, rr = B.R + rad, d2 = dx * dx + dy * dy;
+      if (d2 >= rr * rr || d2 === 0) return;
+      const d = Math.sqrt(d2), nx = dx / d, ny = dy / d;
+      s.x = px + nx * rr;
+      s.y = py + ny * rr;
+      const vn = s.vx * nx + s.vy * ny;
+      if (vn >= 0) return;
+      const tx = s.vx - vn * nx, ty = s.vy - vn * ny;
+      s.vx = tx * B.F - B.E * vn * nx;
+      s.vy = ty * B.F - B.E * vn * ny;
+      s.hits++;
+    }
+
+    // 1 歩進める。同じ状態から始めれば、どの環境でも同じ数の列になるように、刻みは固定で Math.sin などは使わない
+    function stepBall(B, s) {
+      if (s.done) return;
+      const dt = B.DT;
+      s.vy += B.G * dt;
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      s.t += dt;
+      if (s.x < B.R) { s.x = B.R; if (s.vx < 0) s.vx = -B.EW * s.vx; }
+      if (s.x > B.W - B.R) { s.x = B.W - B.R; if (s.vx > 0) s.vx = -B.EW * s.vx; }
+      const ri = Math.round((s.y - B.Y0) / B.DY);
+      for (let i = ri - 1; i <= ri + 1; i++) {
+        if (i < 0 || i >= B.ROWS) continue;
+        const row = B.rows[i], xs = row.xs;
+        const k = Math.round((s.x - xs[0]) / B.DX);
+        for (let j = k - 1; j <= k + 1; j++) if (j >= 0 && j < xs.length) bounce(B, s, xs[j], row.y, B.P);
+      }
+      const mid = B.W / 2;
+      if (s.y >= B.DIV_Y) {
+        const gap = B.R + B.DIV_T;
+        if (s.x < mid && s.x > mid - gap) { s.x = mid - gap; if (s.vx > 0) s.vx = -B.EW * s.vx; }
+        else if (s.x >= mid && s.x < mid + gap) { s.x = mid + gap; if (s.vx < 0) s.vx = -B.EW * s.vx; }
+      } else {
+        bounce(B, s, mid, B.DIV_Y, B.DIV_T);
+      }
+      if (s.y >= B.H - B.R) { s.y = B.H - B.R; s.done = true; s.side = s.x < mid ? 'L' : 'R'; }
+      else if (s.t >= B.LIMIT) { s.done = true; s.side = s.x < mid ? 'L' : 'R'; }
+    }
+
+    // 写しを作って最後まで落とす。rec を渡すと rec 歩ごとの位置を path に残す
+    function runToEnd(B, s0, rec) {
+      const s = { ...s0 };
+      const path = [];
+      let n = 0;
+      if (rec) path.push(s.x, s.y);
+      while (!s.done) {
+        stepBall(B, s);
+        if (rec && ++n % rec === 0) path.push(s.x, s.y);
+      }
+      if (rec) path.push(s.x, s.y);
+      // 前の玉との 10⁻⁹ px の差を測るのにも使うので、64 ビットのまま残す（32 ビットでは 100 px の所で 10⁻⁶ px ほど丸まる）
+      return { side: s.side, x: s.x, t: s.t, hits: s.hits, path: rec ? new Float64Array(path) : null };
+    }
+
+    // 雲: 今の位置に標準偏差 sigma px の誤差を足した n 個の写しを最後まで落とし、左に着いた割合を確率とする
+    function cloudOf(B, s, n, sigma, seed, rec) {
+      const r = rng(seed);
+      let left = 0;
+      const paths = [];
+      for (let k = 0; k < n; k++) {
+        const c = { ...s };
+        if (!c.done) {
+          c.x = Math.min(B.W - B.R, Math.max(B.R, c.x + sigma * gauss(r)));
+          c.y = c.y + sigma * gauss(r);
+        }
+        const o = runToEnd(B, c, rec);
+        if (o.side === 'L') left++;
+        if (rec) paths.push(o);
+      }
+      return { pL: left / n, n, paths };
+    }
+
+    // LMSR（対数のマーケットスコアリングルール）。qL・qR は売れた株の数、b は値段の動きにくさ
+    function lmsrCost(qL, qR, b) {
+      const m = Math.max(qL, qR);
+      return m + b * Math.log(Math.exp((qL - m) / b) + Math.exp((qR - m) / b));
+    }
+    function priceL(qL, qR, b) {
+      return 1 / (1 + Math.exp((qR - qL) / b));
+    }
+    function buyCost(qL, qR, b, side, n) {
+      const before = lmsrCost(qL, qR, b);
+      return side === 'L' ? lmsrCost(qL + n, qR, b) - before : lmsrCost(qL, qR + n, b) - before;
+    }
+
+    // AI の決まり。v = { off: 玉の中心からのずれ px, pL: 左の値段, dP: 0.6 秒前からの左の値段の変化, cloudP: 雲の確率 }、u は 0〜1 の乱数
+    function aiChoice(rule, v, u) {
+      if (rule === 'pos') {
+        if (u > 0.6) return '';
+        if (v.off < -6 && v.pL < 0.85) return 'L';
+        if (v.off > 6 && v.pL > 0.15) return 'R';
+      } else if (rule === 'cheap') {
+        if (u > 0.5) return '';
+        if (v.pL < 0.25) return 'L';
+        if (v.pL > 0.75) return 'R';
+      } else if (rule === 'trend') {
+        if (u > 0.6) return '';
+        if (v.dP > 0.04 && v.pL < 0.9) return 'L';
+        if (v.dP < -0.04 && v.pL > 0.1) return 'R';
+      } else if (rule === 'rand') {
+        if (u < 0.12) return 'L';
+        if (u < 0.24) return 'R';
+      } else if (rule === 'cloud') {
+        if (v.cloudP - v.pL > 0.07) return 'L';
+        if (v.pL - v.cloudP > 0.07) return 'R';
+      }
+      return '';
+    }
+
+    const TICK = 120;   // 0.2 秒（120 歩）ごとに雲を計算し直し、AI が売り買いを考える
+    const WAIT = 720;   // 玉を放す前の 1.2 秒も売り買いできる
+
+    // 1 回分の勝負。traders は { id, rule, bal } の配列（rule が空なら人）。o.cloudEvery が false なら雲は締め切りの時だけ計算する
+    function makeRound(B, o) {
+      const R = {
+        B, seed: o.seed >>> 0, sigma: o.sigma, b: o.b || 4, s: makeBall(B, o.startX),
+        qL: 0, qR: 0, k: 0, steps: 0, acc: 0, phase: 'wait', open: true,
+        hist: [], hold: {}, traders: o.traders, cloud: null, cloudN: o.cloudN || 48, rec: o.rec || 0,
+        cloudEvery: o.cloudEvery !== false, cloudAfter: o.cloudAfter !== false, closeP: null, closeCloud: null, closeT: null, side: '', maker: 0,
+        ai: rng((o.seed ^ 0x5bd1e995) >>> 0),
+      };
+      for (const t of o.traders) R.hold[t.id] = { L: 0, R: 0, paid: 0 };
+      return R;
+    }
+    function roundTime(R) { return (R.k - WAIT) * R.B.DT; }
+    function roundPrice(R) { return priceL(R.qL, R.qR, R.b); }
+
+    // 買う。買えたら払った点数、締め切り後や残高が足りないときは 0 を返す
+    function roundBuy(R, t, side, n) {
+      if (!R.open) return 0;
+      const c = buyCost(R.qL, R.qR, R.b, side, n);
+      if (c > t.bal + 1e-12) return 0;
+      t.bal -= c;
+      R.maker += c;
+      if (side === 'L') R.qL += n; else R.qR += n;
+      const h = R.hold[t.id];
+      h[side] += n;
+      h.paid += c;
+      return c;
+    }
+
+    function roundCloud(R) {
+      R.cloud = cloudOf(R.B, R.s, R.cloudN, R.sigma, (Math.imul(R.seed, 7919) + R.k) >>> 0, R.rec);
+      R.cloud.step0 = R.steps;
+    }
+
+    function roundTick(R) {
+      const moving = R.phase !== 'wait';
+      if (R.cloudEvery && (moving || !R.cloud) && R.phase !== 'done' && (R.open || R.cloudAfter)) roundCloud(R);
+      const p = roundPrice(R);
+      R.hist.push([roundTime(R), p, R.cloud ? R.cloud.pL : NaN]);
+      if (!R.open) return;
+      const back = R.hist[Math.max(0, R.hist.length - 4)][1];
+      for (const t of R.traders) {
+        if (!t.rule) continue;
+        const u = R.ai();
+        for (let rep = 0; rep < (t.rule === 'cloud' ? 3 : 1); rep++) {
+          const v = { off: R.s.x - R.B.W / 2, pL: roundPrice(R), dP: roundPrice(R) - back, cloudP: R.cloud ? R.cloud.pL : 0.5 };
+          const side = aiChoice(t.rule, v, u);
+          if (!side || !roundBuy(R, t, side, 1)) break;
+        }
+      }
+    }
+
+    function roundStep(R) {
+      if (R.k % TICK === 0) roundTick(R);
+      if (R.k >= WAIT) {
+        if (R.phase === 'wait') R.phase = 'fall';
+        stepBall(R.B, R.s);
+        R.steps++;
+        if (R.open && R.s.y >= R.B.CLOSE_Y) {
+          R.open = false;
+          R.phase = 'closed';
+          R.closeT = roundTime(R);
+          R.closeP = roundPrice(R);
+          R.closeCloud = cloudOf(R.B, R.s, R.cloudN, R.sigma, (Math.imul(R.seed, 104729) + 1) >>> 0, 0).pL;
+          R.hist.push([R.closeT, R.closeP, R.closeCloud]);
+        }
+        if (R.s.done) {
+          R.phase = 'done';
+          R.side = R.s.side;
+          for (const t of R.traders) {
+            const pay = R.hold[t.id][R.side];
+            t.bal += pay;
+            R.maker -= pay;
+          }
+          R.hist.push([roundTime(R), R.side === 'L' ? 1 : 0, R.side === 'L' ? 1 : 0]);
+        }
+      }
+      R.k++;
+    }
+
+    // dt 秒（ゲームの時間）だけ進める。刻みは固定なので、画面の速さや早送りでも同じ玉の動きになる
+    function roundAdvance(R, dt) {
+      R.acc += dt;
+      while (R.acc >= R.B.DT && R.phase !== 'done') {
+        R.acc -= R.B.DT;
+        roundStep(R);
+      }
+    }
+
+    // 開始位置: 種から真ん中 ± 40 px の間に決める
+    function startOf(B, seed) {
+      return B.W / 2 + (rng(seed)() - 0.5) * 80;
+    }
+
+    // 人のいない 1 回をまとめて計算し、結果だけ返す（早送り用）
+    function playRound(B, o) {
+      const R = makeRound(B, { ...o, cloudAfter: false, startX: o.startX ?? startOf(B, o.seed) });
+      while (R.phase !== 'done') roundStep(R);
+      const profit = {};
+      for (const t of R.traders) profit[t.id] = R.hold[t.id][R.side] - R.hold[t.id].paid;
+      const start = o.startX ?? startOf(B, o.seed);
+      return { side: R.side, start, startLeft: start < B.W / 2, closeP: R.closeP, closeCloud: R.closeCloud, closeT: R.closeT, t: R.s.t, profit, maker: R.maker };
+    }
+
+    // 早送りの結果をまとめる。bins は 0.1 ごとの [回数, 言っていた確率の合計, 左に落ちた回数]
+    function summarize(res) {
+      const S = { n: res.length, brierM: 0, brierC: 0, startSide: 0, left: 0, maker: 0, profit: {}, binsM: [], binsC: [] };
+      for (let i = 0; i < 10; i++) { S.binsM.push([0, 0, 0]); S.binsC.push([0, 0, 0]); }
+      for (const r of res) {
+        const y = r.side === 'L' ? 1 : 0;
+        S.left += y;
+        S.brierM += (r.closeP - y) * (r.closeP - y);
+        S.brierC += (r.closeCloud - y) * (r.closeCloud - y);
+        if (r.startLeft === (y === 1)) S.startSide++;
+        S.maker += r.maker;
+        for (const id in r.profit) S.profit[id] = (S.profit[id] || 0) + r.profit[id];
+        const bm = S.binsM[Math.min(9, Math.floor(r.closeP * 10))];
+        const bc = S.binsC[Math.min(9, Math.floor(r.closeCloud * 10))];
+        bm[0]++; bm[1] += r.closeP; bm[2] += y;
+        bc[0]++; bc[1] += r.closeCloud; bc[2] += y;
+      }
+      if (S.n) { S.brierM /= S.n; S.brierC /= S.n; }
+      return S;
+    }
+  },
+  js() {
+    const B = makeBoard();
+    const $ = (id) => document.getElementById(id);
+    const thumb = !!window.THUMB;
+    if (thumb) document.body.classList.add('thumb');
+    const cvB = $('board'), cvC = $('chart'), cvR = $('rel');
+    const gB = cvB.getContext('2d'), gC = cvC.getContext('2d'), gR = cvR.getContext('2d');
+    const COL = { L: '#6cb4ee', R: '#f0a35e', ball: '#f6d58e', pin: '#8d93a0', wall: '#5b606c', text: '#ece8df', dim: '#9a958b', bg: '#16181d', close: '#f0b44c', mkt: '#f0b44c' };
+    const speedSel = $('speed'), sigIn = $('sig'), showCloud = $('showCloud'), useCloud = $('useCloud'), autoNext = $('auto');
+    if (thumb) useCloud.checked = true;
+
+    // 参加者。rule が空なのは画面の前の人
+    const TR = [
+      { id: 'me', name: 'あなた', rule: '', bal: 10, resets: 0 },
+      { id: 'pos', name: '位置読み', rule: 'pos', desc: '玉が真ん中から 6 px 以上ずれた側を買う', bal: 10, resets: 0 },
+      { id: 'cheap', name: '安値買い', rule: 'cheap', desc: '0.25 より安い側を買う（玉は見ない）', bal: 10, resets: 0 },
+      { id: 'trend', name: '流れ乗り', rule: 'trend', desc: '0.6 秒前より 0.04 以上値上がりした側を買う', bal: 10, resets: 0 },
+      { id: 'rand', name: '気まぐれ', rule: 'rand', desc: 'ときどき、でたらめにどちらかを買う', bal: 10, resets: 0 },
+      { id: 'cloud', name: '雲読み', rule: 'cloud', desc: '雲の確率と値段が 0.07 より離れたら、確率の高い側を買う', bal: 10, resets: 0 },
+    ];
+    const me = TR[0];
+    const BUY = [['bL1', 'L', 1], ['bR1', 'R', 1], ['bL5', 'L', 5], ['bR5', 'R', 5]];
+
+    const SUP = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
+    // 小さな数を 3.2×10⁻⁵ の形で書く
+    function fmtE(v) {
+      if (v === 0) return '0';
+      if (v >= 0.01 && v < 1e5) return String(+v.toPrecision(3));
+      const [m, e] = v.toExponential(1).split('e');
+      const ex = String(+e).replace(/./g, (c) => SUP[c]);
+      return (m === '1.0' ? '' : m + '×') + '10' + ex;
+    }
+    const sigma = () => Math.pow(10, +sigIn.value);
+    const setText = (el, s) => { if (el.textContent !== s) el.textContent = s; };
+    const sideName = (s) => (s === 'L' ? '左' : '右');
+    const signed = (v) => (v > 0.005 ? '+' : v < -0.005 ? '−' : '±') + Math.abs(v).toFixed(2);
+
+    // canvas の大きさは ResizeObserver で覚えておき、描くたびに測り直さない
+    const sizes = new Map();
+    let lastS = null;
+    const ro = new ResizeObserver((es) => {
+      for (const e of es) sizes.set(e.target, e.contentRect);
+      drawRel(lastS);
+    });
+    for (const c of [cvB, cvC, cvR]) ro.observe(c);
+    function fit(cv) {
+      const r = sizes.get(cv), d = window.devicePixelRatio || 1;
+      const W = Math.max(1, r ? r.width : cv.clientWidth), H = Math.max(1, r ? r.height : cv.clientHeight);
+      const w = Math.max(1, Math.round(W * d)), h = Math.max(1, Math.round(H * d));
+      if (cv.width !== w) cv.width = w;
+      if (cv.height !== h) cv.height = h;
+      return { W, H, d };
+    }
+
+    // 参加者の表
+    const cells = new Map();
+    const tbody = $('tbl').tBodies[0];
+    for (const t of TR) {
+      const tr = document.createElement('tr');
+      const nm = document.createElement('td');
+      nm.textContent = t.name;
+      if (t.desc) {
+        const sm = document.createElement('small');
+        sm.textContent = t.desc;
+        nm.append(sm);
+      }
+      const bal = document.createElement('td'), hold = document.createElement('td'), gain = document.createElement('td');
+      bal.className = hold.className = gain.className = 'n';
+      tr.append(nm, bal, hold, gain);
+      tbody.append(tr);
+      cells.set(t.id, { tr, bal, hold, gain });
+    }
+
+    let seed = 0, shift = 0, R = null, path = [], prev = null, chaos = null, doneAt = 0, lastPhase = '', roundNo = 0;
+
+    // mode: 'next' は次の種、'same' は同じ開始位置、'shift' は開始位置を 10⁻⁹ px ずらす
+    function newRound(mode) {
+      prev = null;
+      if (R && mode !== 'next') {
+        // 前の玉の道は、同じ開始位置から計算し直せば最後まで分かる（途中で押しても比べられる）
+        prev = { path: runToEnd(B, makeBall(B, R.x0), 2).path, x0: R.x0 };
+      }
+      if (mode === 'next') { seed++; shift = 0; }
+      else if (mode === 'shift') shift += 1e-9;
+      let note = '';
+      for (const t of TR) {
+        if (t.bal < 0.3) {
+          t.bal = 10;
+          t.resets++;
+          if (t === me) note = `残高が尽きたので 10 点に戻した（${t.resets} 回目）。`;
+        }
+        t.start = t.bal;
+      }
+      const x0 = startOf(B, seed) + shift;
+      R = makeRound(B, { seed, startX: x0, sigma: sigma(), traders: TR.filter((t) => t.rule !== 'cloud' || useCloud.checked), cloudN: thumb ? 32 : 48, rec: 6 });
+      R.x0 = x0;
+      path = [x0, B.START_Y];
+      chaos = prev ? { d0: Math.abs(x0 - prev.x0), d: Math.abs(x0 - prev.x0), t1: null, h1: 0 } : null;
+      roundNo++;
+      lastPhase = '';
+      setText($('msg'), note);
+    }
+
+    // ゲームの時間で dt 秒進める。2 歩ごとに玉の位置を残し、前の玉との差を測る
+    function advance(dt) {
+      R.sigma = sigma();
+      R.acc += dt;
+      while (R.acc >= B.DT && R.phase !== 'done') {
+        R.acc -= B.DT;
+        roundStep(R);
+        if (R.steps > 0 && R.steps % 2 === 0 && path.length === R.steps) {
+          path.push(R.s.x, R.s.y);
+          if (chaos) {
+            const j = Math.min(prev.path.length, path.length) - 2;
+            const dx = R.s.x - prev.path[j], dy = R.s.y - prev.path[j + 1];
+            chaos.d = Math.sqrt(dx * dx + dy * dy);
+            if (chaos.t1 === null && chaos.d > 1) { chaos.t1 = R.s.t; chaos.h1 = R.s.hits; }
+          }
+        }
+      }
+    }
+
+    function onPhase() {
+      lastPhase = R.phase;
+      const ph = $('phase');
+      if (R.phase === 'wait') {
+        ph.textContent = `玉 ${roundNo}（種 ${seed}${shift ? `、+${fmtE(shift)} px` : ''}）。開始位置 x = ${R.x0.toFixed(9)} px。放す前から売り買いできる。`;
+      } else if (R.phase === 'fall') {
+        ph.textContent = '落ちている。点線（締め切り）を越えるまで売り買いできる。';
+      } else if (R.phase === 'closed') {
+        ph.textContent = `締め切り。左の値段 ${R.closeP.toFixed(2)}、雲の確率 ${R.closeCloud.toFixed(2)}。`;
+      } else {
+        doneAt = performance.now();
+        const h = R.hold.me;
+        ph.textContent = `${sideName(R.side)}に着いた。あなたは左 ${h.L} 株・右 ${h.R} 株で ${signed(h[R.side] - h.paid)} 点。`;
+      }
+    }
+
+    function chaosText() {
+      if (!chaos) return '「同じ玉をもう一度」は同じ開始位置から、「10⁻⁹ px ずらして」は開始位置をほんの少し変えて落とし、前の玉の道を灰色の線で残す。';
+      if (chaos.d0 === 0) return `前の玉と同じ開始位置。今の差は ${fmtE(chaos.d)} px（同じ計算を同じ順でするので、同じ道をたどる）。`;
+      return `開始位置の差 ${fmtE(chaos.d0)} px → 今の差 ${fmtE(chaos.d)} px（ピンに ${R.s.hits} 回当たった）。`
+        + (chaos.t1 !== null ? `差が 1 px を越えたのは ${chaos.t1.toFixed(2)} 秒、${chaos.h1} 回目に当たった後。` : '');
+    }
+
+    function updateUI() {
+      const p = roundPrice(R);
+      setText($('pL'), p.toFixed(2));
+      setText($('pR'), (1 - p).toFixed(2));
+      setText($('pC'), R.cloud ? R.cloud.pL.toFixed(2) : '—');
+      for (const [id, side, n] of BUY) {
+        $(id).disabled = !R.open;
+        setText($('c' + id.slice(1)), R.open ? buyCost(R.qL, R.qR, R.b, side, n).toFixed(2) + ' 点' : '締め切り');
+      }
+      const h = R.hold.me;
+      setText($('mine'), `残高 ${me.bal.toFixed(2)} 点 ・ 左 ${h.L} 株 ・ 右 ${h.R} 株 ・ どちらに着いても受け取れる ${Math.min(h.L, h.R)} 点`);
+      for (const t of TR) {
+        const c = cells.get(t.id), hh = R.hold[t.id];
+        c.tr.classList.toggle('off', !hh);
+        setText(c.bal, t.bal.toFixed(2));
+        setText(c.hold, hh ? `左 ${hh.L}・右 ${hh.R}` : '休み');
+        setText(c.gain, !hh ? '' : R.phase === 'done' ? signed(hh[R.side] - hh.paid) : `払った ${hh.paid.toFixed(2)}`);
+      }
+      setText($('chaos'), chaosText());
+      setText($('sigO'), fmtE(sigma()) + ' px');
+    }
+
+    // 折れ線（xy が交互に並んだ配列）を i0 番目の点から描く
+    function poly(g, p, i0) {
+      const n = p.length / 2;
+      if (i0 >= n - 1) return;
+      g.moveTo(p[2 * i0], p[2 * i0 + 1]);
+      for (let i = i0 + 1; i < n; i++) g.lineTo(p[2 * i], p[2 * i + 1]);
+    }
+
+    function drawBoard() {
+      const { W, H, d } = fit(cvB), g = gB;
+      const k = Math.min(W / B.W, H / B.H) * d, ox = (W * d - B.W * k) / 2, oy = (H * d - B.H * k) / 2;
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.fillStyle = COL.bg;
+      g.fillRect(0, 0, cvB.width, cvB.height);
+      g.setTransform(k, 0, 0, k, ox, oy);
+      const mid = B.W / 2, done = R.phase === 'done';
+      // 下の受け皿。着いた側を明るくする
+      for (const side of ['L', 'R']) {
+        g.globalAlpha = done && R.side === side ? 0.45 : 0.12;
+        g.fillStyle = COL[side];
+        g.fillRect(side === 'L' ? 0 : mid, B.DIV_Y, mid, B.H - B.DIV_Y);
+      }
+      g.globalAlpha = 1;
+      g.font = '600 18px system-ui, sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillStyle = COL.L;
+      g.fillText('左', mid / 2, B.H - 28);
+      g.fillStyle = COL.R;
+      g.fillText('右', mid * 1.5, B.H - 28);
+      // 前の玉の道
+      if (prev) {
+        g.strokeStyle = '#ffffff66';
+        g.lineWidth = 1.5;
+        g.beginPath();
+        poly(g, prev.path, 0);
+        g.stroke();
+      }
+      // 雲: 写しの道を、着いた側の色で描く。計算した時より玉が進んだ分は飛ばす
+      if (showCloud.checked && R.cloud && R.cloud.paths.length && !done) {
+        const i0 = Math.max(0, Math.floor((R.steps - R.cloud.step0) / R.rec));
+        g.lineWidth = 1.2;
+        g.globalAlpha = thumb ? 0.4 : 0.3;
+        for (const side of ['L', 'R']) {
+          g.strokeStyle = COL[side];
+          g.beginPath();
+          for (const o of R.cloud.paths) if (o.side === side) poly(g, o.path, i0);
+          g.stroke();
+        }
+        g.globalAlpha = 1;
+      }
+      // 締め切りの線
+      g.setLineDash([6, 6]);
+      g.lineWidth = 1.5;
+      g.strokeStyle = R.open ? COL.close : COL.close + '66';
+      g.beginPath();
+      g.moveTo(0, B.CLOSE_Y);
+      g.lineTo(B.W, B.CLOSE_Y);
+      g.stroke();
+      g.setLineDash([]);
+      // ピン・仕切り・壁
+      g.fillStyle = COL.pin;
+      g.beginPath();
+      for (const row of B.rows) for (const x of row.xs) { g.moveTo(x + B.P, row.y); g.arc(x, row.y, B.P, 0, Math.PI * 2); }
+      g.fill();
+      g.fillStyle = COL.wall;
+      g.fillRect(mid - B.DIV_T, B.DIV_Y, B.DIV_T * 2, B.H - B.DIV_Y);
+      g.beginPath();
+      g.arc(mid, B.DIV_Y, B.DIV_T, 0, Math.PI * 2);
+      g.fill();
+      g.strokeStyle = COL.wall;
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(1, 0);
+      g.lineTo(1, B.H - 1);
+      g.lineTo(B.W - 1, B.H - 1);
+      g.lineTo(B.W - 1, 0);
+      g.stroke();
+      // 締め切りの文字は、ピンと重なっても読めるように下地を敷く
+      g.font = '12px system-ui, sans-serif';
+      g.textAlign = 'right';
+      g.textBaseline = 'middle';
+      const tw = g.measureText('締め切り').width;
+      g.fillStyle = COL.bg;
+      g.fillRect(B.W - tw - 12, B.CLOSE_Y - 9, tw + 8, 18);
+      g.fillStyle = R.open ? COL.close : COL.close + '99';
+      g.fillText('締め切り', B.W - 8, B.CLOSE_Y);
+      // 玉
+      g.fillStyle = COL.ball;
+      g.beginPath();
+      g.arc(R.s.x, R.s.y, B.R, 0, Math.PI * 2);
+      g.fill();
+    }
+
+    function drawChart() {
+      const { W, H, d } = fit(cvC), g = gC;
+      g.setTransform(d, 0, 0, d, 0, 0);
+      g.fillStyle = COL.bg;
+      g.fillRect(0, 0, W, H);
+      const L = 30, Rt = 10, T = 22, Bm = 20;
+      const t0 = -WAIT * B.DT, t1 = Math.max(6, Math.ceil(roundTime(R) + 0.5));
+      const X = (t) => L + ((t - t0) / (t1 - t0)) * Math.max(1, W - L - Rt);
+      const Y = (p) => T + (1 - p) * Math.max(1, H - T - Bm);
+      g.font = '11px system-ui, sans-serif';
+      g.lineWidth = 1;
+      g.strokeStyle = '#ffffff18';
+      g.fillStyle = COL.dim;
+      g.textAlign = 'right';
+      g.textBaseline = 'middle';
+      for (const p of [0, 0.5, 1]) {
+        g.beginPath();
+        g.moveTo(L, Y(p));
+        g.lineTo(W - Rt, Y(p));
+        g.stroke();
+        g.fillText(p.toFixed(1), L - 4, Y(p));
+      }
+      g.textAlign = 'center';
+      g.textBaseline = 'top';
+      for (let t = 0; t <= t1; t += t1 > 12 ? 2 : 1) g.fillText(t === 0 ? '0 秒' : String(t), X(t), H - Bm + 4);
+      if (R.closeT !== null) {
+        g.strokeStyle = COL.close + '99';
+        g.setLineDash([4, 4]);
+        g.beginPath();
+        g.moveTo(X(R.closeT), T);
+        g.lineTo(X(R.closeT), H - Bm);
+        g.stroke();
+        g.setLineDash([]);
+      }
+      const pts = R.hist.slice();
+      if (R.phase !== 'done') pts.push([roundTime(R), roundPrice(R), R.cloud ? R.cloud.pL : NaN]);
+      for (const [i, col, dash] of [[2, COL.L, [5, 4]], [1, COL.text, []]]) {
+        g.strokeStyle = col;
+        g.lineWidth = 1.8;
+        g.setLineDash(dash);
+        g.beginPath();
+        let first = true;
+        for (const q of pts) {
+          if (Number.isNaN(q[i])) { first = true; continue; }
+          if (first) g.moveTo(X(q[0]), Y(q[i]));
+          else g.lineTo(X(q[0]), Y(q[i]));
+          first = false;
+        }
+        g.stroke();
+      }
+      g.setLineDash([]);
+      // 凡例
+      g.textAlign = 'left';
+      g.textBaseline = 'middle';
+      g.strokeStyle = COL.text;
+      g.beginPath();
+      g.moveTo(L + 2, 10);
+      g.lineTo(L + 20, 10);
+      g.stroke();
+      g.fillStyle = COL.text;
+      g.fillText('左の値段', L + 24, 10);
+      // 幅が狭いときは短い名前にして、はみ出さないようにする
+      const narrow = W - L < 260, x2 = narrow ? L + 80 : L + 90;
+      g.strokeStyle = COL.L;
+      g.setLineDash([5, 4]);
+      g.beginPath();
+      g.moveTo(x2, 10);
+      g.lineTo(x2 + 18, 10);
+      g.stroke();
+      g.setLineDash([]);
+      g.fillStyle = COL.L;
+      g.fillText(narrow ? '雲の確率' : '雲の確率（左）', x2 + 22, 10);
+    }
+
+    // 信頼度の図: 横は締め切りの時に言っていた確率、縦は実際に左へ着いた割合。斜めの線に乗るほど当たっている
+    function drawRel(S) {
+      const { W, H, d } = fit(cvR), g = gR;
+      g.setTransform(d, 0, 0, d, 0, 0);
+      g.fillStyle = COL.bg;
+      g.fillRect(0, 0, W, H);
+      const L = 44, T = 30, sz = Math.max(1, Math.min(W - L - 14, H - T - 40));
+      const X = (p) => L + p * sz, Y = (p) => T + (1 - p) * sz;
+      g.font = '11px system-ui, sans-serif';
+      g.strokeStyle = '#ffffff18';
+      g.lineWidth = 1;
+      g.fillStyle = COL.dim;
+      for (const p of [0, 0.5, 1]) {
+        g.beginPath();
+        g.moveTo(X(0), Y(p));
+        g.lineTo(X(1), Y(p));
+        g.moveTo(X(p), Y(0));
+        g.lineTo(X(p), Y(1));
+        g.stroke();
+        g.textAlign = 'right';
+        g.textBaseline = 'middle';
+        g.fillText(p.toFixed(1), X(0) - 4, Y(p));
+        g.textAlign = 'center';
+        g.textBaseline = 'top';
+        g.fillText(p.toFixed(1), X(p), Y(0) + 4);
+      }
+      g.strokeStyle = '#ffffff40';
+      g.setLineDash([3, 4]);
+      g.beginPath();
+      g.moveTo(X(0), Y(0));
+      g.lineTo(X(1), Y(1));
+      g.stroke();
+      g.setLineDash([]);
+      g.textAlign = 'left';
+      g.textBaseline = 'bottom';
+      g.fillText('↑ 実際に左へ着いた割合', 6, T - 8);
+      g.textBaseline = 'top';
+      g.fillText('締め切りの時の値段・雲の確率（左）→', X(0), Y(0) + 20);
+      if (!S) {
+        g.fillStyle = COL.text;
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.fillText('「AI だけでまわす」を押すと、ここに結果が出る', X(0.5), Y(0.5));
+        return;
+      }
+      for (const [bins, col, sq] of [[S.binsM, COL.mkt, false], [S.binsC, COL.L, true]]) {
+        const pts = bins.filter((b) => b[0]).map((b) => [b[1] / b[0], b[2] / b[0], b[0]]);
+        g.strokeStyle = col;
+        g.globalAlpha = 0.6;
+        g.lineWidth = 1.2;
+        g.beginPath();
+        pts.forEach(([x, y], i) => (i ? g.lineTo(X(x), Y(y)) : g.moveTo(X(x), Y(y))));
+        g.stroke();
+        g.globalAlpha = 1;
+        for (const [x, y, n] of pts) {
+          const r = Math.min(11, 2.5 + Math.sqrt(n) * 0.9);
+          g.beginPath();
+          if (sq) {
+            g.lineWidth = 1.6;
+            g.strokeRect(X(x) - r, Y(y) - r, r * 2, r * 2);
+          } else {
+            g.fillStyle = col;
+            g.arc(X(x), Y(y), r, 0, Math.PI * 2);
+            g.fill();
+          }
+        }
+      }
+      g.textBaseline = 'middle';
+      g.fillStyle = COL.mkt;
+      g.beginPath();
+      g.arc(X(0.04), T + 8, 4, 0, Math.PI * 2);
+      g.fill();
+      g.fillText('値段', X(0.04) + 8, T + 8);
+      g.strokeStyle = COL.L;
+      g.strokeRect(X(0.04) - 4, T + 22, 8, 8);
+      g.fillStyle = COL.L;
+      g.fillText('雲の確率', X(0.04) + 8, T + 26);
+      g.fillStyle = COL.dim;
+      g.fillText('印の大きさは回数', X(0.04) - 4, T + 44);
+    }
+
+    for (const [id, side, n] of BUY) {
+      $(id).addEventListener('click', () => {
+        if (!R.open) { setText($('msg'), '締め切った後は買えない。'); return; }
+        const c = roundBuy(R, me, side, n);
+        setText($('msg'), c ? `${sideName(side)}を ${n} 株、${c.toFixed(2)} 点で買った。` : `残高が足りない（${buyCost(R.qL, R.qR, R.b, side, n).toFixed(2)} 点要る）。`);
+      });
+    }
+    $('next').addEventListener('click', () => newRound('next'));
+    $('same').addEventListener('click', () => newRound('same'));
+    $('shift').addEventListener('click', () => newRound('shift'));
+
+    // 早送り: 画面なしで 1 回ずつ計算し、40 ms ごとに画面へ順番を返す
+    const yieldNow = () => (globalThis.scheduler && scheduler.yield ? scheduler.yield() : new Promise((r) => setTimeout(r, 0)));
+    let running = false;
+    $('run').addEventListener('click', async () => {
+      if (running) return;
+      running = true;
+      const btn = $('run'), prog = $('prog');
+      btn.disabled = true;
+      prog.hidden = false;
+      prog.value = 0;
+      const N = +$('runN').value, sg = sigma(), withCloud = useCloud.checked;
+      const tr = TR.filter((t) => t.rule && (t.rule !== 'cloud' || withCloud)).map((t) => ({ id: t.id, rule: t.rule, bal: 1e9 }));
+      const res = [], t0 = performance.now();
+      let tY = t0;
+      for (let i = 0; i < N; i++) {
+        res.push(playRound(B, { seed: 100000 + i, sigma: sg, traders: tr, cloudN: 24, cloudEvery: withCloud }));
+        if (performance.now() - tY > 40) {
+          prog.value = (i + 1) / N;
+          await yieldNow();
+          tY = performance.now();
+        }
+      }
+      const sec = (performance.now() - t0) / 1000;
+      const S = summarize(res);
+      lastS = S;
+      drawRel(S);
+      const names = Object.fromEntries(TR.map((t) => [t.id, t.name]));
+      $('relInfo').textContent = `${N} 回（σ = ${fmtE(sg)} px、雲読み ${withCloud ? 'あり' : 'なし'}、${sec.toFixed(1)} 秒、1 回 ${(sec * 1000 / N).toFixed(1)} ms）\n`
+        + `締め切りの時の外れ具合（Brier スコア。0 が完全、いつも 0.5 と言うと 0.25）: 値段 ${S.brierM.toFixed(3)}、雲の確率 ${S.brierC.toFixed(3)}\n`
+        + `左に着いた ${S.left} 回、開始位置と同じ側に着いた ${(S.startSide / N * 100).toFixed(0)}%\n`
+        + `AI の損得の合計: ${tr.map((t) => `${names[t.id]} ${signed(S.profit[t.id] || 0)}`).join('、')}\n`
+        + `胴元（LMSR）の損得: ${signed(S.maker)}（1 回の損は多くても 4·ln 2 ≈ 2.77 点）`;
+      prog.hidden = true;
+      btn.disabled = false;
+      running = false;
+    });
+
+    let last = performance.now();
+    function frame(now) {
+      const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+      last = now;
+      if (R.phase !== 'done') advance(dt * +speedSel.value);
+      else if ((autoNext.checked || thumb) && now - doneAt > (thumb ? 1500 : 3500)) newRound('next');
+      if (R.phase !== lastPhase) onPhase();
+      updateUI();
+      drawBoard();
+      drawChart();
+      requestAnimationFrame(frame);
+    }
+    newRound('next');
+    drawRel(null);
+    requestAnimationFrame(frame);
+  },
+});

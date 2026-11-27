@@ -3361,3 +3361,103 @@ test('見えない文字: 5 通の判定（詐欺の 4 通は怪しい、本物�
   assert.ok(d.count.diAll > 60 && d.count.article === 0);
   assert.match(d.tags[0], /^AI assistant: /);
 });
+
+const BOUNCE = 'tr-20261128-bounce-market';
+
+test('玉の市場: LMSR の値段と代金（和は 1、左右 1 株ずつでちょうど 1 点、胴元の損は b·ln 2 まで）', () => {
+  const { lmsrCost, priceL, buyCost } = trendCore(BOUNCE, ['lmsrCost', 'priceL', 'buyCost']);
+  assert.equal(priceL(0, 0, 4), 0.5);
+  assert.ok(near(priceL(3, 1, 4) + priceL(1, 3, 4), 1, 1e-12));
+  assert.ok(near(buyCost(0, 0, 4, 'L', 1), 4 * Math.log((Math.exp(0.25) + 1) / 2), 1e-12));
+  assert.ok(near(buyCost(0, 0, 4, 'L', 1) + buyCost(1, 0, 4, 'R', 1), 1, 1e-12));
+  assert.ok(near(buyCost(2, 5, 4, 'L', 3), lmsrCost(5, 5, 4) - lmsrCost(2, 5, 4), 1e-12));
+  assert.ok(priceL(1, 0, 4) > 0.5 && priceL(0, 1, 4) < 0.5);
+  // 大きな数でもあふれない
+  assert.ok(Number.isFinite(lmsrCost(5000, 0, 4)) && near(priceL(5000, 0, 4), 1));
+  // どんな順に買われても、胴元の損（払う最大の点数 − 受け取った代金）は b·ln 2 を超えない
+  for (const pattern of ['LLLLLLLLLLLLLLLLLLLL', 'LRLRRRLLRLRRRRLLLRLR', 'RRRRRRRRRRLLLLLLLLLLL']) {
+    let qL = 0, qR = 0, got = 0;
+    for (const side of pattern) {
+      got += buyCost(qL, qR, 4, side, 1);
+      if (side === 'L') qL++; else qR++;
+    }
+    assert.ok(Math.max(qL, qR) - got <= 4 * Math.LN2 + 1e-9, pattern);
+  }
+});
+
+test('玉の市場: 同じ開始位置なら同じ道、10⁻⁹ px ずらすと多くの玉で着く位置が変わる', () => {
+  const { makeBoard, makeBall, runToEnd, startOf } = trendCore(BOUNCE, ['makeBoard', 'makeBall', 'runToEnd', 'startOf']);
+  const B = makeBoard();
+  // 壁とピンのすき間、ピンどうしのすき間は玉の直径より広い（挟まらない）
+  for (const row of B.rows) {
+    assert.ok(row.xs[0] - B.P > 2 * B.R && B.W - row.xs[row.xs.length - 1] - B.P > 2 * B.R);
+    for (let i = 1; i < row.xs.length; i++) assert.ok(row.xs[i] - row.xs[i - 1] - 2 * B.P > 2 * B.R);
+  }
+  let moved = 0;
+  for (let i = 1; i <= 40; i++) {
+    const x = startOf(B, i);
+    assert.ok(x > B.W / 2 - 40 && x < B.W / 2 + 40);
+    const a = runToEnd(B, makeBall(B, x)), b = runToEnd(B, makeBall(B, x));
+    assert.equal([a.x, a.t, a.side, a.hits].join(','), [b.x, b.t, b.side, b.hits].join(','));
+    assert.ok(a.t < B.LIMIT && a.x >= B.R && a.x <= B.W - B.R);
+    assert.equal(a.side, a.x < B.W / 2 ? 'L' : 'R');
+    const c = runToEnd(B, makeBall(B, x + 1e-9));
+    if (Math.abs(c.x - a.x) > 1) moved++;
+  }
+  assert.equal(moved, 28);
+});
+
+test('玉の市場: 誤差 0 の雲は本物と同じ側だけ、AI の決まり', () => {
+  const { makeBoard, makeBall, runToEnd, cloudOf, startOf, aiChoice } = trendCore(BOUNCE, ['makeBoard', 'makeBall', 'runToEnd', 'cloudOf', 'startOf', 'aiChoice']);
+  const B = makeBoard();
+  for (let i = 1; i <= 5; i++) {
+    const s = makeBall(B, startOf(B, i));
+    const side = runToEnd(B, s).side;
+    const c = cloudOf(B, s, 6, 0, 1, 3);
+    assert.equal(c.pL, side === 'L' ? 1 : 0);
+    assert.equal(c.paths.length, 6);
+  }
+  assert.equal(aiChoice('cheap', { pL: 0.2 }, 0), 'L');
+  assert.equal(aiChoice('cheap', { pL: 0.8 }, 0), 'R');
+  assert.equal(aiChoice('cheap', { pL: 0.2 }, 0.9), '');
+  assert.equal(aiChoice('pos', { off: -10, pL: 0.5 }, 0), 'L');
+  assert.equal(aiChoice('pos', { off: -10, pL: 0.9 }, 0), '');
+  assert.equal(aiChoice('pos', { off: 3, pL: 0.5 }, 0), '');
+  assert.equal(aiChoice('trend', { pL: 0.6, dP: 0.05 }, 0), 'L');
+  assert.equal(aiChoice('trend', { pL: 0.4, dP: -0.05 }, 0), 'R');
+  assert.equal(aiChoice('cloud', { pL: 0.5, cloudP: 0.8 }, 0.99), 'L');
+  assert.equal(aiChoice('cloud', { pL: 0.5, cloudP: 0.2 }, 0.99), 'R');
+  assert.equal(aiChoice('cloud', { pL: 0.5, cloudP: 0.55 }, 0), '');
+});
+
+test('玉の市場: 1 回の勝負は種で決まり、点数は胴元と参加者の間で増えも減りもしない', () => {
+  const { makeBoard, playRound, makeRound, roundBuy, roundStep, summarize } = trendCore(BOUNCE, ['makeBoard', 'playRound', 'makeRound', 'roundBuy', 'roundStep', 'summarize']);
+  const B = makeBoard();
+  const mk = () => [{ id: 'pos', rule: 'pos', bal: 100 }, { id: 'cheap', rule: 'cheap', bal: 100 }, { id: 'trend', rule: 'trend', bal: 100 }, { id: 'rand', rule: 'rand', bal: 100 }];
+  const t1 = mk(), t2 = mk();
+  const a = playRound(B, { seed: 7, sigma: 0.5, traders: t1, cloudN: 8, cloudEvery: false });
+  const b = playRound(B, { seed: 7, sigma: 0.5, traders: t2, cloudN: 8, cloudEvery: false });
+  assert.equal([a.side, a.closeP, a.closeCloud, a.maker, a.t].join(','), [b.side, b.closeP, b.closeCloud, b.maker, b.t].join(','));
+  assert.ok(a.closeT > 0 && a.closeT < a.t);
+  const sumProfit = Object.values(a.profit).reduce((x, y) => x + y, 0);
+  assert.ok(near(sumProfit + a.maker, 0, 1e-9));
+  assert.ok(near(t1.reduce((x, t) => x + t.bal, 0) + a.maker, 400, 1e-9));
+  // 締め切った後は買えない。残高が足りなくても買えない
+  const R = makeRound(B, { seed: 7, startX: 180.3, sigma: 0.5, traders: [{ id: 'me', rule: '', bal: 10 }, { id: 'poor', rule: '', bal: 0.1 }], cloudN: 4, cloudEvery: false });
+  const [me, poor] = R.traders;
+  assert.ok(roundBuy(R, me, 'L', 1) > 0.5);
+  assert.equal(roundBuy(R, poor, 'R', 1), 0);
+  assert.equal([R.qL, R.qR, R.hold.me.L, R.hold.poor.R].join(','), '1,0,1,0');
+  while (R.open) roundStep(R);
+  assert.equal(roundBuy(R, me, 'L', 1), 0);
+  while (R.phase !== 'done') roundStep(R);
+  assert.ok(near(me.bal, 10 - R.hold.me.paid + R.hold.me[R.side], 1e-12));
+  // まとめ
+  const S = summarize([
+    { side: 'L', closeP: 0.8, closeCloud: 1, startLeft: true, maker: -1, profit: { x: 1 } },
+    { side: 'R', closeP: 0.3, closeCloud: 0, startLeft: true, maker: 0.5, profit: { x: -0.5 } },
+  ]);
+  assert.ok(near(S.brierM, 0.065, 1e-12) && S.brierC === 0);
+  assert.equal([S.n, S.left, S.startSide, S.maker, S.profit.x].join(','), '2,1,1,-0.5,0.5');
+  assert.equal([S.binsM[8].join(' '), S.binsM[3].join(' '), S.binsC[9].join(' '), S.binsC[0].join(' ')].join(','), '1 0.8 1,1 0.3 0,1 1 1,1 0 0');
+});
