@@ -1,0 +1,17 @@
+/* プレーヤーだけのページ: いつも「ページいっぱい」の形（部品の見た目は ../player-ui.css） */
+* { box-sizing: border-box; }
+html, body { block-size: 100%; }
+/* 拡張機能などがページの末尾に何かを足しても、スクロールを出さない（プレーヤーは画面に固定してある） */
+html { overflow: hidden; }
+body { margin: 0; background: #07090b; color-scheme: dark; }
+
+/* 動画の撮影（?capture=1）: 1920×1080 の Canvas だけを出す */
+.capture .wp.is-fit { position: static; display: block; block-size: auto; inline-size: auto; }
+.capture .wp .wp-stage { container-type: normal; padding: 0; display: block; }
+.capture .wp .wp-bar { display: none; }
+.capture .wp canvas { inline-size: 1920px; block-size: 1080px; }
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap; border: 0;
+}

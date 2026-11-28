@@ -26,6 +26,7 @@ const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml',
   '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.ico': 'image/x-icon', '.txt': 'text/plain; charset=utf-8',
+  '.m4a': 'audio/mp4', '.mp4': 'video/mp4', '.vtt': 'text/vtt; charset=utf-8', '.bin': 'application/octet-stream',
 };
 
 await mkdir(LOG_DIR, { recursive: true });
@@ -146,7 +147,19 @@ const server = createServer(async (req, res) => {
       serverLog(`server.404 args={"path":${JSON.stringify(path)}} result=404`);
       return;
     }
-    res.writeHead(200, { 'content-type': TYPES[extname(file)] || 'application/octet-stream', 'cache-control': 'no-store' });
+    const type = TYPES[extname(file)] || 'application/octet-stream';
+    // 動画と音は途中から読めるようにする（<video> の早送りに要る）
+    const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+    if (range && /^(video|audio)\//.test(type)) {
+      const start = range[1] ? Number(range[1]) : Math.max(0, st.size - Number(range[2]));
+      const end = range[1] && range[2] ? Math.min(Number(range[2]), st.size - 1) : st.size - 1;
+      if (start > end || start >= st.size) { res.writeHead(416, { 'content-range': `bytes */${st.size}` }).end(); return; }
+      const buf = await readFile(file);
+      res.writeHead(206, { 'content-type': type, 'content-range': `bytes ${start}-${end}/${st.size}`, 'accept-ranges': 'bytes', 'content-length': end - start + 1, 'cache-control': 'no-store' });
+      res.end(buf.subarray(start, end + 1));
+      return;
+    }
+    res.writeHead(200, { 'content-type': type, 'cache-control': 'no-store', ...(/^(video|audio)\//.test(type) ? { 'accept-ranges': 'bytes' } : {}) });
     res.end(await readFile(file));
   } catch (err) {
     serverLog(`server.error args={"url":${JSON.stringify(req.url)}} result=${JSON.stringify(err.message)}`);

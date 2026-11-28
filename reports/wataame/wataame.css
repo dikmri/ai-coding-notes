@@ -1,0 +1,103 @@
+/* reports/wataame/ のページの体裁。css/site.css の上に重ねる */
+:root {
+  /* グラフの色。reports/fft/ で明暗とも検査した 2 色を使う（1 版 = s1、2 版 = s2） */
+  --viz-surface: light-dark(#fffdf7, #1b1914);
+  --viz-muted: light-dark(#7d7465, #8a8170);
+  --viz-grid: light-dark(#e6dfcf, #2e2a24);
+  --viz-axis: light-dark(#c9bfab, #4a443a);
+  --viz-s1: light-dark(#2a78d6, #3987e5);
+  --viz-s2: light-dark(#eb6834, #d95926);
+}
+[hidden] { display: none !important; }
+
+body { font-size: 0.9375rem; }
+.report { max-inline-size: 60rem; margin-inline: auto; padding: 2rem 1rem 5rem; }
+.report :is(p, ul, ol, .note, details) { max-inline-size: 46rem; }
+.report p, .report li { text-wrap: pretty; }
+.report a { overflow-wrap: anywhere; }
+.kicker { margin: 0; color: var(--ink-2); font-weight: 600; font-size: 0.875rem; }
+.report h1 { margin: 0.2em 0 0.4em; font: 800 clamp(1.6rem, 1.2rem + 1.6vw, 2.4rem)/1.3 var(--serif); text-wrap: balance; }
+.lede { font-size: 1.0625rem; }
+.report h2 { margin: 3.5rem 0 1rem; padding-top: 0.6em; border-top: 2px solid var(--ink); font: 700 clamp(1.25rem, 1.1rem + 0.6vw, 1.6rem)/1.4 var(--serif); text-wrap: balance; }
+.report h3 { margin: 2.2rem 0 0.6rem; font-size: 1.0625rem; }
+.report figure { margin: 1.5rem 0; }
+.report figure img, .report figure video { display: block; inline-size: 100%; block-size: auto; border-radius: var(--r); border: 1px solid var(--rule); }
+.report figure video { aspect-ratio: 16 / 9; background: #f9d7e6; }
+.report figcaption { margin-top: 0.4rem; color: var(--ink-2); font-size: 0.875rem; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: 1rem; margin: 1.5rem 0 0.4rem; }
+.pair figure { margin: 0; }
+.small { color: var(--ink-2); font-size: 0.875rem; }
+.note { margin: 1.5rem 0; padding: 1rem 1.2rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
+.note > :first-child { margin-top: 0; }
+.note > :last-child { margin-bottom: 0; }
+.table-wrap { overflow: auto; max-inline-size: 100%; margin: 1rem 0 1.5rem; container-type: inline-size; }
+.table-wrap:focus-visible { outline-offset: 2px; }
+@container (width < 34rem) {
+  .report table.stack, .report table.stack :is(caption, tbody, tr, th, td) { display: block; }
+  .report table.stack thead { display: none; }
+  .report table.stack tr { padding: 0.6em 0; border-bottom: 1px solid var(--rule); }
+  .report table.stack :is(th, td) { padding: 0.1em 0; border: 0; }
+  .report table.stack td[data-label]::before { content: attr(data-label) "　"; color: var(--ink-2); font-size: 0.8125rem; font-weight: 600; }
+}
+.report table { border-collapse: collapse; font-size: 0.9375rem; }
+.report caption { text-align: start; font-weight: 700; padding-bottom: 0.4rem; }
+.report th, .report td { padding: 0.45em 0.8em; border-bottom: 1px solid var(--rule); text-align: start; vertical-align: top; }
+.report thead th { border-bottom: 2px solid var(--ink-3); text-wrap: balance; }
+.report tbody th { font-weight: 600; }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.code { margin: 0.8rem 0 1.2rem; padding: 1rem 1.2rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); font: 0.8125rem/1.7 var(--mono); max-inline-size: 100%; overflow: auto; tab-size: 2; white-space: pre; }
+.steps { padding-inline-start: 1.4em; }
+.steps > li { margin: 0 0 1.4rem; max-inline-size: 46rem; }
+.steps > li > strong:first-child { display: block; margin-bottom: 0.3rem; }
+.foot { margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--rule); color: var(--ink-2); font-size: 0.875rem; }
+
+/* 再生ページへのボタン */
+.cta { display: flex; flex-wrap: wrap; gap: 0.8rem; align-items: center; margin: 1rem 0 0.5rem; }
+.cta a.go {
+  display: inline-block; padding: 0.6em 1.3em; border-radius: 999px; font-weight: 800;
+  background: var(--accent, #c23b22); color: #fff; text-decoration: none;
+}
+.cta a.go:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+
+/* 曲の構成の帯 */
+.sections { display: flex; inline-size: 100%; margin: 1rem 0 0.4rem; border-radius: var(--r); overflow: hidden; border: 1px solid var(--rule); }
+.sections > div { padding: 0.5em 0.4em; min-inline-size: 0; font-size: 0.8125rem; line-height: 1.35; color: #26305c; }
+.sections b { display: block; font-size: 0.875rem; }
+.sections .s-intro, .sections .s-outro { background: #f6d6e7; }
+.sections .s-verse { background: #c4e6ff; }
+.sections .s-build { background: #ffe7a6; }
+.sections .s-drop { background: #ffbcdc; }
+.sections .s-break { background: #ffd0b4; }
+
+/* 和音の帯（拍の数に比べた幅） */
+.chordline { display: flex; gap: 3px; margin: 0.6rem 0 0.2rem; overflow-x: auto; padding-bottom: 4px; }
+.chordline span { flex: 0 0 auto; padding: 0.35em 0.4em; border-radius: 8px; background: var(--card); border: 1px solid var(--rule); font-weight: 700; font-size: 0.8125rem; line-height: 1.3; text-align: center; }
+.chordline span small { display: block; color: var(--ink-2); font-weight: 600; }
+
+/* グラフ */
+.chart { margin: 1.5rem 0; }
+.chart svg { display: block; inline-size: 100%; block-size: auto; overflow: visible; }
+.chart .legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; margin: 0.4rem 0; font-size: 0.875rem; color: var(--ink-2); }
+.chart .legend i { display: inline-block; inline-size: 0.9em; block-size: 0.9em; border-radius: 3px; margin-inline-end: 0.35em; vertical-align: -0.1em; }
+.chart .legend .s1 { background: var(--viz-s1); }
+.chart .legend .s2 { background: var(--viz-s2); }
+.chart text { fill: var(--ink-2); font-size: 12px; font-family: inherit; }
+.chart .grid { stroke: var(--viz-grid); stroke-width: 1; }
+.chart .axis { stroke: var(--viz-axis); stroke-width: 1; }
+.chart .s1 { fill: var(--viz-s1); }
+.chart .s2 { fill: var(--viz-s2); }
+.chart .l1 { stroke: var(--viz-s1); stroke-width: 2; fill: none; }
+.chart .l2 { stroke: var(--viz-s2); stroke-width: 2; fill: none; }
+.chart .mark:hover { opacity: 0.75; }
+.chart details { margin-top: 0.4rem; font-size: 0.875rem; }
+.chart details summary { cursor: pointer; color: var(--ink-2); }
+.grid-pair { display: grid; gap: 1rem; }
+
+/* チョップの母音のカード */
+.vowels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: 0.6rem; }
+.vowels .chart { margin: 0; padding: 0.6rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
+.vowels h4 { margin: 0 0 0.2rem; font-size: 1rem; }
+
+audio { inline-size: 100%; max-inline-size: 30rem; }
+.listen { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 1rem; margin: 1rem 0; }
+.listen figure { margin: 0; padding: 0.8rem 1rem; border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
