@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 21 章 本物の X サーバーと切り分け ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="本物の X サーバーで kargui の X11 の版を確かめました。Hyprland を通らない環境で X11 にだけある所を試し、倍率の追い方・日本語入力の答えを待つ間に消えた Ctrl・最小化した窓の描き直し・開くたびにずれる窓を直しました。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 21 章</p>
+  <h1>本物の X サーバーと切り分け</h1>
+  <p class="lede">0.4 の次の段階として、本物の X サーバーで kargui の X11 の版を確かめました。検証機に Hyprland を通らない環境を 2 つ用意し、X11 にだけある所を順に試して、不具合を 4 つ直しました。途中で作者から質問があり、最小化した窓の描き直しの決め方も話し合いました。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>Hyprland が原因の不具合と X11 が原因の不具合を、環境を分けて切り分ける方法</li>
+      <li>開いたまま表示の倍率が変わった時に、X11 のアプリが追う仕組み</li>
+      <li>日本語入力の答えを待つ間に、Ctrl が消えた理由</li>
+      <li>最小化した窓の描き直しを減らしても、中身の処理を遅らせない作り方</li>
+      <li>窓の管理役の枠を数に入れないと、開くたびに窓がずれる理由</li>
+    </ul>
+  </section>
+
+  <h2 id="envs">3 つの X11 の環境</h2>
+  <p>検証機の普段の画面は Hyprland（Wayland の合成）です。X11 のアプリも動きますが、Hyprland の中の Xwayland が間に入ります。作者からは「Hyprland が原因の不具合と X11 が原因の不具合を、今は分けられないのでは」と聞かれました。</p>
+  <p>実は、確かめには Hyprland を通らない X サーバーを使っていました。3 つの環境を並べます。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-envs">
+    <table>
+      <caption id="t-envs">検証機の X11 の環境</caption>
+      <thead><tr><th scope="col">環境</th><th scope="col">中身</th><th scope="col">Hyprland</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Xvfb と openbox</th><td data-label="中身">画面を持たない X サーバー。画面を切り替えずに確かめられる</td><td data-label="Hyprland">関わらない</td></tr>
+        <tr><th scope="row">本物の Xorg と openbox</th><td data-label="中身">ノートの画面と入力の装置を、X サーバーが直接使う。2 つ目の仮想端末（vt2）で動かし、Hyprland は 1 つ目に残す</td><td data-label="Hyprland">関わらない</td></tr>
+        <tr><th scope="row">Xwayland</th><td data-label="中身">Hyprland の中で X11 のアプリを出す</td><td data-label="Hyprland">関わる</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>上の 2 つで出る不具合は、X11 そのものか kargui の X11 の版が原因です。Xwayland だけで出る不具合は、Hyprland か Xwayland が原因です。この章の不具合は、どれも Hyprland を通らない環境で再現してから直しました。なお、Hyprland の上の kargui は既定で Wayland の版を使います。X11 の版が Xwayland で動くのは、<code>KARGUI_BACKEND=x11</code> で選んだ時だけです。</p>
+  <p>窓の管理役には openbox を使いました。X11 では、題の帯を描くのも窓を置くのも窓の管理役です。openbox は題の帯の付いた枠で窓を包みます。枠の厚さは、左右が 1、上が 24、下が 5 画素でした。</p>
+
+  <h2 id="dpi">開いたまま倍率を追う</h2>
+  <p>X11 のアプリは、表示の倍率を X のリソースの <code>Xft.dpi</code> から読みます。96 なら 1 倍、144 なら 1.5 倍です。kargui はこれを、開いた時に 1 回読むだけでした。Windows には倍率が変わった知らせ（WM_DPICHANGED）がありますが、X11 にはありません。</p>
+  <p>そこで、<code>Xft.dpi</code> の入っている根の窓の値（<code>RESOURCE_MANAGER</code>）を見張ることにしました。値が変わると、X サーバーが PropertyNotify という知らせを送ります。その時に読み直し、倍率が変わっていれば、窓の論理の大きさ（倍率 1 の時の大きさ）を保って画素の大きさを変えます。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-dpi">
+    <table>
+      <caption id="t-dpi">Xft.dpi を変えた時の窓（Xvfb）</caption>
+      <thead><tr><th scope="col">Xft.dpi</th><th scope="col">倍率</th><th scope="col">窓の大きさ</th><th scope="col">最小の大きさ</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">144（開いた時）</th><td data-label="倍率">1.5</td><td data-label="窓の大きさ">1350 × 930</td><td data-label="最小の大きさ">900 × 600</td></tr>
+        <tr><th scope="row">96</th><td data-label="倍率">1</td><td data-label="窓の大きさ">900 × 620</td><td data-label="最小の大きさ">600 × 400</td></tr>
+        <tr><th scope="row">192</th><td data-label="倍率">2</td><td data-label="窓の大きさ">1800 × 1240</td><td data-label="最小の大きさ">1200 × 800</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>窓の最小の大きさも、窓の管理役へ画素の数で伝えています（WM_NORMAL_HINTS）。これを新しい倍率で送り直さないと、倍率を下げた時に窓を小さくできません。直す途中でこれに気づき、倍率が変わるたびに送り直すようにしました。本物の Xorg では、96 の時に 300 × 200 へ縮めようとすると、600 × 400 で止まりました。そこから 192 に変えると、窓は 1200 × 800 になりました。</p>
+  <!-- gen:dpi -->
+<div class="pair">
+  <figure class="shot flat"><picture><img src="img/x11real/dpi96-light.webp" alt="openbox の枠の付いた部品の見本の窓。小さく、左に部品の一覧、右にボタンのページ" width="602" height="427" loading="lazy" decoding="async"></picture><figcaption><code>Xft.dpi</code> が 96（倍率 1）。最小の 600 × 400 まで縮めた窓（本物の Xorg）。</figcaption></figure>
+  <figure class="shot flat"><picture><img src="img/x11real/dpi192-light.webp" alt="同じ窓を 2 倍の画素で描いた絵。文字とボタンが大きく、並び方は左の絵と同じ" width="1202" height="827" loading="lazy" decoding="async"></picture><figcaption>そのまま 192（倍率 2）に変えた。論理の大きさは同じで、画素は 1200 × 800。</figcaption></figure>
+</div>
+<!-- /gen:dpi -->
+
+  <h2 id="wait">止まって見えた待ち方</h2>
+  <p>倍率の確かめの途中で、作者から「止まっているように見える」と言われました。調べると、試験と組み立ては 30 分以上前に通っていました。止まっていたのは、私が書いた「終わるのを待つ」命令です。</p>
+  <pre><code>until s=$(systemctl --user is-active 単位) &amp;&amp; [ "$s" != active ]; do sleep 15; done</code></pre>
+  <p><code>systemctl is-active</code> は、終わった単位に inactive と出し、終了コード 3 で終わります。そのため <code>&amp;&amp;</code> の右の比べが行われず、条件はいつまでも偽のままでした。同じ日に 2 回目の誤りでした。今は、終わるまで戻らない <code>systemd-run --wait</code> か、そのプロセスが終わるまで待つ <code>tail --pid</code> を使っています。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい書き方: 状態を出す命令の終了コードを、成功かどうかに使う</span>
+    <p><code>systemctl is-active</code> のように、状態を文字で出す命令は、状態によって終了コードを変えます。待つ条件に <code>&amp;&amp;</code> でつなぐと、待ちたい状態になった時に限って条件が成り立ちません。終わりを待つ時は、終わるまで戻らない形の命令を使ってください。</p>
+  </div>
+
+  <h2 id="checks">X11 にだけある所を試す</h2>
+  <p>Wayland では、合成が窓の絵を覚えていて、窓の位置はアプリから見えません。X11 では、アプリと窓の管理役の受け持ちが違います。そこで、X11 にだけある所を選んで試しました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-checks">
+    <table>
+      <caption id="t-checks">X11 だけの環境で試したこと</caption>
+      <thead><tr><th scope="col">試したこと</th><th scope="col">結果</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">隠れた後の描き直し</th><td data-label="結果">問題なし。ほかの窓（xlogo）を重ねて閉じた後、窓の中身が前と同じ</td></tr>
+        <tr><th scope="row">ほかのアプリとのクリップボード</th><td data-label="結果">問題なし。xclip と日本語を受け渡せた。2 MB の往復は、受け取りを分割の形（INCR）で受けた</td></tr>
+        <tr><th scope="row">キーの押し続け</th><td data-label="結果">問題なし。1.5 秒の押し続けで x が 23 回入った</td></tr>
+        <tr><th scope="row">ほかのアプリからファイルを落とす</th><td data-label="結果">問題なし（下の写真）</td></tr>
+        <tr><th scope="row">2 MB を貼った後の Ctrl+A と Ctrl+C</th><td data-label="結果">直した（次の節）</td></tr>
+        <tr><th scope="row">最小化した間の描き直し</th><td data-label="結果">直した（その次の節）</td></tr>
+        <tr><th scope="row">別の窓を開き直した時の位置</th><td data-label="結果">直した（最後の節）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>ファイルを落とす確かめには、引っ張り元のアプリが要ります。Python の部品（python3-xlib）で、ファイルを落とす決まり（XDND）の知らせを送り、ファイルの一覧を渡す小さな道具を書きました。マウスは動かしませんが、窓に届く知らせは本物の引っ張り元と同じです。メモ帳はメニューの行では「受け取らない」、本文の上では「写して受け取る」と答えました。落とすと、日本語と空白を含む名前のファイルを開きました。</p>
+  <!-- gen:drop -->
+<figure class="shot flat"><picture><img src="img/x11real/drop-light.webp" alt="メモ帳の窓。本文に「落としたファイルの中身」「X11 の XDND」の 2 行があり、下の欄に「落とした メモ.txt 開きました」と出ている" width="642" height="509" loading="lazy" decoding="async"></picture><figcaption>XDND の知らせを送る道具で、日本語と空白を含む名前のファイルをメモ帳に落とした（Xvfb）。</figcaption></figure>
+<!-- /gen:drop -->
+
+  <h2 id="ctrl">Ctrl が消えた</h2>
+  <p>家計簿の入力欄に 2 MB の文字を貼った後、Ctrl+A と Ctrl+C が効かなくなりました。記録では、貼る時の Ctrl+V までは <code>ctrl: true</code> で届いていました。その後の Ctrl+A は <code>ctrl: false</code> で届き、「a」が入力されていました。</p>
+  <p>kargui は、キーを先に日本語入力（fcitx5 か IBus）へ D-Bus で渡します。日本語入力が使わなかったキーは、答えが来てからアプリへ渡します。アプリへ渡す中身（キーの種類・修飾キー・打つ文字）は、答えが来た時の XKB の状態から作っていました。順番に並べると、次のようになります。</p>
+  <ol>
+    <li>Ctrl を押す。X サーバーが修飾キーの状態の知らせ（XkbStateNotify）を送る。</li>
+    <li>A を押す。kargui は A を日本語入力へ渡し、答えを待つ。</li>
+    <li>A と Ctrl を離す。修飾キーの状態の知らせが届く。</li>
+    <li>2 MB の欄は 1 フレームに約 1.1 秒かかる。その間に、3 の知らせが先に処理される。</li>
+    <li>日本語入力の答えが届く。この時の状態は「Ctrl なし」なので、A は文字の「a」になる。</li>
+  </ol>
+  <p>直し方は、キーを押した時に中身を作り、待ち行列に入れておくことです。答えが来たら、作っておいた中身をそのまま渡します。Shift で大文字になるかどうかも、押した時の状態で決まるようになりました。Wayland の版は日本語入力の答えを待たずにキーを渡すので、この競合は起きません。</p>
+  <p>重いフレームの中で素早く打てば、2 MB の文字が無くても起きる不具合です。2 MB の欄が重かったこと自体は、<a href="22-long-text.html">次の章</a>で扱います。</p>
+
+  <h2 id="minimize">最小化した窓の描き直し</h2>
+  <p>見本の「進み具合」のページを開いたまま最小化し、CPU の時間を測りました。最小化の間も、見えている時と同じだけ使っていました。spinner は 33 ミリ秒ごとのタイマーで描き直します。kargui は、窓が画面から外れた知らせ（UnmapNotify）を扱っておらず、見えない窓へ描き続けていました。</p>
+  <p>画面から外れている間は、タイマーと動きの描き直しを 1 秒に 1 回までに間引くようにしました。Windows の版も、最小化した窓に 1 秒に 21 回描いていたので、同じ形にしました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-min">
+    <table>
+      <caption id="t-min">最小化の間の描き直し</caption>
+      <thead><tr><th scope="col">項目</th><th scope="col">直す前</th><th scope="col">直した後</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">X11 の CPU の時間（5 秒の間）</th><td data-label="直す前">0.25 秒</td><td data-label="直した後">0.01 秒</td></tr>
+        <tr><th scope="row">X11 の描いた回数</th><td data-label="直す前">1 秒に約 30 回</td><td data-label="直した後">1 秒に 1 回</td></tr>
+        <tr><th scope="row">Windows の描いた回数</th><td data-label="直す前">1 秒に 21 回</td><td data-label="直した後">1 秒に 1 回</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>ここで作者から質問がありました。エンコードのように 1〜2 時間かかる処理を動かしたまま最小化し、ほかのことをする使い方はよくあります。見た目の描き直しは減らしてよいが、中身の処理が遅くなるのは避けたい、という内容でした。</p>
+  <p>確かめるため、別のスレッドで計算を回し続け、0.25 秒ごとに <code>Waker</code> で窓を起こすアプリを作りました。見えている 5 秒と最小化の 5 秒を 3 回繰り返し、切り替えた直後の 1 秒を外して平均しました。</p>
+  <!-- gen:background -->
+<figure class="bars" id="c-bg-work">
+    <figcaption><span class="bars-title">別のスレッドの計算の量（1 秒あたり）</span><span class="bars-hint">見えている 5 秒と最小化の 5 秒を 3 回。切り替えた直後の 1 秒を外した平均。Windows と X11 は別の PC なので、OS の間では比べない</span></figcaption>
+    <div class="bar-rows">
+      <div class="bar-row" data-v="old"><span class="bar-name">Win 見える</span><span class="bar-track"><span class="bar" style="--w: 99.6%"></span><span class="bar-val">6,057</span></span></div>
+      <div class="bar-row" data-v="new"><span class="bar-name">Win 最小化</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">6,082</span></span></div>
+      <div class="bar-row" data-v="old"><span class="bar-name">X11 見える</span><span class="bar-track"><span class="bar" style="--w: 79.3%"></span><span class="bar-val">4,822</span></span></div>
+      <div class="bar-row" data-v="new"><span class="bar-name">X11 最小化</span><span class="bar-track"><span class="bar" style="--w: 79.5%"></span><span class="bar-val">4,837</span></span></div>
+    </div>
+  </figure>
+<!-- /gen:background -->
+  <p>別のスレッドの計算の量は、最小化しても変わりませんでした。最小化の間に view が呼ばれた 1 秒に 4 回は、<code>Waker</code> で起こした回数と同じです。<code>Waker</code> の知らせは間引かず、すぐに view を呼びます。</p>
+  <p>遅れるのは、view の中や <code>request_frame_after</code> のタイマーで処理を進める作り方です。たとえば「0.1 秒ごとに終わったかを確かめ、終わったら次のファイルを始める」形では、最小化の間は 1 ファイルごとに最大 1 秒待ちます。部品の見た目の描き直しだけを間引く案も示しましたが、作者は今の形に決めました。その代わり、<code>request_frame</code>・<code>request_frame_after</code>・<code>Waker</code> の説明に、長い処理は別のスレッドで動かして <code>Waker</code> で知らせる、と書きました。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい書き方: 長い処理を view の中やタイマーで進める</span>
+    <p>view の中で少しずつ処理したり、<code>request_frame_after</code> で終わったかを確かめたりすると、窓を最小化した間は 1 秒に 1 回しか進みません。長い処理は別のスレッドで動かし、結果ができたら <code>Waker::wake</code> で窓を起こしてください。スレッドの速さは窓の状態に左右されません。</p>
+  </div>
+
+  <h2 id="place">開くたびに窓がずれた</h2>
+  <p>ドッキングの「新しいウィンドウへ移動」で出した窓は、並べ方を保存して開き直せます。X11 で保存と開き直しを繰り返すと、開くたびに窓が右へ 1、下へ 24 画素ずれました。</p>
+  <!-- gen:dock -->
+<figure class="shot flat"><picture><img src="img/x11real/dock-light.webp" alt="部品の見本のドッキングのページの上に、「メモ」という題の小さな窓が重なっている" width="902" height="649" loading="lazy" decoding="async"></picture><figcaption>「新しいウィンドウへ移動」で、メモのパネルを別の窓に出した（Xvfb と openbox）。</figcaption></figure>
+<!-- /gen:dock -->
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-place">
+    <table>
+      <caption id="t-place">開き直した時の窓の場所（直す前）</caption>
+      <thead><tr><th scope="col">回</th><th scope="col">渡した場所</th><th scope="col">中身の左上</th><th scope="col">覚えた場所</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">最初</th><td data-label="渡した場所">953, 374</td><td data-label="中身の左上">954, 398</td><td data-label="覚えた場所">954, 398</td></tr>
+        <tr><th scope="row">1 回目の開き直し</th><td data-label="渡した場所">954, 398</td><td data-label="中身の左上">955, 422</td><td data-label="覚えた場所">955, 422</td></tr>
+        <tr><th scope="row">2 回目の開き直し</th><td data-label="渡した場所">955, 422</td><td data-label="中身の左上">956, 446</td><td data-label="覚えた場所">956, 446</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>窓の管理役は、アプリが渡した場所に外枠の左上を置きます。一方、kargui の X11 の版は、窓の場所を読む時に中身の左上を「外枠の左上」として返していました。ずれた 1 と 24 は、openbox の枠の左と上の厚さです。</p>
+  <p>窓の管理役は、枠の厚さを <code>_NET_FRAME_EXTENTS</code> という値で窓に付けます。これを読み、中身の左上から枠の左と上の厚さを引いて、外枠の左上にしました。直した後は、2 回開き直しても中身の左上は 954, 398 のままです。あわせて、X11 の版が主の窓の <code>Options::position</code> を使っていなかったのも直しました。ファイルの閲覧の見本を <code>--pos 200,150</code> で開くと、外枠の左上が 200, 150 に来ます。</p>
+  <p>Windows の版は、OS が外枠の場所を返すので、この問題はありませんでした。Wayland は窓の場所をアプリに見せないので、別の窓に出す機能を作っていません（<a href="14-windows.html">第 14 章</a>）。</p>
+
+  <h2 id="next">次の段階</h2>
+  <p>X11 の版は、本物の X サーバーで一通り確かめました。残りは、窓の外への引っ張り出しと、中ボタンでの貼り付け（PRIMARY の選択）です。<a href="22-long-text.html">次の章</a>では、2 MB の文字で重かった入力欄の直しを書きます。</p>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="20-locale.html">← 第 20 章 多言語（kargui が出す文字）</a>
+    <a href="22-long-text.html">第 22 章 長い文字の入力欄 →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>
