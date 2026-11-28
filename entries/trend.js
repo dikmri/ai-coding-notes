@@ -23636,3 +23636,968 @@ tr.off { opacity: 0.45; }
     requestAnimationFrame(frame);
   },
 });
+
+dekiru.add({
+  id: 'tr-20261128-engraved-atlas', c: 'trend', lv: 3, date: '2026-11-28',
+  t: '標高のデータを、銅版画のような線の陰影で描いた昔の地図帳風の地図にする',
+  y: 'ひょうこうの でーたを どうばんがの ような せんの いんえいで えがいた むかしの ちずちょうふうの ちずに する',
+  tags: ['The Game Dev Atlas', 'Sprite Fusion', '線の陰影', '距離場', '流域', 'canvas'],
+  d: '2026-11-25 に、ドット絵の道具のサイト Sprite Fusion の Hugo Duprez さんが記事「Making a Fantasy Map Like a 16th-Century Atlas」を公開した。ゲーム作りの技法を 1 つずつ町に見立てて並べた地図「The Game Dev Atlas」の作り方の記事で、2026-11-27 に Hacker News で 101 点を集めた（作者の X の告知も同じ日で、いいね 84 件を fxtwitter で確かめた）。記事によると、島の形は作らずに本物の島（ケルゲレン諸島）の標高データを使う。地形はまず銅版画の線だけでその場で描き（記事の言い方では「版」）、色はその上に重ねる。色の付け方は何通りも試して比べ、線や色にはわざと不完全さを残している。地図の本体は C で書いてあり、ブラウザで 1 秒に 60 枚描く。'
+    + 'この見本は、その「版を引いてから色を重ねる」所を canvas だけで作った。外部のファイルを読めないので、標高は種から作った架空の島々（300 × 200 マス）を使う。陸の線は等高の線で、光に背を向けた斜面ほど太く引き、いちばん暗い所には斜めの交差線を重ねる。急な斜面で線が詰まりすぎる所は 1 本おき、3 本おきと間引く（「間引きの段を色で見る」にすると、段ごとに線の色が変わる）。'
+    + '海には、外へ行くほど間の広がる水際の線を岸に沿って 5 本引く。海で岸からいちばん遠い点に方位盤を置き、そこと周りの 8 点から 32 方位の線を引く。川は、窪地を埋めてから水の集まる量を数え、量の多い所を下流ほど太く引く。色は記事の比べ方にならって「版だけ」「薄い色を重ねる」「岸の縁だけ塗る」「島ごとに塗る」の 4 通りから選べ、色の版を少しずらしてむらも入れる。傾きを 0〜60° にすると、同じ線の描き方のまま、斜めから見た立体の地図になる。「左半分はふつうの陰影」にすると、同じ光で灰色の濃淡にした陰影と並べて比べられる。'
+    + '幅 916 × 高さ 573 点（Chrome）で測ると、島を作るのに約 140 ms、傾きを変えた時の描き直し（見える地面を求めて、光に関係しない線を引く）に 170〜400 ms、光の向きや色を変えた時の描き直しに 40〜100 ms かかった。'
+    + '再現できていない所: 本物の標高データ、記事の書体（Luminari）、技法ごとの町と建物、夜の表示、1 秒に 60 枚の描画は無い。記事には線の引き方の計算は書かれていないので、等高の線を使う描き方はこの見本で決めた。Hacker News のコメントにも「16 世紀の地図帳らしくはない」という指摘があったとおり、本物の 16 世紀の地図は山を横から見た小山の絵で描くことが多く、陸の等高の線は使っていない（陸の地図に等高の線が広まったのは 19 世紀）。',
+  p: '陸の線は、「標高 × 線の数」の値 φ が整数になる所（等高の線）に引く。点ごとに「画面で 1 px 進むと φ がどれだけ変わるか」（g）を求めると、線の間隔は 1/g px と分かる。線の太さを「濃さ × 間隔」にすると、間隔がどうであっても、面を覆う割合はほぼ濃さになる。間隔が 3.1 px より狭い所は φ を 2 で割って 1 本おきにし（さらに狭ければ 4 で割る）、割る前と後を間隔の対数でなめらかに混ぜるので、段の境目で線が急に消えない。斜めから見る時は、地面の位置 (u, v) から画面の位置への写し方のヤコビ行列の逆行列を使って g を求める。'
+    + '見える地面は、画面の列ごとに手前から奥へ地面をたどり、まだ埋まっていない高さの点にだけ、その地面の位置を書いて求める（ボクセルの地形の描き方と同じ）。光に関係しない値（標高・傾き・岸からの距離・岸と水際と方位の線）は、傾きや大きさを変えた時だけ点ごとに求めて配列に取っておく。光の向きを変えた時は、陰影と色だけを計算し直す。'
+    + '岸からの距離は、格子を 3 倍に細かくして陸と海に分け、Felzenszwalb と Huttenlocher の方法（放物線の下側の包絡線を作る）で、全部の点の最短距離を縦と横の 2 回の走査で求める。岸のすぐ近くでは「標高 ÷ 傾きの大きさ」の方が正確なので、2 つをなめらかにつなぐ。川は Priority-Flood（海から低い順に陸へ広げ、来た所より少しだけ高くする）で窪地を埋めてから、8 方向でいちばん急に下がる隣へ水を流し、高い所から順に量を足していく。重い計算は 40 ms ごとに scheduler.yield() で画面へ順番を返し、その間に新しい操作が来たら、途中でやめて最初からやり直す。',
+  refs: [
+    { title: 'Sprite Fusion のブログ: Making a Fantasy Map Like a 16th-Century Atlas（Hugo Duprez さん、2026-11-25）', url: 'https://www.spritefusion.com/blog/making-a-fantasy-map-like-a-16th-century-atlas' },
+    { title: 'Hacker News: Making a 3D fantasy map like a 16th-Century atlas', url: 'https://news.ycombinator.com/item?id=50667062' },
+    { title: 'Hugo Duprez さんの X の投稿（2026-11-27）', url: 'https://x.com/HugoDuprez/status/2126361544384487498' },
+    { title: 'Felzenszwalb, Huttenlocher: Distance Transforms of Sampled Functions（距離場の計算）', url: 'https://cs.brown.edu/people/pfelzens/papers/dt-final.pdf' },
+    { title: 'Barnes ほか: Priority-Flood: An Optimal Depression-Filling and Watershed-Labeling Algorithm（窪地を埋める計算）', url: 'https://arxiv.org/abs/1511.04463' },
+  ],
+  html: `<div class="wrap">
+  <div class="stage"><canvas id="map" role="img" aria-label="銅版画のような線で描いた、架空の島々の地図"></canvas></div>
+  <div class="side">
+    <div class="row">
+      <button id="new" type="button">新しい島</button>
+      <output id="seedO"></output>
+      <label>色 <select id="mode">
+        <option value="plate">版だけ（線のみ）</option>
+        <option value="wash" selected>薄い色を重ねる</option>
+        <option value="limn">岸の縁だけ塗る</option>
+        <option value="land">島ごとに塗る</option>
+      </select></label>
+    </div>
+    <div class="sl">
+      <label for="tilt">傾き</label><input type="range" id="tilt" min="0" max="60" value="30"><output id="tiltO" for="tilt"></output>
+      <label for="az">光の向き</label><input type="range" id="az" min="0" max="359" value="315"><output id="azO" for="az"></output>
+      <label for="nc">等高の線</label><input type="range" id="nc" min="12" max="60" value="28"><output id="ncO" for="nc"></output>
+    </div>
+    <div class="chk">
+      <label><input type="checkbox" id="cross" checked> 暗い所に交差線</label>
+      <label><input type="checkbox" id="water" checked> 水際の線</label>
+      <label><input type="checkbox" id="rhumb" checked> 方位線と方位盤</label>
+      <label><input type="checkbox" id="river" checked> 川</label>
+      <label><input type="checkbox" id="wob" checked> 線のゆらぎ</label>
+      <label><input type="checkbox" id="mis" checked> 色のずれとむら</label>
+      <label><input type="checkbox" id="split"> 左半分はふつうの陰影</label>
+      <label><input type="checkbox" id="lod"> 間引きの段を色で見る</label>
+      <label><input type="checkbox" id="spin"> 光を回す</label>
+    </div>
+    <p id="info" aria-live="polite"></p>
+  </div>
+  <p class="note">地図の上を左右にドラッグすると光の向き、マウスなら上下で傾きが変わる。陸の線は同じ高さを結んだ線（等高の線）で、光の当たらない斜面ほど太く引く。急な斜面で線が詰まりすぎる所は 1 本おき、3 本おきと間引く。</p>
+</div>`,
+  css: `:root { color-scheme: light; --ink: #2a201a; --ac: #8a3b26; }
+body { margin: 0; background: #e3d9c1; color: var(--ink); font: 14px/1.6 system-ui, sans-serif; accent-color: var(--ac); }
+.wrap { display: grid; gap: 10px; padding: 12px; max-width: 940px; margin: 0 auto; }
+#map { display: block; width: 100%; aspect-ratio: 16 / 10; border-radius: 6px; background: #f1e8d0; box-shadow: 0 1px 4px rgb(60 40 20 / 0.25); touch-action: pan-y; cursor: grab; }
+#map:active { cursor: grabbing; }
+.side { display: grid; gap: 8px; }
+.row, .chk { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+.sl { display: grid; grid-template-columns: auto minmax(0, 1fr) 6.5em; gap: 4px 10px; align-items: center; max-width: 560px; }
+.sl input { width: 100%; margin: 0; }
+output { font: 12px ui-monospace, monospace; color: #4a3d31; }
+button, select { padding: 6px 12px; border: 1px solid #8f7a5c; border-radius: 6px; background: #f4ecd8; color: var(--ink); font: inherit; cursor: pointer; touch-action: manipulation; }
+select { padding: 4px 8px; }
+button:hover { background: #fbf5e6; }
+button:active { scale: 0.97; }
+@media (prefers-reduced-motion: no-preference) { button { transition: scale 120ms ease-out, background-color 120ms ease-out; } }
+:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
+#info { margin: 0; white-space: pre-line; font: 12.5px/1.6 ui-monospace, monospace; color: #4a3d31; overflow-wrap: anywhere; }
+.note { margin: 0; color: #5a4c3e; font-size: 13px; }
+.thumb { overflow: hidden; }
+.thumb .wrap { padding: 0; max-width: none; }
+.thumb .side, .thumb .note { display: none; }
+.thumb #map { width: 100vw; height: 100vh; aspect-ratio: auto; border-radius: 0; box-shadow: none; }`,
+  core() {
+    // 種（seed）から決まった乱数の列を出す（mulberry32）
+    function rng(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a = (a + 0x6d2b79f5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    // 256×256 の格子に乱数を置き、間をなめらかにつなぐノイズ（値は 0〜1）
+    function valueNoise(seed) {
+      const r = rng(seed), N = 256, T = new Float32Array(N * N);
+      for (let i = 0; i < T.length; i++) T[i] = r();
+      return function (x, y) {
+        const xi = Math.floor(x), yi = Math.floor(y);
+        const fx = x - xi, fy = y - yi;
+        const u = fx * fx * fx * (fx * (fx * 6 - 15) + 10), v = fy * fy * fy * (fy * (fy * 6 - 15) + 10);
+        const x0 = xi & 255, y0 = yi & 255, x1 = (x0 + 1) & 255, y1 = (y0 + 1) & 255;
+        const a = T[y0 * N + x0], b = T[y0 * N + x1], c = T[y1 * N + x0], d = T[y1 * N + x1];
+        return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+      };
+    }
+
+    // 細かさの違うノイズを重ねる（fBm）
+    function fbm(n, x, y, oct) {
+      let s = 0, a = 0.5, f = 1, t = 0;
+      for (let o = 0; o < oct; o++) {
+        s += a * n(x * f + o * 31.7, y * f + o * 17.3);
+        t += a; a *= 0.5; f *= 2.03;
+      }
+      return s / t;
+    }
+
+    // 島々の標高を作る。陸は 0 より大きく、いちばん高い所が 1。海は負の値（海の底）。地図の縁から 10% は必ず海にする
+    function makeIsland(seed, W, H) {
+      const r = rng(seed * 7919 + 13);
+      const n1 = valueNoise(seed * 31 + 1), n2 = valueNoise(seed * 31 + 2), n3 = valueNoise(seed * 31 + 3);
+      const asp = W / H;
+      const blobs = [{ x: asp / 2 + (r() - 0.5) * 0.25, y: 0.5 + (r() - 0.5) * 0.15, r: 0.33 + r() * 0.06, sx: 0.78 }];
+      const nb = 2 + Math.floor(r() * 3);
+      for (let i = 0; i < nb; i++) blobs.push({ x: 0.2 + r() * (asp - 0.4), y: 0.2 + r() * 0.6, r: 0.07 + r() * 0.09, sx: 1 });
+      // 入り江。主な島の縁の近くに置いた円の中を低くする
+      const bays = [];
+      const nbay = 1 + Math.floor(r() * 2);
+      for (let i = 0; i < nbay; i++) {
+        const a = r() * Math.PI * 2, b0 = blobs[0];
+        bays.push({ x: b0.x + Math.cos(a) * b0.r / b0.sx * 0.85, y: b0.y + Math.sin(a) * b0.r * 0.85, r: 0.1 + r() * 0.06 });
+      }
+      const e = new Float32Array(W * H);
+      let max = -Infinity, min = Infinity;
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+        const x = (i + 0.5) / H, y = (j + 0.5) / H;
+        // 座標をノイズでずらしてから島の輪郭を決めると、湾や半島ができる
+        const wx = x + (fbm(n3, x * 2.2, y * 2.2, 4) - 0.5) * 0.42, wy = y + (fbm(n3, x * 2.2 + 50, y * 2.2 + 50, 4) - 0.5) * 0.42;
+        let base = -1;
+        for (const b of blobs) base = Math.max(base, 1 - Math.hypot((wx - b.x) * b.sx, wy - b.y) / b.r);
+        for (const b of bays) base -= Math.max(0, 1 - Math.hypot(wx - b.x, wy - b.y) / b.r) * 0.9;
+        const nn = fbm(n1, x * 3.6, y * 3.6, 6);
+        const rd = 1 - Math.abs(2 * fbm(n2, x * 2.4, y * 2.4, 5) - 1);
+        let v = base * 0.75 + (nn - 0.5) * 1.15 + rd * rd * 0.5 * Math.min(1, Math.max(0, base * 2)) - 0.22;
+        const edge = Math.min(x, asp - x, y, 1 - y);
+        if (edge < 0.14) v -= (0.14 - edge) * 7;
+        e[j * W + i] = v;
+        if (v > max) max = v;
+        if (v < min) min = v;
+      }
+      for (let k = 0; k < e.length; k++) {
+        const v = e[k];
+        e[k] = v > 0 ? Math.pow(v / max, 1.2) : (v / -min) * 0.6;
+      }
+      return e;
+    }
+
+    // 格子の値を、セルの中心を整数の座標として、なめらかに読む（双線形）
+    function bil(A, W, H, x, y) {
+      x = x < 0 ? 0 : x > W - 1.0001 ? W - 1.0001 : x;
+      y = y < 0 ? 0 : y > H - 1.0001 ? H - 1.0001 : y;
+      const i = x | 0, j = y | 0, fx = x - i, fy = y - j, k = j * W + i;
+      const a = A[k], b = A[k + 1], c = A[k + W], d = A[k + W + 1];
+      return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+    }
+
+    // 標高の傾き（1 マス進むと標高がどれだけ変わるか）を、両隣の差で求める
+    function gradGrid(h, W, H) {
+      const gu = new Float32Array(W * H), gv = new Float32Array(W * H);
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+        const k = j * W + i;
+        const l = i > 0 ? k - 1 : k, rr = i < W - 1 ? k + 1 : k;
+        const u = j > 0 ? k - W : k, d = j < H - 1 ? k + W : k;
+        gu[k] = (h[rr] - h[l]) / (rr - l || 1);
+        gv[k] = (h[d] - h[u]) / ((d - u) / W || 1);
+      }
+      return [gu, gv];
+    }
+
+    // 1 列の距離の 2 乗（Felzenszwalb と Huttenlocher の方法。放物線の下の包絡線を左から作る）
+    function edt1d(f, n, d, v, z) {
+      let k = 0;
+      v[0] = 0; z[0] = -1e30; z[1] = 1e30;
+      for (let q = 1; q < n; q++) {
+        let s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+        while (s <= z[k]) {
+          k--;
+          s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+        }
+        k++;
+        v[k] = q; z[k] = s; z[k + 1] = 1e30;
+      }
+      k = 0;
+      for (let q = 0; q < n; q++) {
+        while (z[k + 1] < q) k++;
+        d[q] = (q - v[k]) * (q - v[k]) + f[v[k]];
+      }
+    }
+
+    // mask が 1 のマスまでの、ユークリッド距離の 2 乗を全部のマスで求める（列ごと → 行ごとの 2 回）
+    function edt2d(mask, W, H) {
+      const INF = 1e20, D = new Float64Array(W * H);
+      for (let k = 0; k < W * H; k++) D[k] = mask[k] ? 0 : INF;
+      const n = Math.max(W, H);
+      const f = new Float64Array(n), d = new Float64Array(n), v = new Int32Array(n), z = new Float64Array(n + 1);
+      for (let i = 0; i < W; i++) {
+        for (let j = 0; j < H; j++) f[j] = D[j * W + i];
+        edt1d(f, H, d, v, z);
+        for (let j = 0; j < H; j++) D[j * W + i] = d[j];
+      }
+      for (let j = 0; j < H; j++) {
+        for (let i = 0; i < W; i++) f[i] = D[j * W + i];
+        edt1d(f, W, d, v, z);
+        for (let i = 0; i < W; i++) D[j * W + i] = d[i];
+      }
+      return D;
+    }
+
+    // 岸からの符号付きの距離（陸は正、海は負、単位は元の 1 マス）。元の格子を F 倍に細かくして陸と海に分け、両方の距離を求める
+    function signedDistance(h, W, H, F) {
+      const FW = W * F, FH = H * F, land = new Uint8Array(FW * FH), sea = new Uint8Array(FW * FH);
+      for (let j = 0; j < FH; j++) for (let i = 0; i < FW; i++) {
+        const k = j * FW + i;
+        if (bil(h, W, H, (i + 0.5) / F - 0.5, (j + 0.5) / F - 0.5) > 0) land[k] = 1; else sea[k] = 1;
+      }
+      const dl = edt2d(land, FW, FH), ds = edt2d(sea, FW, FH), sd = new Float32Array(FW * FH);
+      // マスの中心までの距離から半マスを引くと、境目までの距離に近くなる
+      for (let k = 0; k < sd.length; k++) sd[k] = land[k] ? (Math.sqrt(ds[k]) - 0.5) / F : -(Math.sqrt(dl[k]) - 0.5) / F;
+      return { sd, FW, FH };
+    }
+
+    // 2 分ヒープ（値の小さい順に取り出す）
+    function heapPush(hp, key, idx) {
+      let i = hp.n++;
+      hp.k[i] = key; hp.i[i] = idx;
+      while (i > 0) {
+        const p = (i - 1) >> 1;
+        if (hp.k[p] <= hp.k[i]) break;
+        [hp.k[p], hp.k[i]] = [hp.k[i], hp.k[p]];
+        [hp.i[p], hp.i[i]] = [hp.i[i], hp.i[p]];
+        i = p;
+      }
+    }
+    function heapPop(hp) {
+      const top = hp.i[0];
+      hp.n--;
+      hp.k[0] = hp.k[hp.n]; hp.i[0] = hp.i[hp.n];
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1, r2 = l + 1;
+        let m = i;
+        if (l < hp.n && hp.k[l] < hp.k[m]) m = l;
+        if (r2 < hp.n && hp.k[r2] < hp.k[m]) m = r2;
+        if (m === i) break;
+        [hp.k[m], hp.k[i]] = [hp.k[i], hp.k[m]];
+        [hp.i[m], hp.i[i]] = [hp.i[i], hp.i[m]];
+        i = m;
+      }
+      return top;
+    }
+
+    const N8 = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
+
+    // 窪地を埋める（Priority-Flood + ε。Barnes ほか 2014）。海から低い順に陸へ広げ、来た所より ε だけ高くする。
+    // こうすると、どの陸のマスにも、必ず 1 つは自分より低い隣がある
+    function priorityFlood(h, W, H, eps) {
+      const f = new Float64Array(h), seen = new Uint8Array(W * H);
+      const hp = { k: new Float64Array(W * H), i: new Int32Array(W * H), n: 0 };
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+        const k = j * W + i;
+        if (h[k] > 0) continue;
+        seen[k] = 1;
+        let coast = false;
+        for (const [dx, dy] of N8) {
+          const x = i + dx, y = j + dy;
+          if (x >= 0 && y >= 0 && x < W && y < H && h[y * W + x] > 0) coast = true;
+        }
+        if (coast) heapPush(hp, f[k], k);
+      }
+      while (hp.n) {
+        const c = heapPop(hp), ci = c % W, cj = (c - ci) / W;
+        for (const [dx, dy] of N8) {
+          const x = ci + dx, y = cj + dy;
+          if (x < 0 || y < 0 || x >= W || y >= H) continue;
+          const k = y * W + x;
+          if (seen[k]) continue;
+          seen[k] = 1;
+          f[k] = Math.max(h[k], f[c] + eps);
+          heapPush(hp, f[k], k);
+        }
+      }
+      return f;
+    }
+
+    // 水の流れる先（8 方向で、いちばん急に下がる隣）。海は −1
+    function flowDown(f, h, W, H) {
+      const down = new Int32Array(W * H).fill(-1);
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+        const k = j * W + i;
+        if (h[k] <= 0) continue;
+        let best = 0, bk = -1;
+        for (const [dx, dy] of N8) {
+          const x = i + dx, y = j + dy;
+          if (x < 0 || y < 0 || x >= W || y >= H) continue;
+          const n = y * W + x, s = (f[k] - f[n]) / (dx && dy ? Math.SQRT2 : 1);
+          if (s > best) { best = s; bk = n; }
+        }
+        down[k] = bk;
+      }
+      return down;
+    }
+
+    // 集まる水の量（自分より上から流れてくるマスの数 + 1）。高い順に、自分の量を流れる先へ足していく
+    function flowAccum(f, down, h) {
+      const n = h.length, acc = new Float64Array(n), cells = [];
+      for (let k = 0; k < n; k++) if (h[k] > 0) { acc[k] = 1; cells.push(k); }
+      cells.sort((a, b) => f[b] - f[a]);
+      for (const k of cells) if (down[k] >= 0 && h[down[k]] > 0) acc[down[k]] += acc[k];
+      return acc;
+    }
+
+    // 川の線。量が thr 以上のマスを、上流の端から下流へたどる。合流した所と海に出た所で止める
+    function riverChains(down, acc, h, W, thr) {
+      const n = h.length, isR = new Uint8Array(n), hasUp = new Uint8Array(n), done = new Uint8Array(n), out = [];
+      for (let k = 0; k < n; k++) if (h[k] > 0 && acc[k] >= thr) isR[k] = 1;
+      for (let k = 0; k < n; k++) if (isR[k] && down[k] >= 0) hasUp[down[k]] = 1;
+      const heads = [];
+      for (let k = 0; k < n; k++) if (isR[k] && !hasUp[k]) heads.push(k);
+      heads.sort((a, b) => acc[b] - acc[a] || a - b);
+      for (const s of heads) {
+        const chain = [];
+        let k = s;
+        while (k >= 0) {
+          chain.push(k);
+          if (h[k] <= 0 || done[k]) break;
+          done[k] = 1;
+          k = down[k];
+        }
+        if (chain.length >= 3) out.push(chain);
+      }
+      return out;
+    }
+
+    // 折れ線の角を丸める（Chaikin の方法。両端は動かさない）
+    function chaikin(pts, times) {
+      let p = pts;
+      for (let t = 0; t < times; t++) {
+        if (p.length < 3) return p;
+        const q = [p[0]];
+        for (let i = 0; i < p.length - 1; i++) {
+          const a = p[i], b = p[i + 1];
+          q.push([0.75 * a[0] + 0.25 * b[0], 0.75 * a[1] + 0.25 * b[1], 0.75 * a[2] + 0.25 * b[2]]);
+          q.push([0.25 * a[0] + 0.75 * b[0], 0.25 * a[1] + 0.75 * b[1], 0.25 * a[2] + 0.75 * b[2]]);
+        }
+        q.push(p[p.length - 1]);
+        p = q;
+      }
+      return p;
+    }
+
+    // 陸のつながり（上下左右）ごとに番号を付ける。番号は大きい島から 1, 2, 3 …
+    function labelIslands(land, W, H) {
+      const lab = new Int32Array(W * H), sizes = [], stack = [];
+      let n = 0;
+      for (let s = 0; s < W * H; s++) {
+        if (!land[s] || lab[s]) continue;
+        n++;
+        let size = 0;
+        lab[s] = n; stack.push(s);
+        while (stack.length) {
+          const k = stack.pop(), i = k % W;
+          size++;
+          const nb = [i > 0 ? k - 1 : -1, i < W - 1 ? k + 1 : -1, k >= W ? k - W : -1, k + W < W * H ? k + W : -1];
+          for (const m of nb) if (m >= 0 && land[m] && !lab[m]) { lab[m] = n; stack.push(m); }
+        }
+        sizes.push([n, size]);
+      }
+      sizes.sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+      const re = new Int32Array(n + 1);
+      sizes.forEach(([id], r) => { re[id] = r + 1; });
+      for (let k = 0; k < lab.length; k++) lab[k] = re[lab[k]];
+      return { lab, count: n, sizes: sizes.map((s) => s[1]) };
+    }
+
+    // 海のマスにも、いちばん近い島の番号を付ける（上下左右の幅優先）
+    function nearestLabel(lab, W, H) {
+      const out = new Int32Array(lab), q = new Int32Array(W * H);
+      let a = 0, b = 0;
+      for (let k = 0; k < lab.length; k++) if (lab[k]) q[b++] = k;
+      while (a < b) {
+        const k = q[a++], i = k % W;
+        const nb = [i > 0 ? k - 1 : -1, i < W - 1 ? k + 1 : -1, k >= W ? k - W : -1, k + W < W * H ? k + W : -1];
+        for (const m of nb) if (m >= 0 && !out[m]) { out[m] = out[k]; q[b++] = m; }
+      }
+      return out;
+    }
+
+    const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
+
+    // 1 本の線の濃さ。p は線の番号の値（整数の所に線の中心）、sp は線と線の間隔（px）。
+    // 線の太さは「濃さ × 間隔」にするので、間隔が変わっても、面を覆う割合はほぼ濃さのまま。縁は 1 px でぼかす
+    function lineAt(p, sp, tone, wMin, wMax) {
+      const d = Math.abs(p - Math.round(p)) * sp;
+      const w = Math.min(wMax, Math.max(wMin, tone * sp));
+      return clamp01(w / 2 - d + 0.5);
+    }
+
+    // 等高の線で陰影を付ける。g は画面で 1 px 進むと p がどれだけ変わるか。線が sMin より詰まる所は 1 本おきに間引き、
+    // 間引く前と後をなめらかに混ぜる（段の境目で線が急に消えない）。戻り値は [濃さ, 段]
+    function hatchCov(p, g, tone, sMin, wMin, wMax) {
+      const s = 1 / Math.max(g, 1e-9);
+      const x = Math.log2(sMin / s);
+      let L = 0, f = 0;
+      if (x > 0) { L = Math.floor(x); f = x - L; }
+      const m = 2 ** L;
+      const a = lineAt(p / m, s * m, tone, wMin, wMax);
+      if (f === 0) return [a, L];
+      const b = lineAt(p / (2 * m), s * 2 * m, tone, wMin, wMax);
+      return [a + (b - a) * f, L + f];
+    }
+
+    // 水際の線。岸から d px の所の番号（線は 1, 2, 3 … の整数の所）。k 本目は岸から g·k^q px で、外へ行くほど間が広がる
+    const waterPhase = (d, g, q) => Math.pow(Math.max(0, d) / g, 1 / q);
+    const waterPos = (k, g, q) => g * Math.pow(k, q);
+
+    // 光の向き（北から時計回りの角度）と高さの角度から、光の来る向きのベクトル（東・南・上）
+    function lightVec(azDeg, elDeg) {
+      const a = azDeg * Math.PI / 180, e = elDeg * Math.PI / 180;
+      return [Math.cos(e) * Math.sin(a), -Math.cos(e) * Math.cos(a), Math.sin(e)];
+    }
+
+    // 傾きから陰影の濃さ（0〜1）。平らな所は 0 に近く、光に背を向けた斜面ほど濃い
+    function toneOf(hu, hv, Z, L) {
+      const nx = -hu * Z, ny = -hv * Z, inv = 1 / Math.sqrt(nx * nx + ny * ny + 1);
+      const shade = (nx * L[0] + ny * L[1] + L[2]) * inv;
+      return clamp01(0.04 + 1.7 * (L[2] - shade) + 0.35 * (1 - inv));
+    }
+
+    // 16 方位の名前
+    function dirName(az) {
+      const N = ['北', '北北東', '北東', '東北東', '東', '東南東', '南東', '南南東', '南', '南南西', '南西', '西南西', '西', '西北西', '北西', '北北西'];
+      return N[Math.round((((az % 360) + 360) % 360) / 22.5) % 16];
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const thumb = !!window.THUMB;
+    if (thumb) document.body.classList.add('thumb');
+    const cv = $('map'), ctx = cv.getContext('2d');
+    const ui = {};
+    for (const id of ['mode', 'tilt', 'az', 'nc', 'cross', 'water', 'rhumb', 'river', 'wob', 'mis', 'split', 'lod', 'spin']) ui[id] = $(id);
+    if (thumb) ui.tilt.value = 36;
+
+    // 標高の格子は 300 × 200 マス。岸からの距離はその 3 倍の細かさで求める
+    const GW = 300, GH = 200, F = 3, THR = 150;
+    const INK = [42, 32, 26], PAPER = [241, 232, 208];
+    const SEA = [120, 168, 172];
+    const ISLE = [[206, 120, 104], [214, 178, 84], [138, 174, 104], [160, 132, 192], [210, 150, 90], [112, 160, 186]];
+    const HEIGHT = [[0, [176, 194, 124]], [0.35, [212, 196, 136]], [0.7, [194, 158, 110]], [1, [170, 136, 108]]];
+    const LVC = [INK, [176, 48, 32], [32, 84, 170], [40, 130, 70]];
+    const RHC = [INK, [168, 52, 40], [46, 112, 72], [168, 52, 40]];
+    const noiseW = valueNoise(901), noiseI = valueNoise(902), noiseP = valueNoise(903), noiseG = valueNoise(904), noiseR = valueNoise(905);
+    const yieldNow = () => (globalThis.scheduler && scheduler.yield ? scheduler.yield() : new Promise((r) => setTimeout(r, 0)));
+    const smooth = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+
+    let seed = 1;
+    const I = {};   // 島（標高の格子から作る物）
+    const G = { ok: false, N: 0, k: 1 };   // 画面の点ごとの値
+    const T = { island: 0, geo: 0, paint: 0 };
+
+    // ---- 島を作る（種が変わった時だけ） ----
+    async function buildIsland() {
+      const t0 = performance.now();
+      I.h = makeIsland(seed, GW, GH);
+      [I.hu, I.hv] = gradGrid(I.h, GW, GH);
+      const land = Uint8Array.from(I.h, (v) => (v > 0 ? 1 : 0));
+      const L = labelIslands(land, GW, GH);
+      I.lab = nearestLabel(L.lab, GW, GH);
+      I.islands = L.sizes.filter((s) => s >= 20).length;
+      I.landPct = L.sizes.reduce((a, b) => a + b, 0) / (GW * GH) * 100;
+      await yieldNow();
+      const D = signedDistance(I.h, GW, GH, F);
+      I.sd = D.sd; I.FW = D.FW; I.FH = D.FH;
+      await yieldNow();
+      const f = priorityFlood(I.h, GW, GH, 1e-6);
+      const down = flowDown(f, I.h, GW, GH);
+      const acc = flowAccum(f, down, I.h);
+      const chains = riverChains(down, acc, I.h, GW, THR);
+      I.rivers = chains.map((ch) => {
+        const pts = ch.map((k, n) => {
+          const i = k % GW, j = (k - i) / GW;
+          // 曲がりくねるように、両端以外を少しずらす
+          const jit = n > 0 && n < ch.length - 1 ? 0.7 : 0;
+          return [i + 0.5 + (noiseR(i * 0.9, j * 0.9) - 0.5) * jit, j + 0.5 + (noiseR(i * 0.9 + 40, j * 0.9) - 0.5) * jit, acc[k]];
+        });
+        // 最後が海のマスなら、岸との中ほどで止める
+        const a = pts[pts.length - 2], b = pts[pts.length - 1];
+        if (I.h[ch[ch.length - 1]] <= 0) pts[pts.length - 1] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, a[2]];
+        return chaikin(pts, 2);
+      });
+      // 方位盤は、地図の縁を除いて、岸からいちばん遠い海の点に置く
+      let best = 0, bi = 0, bj = 0;
+      for (let j = Math.round(I.FH * 0.16); j < I.FH * 0.84; j++) for (let i = Math.round(I.FW * 0.12); i < I.FW * 0.88; i++) {
+        const s = -I.sd[j * I.FW + i];
+        if (s > best) { best = s; bi = i; bj = j; }
+      }
+      I.rose = { u: (bi + 0.5) / F, v: (bj + 0.5) / F, dist: best };
+      // 題の枠は、陸のいちばん少ない隅に置く
+      const corners = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([cx, cy]) => {
+        let n = 0;
+        for (let j = 0; j < GH * 0.26; j++) for (let i = 0; i < GW * 0.34; i++) {
+          const x = cx ? GW - 1 - i : i, y = cy ? GH - 1 - j : j;
+          if (I.h[y * GW + x] > -0.04) n++;
+        }
+        return [n, cx, cy];
+      }).sort((a, b) => a[0] - b[0]);
+      I.corner = corners[0];
+      T.island = performance.now() - t0;
+    }
+
+    // ---- 画面の点ごとに、見えている地面の位置と、光に関係しない線を求める（傾き・大きさ・種が変わった時） ----
+    async function buildGeo() {
+      if (!I.h) return true;
+      const t0 = performance.now();
+      const W = cv.width, H = cv.height, N = W * H;
+      if (W < 40 || H < 30) { G.ok = false; return true; }
+      if (G.N !== N) {
+        for (const a of ['V', 'Ht', 'Hu', 'Hv', 'SD', 'St', 'Rh', 'Wob', 'Ink', 'Pap', 'Gran']) G[a] = new Float32Array(N);
+        G.Lab = new Uint8Array(N); G.Rt = new Uint8Array(N);
+        G.N = N; G.img = ctx.createImageData(W, H); G.paperFor = '';
+      }
+      G.W = W; G.H = H;
+      const k = G.k;
+      const tl = +ui.tilt.value * Math.PI / 180, cT = Math.cos(tl), sT = Math.sin(tl);
+      const m = 18 * k;
+      // 標高 1 の山の高さは、地図の幅の 9%
+      const sx = Math.min((W - 2 * m) / GW, (H - 2 * m) / (GH * cT + 0.6 * 0.09 * GW * sT));
+      const hs = sx * GW * 0.09;
+      const ox = (W - GW * sx) / 2;
+      const oy = m + 0.6 * hs * sT + ((H - 2 * m) - (GH * sx * cT + 0.6 * hs * sT)) / 2;
+      Object.assign(G, { sx, hs, ox, oy, cT, sT });
+      const { V, Ht: gH, Hu, Hv, SD, St, Rh, Rt, Lab, Wob, Ink } = G;
+
+      // 紙の地合い（大きさが変わった時だけ）
+      if (G.paperFor !== W + 'x' + H) {
+        for (let y = 0; y < H; y++) for (let X = 0; X < W; X++) {
+          const i = y * W + X, px = X / k, py = y / k;
+          const n = noiseP(px * 0.012, py * 0.012) - 0.5, f = noiseP(px * 0.2 + 100, py * 0.2 + 100) - 0.5;
+          const hsh = (Math.imul(X, 73856093) ^ Math.imul(y, 19349663)) >>> 0;
+          const rx = X / W - 0.5, ry = (y / H - 0.5) * 0.8;
+          const r = Math.sqrt(rx * rx + ry * ry);
+          G.Pap[i] = 1 + n * 0.07 + f * 0.035 + ((hsh % 1024) / 1023 - 0.5) * 0.03 - 0.5 * Math.max(0, r - 0.42) ** 2;
+          G.Gran[i] = noiseG(px * 0.32, py * 0.32);
+        }
+        G.paperFor = W + 'x' + H;
+      }
+
+      // 1) 列ごとに手前（下）から奥へ進み、まだ埋まっていない高さの点に、見えている地面の v を書く（ボクセルの描き方と同じ）
+      V.fill(NaN);
+      const dv = 0.7 / (sx * cT);
+      let dl = performance.now() + 40;
+      for (let X = 0; X < W; X++) {
+        const u = (X + 0.5 - ox) / sx;
+        if (u >= 0 && u <= GW) {
+          const uc = u - 0.5;
+          let v = GH;
+          let Yp = oy + v * sx * cT - Math.max(0, bil(I.h, GW, GH, uc, v - 0.5)) * hs * sT, vp = v, yTop = Yp;
+          while (v > 0) {
+            v = Math.max(0, v - dv);
+            const Y = oy + v * sx * cT - Math.max(0, bil(I.h, GW, GH, uc, v - 0.5)) * hs * sT;
+            if (Y < yTop) {
+              const y0 = Math.max(0, Math.ceil(Y - 0.5)), y1 = Math.min(H - 1, Math.ceil(yTop - 0.5) - 1);
+              for (let y = y0; y <= y1; y++) V[y * W + X] = v + (vp - v) * ((y + 0.5 - Y) / (Yp - Y));
+              yTop = Y;
+            }
+            vp = v; Yp = Y;
+          }
+        }
+        if ((X & 15) === 15 && performance.now() > dl) {
+          await yieldNow();
+          if (want & 6) return false;
+          dl = performance.now() + 40;
+        }
+      }
+
+      // 2) 点ごとに標高・傾き・岸からの距離を読み、岸の線・水際の線・方位線を引いておく
+      const wobOn = ui.wob.checked, waterOn = ui.water.checked, rhOn = ui.rhumb.checked;
+      const WG = 3.4 * k, WQ = 1.4, WK = 5;
+      const R = 0.42 * GW, hubs = [[I.rose.u, I.rose.v, 1]];
+      for (let n = 0; n < 8; n++) hubs.push([I.rose.u + R * Math.cos(n * Math.PI / 4 + Math.PI / 8), I.rose.v + R * Math.sin(n * Math.PI / 4 + Math.PI / 8), 0.7]);
+      // 32 方位の向きの sin・cos と、画面での縮み方は、先に表にしておく（点ごとに三角関数を呼ばない）
+      const RS = new Float64Array(33), RC = new Float64Array(33), RD = new Float64Array(33);
+      for (let n = -16; n <= 16; n++) {
+        const a = n * Math.PI / 16;
+        RS[n + 16] = Math.sin(a); RC[n + 16] = Math.cos(a);
+        RD[n + 16] = sx * cT / Math.sqrt(RC[n + 16] ** 2 + (cT * RS[n + 16]) ** 2);
+      }
+      const FW = I.FW, FH = I.FH, sdA = I.sd, e = 0.35;
+      let waterPx = 0, rhPx = 0;
+      for (let y = 0; y < H; y++) {
+        for (let X = 0; X < W; X++) {
+          const i = y * W + X, v = V[i];
+          if (!(v === v)) { gH[i] = NaN; continue; }
+          const u = (X + 0.5 - ox) / sx, uc = u - 0.5, vc = v - 0.5;
+          const h = bil(I.h, GW, GH, uc, vc), hu = bil(I.hu, GW, GH, uc, vc), hv = bil(I.hv, GW, GH, uc, vc);
+          gH[i] = h; Hu[i] = hu; Hv[i] = hv;
+          // 岸の近くは「標高 ÷ 傾き」、離れた所は距離場の値を使い、間をなめらかにつなぐ
+          const sdc = bil(sdA, FW, FH, u * F - 0.5, v * F - 0.5);
+          const dh = Math.max(-3, Math.min(3, h / Math.max(Math.sqrt(hu * hu + hv * hv), 1e-4)));
+          const sd = dh + (sdc - dh) * smooth(1, 2.5, Math.abs(sdc));
+          SD[i] = sd;
+          Lab[i] = I.lab[Math.min(GH - 1, v | 0) * GW + Math.min(GW - 1, u | 0)];
+          const wb = noiseW(u * 0.55, v * 0.55) - 0.5;
+          Wob[i] = wb; Ink[i] = noiseI(u * 1.9, v * 1.9);
+          // 岸の線（標高 0 の線）。標高を画面での傾きで割ると、線までの px が分かる
+          let gx, gy;
+          if (h > 0) {
+            const J22 = Math.max(sx * cT - hs * sT * hv, 0.12 * sx);
+            gx = (hu * J22 + hv * hs * sT * hu) / (sx * J22); gy = hv / J22;
+          } else { gx = hu / sx; gy = hv / (sx * cT); }
+          const dpx = Math.abs(h) / Math.max(Math.sqrt(gx * gx + gy * gy), 1e-6);
+          let cov = clamp01(0.85 * k - dpx + 0.5);
+          Rh[i] = 0;
+          if (h <= 0) {
+            // 水際の線。岸から g·n^q px の所に、外ほど細く薄く
+            if (waterOn) {
+              const dPx = -sd * sx + (wobOn ? wb * 1.6 * k : 0);
+              const ph = waterPhase(dPx, WG, WQ), kk = Math.round(ph);
+              if (kk >= 1 && kk <= WK) {
+                const sdu = (bil(sdA, FW, FH, (u + e) * F - 0.5, v * F - 0.5) - bil(sdA, FW, FH, (u - e) * F - 0.5, v * F - 0.5)) / (2 * e);
+                const sdv = (bil(sdA, FW, FH, u * F - 0.5, (v + e) * F - 0.5) - bil(sdA, FW, FH, u * F - 0.5, (v - e) * F - 0.5)) / (2 * e);
+                const dph = ph / (WQ * Math.max(dPx, 1e-3));
+                const gw = Math.max(dph * Math.sqrt(sdu * sdu + (sdv / cT) ** 2), 1e-6);
+                const hw = (0.6 - 0.06 * kk) * k, al = 0.85 - (kk - 1) * 0.15;
+                const c = al * clamp01(hw - Math.abs(ph - kk) / gw + 0.5);
+                if (c > 0) { cov = 1 - (1 - cov) * (1 - c); waterPx++; }
+              }
+            }
+            // 方位線。9 つの中心から 32 方位へ。主な 8 方位・その間の 8 方位・残りの 16 方位で色と濃さを変える
+            if (rhOn) {
+              let bc = 0, bt = 0;
+              for (const hb of hubs) {
+                const du = u - hb[0], dw = v - hb[1];
+                const idx = Math.round(Math.atan2(dw, du) * (16 / Math.PI)), t = idx + 16;
+                const px = Math.abs(du * RS[t] - dw * RC[t]) * RD[t];
+                const ty = ((idx % 4) + 4) % 4;
+                const c = clamp01((ty === 0 ? 0.38 : 0.3) * k - px + 0.5) * hb[2] * (ty === 0 ? 0.85 : ty === 2 ? 0.7 : 0.55);
+                if (c > bc) { bc = c; bt = ty; }
+              }
+              Rh[i] = bc; Rt[i] = bt;
+              if (bc > 0.05) rhPx++;
+            }
+          }
+          St[i] = cov;
+        }
+        if ((y & 7) === 7 && performance.now() > dl) {
+          await yieldNow();
+          if (want & 6) return false;
+          dl = performance.now() + 40;
+        }
+      }
+      G.waterPx = waterPx; G.rhPx = rhPx;
+      G.ok = true;
+      T.geo = performance.now() - t0;
+      return true;
+    }
+
+    function heightColor(h) {
+      for (let n = 1; n < HEIGHT.length; n++) {
+        if (h <= HEIGHT[n][0] || n === HEIGHT.length - 1) {
+          const [a, ca] = HEIGHT[n - 1], [b, cb] = HEIGHT[n], t = clamp01((h - a) / (b - a));
+          return [ca[0] + (cb[0] - ca[0]) * t, ca[1] + (cb[1] - ca[1]) * t, ca[2] + (cb[2] - ca[2]) * t];
+        }
+      }
+      return HEIGHT[0][1];
+    }
+
+    // ---- 光と色を決めて描く（光の向き・色の塗り方・線の数が変わった時はここだけ） ----
+    const lvCnt = [0, 0, 0];
+    function paint() {
+      if (!G.ok) { ctx.clearRect(0, 0, cv.width, cv.height); return; }
+      const t0 = performance.now();
+      const { W, H, k, sx, hs, cT, sT, img } = G;
+      const gH = G.Ht, d = img.data;
+      const mode = ui.mode.value, crossOn = ui.cross.checked, splitOn = ui.split.checked, lodOn = ui.lod.checked;
+      const wobOn = ui.wob.checked, misOn = ui.mis.checked, rhOn = ui.rhumb.checked;
+      const Lv = lightVec(+ui.az.value, 40), Z = hs / sx * 1.25, NC = +ui.nc.value;
+      const sMin = 3.1 * k, wMin = 0.42 * k, wMax = 2.6 * k, s2 = 3.3 * k, ca = Math.cos(0.62), sa = Math.sin(0.62);
+      const offX = misOn ? Math.round(2 * k) : 0, offY = misOn ? Math.round(1.3 * k) : 0, off = offX + offY * W;
+      const half = W / 2;
+      lvCnt.fill(0);
+      for (let y = 0; y < H; y++) for (let X = 0; X < W; X++) {
+        const i = y * W + X, o = i * 4, pp = G.Pap[i];
+        let r = PAPER[0], g = PAPER[1], b = PAPER[2];
+        const h = gH[i];
+        if (h === h) {
+          // 色（版の下に薄く塗る）。ずれありのときは、少し離れた点の値で塗る
+          if (mode !== 'plate') {
+            const j = i - off;
+            if (j >= 0 && X >= offX && gH[j] === gH[j]) {
+              const sdj = G.SD[j] + (misOn ? G.Wob[j] * 0.9 : 0), dPx = sdj * sx;
+              let s, c;
+              if (sdj > 0) {
+                if (mode === 'wash') { c = heightColor(gH[j]); s = 0.36 + 0.24 * Math.exp(-dPx / (3 * k)); }
+                else if (mode === 'limn') { c = ISLE[(G.Lab[j] + 5) % 6]; s = 0.8 * clamp01(1 - (dPx - 1.5 * k) / (6 * k)); }
+                else { c = ISLE[(G.Lab[j] + 5) % 6]; s = 0.4 + 0.24 * Math.exp(-dPx / (3 * k)); }
+              } else {
+                c = SEA;
+                s = mode === 'wash' ? 0.1 + 0.4 * Math.exp(dPx / (16 * k)) : mode === 'limn' ? 0.3 * Math.exp(dPx / (7 * k)) : 0.07 + 0.22 * Math.exp(dPx / (14 * k));
+              }
+              if (misOn) s *= 0.74 + 0.52 * G.Gran[i];
+              s = clamp01(s);
+              r *= 1 - s + s * c[0] / 255; g *= 1 - s + s * c[1] / 255; b *= 1 - s + s * c[2] / 255;
+            }
+          }
+          if (h > 0) {
+            const hu = G.Hu[i], hv = G.Hv[i];
+            const tone = toneOf(hu, hv, Z, Lv);
+            let c, lc = INK;
+            if (splitOn && X < half) c = tone * 0.78;
+            else {
+              // 等高の線の番号 φ = 標高 × 線の数。画面で 1 px 進むと φ がどれだけ変わるかを、傾けた見え方の分も入れて求める
+              const J22 = Math.max(sx * cT - hs * sT * hv, 0.12 * sx);
+              const pu = NC * hu, pv = NC * hv;
+              const gx = (pu * J22 + pv * hs * sT * hu) / (sx * J22), gy = pv / J22;
+              const iv = wobOn ? 0.7 + 0.6 * G.Ink[i] : 1;
+              const hc = hatchCov(h * NC + (wobOn ? G.Wob[i] * 0.5 : 0), Math.sqrt(gx * gx + gy * gy), Math.min(tone, 0.55), sMin, wMin * iv, wMax * iv);
+              c = hc[0];
+              const lv = Math.min(2, Math.round(hc[1]));
+              lvCnt[lv]++;
+              if (lodOn) lc = LVC[Math.min(3, Math.round(hc[1]))];
+              // いちばん暗い所だけ、斜めのまっすぐな線を重ねる（交差線）
+              if (crossOn && tone > 0.55) c = 1 - (1 - c) * (1 - lineAt((X * ca + y * sa) / s2, s2, (tone - 0.55) * 0.8, 0, 1.6 * k));
+            }
+            r += (lc[0] - r) * c; g += (lc[1] - g) * c; b += (lc[2] - b) * c;
+          } else if (rhOn) {
+            const c = G.Rh[i];
+            if (c > 0) {
+              const rc = mode === 'plate' ? INK : RHC[G.Rt[i]];
+              r += (rc[0] - r) * c; g += (rc[1] - g) * c; b += (rc[2] - b) * c;
+            }
+          }
+          const c = G.St[i];
+          r += (INK[0] - r) * c; g += (INK[1] - g) * c; b += (INK[2] - b) * c;
+        }
+        d[o] = r * pp; d[o + 1] = g * pp; d[o + 2] = b * pp; d[o + 3] = 255;
+      }
+      ctx.putImageData(img, 0, 0);
+      overlays(mode);
+      T.paint = performance.now() - t0;
+      showInfo();
+    }
+
+    // 地面の点 (u, v) と標高から、画面の位置
+    function project(u, v) {
+      const h = Math.max(0, bil(I.h, GW, GH, u - 0.5, v - 0.5));
+      return [G.ox + u * G.sx, G.oy + v * G.sx * G.cT - h * G.hs * G.sT];
+    }
+    // 画面のその点に見えている地面が、(u, v) の近くか（山の陰に隠れていないか）
+    function visible(X, Y, v) {
+      const xi = Math.round(X - 0.5), yi = Math.round(Y - 0.5);
+      if (xi < 0 || yi < 0 || xi >= G.W || yi >= G.H) return false;
+      const gv = G.V[yi * G.W + xi];
+      return gv === gv && Math.abs(gv - v) < 1.6;
+    }
+
+    function overlays(mode) {
+      const { k, sx, cT, ox, oy } = G;
+      const ink = `rgb(${INK.join(',')})`, paper = 'rgb(241 232 208 / 0.92)';
+      // 小さな地図では、川と題の枠を地図の大きさに合わせて細く小さくする
+      const rk = Math.max(0.5, Math.min(1, sx / (2.8 * k)));
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      // 川。先に紙の色で太く引いて、両側の陰影の線を白く抜いてから、墨で引く
+      if (ui.river.checked) {
+        const segs = [];
+        for (const ch of I.rivers) {
+          let prev = null;
+          for (const p of ch) {
+            const [X, Y] = project(p[0], p[1]);
+            const vis = visible(X, Y, p[1]);
+            if (prev && vis && prev[2]) segs.push([prev[0], prev[1], X, Y, Math.min(1.9, 0.45 + 0.38 * Math.log2(Math.max(1, p[2] / THR))) * k * rk]);
+            prev = [X, Y, vis];
+          }
+        }
+        for (const pass of [0, 1]) {
+          ctx.strokeStyle = pass ? (mode === 'plate' ? ink : 'rgb(52 76 100)') : paper;
+          for (const s of segs) {
+            ctx.lineWidth = pass ? s[4] : s[4] + 2 * k * rk;
+            ctx.beginPath(); ctx.moveTo(s[0], s[1]); ctx.lineTo(s[2], s[3]); ctx.stroke();
+          }
+        }
+        G.riverSegs = segs.length;
+      }
+      // 方位盤（海の面に寝かせて描く）
+      if (ui.rhumb.checked) {
+        const X = ox + I.rose.u * sx, Y = oy + I.rose.v * sx * cT;
+        const Rr = Math.min(36 * k, I.rose.dist * sx * 0.85);
+        const main = mode === 'plate' ? ink : 'rgb(125 42 32)', sub = mode === 'plate' ? ink : 'rgb(47 74 58)';
+        ctx.save();
+        ctx.translate(X, Y); ctx.scale(1, cT);
+        ctx.fillStyle = 'rgb(241 232 208)';
+        ctx.beginPath(); ctx.arc(0, 0, Rr * 0.66, 0, Math.PI * 2); ctx.fill();
+        const point = (a, len, w, col) => {
+          const tx = Math.cos(a) * len, ty = Math.sin(a) * len, nx = -Math.sin(a) * w, ny = Math.cos(a) * w;
+          const bx = Math.cos(a) * len * 0.22, by = Math.sin(a) * len * 0.22;
+          ctx.fillStyle = col;
+          ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(bx + nx, by + ny); ctx.lineTo(tx, ty); ctx.closePath(); ctx.fill();
+          ctx.fillStyle = 'rgb(246 238 216)';
+          ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(bx - nx, by - ny); ctx.lineTo(tx, ty); ctx.closePath(); ctx.fill();
+          ctx.strokeStyle = ink; ctx.lineWidth = 0.7 * k;
+          ctx.beginPath(); ctx.moveTo(bx + nx, by + ny); ctx.lineTo(tx, ty); ctx.lineTo(bx - nx, by - ny); ctx.lineTo(0, 0); ctx.closePath(); ctx.stroke();
+        };
+        for (let n = 0; n < 8; n++) point(n * Math.PI / 4 + Math.PI / 8, Rr * 0.48, Rr * 0.07, sub);
+        ctx.strokeStyle = ink; ctx.lineWidth = 0.8 * k;
+        for (const rr of [0.56, 0.62]) { ctx.beginPath(); ctx.arc(0, 0, Rr * rr, 0, Math.PI * 2); ctx.stroke(); }
+        for (let n = 0; n < 4; n++) point(n * Math.PI / 2 + Math.PI / 4, Rr * 0.74, Rr * 0.1, sub);
+        for (let n = 0; n < 4; n++) point(n * Math.PI / 2 - Math.PI / 2, Rr, Rr * 0.12, main);
+        // 北の先に小さな輪
+        ctx.beginPath(); ctx.arc(0, -Rr - 3.2 * k, 2.6 * k, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(0, 0, 1.8 * k, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+      // 枠。内と外の 2 本の線の間に、10 マスごとに黒と白を交互に入れる
+      const X0 = ox, X1 = ox + GW * sx, Y0 = oy, Y1 = oy + GH * sx * cT;
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.3 * k; ctx.strokeRect(X0, Y0, X1 - X0, Y1 - Y0);
+      const b1 = 2.2 * k, b2 = 5.2 * k;
+      ctx.lineWidth = 0.8 * k; ctx.strokeRect(X0 - b2, Y0 - b2, X1 - X0 + 2 * b2, Y1 - Y0 + 2 * b2);
+      ctx.lineWidth = 0.6 * k; ctx.strokeRect(X0 - b1, Y0 - b1, X1 - X0 + 2 * b1, Y1 - Y0 + 2 * b1);
+      ctx.fillStyle = ink;
+      for (let n = 0; n * 10 < GW; n += 2) {
+        const a = X0 + n * 10 * sx, w = Math.min(10, GW - n * 10) * sx;
+        ctx.fillRect(a, Y0 - b2, w, b2 - b1); ctx.fillRect(a, Y1 + b1, w, b2 - b1);
+      }
+      for (let n = 0; n * 10 < GH; n += 2) {
+        const a = Y0 + n * 10 * sx * cT, w = Math.min(10, GH - n * 10) * sx * cT;
+        ctx.fillRect(X0 - b2, a, b2 - b1, w); ctx.fillRect(X1 + b1, a, b2 - b1, w);
+      }
+      // 題の枠
+      const [, cx, cy] = I.corner;
+      const ck = k * rk, bw = 136 * ck, bh = 44 * ck, pad = 9 * ck;
+      const bx = cx ? X1 - pad - bw : X0 + pad, by = cy ? Y1 - pad - bh : Y0 + pad;
+      if (bw < (X1 - X0) * 0.6 && bh < (Y1 - Y0) * 0.5) {
+        ctx.fillStyle = paper; ctx.fillRect(bx, by, bw, bh);
+        ctx.strokeStyle = ink; ctx.lineWidth = 1.1 * k; ctx.strokeRect(bx, by, bw, bh);
+        ctx.lineWidth = 0.6 * k; ctx.strokeRect(bx + 2.5 * ck, by + 2.5 * ck, bw - 5 * ck, bh - 5 * ck);
+        ctx.fillStyle = ink; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.font = `${15 * ck}px serif`;
+        ctx.fillText('名もなき島々', bx + bw / 2, by + bh * 0.4);
+        ctx.font = `${10 * ck}px serif`;
+        ctx.fillText(`第 ${seed} 図`, bx + bw / 2, by + bh * 0.76);
+      }
+      // 比べる時の仕切り
+      if (ui.split.checked) {
+        ctx.strokeStyle = 'rgb(138 59 38)'; ctx.lineWidth = 1.5 * k; ctx.setLineDash([6 * k, 4 * k]);
+        ctx.beginPath(); ctx.moveTo(G.W / 2, 0); ctx.lineTo(G.W / 2, G.H); ctx.stroke(); ctx.setLineDash([]);
+        ctx.font = `${12 * k}px system-ui, sans-serif`; ctx.textBaseline = 'top';
+        for (const [s, x, al] of [['ふつうの陰影', G.W / 2 - 8 * k, 'right'], ['線の陰影', G.W / 2 + 8 * k, 'left']]) {
+          ctx.textAlign = al;
+          const w = ctx.measureText(s).width;
+          ctx.fillStyle = 'rgb(241 232 208 / 0.9)'; ctx.fillRect(al === 'right' ? x - w - 4 * k : x - 4 * k, 6 * k, w + 8 * k, 18 * k);
+          ctx.fillStyle = 'rgb(138 59 38)'; ctx.fillText(s, x, 9 * k);
+        }
+      }
+    }
+
+    function showInfo() {
+      const land = lvCnt[0] + lvCnt[1] + lvCnt[2] || 1;
+      const pct = (n) => (n / land * 100).toFixed(0);
+      $('info').textContent = `島 ${I.islands} つ（20 マス以上）・陸 ${I.landPct.toFixed(0)}%・川 ${I.rivers.length} 本・方位盤は岸から ${I.rose.dist.toFixed(1)} マスの所（海で岸からいちばん遠い点）\n`
+        + `時間: 島を作る ${T.island.toFixed(0)} ms・見える地面と光に関係しない線 ${T.geo.toFixed(0)} ms・陰影と色 ${T.paint.toFixed(0)} ms（${G.W}×${G.H} 点）\n`
+        + (ui.split.checked && !ui.lod.checked ? '' : `等高の線の間引き（陸の点のうち）: そのまま ${pct(lvCnt[0])}%・1 本おき ${pct(lvCnt[1])}%・3 本おき以上 ${pct(lvCnt[2])}%`);
+      cv.setAttribute('aria-label', `銅版画のような線で描いた架空の島々の地図。第 ${seed} 図、島 ${I.islands} つ、川 ${I.rivers.length} 本。光は${dirName(+ui.az.value)}から、傾き ${ui.tilt.value} 度。`);
+    }
+
+    function showVals() {
+      $('tiltO').textContent = `${ui.tilt.value}°`;
+      $('azO').textContent = `${dirName(+ui.az.value)}から`;
+      $('ncO').textContent = `${ui.nc.value} 本`;
+      $('seedO').textContent = `第 ${seed} 図`;
+    }
+
+    // ---- 描き直しの順番。島 4・形 2・光 1 の印をためて、まとめて片付ける ----
+    let want = 0, busy = false, queued = false;
+    async function run() {
+      busy = true;
+      try {
+        while (want) {
+          if (want & 4) { want &= ~4; await buildIsland(); }
+          if (want & 2) {
+            want &= ~2;
+            if (!(await buildGeo())) continue;
+          }
+          want &= ~1;
+          paint();
+        }
+      } catch (err) {
+        setTimeout(() => { throw err; });
+      } finally {
+        busy = false;
+      }
+    }
+    function ask(bits) {
+      want |= bits;
+      if (busy || queued) return;
+      queued = true;
+      const go = () => { if (queued) { queued = false; run(); } };
+      requestAnimationFrame(go);
+      setTimeout(go, 100);
+    }
+
+    function fitCanvas() {
+      const r = cv.getBoundingClientRect();
+      const cw = Math.max(1, r.width), ch = Math.max(1, r.height);
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      // 点の数は 65 万までにする（多いと 1 回の描き直しが重い）
+      const k = Math.max(0.5, Math.min(dpr, Math.sqrt(650000 / (cw * ch))));
+      const W = Math.max(1, Math.round(cw * k)), H = Math.max(1, Math.round(ch * k));
+      G.k = k;
+      if (W !== cv.width || H !== cv.height) { cv.width = W; cv.height = H; return true; }
+      return false;
+    }
+
+    $('new').addEventListener('click', () => { seed++; showVals(); ask(6); });
+    for (const id of ['tilt', 'water', 'rhumb', 'wob']) ui[id].addEventListener('input', () => { showVals(); ask(2); });
+    for (const id of ['mode', 'az', 'nc', 'cross', 'river', 'mis', 'split', 'lod']) ui[id].addEventListener('input', () => { showVals(); ask(1); });
+
+    // 地図の上のドラッグ。左右で光の向き、マウスなら上下で傾き
+    let drag = null;
+    cv.addEventListener('pointerdown', (e) => {
+      drag = { x: e.clientX, y: e.clientY, az: +ui.az.value, tilt: +ui.tilt.value, mouse: e.pointerType === 'mouse' };
+      cv.setPointerCapture(e.pointerId);
+    });
+    cv.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      ui.az.value = String(Math.round(((drag.az + dx * 0.6) % 360 + 360) % 360));
+      let bits = 1;
+      if (drag.mouse) {
+        const t = Math.round(Math.max(0, Math.min(60, drag.tilt - dy * 0.25)));
+        if (t !== +ui.tilt.value) { ui.tilt.value = String(t); bits |= 2; }
+      }
+      showVals();
+      ask(bits);
+    });
+    for (const t of ['pointerup', 'pointercancel']) cv.addEventListener(t, () => { drag = null; });
+
+    // 光を回す（一覧の小窓では自動で回す）
+    // 1 コマで進む角度は 1° より小さいので、小数のまま azF にためる（毎回丸めると進まない）
+    let last = performance.now(), azF = +ui.az.value;
+    function spin(now) {
+      const dt = Math.min(0.1, (now - last) / 1000);
+      last = now;
+      if ((thumb || ui.spin.checked) && !drag) {
+        if (Math.round(azF) % 360 !== +ui.az.value) azF = +ui.az.value;   // スライダーで動かした時は、そこから回す
+        azF = (azF + dt * (thumb ? 40 : 25)) % 360;
+        const nv = Math.round(azF) % 360;
+        if (nv !== +ui.az.value) { ui.az.value = String(nv); showVals(); ask(1); }
+      }
+      requestAnimationFrame(spin);
+    }
+
+    fitCanvas();
+    showVals();
+    ask(6);
+    new ResizeObserver(() => { if (fitCanvas()) ask(2); }).observe(cv);
+    requestAnimationFrame(spin);
+  },
+});

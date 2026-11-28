@@ -3461,3 +3461,172 @@ test('玉の市場: 1 回の勝負は種で決まり、点数は胴元と参加�
   assert.equal([S.n, S.left, S.startSide, S.maker, S.profit.x].join(','), '2,1,1,-0.5,0.5');
   assert.equal([S.binsM[8].join(' '), S.binsM[3].join(' '), S.binsC[9].join(' '), S.binsC[0].join(' ')].join(','), '1 0.8 1,1 0.3 0,1 1 1,1 0 0');
 });
+
+// ---- 銅版画風の地図（tr-20261128-engraved-atlas） ----
+const ATLAS = 'tr-20261128-engraved-atlas';
+
+test('地図: 距離場（Felzenszwalb の方法）は、総当たりで求めた最短の距離の 2 乗と一致する', () => {
+  const { edt2d, rng } = trendCore(ATLAS, ['edt2d', 'rng']);
+  const r = rng(5);
+  for (const [W, H, p] of [[17, 11, 0.08], [9, 23, 0.3], [30, 30, 0.02]]) {
+    const mask = new Uint8Array(W * H);
+    for (let k = 0; k < mask.length; k++) mask[k] = r() < p ? 1 : 0;
+    mask[3] = 1;
+    const D = edt2d(mask, W, H);
+    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+      let best = Infinity;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (mask[y * W + x]) best = Math.min(best, (x - i) ** 2 + (y - j) ** 2);
+      assert.equal(D[j * W + i], best, `${W}x${H} (${i},${j})`);
+    }
+  }
+});
+
+test('地図: 岸からの符号付きの距離は、円い島で本当の距離と 0.35 マス以内、陸は正で海は負', () => {
+  const { signedDistance, bil } = trendCore(ATLAS, ['signedDistance', 'bil']);
+  const W = 60, H = 40, cx = 30, cy = 20, R = 9.3;
+  const h = new Float32Array(W * H);
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) h[j * W + i] = (R - Math.hypot(i - cx, j - cy)) / R;
+  const { sd, FW, FH } = signedDistance(h, W, H, 3);
+  for (const [x, y] of [[30, 20], [33, 25], [18, 20], [45, 31], [5, 5], [39.5, 20], [30, 8]]) {
+    const want = R - Math.hypot(x - cx, y - cy);
+    const got = bil(sd, FW, FH, (x + 0.5) * 3 - 0.5, (y + 0.5) * 3 - 0.5);
+    assert.ok(Math.abs(got - want) < 0.35, `(${x},${y}) ${got} と ${want}`);
+    assert.equal(Math.sign(got), Math.sign(want));
+  }
+});
+
+test('地図: 窪地を埋めると、どの陸のマスからも流れをたどって海へ出られる（陸の中の窪みがあっても）', () => {
+  const { makeIsland, priorityFlood, flowDown, flowAccum } = trendCore(ATLAS, ['makeIsland', 'priorityFlood', 'flowDown', 'flowAccum']);
+  const W = 90, H = 60;
+  const h = makeIsland(4, W, H);
+  // 陸の真ん中に、まわりより低い窪みを掘る（海より高いまま）
+  let pit = -1, hi = 0;
+  for (let k = 0; k < h.length; k++) if (h[k] > hi) { hi = h[k]; pit = k; }
+  h[pit] = 0.01;
+  const f = priorityFlood(h, W, H, 1e-6);
+  const down = flowDown(f, h, W, H);
+  const acc = flowAccum(f, down, h);
+  let land = 0, outflow = 0;
+  for (let k = 0; k < h.length; k++) {
+    assert.ok(f[k] >= h[k]);
+    if (h[k] <= 0) continue;
+    land++;
+    let c = k, steps = 0;
+    while (h[c] > 0) {
+      assert.ok(down[c] >= 0, '流れる先がない陸のマス');
+      assert.ok(f[down[c]] < f[c], '流れる先が低くない');
+      c = down[c];
+      assert.ok(++steps < W * H);
+    }
+    if (h[down[k]] <= 0) outflow += acc[k];
+  }
+  assert.ok(land > 300);
+  assert.equal(pit >= 0 && f[pit] > h[pit], true, '窪みが埋まっていない');
+  assert.equal(outflow, land, '海へ出た水の量の合計が陸のマスの数と違う');
+});
+
+test('地図: 川の線は流れる先をたどり、合流した所か海に出た所で止まる', () => {
+  const { makeIsland, priorityFlood, flowDown, flowAccum, riverChains } = trendCore(ATLAS, ['makeIsland', 'priorityFlood', 'flowDown', 'flowAccum', 'riverChains']);
+  const W = 150, H = 100, h = makeIsland(2, W, H);
+  const f = priorityFlood(h, W, H, 1e-6), down = flowDown(f, h, W, H), acc = flowAccum(f, down, h);
+  const ch = riverChains(down, acc, h, W, 40);
+  assert.ok(ch.length >= 3);
+  const used = new Set();
+  for (const c of ch) {
+    for (let n = 0; n + 1 < c.length; n++) assert.equal(c[n + 1], down[c[n]]);
+    const end = c[c.length - 1];
+    assert.ok(h[end] <= 0 || used.has(end), '川の終わりが海でも合流でもない');
+    for (const k of c.slice(0, -1)) { assert.ok(!used.has(k), '同じマスを 2 本の川が通る'); used.add(k); }
+  }
+});
+
+test('地図: 島の番号は大きい島から付き、斜めに接しただけのマスは別の島になる', () => {
+  const { labelIslands, nearestLabel } = trendCore(ATLAS, ['labelIslands', 'nearestLabel']);
+  const rows = [
+    '##....',
+    '##.###',
+    '..####',
+    '#.....',
+  ];
+  const W = 6, H = 4, land = new Uint8Array(W * H);
+  rows.forEach((s, j) => [...s].forEach((c, i) => { land[j * W + i] = c === '#' ? 1 : 0; }));
+  const L = labelIslands(land, W, H);
+  assert.equal(L.count, 3);
+  assert.deepEqual([...L.sizes], [7, 4, 1]);
+  assert.equal(L.lab[1 * W + 4], 1);
+  assert.equal(L.lab[0], 2);
+  assert.equal(L.lab[3 * W + 0], 3);
+  const near = nearestLabel(L.lab, W, H);
+  assert.equal(near[0 * W + 5], 1);
+  assert.ok([...near].every((v) => v > 0));
+});
+
+test('地図: 線の太さを「濃さ × 間隔」にすると、間引いた後のどの間隔でも、覆う割合が濃さに近い', () => {
+  const { hatchCov } = trendCore(ATLAS, ['hatchCov']);
+  const sMin = 3.1;
+  for (const tone of [0.2, 0.35, 0.5]) {
+    for (const s of [0.4, 0.7, 1.1, 1.7, 2.6, 3.1, 5, 6]) {
+      const g = 1 / s;
+      let sum = 0;
+      const n = 20000;
+      for (let q = 0; q < n; q++) sum += hatchCov((q * 0.01) * g, g, tone, sMin, 0, 100)[0];
+      assert.ok(Math.abs(sum / n - tone) < 0.05, `濃さ ${tone}・間隔 ${s} px で ${sum / n}`);
+    }
+  }
+});
+
+test('地図: 間引きの段は間隔が半分になるごとに 1 つ上がり、段の境目で線の濃さが跳ばない', () => {
+  const { hatchCov } = trendCore(ATLAS, ['hatchCov']);
+  const sMin = 3.1;
+  assert.equal(hatchCov(0, 1 / 3.1, 0.3, sMin, 0.4, 2.6)[1], 0);
+  assert.ok(Math.abs(hatchCov(0, 2 / 3.1, 0.3, sMin, 0.4, 2.6)[1] - 1) < 1e-9);
+  assert.ok(Math.abs(hatchCov(0, 4 / 3.1, 0.3, sMin, 0.4, 2.6)[1] - 2) < 1e-9);
+  for (const edge of [sMin / 2, sMin / 4]) {
+    for (let q = 0; q < 400; q++) {
+      const p = q * 0.037;
+      const a = hatchCov(p, 1 / (edge * (1 + 1e-7)), 0.3, sMin, 0.4, 2.6)[0];
+      const b = hatchCov(p, 1 / (edge * (1 - 1e-7)), 0.3, sMin, 0.4, 2.6)[0];
+      assert.ok(Math.abs(a - b) < 1e-3, `間隔 ${edge} の境目、p = ${p}`);
+    }
+  }
+});
+
+test('地図: 光は北西から来ると西と北を向き、光に背を向けた斜面ほど陰影が濃い', () => {
+  const { lightVec, toneOf, dirName } = trendCore(ATLAS, ['lightVec', 'toneOf', 'dirName']);
+  const L = lightVec(315, 40);
+  assert.ok(L[0] < 0 && L[1] < 0 && L[2] > 0);
+  assert.ok(Math.abs(Math.hypot(L[0], L[1], L[2]) - 1) < 1e-12);
+  const flat = toneOf(0, 0, 20, L);
+  const lit = toneOf(0.03, 0.03, 20, L);       // 東と南へ上る＝北西を向く斜面（光の方を向く）
+  const dark = toneOf(-0.03, -0.03, 20, L);    // 東と南へ下る＝南東を向く斜面（光に背を向ける）
+  assert.ok(flat < 0.06);
+  assert.ok(dark > 0.9 && lit < dark);
+  assert.equal(dirName(315), '北西');
+  assert.equal(dirName(-45), '北西');
+  assert.equal(dirName(359), '北');
+});
+
+test('地図: 島の標高は種で決まり、縁は海、陸の最高は 1', () => {
+  const { makeIsland } = trendCore(ATLAS, ['makeIsland']);
+  const W = 120, H = 80;
+  const a = makeIsland(7, W, H), b = makeIsland(7, W, H), c = makeIsland(8, W, H);
+  assert.deepEqual([...a], [...b]);
+  assert.notDeepEqual([...a], [...c]);
+  let max = -Infinity, land = 0;
+  for (let k = 0; k < a.length; k++) { max = Math.max(max, a[k]); if (a[k] > 0) land++; }
+  assert.ok(Math.abs(max - 1) < 1e-6);
+  assert.ok(land > a.length * 0.08 && land < a.length * 0.6);
+  for (let i = 0; i < W; i++) { assert.ok(a[i] <= 0); assert.ok(a[(H - 1) * W + i] <= 0); }
+  for (let j = 0; j < H; j++) { assert.ok(a[j * W] <= 0); assert.ok(a[j * W + W - 1] <= 0); }
+});
+
+test('地図: 水際の線の番号と位置は互いに逆の関係で、外ほど間が広い', () => {
+  const { waterPhase, waterPos } = trendCore(ATLAS, ['waterPhase', 'waterPos']);
+  let prev = 0, gap = 0;
+  for (let k = 1; k <= 6; k++) {
+    const d = waterPos(k, 3.4, 1.4);
+    assert.ok(Math.abs(waterPhase(d, 3.4, 1.4) - k) < 1e-9);
+    assert.ok(d - prev > gap);
+    gap = d - prev; prev = d;
+  }
+});
