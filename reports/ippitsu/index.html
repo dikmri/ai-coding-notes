@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>画像を貼ると、プログラムが一筆ずつペン画に描き直す ― AI コーディングノート</title>
+<meta name="description" content="貼り付けた画像から線を起こし、筆の順番を決めて、一筆ずつ描き直すペン画のプレーヤー。HTML・CSS・JavaScript だけで、ブラウザの中で動く。生成 AI は使わず、画像はどこにも送らない。仕組み・測った数字・うまくいかないことも載せる。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='800'%3EAI%3C/text%3E%3Cpath d='M15 51H49' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@500;700&family=JetBrains+Mono:wght@500;700;800&display=swap">
+<link rel="stylesheet" href="ippitsu.css">
+<link rel="stylesheet" href="player.css">
+<script type="module" src="js/player.mjs"></script>
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="report">
+<article>
+  <p class="kicker">試せる実験 ・ 2026 年 11 月 28 日</p>
+  <h1>画像を貼ると、プログラムが一筆ずつペン画に描き直す</h1>
+  <p class="lede">作者が X で見つけたポスト 2 件では、AI が書いたプログラムが画像から線を拾い、一筆ずつ描き直していました。同じ種類の処理を、このページの中だけで動かせるかを試しました。下のプレーヤーに画像を入れると、プログラムが線を起こし、筆の順番を決めて、一筆ずつ描きます。</p>
+  <p class="lede">生成 AI は使っていません。使っているのは昔からある画像処理と、Claude が書いた JavaScript だけです。画像はこのブラウザの中で処理し、どこにも送りません。</p>
+
+  <section class="ip" id="player" aria-label="一筆ずつ描くペン画のプレーヤー">
+    <div class="ip-top">
+      <p class="ip-title"><b>IPPITSU</b>一筆ずつ描くペン画</p>
+      <div class="ip-samples" role="group" aria-label="見本の画像">
+        <button type="button" data-sample="fisher" aria-pressed="true">港の漁師</button>
+        <button type="button" data-sample="rain" aria-pressed="false">雨の街</button>
+        <button type="button" data-sample="stairs" aria-pressed="false">線画</button>
+        <button type="button" data-sample="street" aria-pressed="false">猫の目線</button>
+      </div>
+      <label class="ip-file"><input type="file" id="ip-file" accept="image/*"><span>画像を選ぶ</span></label>
+      <span class="ip-spacer"></span>
+      <button type="button" id="ip-fit" aria-pressed="false">ページいっぱい</button>
+      <button type="button" id="ip-fs" hidden>全画面</button>
+    </div>
+    <div class="ip-main">
+      <aside class="ip-side ip-left" aria-label="入れた画像">
+        <figure class="ip-view">
+          <figcaption><span>元の画像</span><span id="ip-src-name"></span></figcaption>
+          <img id="ip-src" alt="" width="778" height="1000">
+        </figure>
+        <figure class="ip-view">
+          <figcaption><span>起こした線（細線化の前）</span></figcaption>
+          <canvas id="ip-ink" width="1" height="1" role="img" aria-label="プログラムが元の画像から起こした線。この線を細くして筆に分ける。"></canvas>
+        </figure>
+        <section class="ip-sec-proc">
+          <h3>処理の内訳</h3>
+          <ul class="ip-list ip-proc" id="m-proc"></ul>
+          <p class="ip-proc-foot"><span id="m-kind">—</span><span>合計 <output id="m-proc-total">—</output></span></p>
+        </section>
+        <p class="ip-hint">画像をここへドロップするか、Ctrl+V で貼り付けても読み込めます。</p>
+      </aside>
+      <div class="ip-paper-wrap" tabindex="0" role="group" aria-label="描く紙。スペースキーで再生と一時停止、→ キーで 1 筆進む">
+        <div class="ip-paper">
+          <canvas id="ip-canvas" width="1" height="1" role="img" aria-label="プログラムが一筆ずつ描いている線画。"></canvas>
+          <canvas id="ip-pen" width="1" height="1" aria-hidden="true"></canvas>
+        </div>
+        <p class="ip-busy" id="ip-busy" hidden>線を起こしています…</p>
+      </div>
+      <aside class="ip-side ip-right" aria-label="計器">
+        <section>
+          <h3>筆</h3>
+          <p class="ip-big"><output id="m-i">0</output><span class="ip-of"> / <output id="m-n">0</output></span></p>
+          <div class="ip-gauge">
+            <span>筆の数</span><span class="ip-bar" aria-hidden="true"><span id="g-stroke"></span></span><output id="g-stroke-v">0%</output>
+            <span>線の長さ</span><span class="ip-bar" aria-hidden="true"><span id="g-ink"></span></span><output id="g-ink-v">0 px</output>
+          </div>
+        </section>
+        <section>
+          <h3>段（描く順番）</h3>
+          <ol class="ip-list ip-stages" id="m-stages"></ol>
+        </section>
+        <section class="ip-sec-cur">
+          <h3>いまの筆</h3>
+          <dl class="ip-dl" id="m-cur">
+            <dt>番号</dt><dd data-k="no">—</dd>
+            <dt>種類</dt><dd data-k="kind">—</dd>
+            <dt>記録点</dt><dd data-k="pts">—</dd>
+            <dt>長さ</dt><dd data-k="len">—</dd>
+            <dt>線幅</dt><dd data-k="w">—</dd>
+            <dt>始点</dt><dd data-k="from">—</dd>
+            <dt>終点</dt><dd data-k="to">—</dd>
+          </dl>
+        </section>
+        <section class="ip-sec-tip">
+          <h3>ペン先</h3>
+          <dl class="ip-dl" id="m-tip">
+            <dt>x</dt><dd data-k="x">—</dd>
+            <dt>y</dt><dd data-k="y">—</dd>
+            <dt>線幅</dt><dd data-k="w">—</dd>
+            <dt>速さ</dt><dd data-k="v">—</dd>
+          </dl>
+        </section>
+      </aside>
+    </div>
+    <div class="ip-bar-ctl">
+      <button type="button" id="ip-play" class="ip-play" disabled>再生</button>
+      <button type="button" id="ip-step" disabled>1 筆進む</button>
+      <button type="button" id="ip-restart" disabled>最初から</button>
+      <button type="button" id="ip-end" disabled>描き上がり</button>
+      <label class="ip-range">速さ <input type="range" id="ip-speed" min="0" max="8" step="1" value="2"> <output id="ip-speed-v">×1</output></label>
+      <label class="ip-range">線の細かさ <input type="range" id="ip-detail" min="0" max="10" step="1" value="5"> <output id="ip-detail-v">5</output></label>
+      <label class="ip-range">陰影の量 <input type="range" id="ip-hatch" min="0" max="10" step="1" value="5"> <output id="ip-hatch-v">5</output></label>
+      <label class="ip-range">陰影の描き方 <select id="ip-hstyle"><option value="hand" selected>人の斜線</option><option value="stipple">点描</option><option value="stipple-only">点描だけ（主線なし）</option><option value="beta-stipple">ベタと点描</option><option value="beta-stipple-only">ベタと点描だけ（主線なし）</option><option value="beta-only">ベタだけ</option><option value="grid">格子</option></select></label>
+      <fieldset class="ip-layers" id="ip-layers">
+        <legend>表示</legend>
+        <label><input type="checkbox" id="ip-show-line" data-kind="0" checked> 主線</label>
+        <label><input type="checkbox" id="ip-show-fill" data-kind="3" checked> ベタ</label>
+        <label><input type="checkbox" id="ip-show-dot" data-kind="2" checked> 点描</label>
+        <label><input type="checkbox" id="ip-show-hatch" data-kind="1" checked> 斜線</label>
+      </fieldset>
+      <button type="button" id="ip-png" disabled>PNG（透過）</button>
+      <button type="button" id="ip-svg" disabled>SVG</button>
+      <span class="ip-status" id="ip-status" role="status"></span>
+    </div>
+  </section>
+  <p class="small">プレーヤーの中では、スペースキーで再生と一時停止、→ キーで 1 筆進む、Home キーで最初から、End キーで描き上がりです。「線の細かさ」「陰影の量」「陰影の描き方」を変えると、線を起こし直します。「陰影の描き方」は、人の斜線（既定）・点描・点描だけ（主線なし）・ベタと点描・ベタと点描だけ（主線なし）・ベタだけ・格子から選べます。下の帯の「表示」で、主線・ベタ・点描・斜線の層を、描き上がってからでも出したり消したりできます。「格子」は最初に作った斜線の方式です。</p>
+
+  <h2>元になったポスト</h2>
+  <ul>
+    <li><a href="https://x.com/masamune_sakaki/status/2125769919409406250">榊正宗さんのポスト</a>（2026 年 11 月 26 日）: AI で生成した線画から線を拾い、描き順をプログラムが組み立てるツールの紹介です。取り出した 1 本の線には、始点・終点・途中の座標・線幅が残っています。囲まれた所へのトーン貼りや、光の向きに合わせた前髪の影の変更も紹介されています。</li>
+    <li><a href="https://x.com/kiyoshi_shin/status/2126206684221841801">新清士さんのポスト</a>（2026 年 11 月 27 日）: Gemini 4 Neon を使って、画像をペン画風にプログラムが描き直すツールを作ったという紹介です。透過 PNG で書き出せて、筆の動きも模しています。</li>
+  </ul>
+  <p>作者の問いは「適当な画像を貼り付けたら線画にして、一筆ずつ線が引かれる様子を見られる物を、HTML・CSS・JavaScript だけで作れるか」でした。2 件のツールのコードは公開されていないため、このページはそれを見ていません。画面の配置もまねず、同じ目的の物を別に作りました。</p>
+
+  <h2>何をしているか</h2>
+  <figure>
+    <img src="img/fig-steps.webp" width="1540" height="340" loading="lazy" alt="港の漁師の見本の顔のあたりを、処理の段ごとに並べた図。元の画像、模様の向きを短い線で示した図、起こした線、1 画素の太さにした中心線、描く段で色分けした筆の 5 枚。">
+    <figcaption>港の漁師の見本の顔のあたり。左から、元の画像、模様の向き、起こした線、中心線、筆（赤 = 長い輪郭、黒 = 中くらいの線、青 = 短い線、緑 = 斜線）。</figcaption>
+  </figure>
+  <ol class="steps">
+    <li><strong>線を起こす</strong>写真やイラストでは、まず「模様の向き」を求めます。画素ごとに明るさが変わる向きを調べ、それに直交する向きを線の流れとします。次に、明るさが変わる向きに沿って差分ガウス（DoG）をかけ、周りより暗くて細い所を見つけます。この値を線の流れに沿ってならすので、線が途切れにくくなります。Kang らが 2007 年に発表した「流れに沿った DoG」の考え方です。白地に黒い線の絵は線が既にあるので、大津の方法で決めたしきい値より暗い所をそのまま使います。</li>
+    <li><strong>筆に分ける</strong>線を 1 画素の太さまで削り（細線化）、中心線を残します。中心線の各点から一番近い白までの距離で、線幅を測ります。中心線を端点と分かれ目で枝に分け、分かれ目では向きが続く枝どうしをつなぎます。十字の交わりは 2 本の筆に、T 字は横棒と縦棒の 2 本の筆になります。</li>
+    <li><strong>斜線を足す（写真とイラストだけ）</strong>暗い所に、平行な線の束で斜線を引きます。1 段目は「/」の向き（60°）にそろえ、髪のように模様の流れがはっきりした所だけ形に少し沿わせます。もっと暗い所には 1 段目を 55° 回した 2 段目を重ね、最も暗い所は 1 段目と 2 段目の線の間に線を足します。暗い所ほど線を太く、間を詰めます。斜線は長い輪郭を越えません。人の描き方に寄せた理由と比べた結果は、下の「斜線を人の描き方に近づけた」に書きました。「陰影の描き方」で「点描」を選ぶと、斜線の代わりに点を打ちます（下の「点描でも描けるようにした」）。</li>
+    <li><strong>順番を決めて描く</strong>写真とイラストは「長い輪郭 → 中くらいの線 → 短い線 → 斜線」、線画は「外周 → 長い線 → 短い線」の順に描きます。輪郭の段の中では、いまのペン先から一番近い筆を選び、近いほうの端から描き始めます。斜線は、1 段目を全部描いてから 2 段目・3 段目を描き、束の中は端の線から隣へ順に、上の端から引き下ろす向きで描きます。筆の始めと終わりを細くして、ペンの入りと抜きに見せています。</li>
+  </ol>
+  <figure>
+    <img src="img/fig-order.webp" width="1232" height="426" loading="lazy" alt="雨の街の見本を、描く段の終わりごとに並べた図。長い輪郭までの 124 筆では大きな形だけ、中くらいの線までで髪や傘の骨が加わり、短い線までで細部が入り、斜線まで描くと暗い髪と背景が斜線で埋まる。">
+    <figcaption>雨の街の見本を、段の終わりごとに並べたもの。大きな形から描き、陰影の斜線は最後に描きます。</figcaption>
+  </figure>
+
+  <h2 id="hatch">斜線を人の描き方に近づけた</h2>
+  <p>最初の版を触った作者から「ハッチングが自然ではない。四角形をぐりぐり描いて陰影を付けているように見える」と言われました。人が描くハッチングは、斜めの線を組み合わせて陰影を表します。そこで、デッサンやペン画のハッチングの描き方を調べ、それに合わせて斜線の作り方を変えました。</p>
+  <h3>最初の版で四角に見えた理由</h3>
+  <ul>
+    <li>2 段目の斜線を、1 段目と直角（90°）に重ねていました。直角に交わる線は、網目のような四角に見えます。</li>
+    <li>斜線の段の中で、ペン先に近い線から順に描いていました。1 段目と 2 段目の線が混ざって並ぶので、向きの違う短い線を交互に描き、小さな四角を描き足すような動きになっていました。続けて描く 2 本の斜線の半分ほどが、向きを 30° 以上変えていました。</li>
+  </ul>
+  <h3>調べたこと</h3>
+  <ul>
+    <li><strong>平行な線の束が単位</strong>: ハッチングは「ほぼ平行な線のまとまり」で、複雑な形はいくつかの束に分けて描きます（Philbrick と Kaplan の論文）。1 つの区画の中では、線の向きをそろえます。</li>
+    <li><strong>向き</strong>: 右利きの人は「/」の向きの線が描きやすいとされます。背景まで同じ向きにそろえると落ち着いた絵になり、丸い形には形に沿って曲がる線（コンター・ハッチング）を使います。</li>
+    <li><strong>重ねる角度</strong>: 多くの解説が、2 段目を直角に重ねると格子のように見えて機械的になると書いています。30〜45° くらいずらして、間にひし形ができるように重ねるのがよいとされます。段ごとに角度を少しずつ回すとも書かれています。</li>
+    <li><strong>暗さの出し方</strong>: 線の間隔を詰める、段を重ねる、線を太くする、の 3 つで暗くします。線は暗い所で太く、明るい所へ向かって細くなります。明るい所は無理に埋めず、紙の白を残します。</li>
+  </ul>
+  <h3>変えたこと</h3>
+  <ul>
+    <li>影の中に最初の線を引き、そこから線の間隔だけ横にずらした所に次の線を引きます。これを行き止まりまで続けて、1 つの束を作ります。描くときは、束の端の線から反対の端の線まで、隣へ順に描きます。</li>
+    <li>1 段目は「/」の 60° にそろえ、模様の流れがはっきりした所だけ流れに少し沿わせます。2 段目は、1 段目の向きを 55° 回して重ねます。1 段目が曲がる所では一緒に曲がるので、どこでも約 55° で交わり、直角の格子にはなりません。</li>
+    <li>もっと暗い所（3 段目・4 段目）は、3 つ目の向きを足さず、1 段目と 2 段目の線の間に同じ向きの線を足して暗くします。</li>
+    <li>束と束の間に白い筋を残さないよう、線の長さと中心の位置を線ごとにずらし、線の先端のそばには隣の束の線も入れるようにします。最後に、まとまって空いた所だけに短い線を足します。</li>
+    <li>暗い所ほど線を太くし、間隔を詰めます。束の縁は線ごとに少しずつずらし、輪郭のように切りそろえません。</li>
+    <li>長い輪郭の線を壁にして、斜線が輪郭を越えないようにします（論文の「barrier curve」と同じ考え方）。</li>
+    <li>1 段目を全部描いてから 2 段目、3 段目を描きます。線は上の端から引き下ろし、入りを短く、抜きを長く細くします。</li>
+  </ul>
+  <p>この作り方は、伏せた見比べを挟みながら 3 版かけて決めました。見比べは、どれが新しいかを伏せたまま、別の目（Claude のサブエージェント）に絵だけを見てもらう形です。</p>
+  <ol class="steps">
+    <li><strong>1 版目</strong>前の方式と比べてもらうと、人のハッチングらしさと明暗の読みやすさは、見本 3 枚とも新しい方式が選ばれました。欠点は 4 つ指摘されました。最も暗い所で 3 つの向きが三角の網目になり金網のように見える、斜線が輪郭を越える、平らな壁の線がうねる、小さな束が継ぎはぎに見える、の 4 つです。</li>
+    <li><strong>2 版目</strong>3 段目を「間を埋める段」に変え、長い輪郭を壁にしました。流れに沿わせるのは向きがはっきりした所だけにし、束ごとの向きのぶれを ±4° から ±2.5° に減らしました。1 版目と比べると、手描きらしさは 3 枚とも 2 版目が上でした。一方で、明暗の読みやすさは 3 枚とも 1 版目が上でした。最も暗い所が暗くなりきらず、広い暗い面（生け垣）では束の間の白い筋が大きなひし形の柄に見えました。</li>
+    <li><strong>3 版目（いまの版）</strong>2 段目の線の間を埋める 4 段目を足して、暗い所を暗くしました。束の間の白い筋は、線の長さと中心をずらし、先端のそばに隣の線が入れるようにし、最後にまとまった隙間を埋めて減らしました。生け垣で 1 段目の線から 4px より離れた所は 3.6% から 2.0% になり、明暗の相関も上がりました。</li>
+  </ol>
+  <figure>
+    <img src="img/fig-hatch.webp" width="856" height="460" loading="lazy" alt="港の漁師の顔のあたりを、前の方式と人の描き方で描いて並べた図。前の方式は短い線が十字に散らばり、人の描き方は向きのそろった斜線が顔の影を覆い、目のくぼみとひげの下にだけ交差する線が重なる。">
+    <figcaption>港の漁師の顔のあたり。左が前の方式（格子）、右が人の描き方。</figcaption>
+  </figure>
+  <div class="pair">
+    <figure>
+      <img src="img/fig-progress-grid.webp" width="924" height="426" loading="lazy" alt="前の方式で斜線を描いていく途中を 3 つの時点で並べた図。斜線は画像のあちこちに少しずつ足されていく。">
+      <figcaption>前の方式で描く途中（斜線は朱色）。短い線が画像のあちこちに少しずつ増えます。</figcaption>
+    </figure>
+    <figure>
+      <img src="img/fig-progress-hand.webp" width="924" height="426" loading="lazy" alt="人の描き方で斜線を描いていく途中を 3 つの時点で並べた図。船、顔、セーターの影が、平行な線の束で 1 つずつ埋まっていく。">
+      <figcaption>人の描き方で描く途中。影を平行な線の束で 1 つずつ埋めていきます。</figcaption>
+    </figure>
+  </div>
+  <h3>比べた数字</h3>
+  <p>写真風の見本 3 枚で、斜線を描く順に並べて測りました。「明暗の相関」は、描き上がった絵と元の画像をどちらもぼかしてから比べた値で、1 に近いほど明暗が合っています。</p>
+  <div class="table-wrap" tabindex="0">
+    <table class="stack">
+      <caption>前の方式（格子）と人の描き方の比べ</caption>
+      <thead><tr><th scope="col">見本</th><th scope="col">方式</th><th scope="col">続く 2 本の向きの差（中央値）</th><th scope="col">向きが 30° 以上変わる割合</th><th scope="col">直角に近い交差（75° 以上）</th><th scope="col">明暗の相関</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">港の漁師</th><td data-label="方式">格子</td><td data-label="向きの差" class="num">45°</td><td data-label="30° 以上" class="num">61%</td><td data-label="直角に近い交差" class="num">33%</td><td data-label="明暗の相関" class="num">0.69</td></tr>
+        <tr><th scope="row">港の漁師</th><td data-label="方式">人の描き方</td><td data-label="向きの差" class="num">2.4°</td><td data-label="30° 以上" class="num">4.1%</td><td data-label="直角に近い交差" class="num">4.3%</td><td data-label="明暗の相関" class="num">0.86</td></tr>
+        <tr><th scope="row">雨の街</th><td data-label="方式">格子</td><td data-label="向きの差" class="num">19°</td><td data-label="30° 以上" class="num">47%</td><td data-label="直角に近い交差" class="num">62%</td><td data-label="明暗の相関" class="num">0.57</td></tr>
+        <tr><th scope="row">雨の街</th><td data-label="方式">人の描き方</td><td data-label="向きの差" class="num">2.4°</td><td data-label="30° 以上" class="num">2.7%</td><td data-label="直角に近い交差" class="num">1.9%</td><td data-label="明暗の相関" class="num">0.82</td></tr>
+        <tr><th scope="row">猫の目線の通り</th><td data-label="方式">格子</td><td data-label="向きの差" class="num">45°</td><td data-label="30° 以上" class="num">55%</td><td data-label="直角に近い交差" class="num">50%</td><td data-label="明暗の相関" class="num">0.41</td></tr>
+        <tr><th scope="row">猫の目線の通り</th><td data-label="方式">人の描き方</td><td data-label="向きの差" class="num">1.1°</td><td data-label="30° 以上" class="num">1.9%</td><td data-label="直角に近い交差" class="num">1.2%</td><td data-label="明暗の相関" class="num">0.83</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>人の描き方では、続けて描く 2 本の線の向きがほぼ同じになり、直角に近い交差は 1〜4% まで減りました。明暗の相関も、3 枚とも 0.82〜0.86 に上がっています。斜線の本数は 1.7〜1.9 倍に増えますが、処理の時間は前とほぼ同じです。速さ ×1 で描き上がるまでの時間は、筆の数によらず約 45 秒です。</p>
+  <h3>伏せた見比べ（3 回目）</h3>
+  <p>最後に、前の方式・2 版目・3 版目の 3 つを、どれがどれかを伏せて並べ、見本ごとに順位を付けてもらいました。</p>
+  <div class="table-wrap" tabindex="0">
+    <table class="stack">
+      <caption>3 つを伏せて並べた見比べの順位</caption>
+      <thead><tr><th scope="col">見本</th><th scope="col">人のハッチングらしい順</th><th scope="col">明暗が読み取りやすい順</th><th scope="col">総合でいちばん良い</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">港の漁師</th><td data-label="ハッチングらしい順">2 版目 ≧ 3 版目 ＞ 前の方式</td><td data-label="明暗の順">3 版目 ＞ 2 版目 ＞ 前の方式</td><td data-label="総合">3 版目</td></tr>
+        <tr><th scope="row">雨の街</th><td data-label="ハッチングらしい順">2 版目 ＞ 3 版目 ＞ 前の方式</td><td data-label="明暗の順">3 版目 ≧ 2 版目 ＞ 前の方式</td><td data-label="総合">2 版目（3 版目との差は小さい）</td></tr>
+        <tr><th scope="row">猫の目線の通り</th><td data-label="ハッチングらしい順">3 版目 ＞ 2 版目 ＞ 前の方式</td><td data-label="明暗の順">3 版目 ＞ 2 版目 ＞ 前の方式</td><td data-label="総合">3 版目</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>前の方式は、3 枚ともどちらの点でも最下位でした。理由は「正方形や三角の格子が網戸や布の模様のように見える」「短い線が散らばってハッチングの束に見えない」「全体が薄く明暗が読めない」というものでした。3 版目は 3 枚のうち 2 枚で総合 1 位、残る 1 枚でも 2 位だったので、3 版目をプレーヤーの既定にしました。雨の街で 2 版目が選ばれた理由は、3 版目では髪の最も暗い所で線が詰まり、塗りつぶしに近くなるためです。</p>
+  <p class="small">見比べ役は Claude のサブエージェントで、人の目ではありません。最後に判断するのは、このページを見る人の目です。</p>
+
+  <h2 id="stipple">点描でも描けるようにした</h2>
+  <p>斜線のハッチングを確かめた作者から、「この技術を応用して、水木しげるの点描のような描写を再現できないか」と頼まれました。水木しげるさんの点描と、一般的な点描（スティップリング）の描き方を調べ、陰影を点で描く方式を足しました。プレーヤーの「陰影の描き方」で「点描」を選ぶと使えます。このサイトは既存の作品をまねない決まりなので、水木作品の絵そのものは写していません。調べたのは点描という技法で、見本は今までと同じ自前の画像です。</p>
+  <h3>調べたこと</h3>
+  <ul>
+    <li><strong>水木作品の点描の打ち方</strong>: 『水木しげる漫画大全集』を監修した京極夏彦さんは、デジタル修正のとき、水木プロのチーフアシスタントだった村澤昌夫さんから点描の打ち方を教わったそうです。点は約 5mm 角のマスで区切って打ち、マスごとに仕上げて全体を完成させます。点を不規則にばらばらに打つのは、水木流ではないとされています（<a href="https://mediag.bunka.go.jp/article/article-19276/">メディア芸術カレントコンテンツのインタビュー</a>）。</li>
+    <li><strong>時代による変化</strong>: 貸本時代は斜線による陰影が中心で、点描は後年に多くなり、粒も細かくなったと解説されています（<a href="https://edist.ne.jp/dust/manga29_mizuki/">模写による解説</a>）。細密画のような背景に点描が多く使われています。</li>
+    <li><strong>一般的な点描</strong>: 明暗は点の大きさではなく密度で出します。同じ区画では同じ太さのペンを使い、ペンを紙に垂直に立てて丸い点を打ちます。点を線や輪の形に並べず、固まりも隙間も作らず、同じ明るさの所は同じ密度にそろえます。</li>
+    <li><strong>コンピューターの研究</strong>: Secord の「Weighted Voronoi Stippling」（2002）は、明暗に合わせて点を均等に散らします。固まりも隙間も無いこの並びは「ブルーノイズ」と呼ばれ、手で丁寧に打った点描に近い並びです。</li>
+  </ul>
+  <h3>作り方</h3>
+  <ul>
+    <li>明るさから「点で覆う割合」の目標を決めます。明るい所は打たずに紙の白を残し、暗い所ほど割合を上げます。</li>
+    <li>点の大きさはほぼ一定（1,000px の画像で直径約 1.6px、手で打つぶれとして ±18%）にし、密度で明暗を出します。最も暗い所だけ、点を最大 1.4 倍まで大きくして黒に近づけます。</li>
+    <li>点どうしの最小距離を目標から計算し、候補の点をばらばらの順に試して、近くに点が無い所にだけ置きます（ポアソンディスク・サンプリング）。点は固まらず、均等に散ります。最小距離にも ±8% のぶれを入れ、並びがそろいすぎないようにします。</li>
+    <li>画像を約 5mm 角（1,000px の画像で約 28px）のマスに分け、マスごとに打ち終えてから隣のマスへ移ります。マスの中心は格子から少しずつずらしてあり、マスの縁は縦横の直線になりません。マスの中は、近い点へ順に打ちます。</li>
+    <li>輪郭は線のまま描きます。水木作品も、強弱のある線と点描を組み合わせています。</li>
+  </ul>
+  <figure>
+    <img src="img/fig-stipple.webp" width="856" height="460" loading="lazy" alt="点描で描いた 2 枚。港の漁師の顔は、線の輪郭と点の密度だけで明暗が表され、額や頬の明るい所は白く残る。猫の目線の通りの生け垣は、細かい点が均等に詰まった暗い面になる。">
+    <figcaption>点描で描いたもの。左は港の漁師の顔のあたり、右は猫の目線の通りの生け垣のあたり。</figcaption>
+  </figure>
+  <figure>
+    <img src="img/fig-stipple-progress.webp" width="924" height="426" loading="lazy" alt="点描で打ち進める途中を 3 つの時点で並べた図。点は約 5mm 角のマスの単位で埋まっていき、マスを打ち終えると隣のマスへ移る。">
+    <figcaption>点描で打ち進める途中（点は朱色）。約 5mm 角のマスを 1 つずつ仕上げて、隣のマスへ移ります。</figcaption>
+  </figure>
+  <h3>確かめた結果</h3>
+  <p>明暗の相関（描いた絵と元の画像をぼかして比べた値）は、港の漁師 0.95、雨の街 0.94、猫の目線の通り 0.94 で、人の斜線（0.82〜0.86）より高くなりました。点が細かいので、明暗を細かく写せます。点の数は見本 1 枚で 5 万〜10 万個、処理の時間は約 1.5〜2 秒です。</p>
+  <p>点の並びの均等さも測りました。比べる相手は、同じ明暗の目標・同じ数の点を、ランダムな位置にばらばらに打った点描です。「一番近い点までの距離」のばらつき（変動係数。小さいほど間隔がそろう）は、この方式が 0.25〜0.45、ばらばらに打った点描が 0.60〜0.79 でした。</p>
+  <p>斜線のときと同じように、どちらかを伏せて見比べてもらいました（相手は、ばらばらに打った点描）。港の漁師と猫の目線の通りの 2 組とも、手で打つ点描らしさと明暗の読みやすさの両方で、この方式が選ばれました。ばらばらに打った点描は「点がくっついて短い線や固まりになり、間に白い穴ができて、写真の粒子のように見える」と評されています。打ち進める様子も、「1 か所を仕上げてから隣へ移る」この方式のほうが人に近いと判定されました。</p>
+  <p>一方で、この方式にも欠点が 2 つ挙がりました。打っている途中、マスの縁がまっすぐな縦横の線になり顔の輪郭を横切ること、点の大きさと間隔がそろいすぎて最も暗い所が一様な灰色の網に見えることです。マスの中心をずらして縁を不揃いにし、点の大きさと間隔にぶれを入れ、最も暗い所の点を大きくしました。直したあとの版は、まだ伏せた見比べにかけていません。</p>
+  <h3>点描だけ（主線なし）と、ベタと点描</h3>
+  <p>点描を確かめた作者から、さらに 2 つのモードを頼まれました。「主線をなくして点描だけで描くモード」と、「ベタ（黒く塗りつぶした所）と点描を組み合わせたモード」です。後者は「黒い所はちゃんと黒く、陰影は点描で表す」もので、水木作品の点描にだいぶ近い表現になるはずだ、という話でした。</p>
+  <ul>
+    <li><strong>点描だけ（主線なし）</strong>: 輪郭の線を描かず、点だけで描きます。点描の解説にある「形の縁は線で囲まず、点の密度で表す」に合わせて、明暗の差を少し強め（アンシャープマスク）、起こした線の位置では点を少し密にしています。輪郭は、点の並びとして浮かび上がります。</li>
+    <li><strong>ベタと点描</strong>: 最も暗い面をベタにし、その手前の明暗を点描で表します。ベタの中には点を打ちません。模写の解説に「ベタは筆で大まかに塗った後、G ペンで整えている」とあるので、描く順も「線 → 筆でベタ → ペンでベタの縁を整える → 点描」にしました。筆は、ベタの内側を太い線で斜めに往復して塗ります。ペンは、筆で塗り残した縁の細い帯を細線化した線です。小さな黒い点はベタにせず、ベタの中の小さな白い穴は埋めます。</li>
+  </ul>
+  <p>さらに、「ベタだけ」と「ベタと点描だけ（主線なし）」のモードも頼まれて足しました。「ベタだけ」は主線も点描も描かず、黒く塗る面だけを描きます。切り絵や影絵のような絵になります。</p>
+  <figure>
+    <img src="img/fig-beta.webp" width="1240" height="280" loading="lazy" alt="雨の街の顔と髪のあたりを、5 つのモードで並べた図。点描は輪郭の線と点、点描だけは点の密度だけで形が浮かぶ。ベタと点描は髪の暗い所が黒く塗られ、ベタと点描だけはそれから輪郭の線を除いたもの。ベタだけは髪と襟の黒い面だけが切り絵のように残る。">
+    <figcaption>雨の街の顔と髪のあたり。左から、点描、点描だけ（主線なし）、ベタと点描、ベタと点描だけ（主線なし）、ベタだけ。</figcaption>
+  </figure>
+  <h3>描き上がってから、層ごとに表示を切り替える</h3>
+  <p>描いた絵は、「主線」「ベタ」「点描」「斜線」の 4 つの層に分かれています。プレーヤーの下の帯の「表示」のチェックで、層ごとに表示と非表示を切り替えられます。描いていない層のチェックは押せません。描いている途中で層を消すと、その層の筆は描かずに進みます。PNG と SVG の書き出しも、表示している層だけになります。たとえば「ベタと点描」で描いてから点描を消すと、主線とベタだけの絵になります。</p>
+  <p>明暗の相関は、点描だけが 0.94〜0.95 で、線ありの点描とほぼ同じでした。ベタと点描は 0.86〜0.93 で少し下がります。ベタは暗い所を元の画像より黒く強調するので、これは狙いどおりの変化です。処理の時間は、どちらも約 1.5〜2.2 秒です。</p>
+
+  <h2>測った数字</h2>
+  <p>このパソコン（CPU は AMD Ryzen 5 3500）の Chrome で、見本 4 枚を処理した時間です。画像は長い辺を 1,000px にそろえてから処理します。処理は画面とは別のスレッド（Web Worker）で行うので、その間も画面は止まりません。時間の大半は、模様の向きを求める所（約 0.3 秒）、線を起こす所（約 0.4 秒）、斜線を置く所（約 0.6〜1 秒）です。線画はこの 3 つを通らないので、0.2 秒ほどで済みます。速さ ×1 では、どの見本も約 45 秒で描き上がるように、ペンの速さを線の長さの合計から決めています。</p>
+  <div class="table-wrap" tabindex="0">
+    <table class="stack">
+      <caption>見本ごとの筆の数と処理の時間</caption>
+      <thead><tr><th scope="col">見本</th><th scope="col">大きさ</th><th scope="col">種類</th><th scope="col">筆の数</th><th scope="col">うち斜線</th><th scope="col">処理の時間</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">港の漁師</th><td data-label="大きさ" class="num">778×1000</td><td data-label="種類">写真・絵</td><td data-label="筆の数" class="num">3,564</td><td data-label="うち斜線" class="num">2,286</td><td data-label="処理の時間" class="num">約 1.8 秒</td></tr>
+        <tr><th scope="row">雨の街</th><td data-label="大きさ" class="num">778×1000</td><td data-label="種類">写真・絵</td><td data-label="筆の数" class="num">4,725</td><td data-label="うち斜線" class="num">3,643</td><td data-label="処理の時間" class="num">約 2.3 秒</td></tr>
+        <tr><th scope="row">階段の少年</th><td data-label="大きさ" class="num">778×1000</td><td data-label="種類">線画</td><td data-label="筆の数" class="num">416</td><td data-label="うち斜線" class="num">0</td><td data-label="処理の時間" class="num">約 0.2 秒</td></tr>
+        <tr><th scope="row">猫の目線の通り</th><td data-label="大きさ" class="num">1000×562</td><td data-label="種類">写真・絵</td><td data-label="筆の数" class="num">5,307</td><td data-label="うち斜線" class="num">4,637</td><td data-label="処理の時間" class="num">約 1.3 秒</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>うまくいかないこと</h2>
+  <ul>
+    <li><strong>目から描く順番にはできません。</strong>線画にも写真にも「どこが目か」という情報が無いためです。プログラムが読めるのは、線の長さ、囲みの入れ子、明るさだけです。顔の部品の位置を知るには、顔を見つける学習済みのモデルを使うか、人が絵ごとに印を付ける必要があります。</li>
+    <li><strong>写真から起こす線は、絵を描く人が選ぶ線とは違います。</strong>明るさの変化をすべて拾うので、模様や光の反射も線になります。逆に、明るさが近い境目（白い服と白い壁など）は線になりません。何を描いて何を省くかを決めるには物の形を知る必要がありますが、この処理は形を知りません。</li>
+    <li><strong>最も暗い所は、線が詰まって黒い塊になります。</strong>斜線の段は暗さだけで決めているので、黒髪のつやは表しきれません。雨の街の髪のような暗い所では、塗りつぶしに近くなります。気になるときは「斜線の量」を下げてください。髪の流れには 1 段目が少し沿いますが、人が描くように面の向きを考えて束を分けることはしていません。</li>
+    <li><strong>束の継ぎ目は、まだ少し見えます。</strong>広い暗い面では、束と束の境目に細い白い筋や、向きの違う線の重なりが残る所があります。</li>
+    <li><strong>点描は点の数が多く、描き上がりまでの間は筆の数の表示が大きくなります。</strong>見本 1 枚で 5 万〜10 万個の点を打ちます。SVG に書き出すと数 MB になります。真っ黒にしたいときは「ベタと点描」を選んでください。</li>
+    <li><strong>ベタの縁に、画素の角の段差が少し残ります。</strong>ベタにする所は、ぼかした明るさをしきい値で分けて決めているためです。どこをベタにするかも暗さだけで決めていて、人のように「この面は黒く締める」と選んではいません。</li>
+    <li><strong>斜線の向きは「/」が基本です。</strong>右利きの人が描きやすい向きに合わせています。光の向きや面の傾きから束ごとに向きを変える描き方は、物の形を知らないとできないので、していません。</li>
+    <li><strong>光の向きで影を変えることはしていません。</strong>榊さんのポストにある「光の向きに合わせて前髪の影を変える」には、どのパーツがどこに影を落とすかの情報が要ります。2D の画像からはそれが分からないので、今回は扱っていません。</li>
+    <li><strong>顔が小さく写った画像では、線がつぶれます。</strong>長い辺を 1,000px にそろえるため、目や口が数画素の大きさになり、細線化で形が崩れます。</li>
+  </ul>
+
+  <h2>プログラムが描いたことの印</h2>
+  <p>書き出した PNG には、プログラムが描いた線画であることを、画像の説明（PNG の iTXt）として書き込みます。SVG にも同じ文を desc 要素に入れています。書き出した絵を、手で描いた絵として発表しないでください。</p>
+
+  <h2>作った過程</h2>
+  <ol class="steps">
+    <li><strong>線画だけで試作して測った</strong>最初は、線が既にある白黒の線画で試しました。1,352×1,308px の線画を 0.3〜0.4 秒で筆に分け、描き直した線は元の線の 98.5% を 1px 以内で覆いました。</li>
+    <li><strong>写真では、線が途切れて順番が崩れた</strong>写真に普通の DoG をかけると、輪郭が途中で切れました。外の白が人物の内側まで入り込み、「外周 → 囲み」の順番が働きませんでした。そこで、流れに沿った DoG に替え、写真には長さで決める順番を使いました。</li>
+    <li><strong>斜線がジグザグになった</strong>最初の斜線は模様の向きにそのまま沿わせたため、向きがばらばらの短いジグザグになりました。決まった向きを基本にし、明るい段だけを形に少し沿わせ、向きの変わり方をなめらかにしました。</li>
+    <li><strong>斜線が四角を描くように見えた</strong>作者が触って「四角形をぐりぐり描いているよう」と指摘しました。ハッチングの描き方を調べ、平行な線の束を隣へ順に描く方式に作り替えました（上の「斜線を人の描き方に近づけた」）。作り替えの途中では、2 段目と 3 段目が互いに直角で交わり、直角に近い交差が港の漁師で 40% 残りました。3 つの向きを約 60° ずつに配置し直し、2 段目と 3 段目も 1 段目と一緒に曲がるようにして、4% まで減らしました。そのあと、伏せた見比べを挟みながら 3 版目まで直しました（上の「斜線を人の描き方に近づけた」）。</li>
+    <li><strong>点描を足した</strong>作者から水木しげるさんのような点描の再現を頼まれ、水木プロの点描の打ち方の証言と、一般的な点描の技法を調べて足しました（上の「点描でも描けるようにした」）。最初の版は中間の明るさまで点で埋まり、全体が灰色のスクリーントーンのように見えました。明るい所は白く残し、暗い所に点を集めるように直しています。</li>
+    <li><strong>点描だけ・ベタと点描を足した</strong>作者から 2 つのモードを頼まれて足しました（上の「点描だけ（主線なし）と、ベタと点描」）。ベタは最初、しきい値が低くて髪の暗い所がほとんど点描のままだったので、少し上げています。</li>
+    <li><strong>ベタだけ・ベタと点描だけ・層の表示の切り替えを足した</strong>作者から頼まれて足しました（上の「描き上がってから、層ごとに表示を切り替える」）。確かめの台本では、ベタを消しても暗い画素が減らないように見えたことがありました。調べると、紙の画素を何度も読み出したあと、Chrome がキャンバスの描き方を切り替えて、細い点や線のふちの灰色が増えていました。描いた中身は同じだったので、台本の数え方を、ふちの影響を受けない「真っ黒な画素」に直しています。</li>
+    <li><strong>テスト</strong>線を起こす処理、斜線（2 つの方式。束の継ぎ目の隙間も含む）、点描、ベタ、順番、入り抜き、書き出しを、50 件のテスト（node --test）で確かめています。画面は、画面なしの Chrome で動かす 43 項目の台本で確かめています。ライブラリは使っていません。</li>
+  </ol>
+
+  <h2>見本の画像</h2>
+  <ul>
+    <li>港の漁師・雨の街・階段の少年は、このパソコンの ComfyUI で作った画像です。実在の人物や、既存のキャラクターではありません。チェックポイントと seed: 港の漁師は perfectdeliberate_v90（seed 240611）、雨の街は waiIllustriousSDXL_v170（seed 515151）、階段の少年は同じく waiIllustriousSDXL_v170（seed 727272）。</li>
+    <li>猫の目線の通りは、このサイトの実験レポート「<a href="../neko/">野良猫の目線の 30 秒</a>」で Blender で描いた 1 コマです。</li>
+  </ul>
+
+  <h2>出典</h2>
+  <ul>
+    <li>Henry Kang, Seungyong Lee, Charles K. Chui. Coherent Line Drawing. NPAR 2007.（流れに沿った DoG）</li>
+    <li>Bruno Jobard, Wilfrid Lefer. Creating Evenly-Spaced Streamlines of Arbitrary Density. 1997.（斜線の間隔のそろえ方）</li>
+    <li>Greg Philbrick, Craig S. Kaplan. <a href="https://cs.uwaterloo.ca/~csk/publications/Papers/philbrick_kaplan_2022.pdf">A Primitive for Manual Hatching</a>. 2021.（平行な線の束を単位にする考え方、向きを回して重ねるクロスハッチング、画像の明暗から線幅を決める方法）</li>
+    <li>Georges Winkenbach, David H. Salesin. Computer-Generated Pen-and-Ink Illustration. SIGGRAPH 1994.（暗さに合わせて線の段を足していく考え方）</li>
+    <li>Adrian Secord. <a href="https://www.cs.ubc.ca/labs/imager/tr/2002/secord2002b/secord.2002b.pdf">Weighted Voronoi Stippling</a>. NPAR 2002.（点を明暗に合わせて均等に散らす点描）</li>
+    <li><a href="https://mediag.bunka.go.jp/article/article-19276/">『水木しげる漫画大全集』制作秘話――監修・京極夏彦インタビュー（後編）</a>（メディア芸術カレントコンテンツ。点描を 5mm 角のマスで区切って打つ話）、<a href="https://edist.ne.jp/dust/manga29_mizuki/">マンガのスコア LEGEND29 水木しげる</a>（時代による点描の変化）</li>
+    <li>点描の描き方の解説: <a href="https://arttechniques.com/techniques/stippling">ArtTechniques</a>、<a href="https://chriswilsonstudio.com/stippling-for-beginners/">Chris Wilson Studio</a>、<a href="https://en.wikipedia.org/wiki/Stippling">Stippling（Wikipedia）</a></li>
+    <li>ハッチングの描き方の解説: <a href="https://www.tomrichmond.com/sunday-mailbag-105/06/07/2008/">Tom Richmond</a>（直角の重ねを避ける）、<a href="https://arttechniques.com/techniques/cross-hatching">ArtTechniques</a>（重ねる角度）、<a href="https://www.lovelifedrawing.com/hatching/">Love Life Drawing</a>（平行・交差・形に沿うハッチング）、<a href="https://tips.clip-studio.com/ja-jp/articles/1791">CLIP STUDIO TIPS</a>（2 層目は 90° ではなく 30° ほど変える）</li>
+    <li>T. Y. Zhang, C. Y. Suen. A Fast Parallel Algorithm for Thinning Digital Patterns. 1984.（細線化）</li>
+    <li>Pedro F. Felzenszwalb, Daniel P. Huttenlocher. Distance Transforms of Sampled Functions. 2012.（線幅を測る距離変換）</li>
+    <li>大津展之. 判別および最小 2 乗基準に基づく自動しきい値選定法. 1980.（線画のしきい値）</li>
+  </ul>
+
+  <p class="foot">この実験のコードと文章は Claude（Anthropic）が書き、作者が確かめています。<a href="../">実験レポートの一覧へ戻る</a></p>
+</article>
+</main>
+</body>
+</html>

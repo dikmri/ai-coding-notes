@@ -1,0 +1,184 @@
+/* 一筆ずつ描くペン画のプレーヤー。暗い地の計器の画面に、白い紙を 1 枚置く。
+   部品の名前は site.css とぶつからないよう、すべて ip- で始める。
+   ふだんは記事の幅で、画面の高さに収まる大きさ。「ページいっぱい」（.is-fit）と「全画面」（:fullscreen）では
+   画面全体を使い、スクロールを出さない。 */
+.ip {
+  --p-bg: #0a0c0f;
+  --p-panel: #10141a;
+  --p-line: #27303a;
+  --p-text: #d8dfe7;
+  --p-dim: #8d98a5;
+  --p-acc: #ff5a2a;
+  --p-track: #222a33;
+  container: ip / inline-size;
+  color-scheme: dark;
+  display: grid;
+  grid-template-rows: auto auto auto;
+  margin: 1.5rem 0 1rem;
+  background: var(--p-bg);
+  color: var(--p-text);
+  border: 1px solid var(--p-line);
+  font: 500 12px/1.45 "JetBrains Mono", "IBM Plex Sans JP", ui-monospace, Consolas, monospace;
+  font-size-adjust: from-font;
+}
+.ip *, .ip *::before, .ip *::after { box-sizing: border-box; }
+.ip [hidden] { display: none !important; }
+.ip h3 { margin: 0 0 4px; font: inherit; font-weight: 700; color: var(--p-dim); letter-spacing: 0.06em; }
+.ip p { margin: 0; max-inline-size: none; }
+.ip button, .ip .ip-file span {
+  font: inherit; font-weight: 700; color: var(--p-text);
+  background: transparent; border: 1px solid var(--p-line); border-radius: 2px;
+  padding: 4px 10px; min-block-size: 32px; cursor: pointer; white-space: nowrap;
+  display: inline-flex; align-items: center;
+}
+.ip button:hover, .ip .ip-file:hover span { border-color: var(--p-dim); }
+.ip button[aria-pressed="true"] { border-color: var(--p-acc); color: var(--p-acc); background: transparent; }
+.ip button:disabled { opacity: 0.4; cursor: default; }
+.ip button:focus-visible, .ip .ip-file:focus-within span { outline: 2px solid var(--p-acc); outline-offset: 2px; }
+.ip button.ip-play { background: var(--p-acc); border-color: var(--p-acc); color: #1a0700; min-inline-size: 7em; justify-content: center; }
+
+/* 上の帯 */
+.ip-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 10px; border-block-end: 1px solid var(--p-line); background: var(--p-panel); }
+.ip-title { font-weight: 700; white-space: nowrap; }
+.ip-title b { color: var(--p-acc); letter-spacing: 0.12em; margin-inline-end: 0.6em; }
+.ip-samples { display: flex; flex-wrap: wrap; gap: 4px; }
+.ip-file { position: relative; display: inline-flex; }
+.ip-file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; inline-size: 100%; block-size: 100%; }
+.ip-spacer { flex: 1 1 0; }
+
+/* 本体: 左（元の画像と起こした線）・中央（紙）・右（計器） */
+.ip-main {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.75fr) minmax(0, 2.6fr) minmax(200px, 1.05fr);
+  block-size: clamp(380px, 60cqi, calc(100dvh - 150px));
+  min-block-size: 0;
+}
+.ip-side { min-block-size: 0; overflow: hidden; padding: 8px 10px; display: flex; flex-direction: column; gap: 10px; }
+.ip-side > section { flex: 0 0 auto; }
+.ip-left { border-inline-end: 1px solid var(--p-line); container: ip-srcs / size; }
+.ip-right { border-inline-start: 1px solid var(--p-line); container: ip-meters / size; }
+/* 高さが足りないときは、優先度の低い欄から隠す（スクロールを出さない） */
+@container ip-meters (block-size < 540px) { .ip-sec-tip { display: none; } }
+@container ip-meters (block-size < 420px) { .ip-sec-cur { display: none; } }
+@container ip-srcs (block-size < 470px) { .ip-left .ip-view + .ip-view { display: none; } }
+@container ip-srcs (block-size < 300px) { .ip-sec-proc, .ip-hint { display: none; } }
+/* 記事の figure の体裁（ippitsu.css の .report figure …）を打ち消すため、.ip を付けて強くする */
+.ip .ip-view { margin: 0; display: flex; flex-direction: column; gap: 4px; min-block-size: 0; flex: 1 1 0; }
+.ip .ip-view figcaption { margin: 0; font-size: inherit; color: var(--p-dim); font-weight: 700; display: flex; justify-content: space-between; gap: 6px; }
+.ip .ip-view :is(img, canvas) {
+  display: block; flex: 1 1 0; min-block-size: 0; inline-size: 100%; block-size: auto;
+  object-fit: contain; object-position: center top; background: #0d1116; border: 0; border-radius: 0;
+}
+.ip-hint { color: var(--p-dim); font-size: 11px; }
+
+.ip-paper-wrap { position: relative; container-type: size; display: grid; place-items: center; padding: 10px; min-block-size: 0; background: #07090b; }
+.ip-paper-wrap:focus-visible { outline: 2px solid var(--p-acc); outline-offset: -2px; }
+.ip-paper {
+  position: relative;
+  inline-size: min(100cqw, 100cqh * var(--arn, 0.778));
+  aspect-ratio: var(--ar, 778 / 1000);
+  background: #fff;
+  box-shadow: 0 0 0 1px #000, 0 6px 24px rgb(0 0 0 / 0.5);
+}
+.ip-paper canvas { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; display: block; }
+.ip-busy {
+  position: absolute; inset-block-start: 16px; inset-inline-start: 50%; translate: -50% 0;
+  padding: 4px 10px; background: var(--p-panel); border: 1px solid var(--p-acc); color: var(--p-acc); font-weight: 700;
+}
+
+/* 計器 */
+.ip-big { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.ip-big .ip-of { color: var(--p-dim); font-size: 14px; font-weight: 700; }
+.ip-gauge { display: grid; grid-template-columns: 5.5em 1fr; align-items: center; gap: 2px 8px; margin-top: 6px; }
+.ip-gauge output { grid-column: 2; color: var(--p-dim); font-variant-numeric: tabular-nums; }
+.ip-bar { position: relative; display: block; block-size: 6px; background: var(--p-track); }
+.ip-bar > span { position: absolute; inset-block: 0; inset-inline-start: 0; inline-size: calc(var(--v, 0) * 100%); background: var(--p-acc); }
+/* 目盛り（25% ごと） */
+.ip-bar::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(to right, transparent 0 calc(25% - 1px), var(--p-bg) calc(25% - 1px) 25%); pointer-events: none; }
+.ip-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.ip-stages li { display: grid; grid-template-columns: 1fr auto; gap: 1px 8px; padding: 2px 4px; border-inline-start: 2px solid transparent; }
+.ip-stages li .ip-bar { grid-column: 1 / -1; block-size: 4px; }
+.ip-stages li[aria-current="step"] { border-inline-start-color: var(--p-acc); background: #161b22; }
+.ip-stages li[aria-current="step"] .ip-sname { color: var(--p-acc); }
+.ip-scount, .ip-pval { color: var(--p-dim); font-variant-numeric: tabular-nums; text-align: end; }
+.ip-dl { display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; margin: 0; }
+.ip-dl dt { color: var(--p-dim); }
+.ip-dl dd { margin: 0; font-variant-numeric: tabular-nums; text-align: end; overflow-wrap: anywhere; }
+.ip-proc li { display: grid; grid-template-columns: 6.5em 1fr 4.5em; align-items: center; gap: 6px; }
+.ip-proc .ip-bar { block-size: 4px; }
+.ip-proc-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 8px; color: var(--p-dim); margin-top: 3px; border-block-start: 1px solid var(--p-line); padding-block-start: 3px; }
+.ip-proc-foot > span { white-space: nowrap; }
+.ip-proc-foot output { color: var(--p-text); font-variant-numeric: tabular-nums; }
+
+/* 下の帯 */
+.ip-bar-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 10px; border-block-start: 1px solid var(--p-line); background: var(--p-panel); }
+.ip-range { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--p-dim); white-space: nowrap; }
+.ip-range output { color: var(--p-text); min-inline-size: 3.2em; font-variant-numeric: tabular-nums; }
+.ip-status { color: var(--p-acc); font-weight: 700; flex: 1 1 14em; min-inline-size: 0; }
+
+/* 本来の range を使い、溝とつまみだけ整える（WebKit と Firefox は別の規則にする） */
+.ip input[type="range"] {
+  --attr-min: 0;
+  --slider-progress: calc((var(--control-value, 0) - var(--attr-min)) / (var(--attr-max, 10) - var(--attr-min)) * 100%);
+  appearance: none; inline-size: 96px; block-size: 28px; margin: 0; padding: 0; border: 0; background: transparent; cursor: pointer;
+}
+.ip #ip-speed { --attr-max: 8; }
+.ip input[type="range"]::-webkit-slider-runnable-track {
+  block-size: 4px; border: 0; border-radius: 0;
+  background: linear-gradient(to right, var(--p-acc) var(--slider-progress), #3a4450 var(--slider-progress));
+}
+.ip input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; inline-size: 12px; block-size: 16px; margin-block-start: -6px;
+  border: 1px solid #000; border-radius: 1px; background: var(--p-text);
+}
+.ip input[type="range"]::-moz-range-track { block-size: 4px; border: 0; background: #3a4450; }
+.ip input[type="range"]::-moz-range-progress { block-size: 4px; background: var(--p-acc); }
+.ip input[type="range"]::-moz-range-thumb { inline-size: 12px; block-size: 16px; border: 1px solid #000; border-radius: 1px; background: var(--p-text); }
+.ip input[type="range"]:focus-visible { outline: 2px solid var(--p-acc); outline-offset: 3px; }
+
+.ip select {
+  font: inherit; font-weight: 700; color: var(--p-text); background: var(--p-bg);
+  border: 1px solid var(--p-line); border-radius: 2px; padding: 3px 6px; min-block-size: 30px;
+}
+.ip select:focus-visible { outline: 2px solid var(--p-acc); outline-offset: 2px; }
+
+/* 表示する層（主線・ベタ・点描・斜線）。本来のチェックボックスを使い、色だけ合わせる */
+.ip-layers { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin: 0; padding: 0 2px; border: 0; min-inline-size: 0; }
+.ip-layers legend { float: left; padding: 0; margin-inline-end: 2px; color: var(--p-dim); font-weight: 700; }
+.ip-layers label { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.ip-layers input { accent-color: var(--p-acc); margin: 0; inline-size: 14px; block-size: 14px; cursor: pointer; }
+.ip-layers input:focus-visible { outline: 2px solid var(--p-acc); outline-offset: 3px; }
+.ip-layers label:has(input:disabled) { opacity: 0.4; cursor: default; }
+
+/* 画像をドロップしようとしているとき */
+.ip.is-drop { outline: 2px dashed var(--p-acc); outline-offset: -2px; }
+
+/* ページいっぱい・全画面 */
+.ip.is-fit, .ip:fullscreen {
+  position: fixed; inset: 0; z-index: 2147483000; margin: 0;
+  inline-size: 100%; block-size: 100dvh;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  border: 0;
+}
+.ip:fullscreen { block-size: 100%; }
+.ip::backdrop { background: #000; }
+.ip.is-fit .ip-main, .ip:fullscreen .ip-main { block-size: auto; }
+html.ip-fit-open { overflow: hidden; }
+
+/* 狭いとき: 紙を上に大きく、計器はその下に 2 列 */
+@container ip (inline-size < 760px) {
+  .ip-main { grid-template-columns: 1fr; grid-template-rows: auto auto auto; block-size: auto; }
+  .ip-paper-wrap { order: -1; block-size: min(62dvh, 130cqi); }
+  .ip-left { order: 1; border: 0; border-block-start: 1px solid var(--p-line); display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: auto; container-type: normal; }
+  .ip-left .ip-view { block-size: 34cqi; }
+  .ip-left .ip-view + .ip-view { display: flex; }
+  .ip-left :is(.ip-hint, .ip-sec-proc) { grid-column: 1 / -1; display: block; }
+  .ip-right { border: 0; border-block-start: 1px solid var(--p-line); display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 14px; container-type: normal; }
+  .ip-right :is(.ip-sec-tip, .ip-sec-cur) { display: block; }
+  .ip.is-fit .ip-main, .ip:fullscreen .ip-main { grid-template-rows: minmax(0, 1fr) auto; }
+  .ip.is-fit .ip-paper-wrap, .ip:fullscreen .ip-paper-wrap { block-size: auto; }
+  .ip.is-fit .ip-left, .ip:fullscreen .ip-left { display: none; }
+  .ip.is-fit .ip-right, .ip:fullscreen .ip-right { grid-template-columns: 1fr 1fr; }
+  .ip.is-fit .ip-right > :nth-child(n + 3), .ip:fullscreen .ip-right > :nth-child(n + 3) { display: none !important; }
+  .ip input[type="range"] { inline-size: 80px; }
+}
