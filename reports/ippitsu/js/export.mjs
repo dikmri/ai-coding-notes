@@ -30,13 +30,29 @@ export function ribbonPath(points) {
   return d;
 }
 
+// ベタの輪郭の多角形を、SVG の道筋にする（輪の区切りは w = -1 の点）
+export function polyPath(points) {
+  let d = '', start = true;
+  for (const p of points) {
+    if (p.w === -1) { d += 'Z'; start = true; continue; }
+    d += `${start ? 'M' : 'L'}${n2(p.x)} ${n2(p.y)}`;
+    start = false;
+  }
+  return d + 'Z';
+}
+
 export const PROGRAM_NOTE = 'プログラムが元の画像から線を拾い、一筆ずつ描き直した線画です。人の手描きではありません（AI コーディングノート「一筆ずつ描くペン画」）。';
 
 export function toSVG(strokes, w, h, { title = '一筆ずつ描いたペン画', desc = PROGRAM_NOTE, color = '#111' } = {}) {
   const parts = [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">`,
     `<title>${esc(title)}</title>`, `<desc>${esc(desc)}</desc>`, `<g fill="${esc(color)}">`];
   // 点描の点（点が 1 つだけの筆）は円にする。道筋で書くより短く、点が 10 万個あってもファイルが重くなりすぎない
-  strokes.forEach((s, i) => parts.push(s.points.length === 1
+  // トーン（dots: true）は、面の網点を 1 つのまとまり（g）に円で書く。ベタの縁（poly: true）は輪郭の多角形を even-odd で塗る
+  strokes.forEach((s, i) => parts.push(s.poly
+    ? `<path d="${polyPath(s.points)}" fill-rule="evenodd" data-order="${i + 1}" data-kind="beta"/>`
+    : s.dots
+    ? `<g data-order="${i + 1}" data-kind="tone">${s.points.map((p) => `<circle cx="${n2(p.x)}" cy="${n2(p.y)}" r="${n2(Math.max(0.2, p.w / 2))}"/>`).join('')}</g>`
+    : s.points.length === 1
     ? `<circle cx="${n2(s.points[0].x)}" cy="${n2(s.points[0].y)}" r="${n2(Math.max(0.2, s.points[0].w / 2))}" data-order="${i + 1}"/>`
     : `<path d="${ribbonPath(s.points)}" data-order="${i + 1}"/>`));
   parts.push('</g></svg>');

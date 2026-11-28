@@ -50,7 +50,7 @@
 .ip-main {
   display: grid;
   grid-template-columns: minmax(130px, 0.75fr) minmax(0, 2.6fr) minmax(200px, 1.05fr);
-  block-size: clamp(380px, 60cqi, calc(100dvh - 150px));
+  block-size: clamp(380px, 60cqi, calc(100dvh - 180px));
   min-block-size: 0;
 }
 .ip-side { min-block-size: 0; overflow: hidden; padding: 8px 10px; display: flex; flex-direction: column; gap: 10px; }

@@ -2,7 +2,7 @@
 // node --test tests/ippitsu-beta.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { betaRegions, betaStrokes } from '../reports/ippitsu/js/beta.mjs';
+import { betaRegions, betaStrokes, maskContours, fillRings, ringsOf } from '../reports/ippitsu/js/beta.mjs';
 import { renderStrokes } from '../reports/ippitsu/js/trace.mjs';
 import { orderStrokes, STAGES } from '../reports/ippitsu/js/order.mjs';
 
@@ -40,36 +40,58 @@ test('ベタの中の小さな白い穴は埋めて、大きな白い所は残�
   assert.equal(m[125 * W + 125], 0, '大きな白い所を塗った');
 });
 
-test('筆とペンでベタの面をほぼ埋め、面の外へはみ出さない', () => {
-  const g = gray((x, y) => (Math.hypot(x - 100, y - 100) < 60 ? 0.03 : 0.8));
+// ベタの筆を塗る: 筆（level 0）は線のリボン、縁を整える面（level 1、poly）は輪郭の多角形を even-odd で塗る
+function paintBeta(strokes) {
+  const r = renderStrokes(strokes.filter((s) => !s.poly), W, H);
+  for (const s of strokes.filter((q) => q.poly)) {
+    const f = fillRings(ringsOf(s.points), W, H);
+    for (let i = 0; i < W * H; i++) if (f[i]) r[i] = 1;
+  }
+  return r;
+}
+
+test('ベタの面を、はみ出しも塗り残しも無く塗る', () => {
+  // 円と、穴の開いたドーナツと、細長い帯
+  const g = gray((x, y) => {
+    const d = Math.hypot(x - 70, y - 70), e = Math.hypot(x - 140, y - 130);
+    return d < 45 || (e < 45 && e > 18) || (x > 20 && x < 180 && y > 182 && y < 192) ? 0.03 : 0.8;
+  });
   const m = betaRegions(g, W, H, { below: 0.1, minArea: 200 });
   const strokes = betaStrokes(m, W, H, { brush: 6 });
-  assert.ok(strokes.length >= 5);
   for (const s of strokes) assert.equal(s.kind, 'fill');
-  const r = renderStrokes(strokes, W, H);
+  const r = paintBeta(strokes);
   let inside = 0, covered = 0, spill = 0;
-  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
-    const i = y * W + x;
-    if (m[i]) { inside++; if (r[i]) covered++; }
-    else if (r[i]) {
-      // 面から 1px 以内のはみ出しは縁のなめらかさの分として許す
-      const near = m[i - 1] || m[i + 1] || m[i - W] || m[i + W];
-      if (!near) spill++;
-    }
+  for (let i = 0; i < W * H; i++) {
+    if (m[i]) { inside++; if (r[i]) covered++; } else if (r[i]) spill++;
   }
-  assert.ok(covered / inside > 0.97, `面を覆う割合 ${(covered / inside).toFixed(3)}`);
-  assert.ok(spill / inside < 0.01, `面の外へのはみ出し ${(spill / inside).toFixed(4)}`);
+  assert.ok(covered / inside > 0.995, `面を覆う割合 ${(covered / inside).toFixed(4)}`);
+  assert.equal(spill, 0, `面の外へのはみ出し ${spill} 画素`);
+  assert.equal(r[130 * W + 140], 0, 'ドーナツの穴を塗った');
 });
 
-test('筆で大まかに塗ってから、ペンで縁を整える順になる', () => {
+test('輪郭の多角形は、なめらかな面の縁をなぞる（縁の値 0.5 の所を通る）', () => {
+  // 半径 40 の円をぼかした面。輪郭は半径 40 の円になるはず
+  const field = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) field[y * W + x] = Math.min(1, Math.max(0, 0.5 + (40 - Math.hypot(x - 100, y - 100)) / 4));
+  const rings = maskContours(field, W, H, 0.5);
+  assert.equal(rings.length, 1);
+  const err = Math.max(...rings[0].map((p) => Math.abs(Math.hypot(p.x - 100, p.y - 100) - 40)));
+  assert.ok(err < 0.2, `半径のずれ ${err.toFixed(3)}`);
+});
+
+test('筆で大まかに塗ってから、輪郭の形で縁を整える順になる', () => {
   const g = gray((x, y) => (Math.hypot(x - 100, y - 100) < 50 ? 0.03 : 0.8));
   const strokes = betaStrokes(betaRegions(g, W, H, { below: 0.1, minArea: 200 }), W, H, { brush: 6 });
-  const brush = strokes.filter((s) => s.level === 0), pen = strokes.filter((s) => s.level === 1);
-  assert.ok(brush.length > 0 && pen.length > 0, `筆 ${brush.length}、ペン ${pen.length}`);
-  assert.ok(Math.max(...brush.map((s) => s.seq)) < Math.min(...pen.map((s) => s.seq)), '筆より先にペンを使っている');
-  // 筆の線は太く、ペンの線は細い
-  const med = (v) => v.sort((a, b) => a - b)[v.length >> 1];
-  assert.ok(med(brush.flatMap((s) => s.points.map((p) => p.w))) > med(pen.flatMap((s) => s.points.map((p) => p.w))));
+  const brush = strokes.filter((s) => s.level === 0), edge = strokes.filter((s) => s.level === 1);
+  assert.ok(brush.length > 0 && edge.length === 1, `筆 ${brush.length}、縁 ${edge.length}`);
+  assert.ok(edge[0].poly, '縁が輪郭の多角形になっていない');
+  assert.ok(Math.max(...brush.map((s) => s.seq)) < edge[0].seq, '筆より先に縁を整えている');
+  // 筆の線は面の外へ出ない
+  const m = betaRegions(g, W, H, { below: 0.1, minArea: 200 });
+  const r = renderStrokes(brush, W, H);
+  let out = 0;
+  for (let i = 0; i < W * H; i++) if (r[i] && !m[i]) out++;
+  assert.equal(out, 0, `筆の線のはみ出し ${out} 画素`);
 });
 
 // 写真のような絵（色の付いたなだらかな明暗に、暗い円と細い暗い線）

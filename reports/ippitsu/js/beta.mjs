@@ -3,7 +3,7 @@
 //   1. 筆: ベタの内側（縁から筆の太さの半分以上入った所）を、太い筆の線で斜めに往復して塗る
 //   2. ペン: 筆で塗り残した縁の細い帯を細線化し、細いペンの線で縁を整える
 // の順に描く筆を作る。
-import { traceStrokes, distanceSquared, renderStrokes } from './trace.mjs';
+import { distanceSquared } from './trace.mjs';
 
 // value の値を持つ 4 連結のかたまりのうち、面積が minArea 未満のものを反対の値にする。
 // holes = true のときは、画像の縁に触れるかたまりは残す（外の白はベタの穴ではない）
@@ -37,8 +37,9 @@ export function betaRegions(tone, w, h, { below = 0.12, minArea = 300 } = {}) {
   return m;
 }
 
-// ベタを塗る筆。kind = 'fill'、level 0 = 筆、level 1 = ペン。group はベタのかたまりごと、seq は描く順
-export function betaStrokes(mask, w, h, { brush = 6, angle = 30, pen = 1.4 } = {}) {
+// ベタを塗る筆。kind = 'fill'、level 0 = 筆、level 1 = 縁を整える輪郭の多角形（poly）。group はベタのかたまりごと、seq は描く順。
+// field を渡すと、その値 0.5 の所を輪郭にする（ぼかした面を渡すと、縁がなめらかになる）
+export function betaStrokes(mask, w, h, { brush = 6, angle = 30, field = null } = {}) {
   // かたまりに番号を付ける（8 連結）
   const label = new Int32Array(w * h).fill(-1);
   let regions = 0;
@@ -63,7 +64,7 @@ export function betaStrokes(mask, w, h, { brush = 6, angle = 30, pen = 1.4 } = {
   if (!regions) return [];
   // 縁から筆の太さの半分以上入った所（筆の線の中心を置いてよい所）
   const d2 = distanceSquared(mask, w, h);
-  const half = brush / 2 + 0.5;
+  const half = brush / 2 + 1.2; // 走査線の点は画素の位置に丸めて調べるので、その分も余裕をみる
   const core = (x, y) => {
     const xi = Math.round(x), yi = Math.round(y);
     return xi >= 0 && yi >= 0 && xi < w && yi < h && d2[yi * w + xi] >= half * half;
@@ -94,32 +95,122 @@ export function betaStrokes(mask, w, h, { brush = 6, angle = 30, pen = 1.4 } = {
     }
     flush();
   }
-  // ペン: 筆の線で塗れなかったベタの画素（縁の細い帯）を細線化して、細い線にする
-  const brushAll = perRegion.flatMap((r) => r.brush);
-  const covered = renderStrokes(brushAll, w, h);
-  const band = new Uint8Array(w * h);
-  for (let i = 0; i < w * h; i++) band[i] = mask[i] && !covered[i] ? 1 : 0;
-  const tr = traceStrokes({ w, h, ink: band }, { minRegion: 1e9 });
-  for (const s of tr.strokes) {
-    const p0 = s.points[0];
-    const r = label[Math.round(p0.y) * w + Math.round(p0.x)];
-    if (r < 0) continue;
-    perRegion[r].pen.push({ points: s.points.map((p) => ({ x: p.x, y: p.y, w: Math.max(pen * 0.8, Math.min(brush, p.w + 0.6)) })), kind: 'fill', level: 1, closed: s.closed, fixedDir: true });
-  }
-  // 描く順: かたまりごとに、筆の線を走査線の順に、続けてペンの線を近い順に
-  const out = [];
-  perRegion.forEach((r, g) => {
-    let seq = 0;
-    for (const s of r.brush) out.push({ ...s, group: g, seq: seq++ });
-    let pen0 = r.brush.length ? r.brush[r.brush.length - 1].points.at(-1) : r.pen[0]?.points[0];
-    const rest = [...r.pen];
-    while (rest.length) {
-      let bi = 0, bd = Infinity;
-      rest.forEach((s, k) => { const p = s.points[0], d = (p.x - pen0.x) ** 2 + (p.y - pen0.y) ** 2; if (d < bd) { bd = d; bi = k; } });
-      const s = rest.splice(bi, 1)[0];
-      out.push({ ...s, group: g, seq: seq++ });
-      pen0 = s.points.at(-1);
+  // 縁を整える: 面の輪郭（field の値 0.5 の所）をなぞった多角形を、かたまりごとに 1 枚で塗る。
+  // 輪郭の形そのものを塗るので、はみ出しも塗り残しも出ない（線の丸い端や、線どうしの隙間が無い）
+  const rings = maskContours(field ?? Float32Array.from(mask), w, h, 0.5);
+  const ringsByRegion = Array.from({ length: regions }, () => []);
+  for (const ring of rings) {
+    // 輪郭の点のまわりの画素から、かたまりの番号を探す
+    let r = -1;
+    for (const p of ring) {
+      for (const [ox, oy] of [[0, 0], [1, 0], [0, 1], [1, 1], [-1, 0], [0, -1]]) {
+        const xi = Math.floor(p.x) + ox, yi = Math.floor(p.y) + oy;
+        if (xi >= 0 && yi >= 0 && xi < w && yi < h && label[yi * w + xi] >= 0) { r = label[yi * w + xi]; break; }
+      }
+      if (r >= 0) break;
     }
+    if (r >= 0) ringsByRegion[r].push(ring);
+  }
+  // 描く順: かたまりごとに、筆の線を走査線の順に、最後に輪郭の多角形を 1 枚
+  const out = [];
+  const areaOf = new Float64Array(regions);
+  for (let i = 0; i < w * h; i++) if (label[i] >= 0) areaOf[label[i]]++;
+  perRegion.forEach((rg, g) => {
+    let seq = 0;
+    for (const s of rg.brush) out.push({ ...s, group: g, seq: seq++ });
+    if (ringsByRegion[g].length) out.push({ points: joinRings(ringsByRegion[g]), kind: 'fill', level: 1, poly: true, group: g, seq: seq++, closed: true, length: Math.max(6, Math.sqrt(areaOf[g]) * 0.35) });
   });
+  return out;
+}
+
+// 多角形の輪の並びを、1 本の筆の点の並びにする。輪の区切りは w = -1 の点（座標は直前の点と同じ）
+export const RING_BREAK = -1;
+function joinRings(rings) {
+  const pts = [];
+  rings.forEach((ring, k) => {
+    for (const p of ring) pts.push({ x: p.x, y: p.y, w: 0 });
+    if (k < rings.length - 1) { const q = ring[ring.length - 1]; pts.push({ x: q.x, y: q.y, w: RING_BREAK }); }
+  });
+  return pts;
+}
+export function ringsOf(points) {
+  const rings = [];
+  let cur = [];
+  for (const p of points) { if (p.w === RING_BREAK) { if (cur.length) rings.push(cur); cur = []; } else cur.push(p); }
+  if (cur.length) rings.push(cur);
+  return rings;
+}
+
+// マーチングスクエア: field が iso 以上の所を内側として、その輪郭を閉じた輪の列で返す（画像の外は 0 とみなす）。
+// 点の座標は画素の位置（画素 (x, y) の中心が座標 (x, y)）。輪の向きはそろえない（塗るときは even-odd）
+export function maskContours(field, w, h, iso = 0.5) {
+  const v = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? 0 : field[y * w + x]);
+  const pts = new Map(); // 辺の名前 → 点
+  const adj = new Map(); // 辺の名前 → つながる辺の名前
+  const edgePoint = (key, ax, ay, bx, by) => {
+    if (!pts.has(key)) {
+      const va = v(ax, ay), vb = v(bx, by), t = va === vb ? 0.5 : Math.min(1, Math.max(0, (iso - va) / (vb - va)));
+      pts.set(key, { x: ax + (bx - ax) * t, y: ay + (by - ay) * t });
+    }
+    return key;
+  };
+  const link = (p, q) => { (adj.get(p) ?? adj.set(p, []).get(p)).push(q); (adj.get(q) ?? adj.set(q, []).get(q)).push(p); };
+  for (let y = -1; y < h; y++) for (let x = -1; x < w; x++) {
+    const tl = v(x, y) >= iso ? 8 : 0, tr = v(x + 1, y) >= iso ? 4 : 0, br = v(x + 1, y + 1) >= iso ? 2 : 0, bl = v(x, y + 1) >= iso ? 1 : 0;
+    const c = tl | tr | br | bl;
+    if (c === 0 || c === 15) continue;
+    const T = () => edgePoint(`h${x},${y}`, x, y, x + 1, y), B = () => edgePoint(`h${x},${y + 1}`, x, y + 1, x + 1, y + 1);
+    const Lf = () => edgePoint(`v${x},${y}`, x, y, x, y + 1), R = () => edgePoint(`v${x + 1},${y}`, x + 1, y, x + 1, y + 1);
+    const center = (v(x, y) + v(x + 1, y) + v(x + 1, y + 1) + v(x, y + 1)) / 4 >= iso;
+    switch (c) {
+      case 1: case 14: link(Lf(), B()); break;
+      case 2: case 13: link(B(), R()); break;
+      case 3: case 12: link(Lf(), R()); break;
+      case 4: case 11: link(T(), R()); break;
+      case 6: case 9: link(T(), B()); break;
+      case 7: case 8: link(Lf(), T()); break;
+      case 5: if (center) { link(Lf(), T()); link(B(), R()); } else { link(Lf(), B()); link(T(), R()); } break;
+      case 10: if (center) { link(T(), R()); link(Lf(), B()); } else { link(Lf(), T()); link(B(), R()); } break;
+    }
+  }
+  // 辺の点をたどって輪にする
+  const seen = new Set(), rings = [];
+  for (const start of adj.keys()) {
+    if (seen.has(start)) continue;
+    const ring = [];
+    let prev = null, cur = start;
+    for (let guard = 0; guard < 1e7; guard++) {
+      seen.add(cur);
+      ring.push(pts.get(cur));
+      const nb = adj.get(cur);
+      const next = nb[0] !== prev ? nb[0] : nb[1];
+      if (next === undefined || next === start) break;
+      if (seen.has(next)) break;
+      prev = cur; cur = next;
+    }
+    if (ring.length >= 3) rings.push(ring);
+  }
+  return rings;
+}
+
+// 輪の列を even-odd で塗った画素（1/0）。k 倍の大きさの画像で、画素 (x, y) は座標 (x/k, y/k) を見る
+export function fillRings(rings, W, H, k = 1) {
+  const out = new Uint8Array(W * H);
+  const edges = [];
+  for (const ring of rings) for (let i = 0; i < ring.length; i++) { const a = ring[i], b = ring[(i + 1) % ring.length]; if (a.y !== b.y) edges.push(a.x, a.y, b.x, b.y); }
+  const xs = [];
+  for (let y = 0; y < H; y++) {
+    const Y = y / k;
+    xs.length = 0;
+    for (let e = 0; e < edges.length; e += 4) {
+      const ax = edges[e], ay = edges[e + 1], bx = edges[e + 2], by = edges[e + 3];
+      if ((ay <= Y && by > Y) || (by <= Y && ay > Y)) xs.push(ax + ((Y - ay) / (by - ay)) * (bx - ax));
+    }
+    xs.sort((p, q) => p - q);
+    for (let i = 0; i + 1 < xs.length; i += 2) {
+      const x0 = Math.max(0, Math.ceil(xs[i] * k)), x1 = Math.min(W - 1, Math.floor(xs[i + 1] * k - 1e-9));
+      for (let x = x0; x <= x1; x++) out[y * W + x] = 1;
+    }
+  }
   return out;
 }

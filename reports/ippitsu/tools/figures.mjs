@@ -6,6 +6,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { drawPlan } from '../js/pipeline.mjs';
+import { fillRings, ringsOf } from '../js/beta.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const IMG = path.join(HERE, '..', 'img');
@@ -33,7 +34,13 @@ function disk(img, cx, cy, r, c) {
     for (let x = Math.floor(cx - r - 1); x <= Math.ceil(cx + r + 1); x++)
       blend(img, x, y, c, Math.min(1, Math.max(0, r + 0.5 - Math.hypot(x - cx, y - cy))));
 }
+// ベタの縁を整える多角形（点の w が 0、輪の区切りは -1）なら、輪郭を even-odd で塗る
+function fillPoly(img, pts, c) {
+  const f = fillRings(ringsOf(pts), img.w, img.h);
+  for (let i = 0; i < img.w * img.h; i++) if (f[i]) for (let q = 0; q < 3; q++) img.d[i * 3 + q] = c[q];
+}
 function strokeLine(img, pts, c) {
+  if (pts.length > 2 && pts[0].w === 0 && pts[1].w === 0) { fillPoly(img, pts, c); return; }
   if (pts.length === 1) { disk(img, pts[0].x, pts[0].y, pts[0].w / 2, c); return; }
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1], b = pts[i], m = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 0.5));
@@ -151,6 +158,34 @@ function panel(files, labels, out, cellW) {
   const files = [0.08, 0.3, 0.7].map((r, i) => save(draw(pf, f.w, f.h, first + Math.round(nd * r), [0.75, 0.22, 0.12]), `st-prog-${i}.ppm`));
   panel(files, [0.08, 0.3, 0.7].map((r) => `点を ${Math.round(nd * r).toLocaleString('ja-JP')} 個まで`), path.join(IMG, 'fig-stipple-progress.webp'), 300);
   console.log('fig-stipple', pf.hatchCount, ps.hatchCount);
+}
+
+// ---------------- 図 8・9: 漫画原稿（雨の街）。ペン入れ → ベタ → トーン の 3 段階と、G ペンの線の拡大
+{
+  const { rgba, w, h } = readRGBA(path.join(IMG, 'sample-rain.webp'));
+  const plan = drawPlan(rgba, w, h, { hatchStyle: 'manga' });
+  const paint = (im, s, k = 1) => {
+    if (s.kind === 'tone') { for (const q of s.points) disk(im, q.x * k, q.y * k, (q.w / 2) * k, [0.06, 0.06, 0.06]); return; }
+    strokeLine(im, k === 1 ? s.points : s.points.map((q) => ({ x: q.x * k, y: q.y * k, w: q.w === -1 ? -1 : q.w * k })), [0.06, 0.06, 0.06]);
+  };
+  const steps = [['line'], ['line', 'fill'], ['line', 'fill', 'tone']].map((kinds, i) => {
+    const im = blank(w, h);
+    for (const s of plan.strokes) if (kinds.includes(s.kind)) paint(im, s);
+    return save(im, `manga-${i}.ppm`);
+  });
+  panel(steps, ['1 ペン入れ', '2 ベタ', '3 トーン'], path.join(IMG, 'fig-manga.webp'), 360);
+  // 顔のあたりを 3 倍で描く（線の強弱と入り抜き、網点が見える大きさ）
+  const k = 2.4, cx = 290, cy = 255, cw = 200, ch = 150;
+  const big = blank(cw * k, ch * k);
+  for (const s of plan.strokes) {
+    const shifted = s.kind === 'tone'
+      ? { ...s, points: s.points.map((q) => ({ x: q.x - cx, y: q.y - cy, w: q.w })) }
+      : { ...s, points: s.points.map((q) => ({ x: q.x - cx, y: q.y - cy, w: q.w })) };
+    if (shifted.points.every((q) => q.x < -10 || q.y < -10 || q.x > cw + 10 || q.y > ch + 10)) continue;
+    paint(big, shifted, k);
+  }
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', save(big, 'manga-zoom.ppm'), '-quality', '86', path.join(IMG, 'fig-manga-zoom.webp')]);
+  console.log('fig-manga', plan.strokes.length);
 }
 
 // ---------------- 図 7: 点描とベタの 5 つのモード（雨の街の顔と髪のあたり）

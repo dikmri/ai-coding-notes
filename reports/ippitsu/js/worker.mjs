@@ -17,7 +17,7 @@ self.onmessage = (e) => {
     plan.strokes.forEach((s, i) => {
       off[i] = k / 3;
       for (const p of s.points) { pts[k++] = p.x; pts[k++] = p.y; pts[k++] = p.w; }
-      stage[i] = s.stage; kind[i] = s.kind === 'hatch' ? 1 : s.kind === 'dot' ? 2 : s.kind === 'fill' ? 3 : 0; level[i] = s.level ?? 0; len[i] = s.length;
+      stage[i] = s.stage; kind[i] = s.kind === 'hatch' ? 1 : s.kind === 'dot' ? 2 : s.kind === 'fill' ? 3 : s.kind === 'tone' ? 4 : 0; level[i] = s.level ?? 0; len[i] = s.length;
     });
     off[n] = k / 3;
     const ink = plan.layers.ink;

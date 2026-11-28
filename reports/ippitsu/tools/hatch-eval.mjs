@@ -14,6 +14,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { drawPlan } from '../js/pipeline.mjs';
 import { luminance, gaussianBlur } from '../js/lines.mjs';
+import { fillRings, ringsOf } from '../js/beta.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const IMG = path.join(HERE, '..', 'img');
@@ -42,6 +43,8 @@ export function render(strokes, w, h) {
   };
   for (const s of strokes) {
     const p = s.points;
+    if (s.poly) { const f = fillRings(ringsOf(p), w, h); for (let i = 0; i < w * h; i++) if (f[i]) g[i] = Math.min(g[i], 0.07); continue; }
+    if (s.kind === 'tone') { for (const q of p) disk(q.x, q.y, q.w / 2); continue; }
     if (p.length === 1) { disk(p[0].x, p[0].y, p[0].w / 2); continue; }
     for (let i = 1; i < p.length; i++) {
       const a = p[i - 1], b = p[i], m = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 0.5));
