@@ -3,25 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="dark">
 <title>わたあめサテライト（その場で再生）― AI コーディングノート</title>
-<meta name="description" content="Claude が作曲し、コードで合成した kawaii future bass の曲「わたあめサテライト」を、曲に合わせて動く画面と一緒にその場で再生するページ。">
+<meta name="description" content="Claude が作曲し、コードで合成した kawaii future bass の曲「わたあめサテライト」を、曲に合わせて動く解析コンソールの画面と一緒にその場で再生するページ。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='800'%3EAI%3C/text%3E%3Cpath d='M15 51H49' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@500;600&family=JetBrains+Mono:wght@500;700;800&display=swap">
 <link rel="stylesheet" href="player.css">
 <script type="module" src="../js/player.mjs"></script>
 </head>
 <body>
 <main class="player">
-  <nav class="back" aria-label="戻る"><a href="../">レポートへ戻る</a></nav>
   <h1 class="visually-hidden">わたあめサテライト（その場で再生）</h1>
-  <div class="frame">
+  <div class="stage-wrap">
     <canvas id="stage" width="1920" height="1080" role="img"
-      aria-label="曲に合わせて動く画面。中央のわたあめの衛星が、キックでつぶれ、周波数で輪郭がふくらみ、声のチョップの母音に合わせて口を動かす。右に、いまの和音、16 分のリズム、楽器ごとの音量。下に鍵盤。"></canvas>
+      aria-label="曲に合わせて動く解析コンソールの画面。周波数のスペクトル、オシロスコープ、左右の広がり、流れる音符、16 ステップのリズム、和音、楽器ごとの LED メーター、ラウドネス、受信した出来事の記録が並ぶ。"></canvas>
   </div>
-  <div class="controls">
+  <div class="bar">
+    <a class="back" href="../">← レポート</a>
     <button type="button" id="play" class="play" disabled>再生</button>
     <button type="button" id="restart" disabled>最初から</button>
     <label class="seek-wrap">
@@ -33,10 +33,9 @@
       <span>音量</span>
       <input type="range" id="volume" min="0" max="100" step="1" value="80">
     </label>
+    <span id="status" class="status" role="status">データを読んでいます…</span>
   </div>
-  <p id="status" class="status" role="status">データを読んでいます…</p>
-  <p id="now" class="now" aria-live="polite"></p>
-  <p class="hint">スペースキーで再生と一時停止、← → で 5 秒ずつ動きます。音が出ます。</p>
+  <p id="now" class="visually-hidden" aria-live="polite"></p>
 </main>
 </body>
 </html>

@@ -1,6 +1,7 @@
 // 再生ページ: 音を Web Audio で鳴らし、音の時計の時刻で stage.mjs の絵を描く。
 // ?capture=1 では音を鳴らさず、window.__wataame.renderAt(t) で 1 コマずつ描けるようにする（動画の撮影用）。
-import { loadData, sectionAt, chordIndexAt, fmtTime, fmtTimeJa } from './data.mjs';
+// オシロスコープと左右の広がりは、配信用の音を解いた波形をそのまま読む（どちらのモードでも同じ）。
+import { loadData, sectionAt, fmtTime, fmtTimeJa } from './data.mjs';
 import { createStage, loadFonts, W, H } from './stage.mjs';
 import { log, watchErrors, logFile } from './log.mjs';
 
@@ -8,7 +9,8 @@ const base = new URL('../', import.meta.url).href;
 const params = new URLSearchParams(location.search);
 const capture = params.has('capture');
 const canvas = document.getElementById('stage');
-const ctx = canvas.getContext('2d', { alpha: false });
+// 撮影モードは CPU で描く（GPU だと半透明の重なりが描くたびに少し変わり、読み出しも遅い）
+const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: capture });
 canvas.width = W;
 canvas.height = H;
 const reducedQuery = matchMedia('(prefers-reduced-motion: reduce)');
@@ -16,22 +18,35 @@ let reduced = reducedQuery.matches && !capture;
 reducedQuery.addEventListener('change', (e) => { reduced = e.matches && !capture; log('reduced_motion', { reduced }); requestDraw(); });
 
 watchErrors();
-log('load', { capture, logFile, ua: navigator.userAgent.slice(0, 120), dpr: devicePixelRatio, reduced });
+log('load', { capture, logFile, ua: navigator.userAgent.slice(0, 120), dpr: devicePixelRatio, reduced, viewport: `${innerWidth}x${innerHeight}` });
 
-let data, draw, ready;
+let data, draw, ready, audio = null, actx = null, buffer = null;
 const statusEl = document.getElementById('status');
 const setStatus = (s) => { if (statusEl) statusEl.textContent = s; };
+
+// 配信用の音を読んで解く（再生にも、波形の表示にも使う）
+async function decodeAudio() {
+  const t0 = performance.now();
+  const res = await fetch(`${base}media/wataame.m4a`);
+  if (!res.ok) throw new Error(`wataame.m4a ${res.status}`);
+  const ab = await res.arrayBuffer();
+  const dec = capture ? new OfflineAudioContext(2, 48000, 48000) : (actx ||= new AudioContext({ latencyHint: 'playback' }));
+  buffer = await dec.decodeAudioData(ab);
+  audio = { L: buffer.getChannelData(0), R: buffer.getChannelData(buffer.numberOfChannels > 1 ? 1 : 0), sr: buffer.sampleRate };
+  log('decode', { seconds: +buffer.duration.toFixed(3), sampleRate: buffer.sampleRate, ms: Math.round(performance.now() - t0), capture });
+  return buffer;
+}
 
 async function init() {
   const t0 = performance.now();
   try {
-    const [d, fontsMs] = await Promise.all([loadData(base), loadFonts()]);
+    const [d, fontsMs] = await Promise.all([loadData(base), loadFonts(), decodeAudio()]);
     data = d;
-    draw = createStage(data);
+    draw = createStage(data, { cpu: capture });
     log('data', { chords: data.score.chords.length, chops: data.chops.length, frames: data.score.levels.frames, fontsMs, ms: Math.round(performance.now() - t0) });
   } catch (err) {
     log('error.data', { msg: String(err) }, `error ${err.message}`);
-    setStatus('データを読めませんでした。ページを読み直してください。');
+    setStatus('データか音を読めませんでした。ページを読み直してください。');
     throw err;
   }
   return data;
@@ -50,7 +65,7 @@ if (capture) {
 }
 
 function renderAt(t) {
-  draw(ctx, t, { reduced });
+  draw(ctx, t, { reduced, audio });
   return true;
 }
 
@@ -62,51 +77,35 @@ function setupPlayer() {
   const vol = document.getElementById('volume');
   const timeEl = document.getElementById('time');
   const nowEl = document.getElementById('now');
-  let actx = null, gain = null, buffer = null, src = null;
-  let playing = false, offset = 0, startAt = 0, decoding = null;
-  let lastSection = '', lastChordIdx = -1;
+  let gain = null, src = null;
+  let playing = false, offset = 0, startAt = 0;
+  let lastSection = '';
   let raf = 0, perf = { frames: 0, worst: 0, since: performance.now(), last: 0 };
 
   const syncSlider = (el) => { el.style.setProperty('--control-value', el.value); el.style.setProperty('--attr-min', el.min || 0); el.style.setProperty('--attr-max', el.max || 100); };
+  syncSlider(vol);
 
   ready = init().then(() => {
     const end = data.score.bars * data.score.bar;
     seek.max = String(end.toFixed(2));
     syncSlider(seek);
-    syncSlider(vol);
     playBtn.disabled = false;
     restartBtn.disabled = false;
     seek.disabled = false;
     setStatus('');
     updateTexts(0);
     requestDraw();
+    // 画面に収まっているかを記録する（縦や横のスクロールが出ていないか）
+    const se = document.scrollingElement;
+    log('layout', { viewport: `${innerWidth}x${innerHeight}`, scroll: `${se.scrollWidth}x${se.scrollHeight}`, canvas: `${Math.round(canvas.getBoundingClientRect().width)}x${Math.round(canvas.getBoundingClientRect().height)}` });
   });
 
-  async function ensureAudio() {
-    if (buffer) return buffer;
-    if (!decoding) {
-      decoding = (async () => {
-        const t0 = performance.now();
-        actx = new AudioContext({ latencyHint: 'playback' });
-        gain = actx.createGain();
-        gain.gain.value = Number(vol.value) / 100;
-        gain.connect(actx.destination);
-        setStatus('音を読んでいます…');
-        const res = await fetch(`${base}media/wataame.m4a`);
-        if (!res.ok) throw new Error(`wataame.m4a ${res.status}`);
-        const ab = await res.arrayBuffer();
-        buffer = await actx.decodeAudioData(ab);
-        log('decode', { seconds: +buffer.duration.toFixed(3), sampleRate: buffer.sampleRate, ms: Math.round(performance.now() - t0), baseLatency: actx.baseLatency, outputLatency: actx.outputLatency ?? null });
-        setStatus('');
-        return buffer;
-      })().catch((err) => {
-        log('error.audio', { msg: String(err) }, `error ${err.message}`);
-        setStatus('音を読めませんでした。ページを読み直してください。');
-        decoding = null;
-        throw err;
-      });
+  function ensureGain() {
+    if (!gain) {
+      gain = actx.createGain();
+      gain.gain.value = Number(vol.value) / 100;
+      gain.connect(actx.destination);
     }
-    return decoding;
   }
 
   // いま聞こえている時刻（出力の遅れを差し引く）
@@ -122,8 +121,8 @@ function setupPlayer() {
 
   async function play(via) {
     await ready;
-    await ensureAudio();
     if (actx.state === 'suspended') await actx.resume();
+    ensureGain();
     const end = data.score.bars * data.score.bar;
     if (offset >= end - 0.05) offset = 0;
     src = actx.createBufferSource();
@@ -166,7 +165,6 @@ function setupPlayer() {
   }
   function updateButtons() {
     playBtn.textContent = playing ? '一時停止' : '再生';
-    playBtn.dataset.state = playing ? 'playing' : 'paused';
   }
   function updateTexts(t) {
     const end = data.score.bars * data.score.bar;
@@ -178,21 +176,17 @@ function setupPlayer() {
     }
     seek.setAttribute('aria-valuetext', `${fmtTimeJa(tt)} / ${fmtTimeJa(end)}`);
     const sec = sectionAt(data.score, tt);
-    const ci = chordIndexAt(data.score, tt);
-    if (sec.id !== lastSection || ci !== lastChordIdx) {
-      if (sec.id !== lastSection) {
-        nowEl.textContent = `いまの区間: ${sec.name}（${sec.bar + 1}〜${sec.bar + sec.bars} 小節）`;
-        if (playing) log('section', { id: sec.id, pos: +tt.toFixed(2) });
-      }
+    if (sec.id !== lastSection) {
+      nowEl.textContent = `いまの区間: ${sec.name}（${sec.bar + 1}〜${sec.bar + sec.bars} 小節）`;
+      if (playing) log('section', { id: sec.id, pos: +tt.toFixed(2) });
       lastSection = sec.id;
-      lastChordIdx = ci;
     }
   }
 
   function frame(now) {
     raf = 0;
     const t = position();
-    draw(ctx, t, { reduced });
+    draw(ctx, t, { reduced, audio });
     updateTexts(t);
     if (playing) {
       const dt = perf.last ? now - perf.last : 0;
@@ -206,18 +200,16 @@ function setupPlayer() {
       loop();
     } else perf.last = 0;
   }
-  function loop() { if (!raf) raf = requestAnimationFrame(frame); }
+  function loop() { if (!raf && draw) raf = requestAnimationFrame(frame); }
   window.requestDraw = () => loop();
 
   playBtn.addEventListener('click', () => (playing ? pause('button') : play('button')));
   restartBtn.addEventListener('click', () => seekTo(0, 'restart'));
-  let seekingFrom = null;
   seek.addEventListener('input', () => {
     syncSlider(seek);
-    if (seekingFrom === null) seekingFrom = position();
     if (!playing) { offset = Number(seek.value); updateTexts(offset); requestDraw(); }
   });
-  seek.addEventListener('change', () => { seekingFrom = null; seekTo(Number(seek.value), 'slider'); });
+  seek.addEventListener('change', () => seekTo(Number(seek.value), 'slider'));
   let volTimer = 0;
   vol.addEventListener('input', () => {
     syncSlider(vol);
@@ -232,6 +224,14 @@ function setupPlayer() {
     else if (e.key === 'ArrowLeft') { log('key', { key: 'left' }); seekTo(position() - 5, 'key'); }
   });
   document.addEventListener('visibilitychange', () => log('visibility', { state: document.visibilityState, pos: +position().toFixed(2), playing }));
+  let resizeTimer = 0;
+  addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      const se = document.scrollingElement;
+      log('resize', { viewport: `${innerWidth}x${innerHeight}`, scroll: `${se.scrollWidth}x${se.scrollHeight}` });
+    }, 500);
+  });
 }
 
 function requestDraw() {

@@ -51,7 +51,7 @@
       <thead><tr><th scope="col">もの</th><th scope="col">中身</th><th scope="col">作り方</th></tr></thead>
       <tbody>
         <tr><th scope="row">曲</th><td data-label="中身">2 分。160 BPM（ドラムは半分の速さで刻む）、D メジャー、80 小節</td><td data-label="作り方">楽譜を Python のコードで書き、numpy と scipy で 48 kHz のステレオに合成</td></tr>
-        <tr><th scope="row">画面</th><td data-label="中身">わたあめの衛星が音を受信する、音楽プレーヤー風の画面</td><td data-label="作り方">Canvas 2D に、時刻 t だけで 1 コマを描く関数（renderAt）</td></tr>
+        <tr><th scope="row">画面</th><td data-label="中身">衛星から届く信号を解析するコンソール風の画面（計器 9 つ）</td><td data-label="作り方">Canvas 2D に、時刻 t だけで 1 コマを描く関数（renderAt）</td></tr>
         <tr><th scope="row">動画</th><td data-label="中身">7,380 コマ。H.264 と AAC の mp4</td><td data-label="作り方">画面なしの Chrome（音なし）で 1/60 秒ずつ描いて撮り、ffmpeg で音と合わせる</td></tr>
         <tr><th scope="row">再生ページ</th><td data-label="中身">音に合わせてその場で描くページ</td><td data-label="作り方">Web Audio で音を鳴らし、出力の時計の時刻で同じ関数を呼ぶ</td></tr>
       </tbody>
@@ -64,63 +64,55 @@
     <li>曲は約 148 BPM で、途中でキーが B から E♭ に変わり、最後はテンポを落として終わります。</li>
     <li>画面は、淡いピンクの単色に青緑を少し差した、音楽の解析画面の形です。五度圏、楽器ごとの波形、スペクトル、譜面、和音の度数と機能が並び、どれも曲の中身を見せる作りでした。</li>
   </ul>
-  <p>このページの曲と画面は、この動画の旋律・進行・絵柄をまねていません。参考にしたのは「かわいい・未来的・音楽プレーヤー風・曲の中身が見える」という方向だけです。曲名・テンポ・キー・画面の構成は、別の物にしました。</p>
+  <p>このページの曲と画面は、この動画の旋律・進行・絵柄をまねていません。曲名・テンポ・キー・画面の配色と計器の並べ方は、別の物にしました。</p>
 
   <h2 id="screen">画面の見どころ</h2>
-  <p>空の色は曲の区間ごとに変わります。Intro は朝焼け、Verse は朝の空、Build は昼、Drop は青空、Break は夕焼けで、2 回目の Drop は夜です。中央の「わたあめ衛星」と右の 3 枚の板が、音に合わせて動きます。</p>
+  <p>画面は、衛星から届く信号を地上で受けて解析するコンソールに見立てました。ほぼ黒の地に細い線を引き、差し色は水色 1 色です。ピークと声（チョップ）の音だけを琥珀色にしています。9 つの計器が、音に合わせて 1/60 秒ごとに動きます。</p>
   <figure>
-    <img src="img/hero.webp" alt="1 回目の Drop の画面。中央にピンクのわたあめの形の衛星があり、目が閉じた笑顔で、口から「ら」「ぴ」「ぱ」のかなの吹き出しが出ている。右に、いまの和音の帯、16 分のリズムの格子、楽器ごとの音量。下に鍵盤。" width="1920" height="1080" loading="lazy">
-    <figcaption>1 回目の Drop（28 小節目）。衛星の口から、いま鳴っているチョップの音節がかなで出ます。</figcaption>
+    <img src="img/hero.webp" alt="1 回目の Drop の画面。暗い地に 9 つの計器が並ぶ。左上は水色と琥珀色の LED の棒のスペクトル、中央上は琥珀色の声と水色のベースが流れる音符のモニター、右上は 10 本の縦の LED メーター。下の段に、オシロスコープ、左右の広がり、16 ステップのシーケンサー、和音、ラウドネス、受信の記録。" width="1920" height="1080" loading="lazy">
+    <figcaption>1 回目の Drop（28 小節目）。右下の「DECODED」には、声の音節が受信した文字として並びます。</figcaption>
   </figure>
   <div class="table-wrap" tabindex="0">
     <table class="stack">
-      <caption>画面の部品と、動かしている値</caption>
-      <thead><tr><th scope="col">部品</th><th scope="col">動き</th><th scope="col">もとの値</th></tr></thead>
+      <caption>計器と、もとの値</caption>
+      <thead><tr><th scope="col">計器</th><th scope="col">見せているもの</th><th scope="col">もとの値</th></tr></thead>
       <tbody>
-        <tr><th scope="row">衛星の体</th><td data-label="動き">キックで横に広がってつぶれ、スネアで少し跳ねて輪が広がる</td><td data-label="もとの値">キックとスネアの時刻と強さ</td></tr>
-        <tr><th scope="row">衛星の輪郭</th><td data-label="動き">わたあめのようにふくらむ。上が高い音、下が低い音</td><td data-label="もとの値">周波数 48 帯の強さ（1/60 秒ごと）</td></tr>
-        <tr><th scope="row">衛星の口</th><td data-label="動き">あ・い・う・え・お の形に変わる</td><td data-label="もとの値">鳴っているチョップの母音と、声の段の音量</td></tr>
-        <tr><th scope="row">アンテナと月</th><td data-label="動き">拍ごとに光り、月は 1 小節で軌道を 1 周する</td><td data-label="もとの値">拍と小節の位置</td></tr>
-        <tr><th scope="row">太陽電池の板</th><td data-label="動き">サイドチェインで傾き、和音の刻みで光る</td><td data-label="もとの値">サイドチェインの曲線、和音を刻んだ時刻</td></tr>
-        <tr><th scope="row">いまの和音</th><td data-label="動き">和音の帯が右から流れる。帯の長さは和音が続く長さ</td><td data-label="もとの値">和音の名前・度数・ベースの音</td></tr>
-        <tr><th scope="row">リズム</th><td data-label="動き">この小節の 16 分の格子に、声・キック・スネア・ハイハットの音を置く</td><td data-label="もとの値">音符とドラムの時刻</td></tr>
-        <tr><th scope="row">楽器ごとの音量</th><td data-label="動き">10 の段の音量と、サイドチェインの曲線</td><td data-label="もとの値">段ごとに合成した音の音量</td></tr>
-        <tr><th scope="row">鍵盤と泡</th><td data-label="動き">鳴っている音の鍵が光り、そこから泡が上がる</td><td data-label="もとの値">チョップとオルゴールの音の高さ</td></tr>
+        <tr><th scope="row">SPECTRUM（周波数）</th><td data-label="見せているもの">48 帯の棒を LED のように区切って表示。白い線は直前のピークで、0.35 秒保ったあと下がる</td><td data-label="もとの値">全体の音の周波数 48 帯（1/60 秒ごと）</td></tr>
+        <tr><th scope="row">OSCILLOSCOPE（波形）</th><td data-label="見せているもの">約 21 ms の波形。左は水色、右は琥珀色。上がりながら 0 を横切る所にそろえ、波形が止まって見えるようにする</td><td data-label="もとの値">配信用の音をページで解いた波形</td></tr>
+        <tr><th scope="row">STEREO FIELD（左右の広がり）</th><td data-label="見せているもの">中央と左右の差（M/S）の点、左右の相関の針、広がり、左右のピーク</td><td data-label="もとの値">同じ波形</td></tr>
+        <tr><th scope="row">NOTE MONITOR（音符）</th><td data-label="見せているもの">2.6 秒前から 1.4 秒先までの音符が流れる。琥珀色が声、水色がベース、灰色が鍵盤。下の段はキック・スネア・ハイハット</td><td data-label="もとの値">楽譜の音符とドラムの時刻</td></tr>
+        <tr><th scope="row">SEQUENCER（リズム）</th><td data-label="見せているもの">この小節の 16 分の格子。鳴った升は一瞬白く光る</td><td data-label="もとの値">同じ</td></tr>
+        <tr><th scope="row">HARMONY（和音）</th><td data-label="見せているもの">和音の名前と度数、12 音のうち鳴っている音（琥珀色の枠がベース）、前後 8 秒の和音の流れとベースの動き</td><td data-label="もとの値">和音の名前・構成音・ベースの音</td></tr>
+        <tr><th scope="row">CHANNELS（楽器ごとの音量）</th><td data-label="見せているもの">10 本の LED メーター。白い線はピーク</td><td data-label="もとの値">楽器の段ごとに合成した音の音量</td></tr>
+        <tr><th scope="row">LOUDNESS（ラウドネス）</th><td data-label="見せているもの">瞬間（0.4 秒）と短時間（3 秒）の LUFS と、直近 12 秒の履歴</td><td data-label="もとの値">全体の音（ITU-R BS.1770 の K 特性）</td></tr>
+        <tr><th scope="row">DOWNLINK LOG（受信の記録）</th><td data-label="見せているもの">声の音節を受信した文字として並べ、和音・声・キック・スネア・効果音の出来事を時刻つきで流す</td><td data-label="もとの値">楽譜の出来事</td></tr>
       </tbody>
     </table>
   </div>
   <div class="pair">
     <figure>
-      <img src="img/build.webp" alt="Build の 7 小節目の画面。空は黄色からピンク。いまの和音の帯が細く並び、1 拍ずつ和音が変わっている。リズムの格子は、スネアが 16 分で全部埋まっている。" width="1920" height="1080" loading="lazy">
-      <figcaption>Build の 7 小節目。和音が 1 拍ずつ変わるので、和音の帯が細く並びます。スネアは 16 分で刻んでいます。</figcaption>
+      <img src="img/build.webp" alt="Build の 7 小節目の画面。シーケンサーの声とスネアの行が、16 の升すべてで光っている。和音の流れの帯は細かく区切られている。" width="1920" height="1080" loading="lazy">
+      <figcaption>Build の 7 小節目。和音が 1 拍ずつ変わり、和音の流れの帯が細かく区切られます。スネアと声は 16 分で刻みます。</figcaption>
     </figure>
     <figure>
-      <img src="img/stop.webp" alt="Drop の 8 小節目の画面。衛星の目が「＞＜」の形になり、横に「キュッ」の文字。楽器ごとの音量はほとんど 0 になっている。" width="1920" height="1080" loading="lazy">
-      <figcaption>Drop の 8 小節目は、全体を止めます。おもちゃの「キュッ」に合わせて、衛星が「＞＜」の顔になります。</figcaption>
+      <img src="img/stop.webp" alt="Drop の 8 小節目の画面。楽器ごとの LED メーターがほとんど消え、白いピークの線だけが残っている。音符のモニターでは音が途切れている。" width="1920" height="1080" loading="lazy">
+      <figcaption>Drop の 8 小節目は全体を止めます。LED メーターが下がり、白いピークの線だけが残ります。</figcaption>
     </figure>
     <figure>
-      <img src="img/break.webp" alt="Break の画面。空は夕焼けの橙から紫。左に大きく Break ブレイク の文字。鍵盤は青い鍵がいくつも光っている。" width="1920" height="1080" loading="lazy">
-      <figcaption>Break。3 連符のオルゴールが鳴り、鍵盤の青い鍵が光ります。</figcaption>
+      <img src="img/break.webp" alt="Break の画面。音符のモニターに、灰色の短い音符が 3 つずつ並び、琥珀色の長い声の音符がある。鍵盤の LED メーターが高い。" width="1920" height="1080" loading="lazy">
+      <figcaption>Break。3 連符のオルゴール（灰色の短い音符）と、ゆっくりした声（琥珀色）が流れます。</figcaption>
     </figure>
     <figure>
-      <img src="img/drop2.webp" alt="2 回目の Drop の画面。夜空に星があり、板は暗い色。衛星はピンクのまま明るく見える。" width="1920" height="1080" loading="lazy">
-      <figcaption>2 回目の Drop は夜空。チップチューンの速いアルペジオが鍵盤を走ります。</figcaption>
+      <img src="img/drop2.webp" alt="2 回目の Drop の画面。音符のモニターの高い所に、細かい点の列が並ぶ。スペクトルの棒は全体に高い。" width="1920" height="1080" loading="lazy">
+      <figcaption>2 回目の Drop。チップチューンの速いアルペジオが、音符のモニターに細かい点の列で出ます。</figcaption>
     </figure>
     <figure>
-      <img src="img/tapestop.webp" alt="1 回目の Drop の最後の画面。全体の色がほとんど灰色になり、衛星は少し下がって目を閉じている。" width="1920" height="1080" loading="lazy">
-      <figcaption>1 回目の Drop の終わりの「テープを止める」演出。音の高さが下がりながら止まり、画面は色が抜けます。</figcaption>
+      <img src="img/tapestop.webp" alt="1 回目の Drop の最後の画面。全体の色が灰色に抜け、中央に琥珀色で SIGNAL DROP と出ている。" width="1920" height="1080" loading="lazy">
+      <figcaption>1 回目の Drop の終わりの「テープを止める」演出。音の高さが下がりながら止まり、画面は色が抜けて SIGNAL DROP と出ます。</figcaption>
     </figure>
     <figure>
-      <img src="img/verse.webp" alt="Verse の画面。空は水色からクリーム色。鍵盤の青い鍵が光り、いまの和音の帯には 2 拍の和音と 4 拍の和音が混ざっている。" width="1920" height="1080" loading="lazy">
-      <figcaption>Verse。カリンバ風の音が鍵盤の青い鍵を光らせます。和音の帯は、2 拍と 4 拍が混ざっています。</figcaption>
-    </figure>
-    <figure>
-      <img src="img/outro.webp" alt="Outro の画面。空は薄いピンクから水色に戻っている。和音は Gmaj7/D で、ベースの線は D2 のまままっすぐ。鍵盤の青い鍵が光っている。" width="1920" height="1080" loading="lazy">
-      <figcaption>Outro。空は朝焼けの色に戻ります。Intro と同じく D を伸ばしたまま和音が動き、最後は Dmaj9 で終わります。</figcaption>
-    </figure>
-    <figure>
-      <img src="img/intro.webp" alt="Intro の画面。空は薄いピンクから水色。和音は Dmaj9 で、ベースは D2 のまま横にまっすぐ伸びている。" width="1920" height="1080" loading="lazy">
-      <figcaption>Intro。ベースは D のまま、上の和音だけが動きます。和音の板のベースの線がまっすぐです。</figcaption>
+      <img src="img/intro.webp" alt="Intro の画面。和音は Dmaj9 で、和音のベースの線は D2 のまま横にまっすぐ伸びている。ラウドネスの履歴は途中から上がっている。" width="1920" height="1080" loading="lazy">
+      <figcaption>Intro。ベースは D のまま、上の和音だけが動きます。和音の計器のベースの線がまっすぐです。</figcaption>
     </figure>
   </div>
 
@@ -249,6 +241,26 @@
   </div>
   <p class="small">サイドチェインで和音の音量が下がる様子（Drop の頭の 2 小節、1.0 = 下げない）。2 版はキックの位置（下の点）で下がるので、下がる間隔が 1 小節の中で変わります。</p>
 
+  <h2 id="redo-ui">画面の作り直し</h2>
+  <p>最初の画面は、曲の雰囲気に合わせて、顔のあるわたあめの形の衛星が動く、かわいい画面でした。作者に再生ページを試してもらうと、3 つの指摘がありました。</p>
+  <ul>
+    <li>かわいらしすぎる。求めていたのは、参考の動画のような無機質なシステムの画面で、いろいろなメーターが音に合わせて激しく動き、かっこよく見える物だった。</li>
+    <li>再生ページが縦にスクロールする。1 画面に収めてほしい。</li>
+    <li>楽器ごとの音量の板の下に、意味の分からない青い箱がある。</li>
+  </ul>
+  <p>青い箱は、サイドチェインの曲線のグラフでした。下げていない値（1.0）を枠の上端にして、その下を塗る作りでした。サイドチェインが働かない Intro・Break・Outro や再生の前は値が 1.0 のままなので、枠の全体が塗られ、目盛りも無いため箱にしか見えませんでした。新しい画面では外しています。</p>
+  <p>新しい画面は、暗い地に細い線と等幅の書体で、計器を 9 つ並べました。オシロスコープと左右の広がりのために、配信用の音をページで解き、その時刻の波形を読むようにしています。再生ページは、残りの高さと幅のどちらにも収まる 16:9 の大きさで canvas を置き、操作の帯を下の 1 段にまとめました。1366×768、1920×1080、スマートフォンの縦向き（375×812）で、縦にも横にもスクロールが出ないことを確かめています。</p>
+  <div class="pair">
+    <figure>
+      <img src="img/ui-v1.webp" alt="最初の画面。ピンクのわたあめの形の衛星に顔があり、空は青からピンク。右に和音・リズム・音量の白い板、下におもちゃのような鍵盤。" width="1920" height="1080" loading="lazy">
+      <figcaption>最初の画面（作者に「かわいらしすぎる」と言われた版）。</figcaption>
+    </figure>
+    <figure>
+      <img src="img/hero.webp" alt="作り直した画面。暗い地に 9 つの計器が並ぶ解析コンソール。" width="1920" height="1080" loading="lazy">
+      <figcaption>作り直した画面。同じ時刻（28 小節目）です。</figcaption>
+    </figure>
+  </div>
+
   <h2 id="mix">ミックスの判断（耳の代わりに測る）</h2>
   <p>音量の釣り合いは、聞いて決められません。そこで、楽器の段（キック・スネア・ハイハット・シェイカー・ベース・和音・鈴・声・鍵盤・効果音）を別々に合成しました。段ごとに Drop の区間のラウドネス（ITU-R BS.1770 の LUFS）を測り、目標の値になるように音量を決めています。目標は、キック -13、ベース -14.8、和音 -14、声 -15、スネア -15 LUFS のように、低音と主役の段を大きく、ハイハットと鈴を小さくしました。</p>
   <p>最後の段では、26 Hz より下を切り、ゆるく圧縮し（1.8 : 1）、tanh で少し丸め、先読みのリミッターで -1.7 dBFS に抑えます。全体の統合ラウドネスは -9.5 LUFS、真のピーク（4 倍に増やした点で測った値）は -1.53 dBTP です。</p>
@@ -263,9 +275,14 @@
   <ol class="steps">
     <li><strong>楽譜から音を作る（render.py、約 28 秒）</strong>score.py の出来事を音にし、楽器の段ごとの音と、全体の WAV を書き出します。</li>
     <li><strong>画面が読むデータを作る（export.py、約 8 秒）</strong>和音・音符・ドラム・効果音の時刻を score.json に、1/60 秒ごとの 61 個の値（段ごとの音量・左右・サイドチェイン・周波数 48 帯）を levels.bin に書きます。配信用の音（AAC）も作ります。</li>
-    <li><strong>時刻 t だけで 1 コマを描く（stage.mjs）</strong>前のコマの状態を持たず、泡やきらきらも、もとの音の時刻から位置を計算します。乱数も時刻から作るので、同じ t からは毎回同じ絵になります。1 コマの描画は、中央値 1.2 ms でした。</li>
+    <li><strong>時刻 t だけで 1 コマを描く（stage.mjs）</strong>前のコマの状態を持たず、ピークの印も過去のコマの値から求めます。枠・目盛り・消えている LED は最初に 1 回だけ別の Canvas に描き、毎コマそれを貼ってから動く部分を描きます。オシロスコープと左右の広がりは、配信用の音を解いた波形を、その時刻の所から読みます。同じ t からは毎回同じ絵になります。撮影モードで 120 コマを描いた平均は 6.5 ms でした。</li>
     <li><strong>再生ページは、音の時計で描く（player.mjs）</strong>Web Audio で音を鳴らし、<code>getOutputTimestamp()</code> で「いまスピーカーから出ている時刻」を求め、その t で描きます。出力の遅れの分だけ、画面が音より先に進むのを防ぎます。</li>
-    <li><strong>動画は 1 コマずつ撮る（capture.mjs）</strong>画面なしの Chrome（音なし）でページを撮影モードで開き、t = 0、1/60、2/60… と描いて JPEG で受け取り、ffmpeg に流します。音は元の WAV を使うので、音と絵はずれません。7,380 コマを 5 分 22 秒で撮りました。最初は画質の設定を CRF 20 にして 53 MB になったので、文字の輪郭を確かめたうえで CRF 27（25 MB）にしました。</li>
+    <li><strong>動画は 1 コマずつ撮る（capture.mjs）</strong>画面なしの Chrome（音なし）でページを撮影モードで開き、t = 0、1/60、2/60… と描いて JPEG で受け取り、ffmpeg に流します。音は元の WAV を使うので、音と絵はずれません。7,380 コマを 6 分 41 秒で撮りました。作り直した画面は、細かい LED の区切りや波形の細い線が多く、動画にすると圧縮しにくくなります。最初の画面で使った画質の設定（CRF 27）では 52 MB になったので、文字と LED の見え方を確かめたうえで CRF 32（34 MB）にしました。
+    <div class="note">
+      <p><strong>同じ時刻なのに絵が変わった不具合</strong></p>
+      <p>確かめの台本で、同じ時刻を 2 回描いて比べると、99 点だけ絵が違いました。違うのは、半透明を重ねて描く所（チョップのかなの文字と、左右の広がりの点）だけでした。調べると、違うのはページを開いてから最初の 1 コマだけで、そのあとは何回描いても一致しました。</p>
+      <p>原因は、動かない部分を前もって描いておく裏の canvas でした。この canvas は GPU で描かれ、表示用の canvas は CPU で描く設定（<code>willReadFrequently</code>）にしていました。GPU の絵を CPU の canvas に貼ると、最初の読み出しの前後で Chrome の描き方が切り替わり、半透明の重なりの丸め方が少し変わります。撮影モードでは裏の canvas も CPU で描くようにすると、PNG の中身まで一致しました。</p>
+    </div></li>
   </ol>
 
   <h2 id="try">すぐ試す手順</h2>
@@ -298,8 +315,8 @@ for (let i = 0; i &lt; frames; i++) {
     <li>ボーカルチョップは合成の声です。歌手の録音を刻んだ物のような息づかいや質感はありません。</li>
     <li>参考の動画の音は解析していません。見たのは画面だけで、音は消していました。</li>
     <li>再生ページは Chrome で確かめました。Safari と Firefox での再生と、スマートフォンでの描画の速さは確かめていません。</li>
-    <li>画面の書体（M PLUS Rounded 1c）は Google Fonts から読みます。読めないときは、端末にある丸い書体か、ふつうのゴシック体で描きます。</li>
-    <li>動画は 1 つの mp4 で 25 MB あります（画質の設定 CRF 27）。回線が遅いと読み込みに時間がかかります。</li>
+    <li>画面の書体（JetBrains Mono と IBM Plex Sans JP）は Google Fonts から読みます。読めないときは、端末にある等幅の書体とゴシック体で描きます。</li>
+    <li>動画は 1 つの mp4 で 34 MB あります（画質の設定 CRF 32）。回線が遅いと読み込みに時間がかかります。</li>
   </ul>
 
   <h2 id="files">使った道具とファイル</h2>

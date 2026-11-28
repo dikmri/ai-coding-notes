@@ -1,982 +1,865 @@
-// 「わたあめ衛星の受信機」の画面。1920×1080 の Canvas に、時刻 t だけで 1 コマを描く（状態を持たない）。
+// 「わたあめサテライト」の受信解析コンソール（2 版の画面）。1920×1080 の Canvas に、時刻 t だけで 1 コマを描く（状態を持たない）。
 // 再生ページは音の時計の t、動画の撮影は 1/60 秒ずつの t で同じ関数を呼ぶので、同じ絵になる。
-import { between, lastBefore, sectionAt, chordIndexAt, fmtTime } from './data.mjs';
+// 動かない部分（枠・目盛り・消えている LED）は最初に 1 回だけ別の Canvas に描いておき、毎コマ貼ってから動く部分を描く。
+import { between, lastBefore, sectionAt, chordIndexAt } from './data.mjs';
 
 export const W = 1920;
 export const H = 1080;
-export const FONT = '"M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif';
-const font = (size, weight = 700) => `${weight} ${size}px ${FONT}`;
+export const MONO = '"JetBrains Mono", "IBM Plex Sans JP", ui-monospace, Consolas, monospace';
+const JP = '"IBM Plex Sans JP", "Yu Gothic UI", Meiryo, sans-serif';
+const fm = (size, w = 500) => `${w} ${size}px ${MONO}`;
+const fj = (size, w = 500) => `${w} ${size}px ${JP}`;
 
-// 区間ごとの空の色（上・下）と文字・差し色
-const PAL = {
-  intro: { top: '#F9D7E6', bot: '#D4EBFF', ink: '#2B3160', accent: '#F2679A', accent2: '#4FAFE0', star: 0.0 },
-  verse: { top: '#BCE4FF', bot: '#FFF0D6', ink: '#25305C', accent: '#EE5F86', accent2: '#2FA88A', star: 0.0 },
-  build1: { top: '#FFE7A1', bot: '#FFC6DC', ink: '#3A2B4F', accent: '#F0603C', accent2: '#4F8FE8', star: 0.0 },
-  drop1: { top: '#86CFFF', bot: '#FFBCDC', ink: '#1E2A5A', accent: '#F2478C', accent2: '#1597CF', star: 0.0 },
-  break: { top: '#FFC09C', bot: '#C4B2F4', ink: '#3B2A55', accent: '#E9604A', accent2: '#7563E0', star: 0.25 },
-  build2: { top: '#5E6BC8', bot: '#F9A9C9', ink: '#FFF6EC', accent: '#FFD166', accent2: '#FF8FC2', star: 0.55 },
-  drop2: { top: '#151D46', bot: '#463A88', ink: '#FFF6EC', accent: '#FF79B8', accent2: '#5FE0D0', star: 1.0 },
-  outro: { top: '#F4D3E7', bot: '#CCE5FF', ink: '#2B3160', accent: '#F2679A', accent2: '#4FAFE0', star: 0.15 },
+const C = {
+  bg: '#090B0E', panel: '#0D1014', line: '#252B33', grid: '#161B21', grid2: '#1D232A',
+  text: '#D6DDE5', dim: '#7C8792', faint: '#38414B', off: '#141A20',
+  acc: '#3FD0FF', accMid: '#2A8FB3', accDim: '#123A4A', amb: '#FFB21E', ambDim: '#5A3F0C', hot: '#FF4D5E', keys: '#A9B4BF',
 };
-const SEC_JA = { intro: 'イントロ', verse: 'ヴァース', build1: 'ビルド', build2: 'ビルド', drop1: 'ドロップ', drop2: 'ドロップ', break: 'ブレイク', outro: 'アウトロ' };
-export const STEMS = [
-  ['kick', 'キック', '#FF6B8B'], ['snare', 'スネア', '#FF9F43'], ['hats', 'ハイハット', '#E2B308'], ['perc', 'シェイカー', '#B58E6E'],
-  ['bass', 'ベース', '#5B7CFA'], ['chords', '和音', '#2EBF98'], ['lead', '鈴', '#A47BFF'], ['chops', '声（チョップ）', '#F25FC2'],
-  ['keys', '鍵盤', '#27A9E6'], ['fx', '効果音', '#7F8CFF'],
-];
-const BODY_INK = '#2B2F55';
-const NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = (m) => `${NAMES[m % 12]}${Math.floor(m / 12) - 1}`;
-
-// ------------------------------------------------------------------ 小さな道具
+const sharp = (s) => s.replace(/#/g, '♯').replace('Bb', 'B♭').replace('b5', '♭5').replace('b9', '♭9');
 const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
-const lerp = (a, b, u) => a + (b - a) * u;
-const smooth = (u) => { u = clamp(u); return u * u * (3 - 2 * u); };
-const easeOut = (u) => 1 - (1 - clamp(u)) ** 3;
-const easeBack = (u) => { u = clamp(u); const c = 1.6; return 1 + (c + 1) * (u - 1) ** 3 + c * (u - 1) ** 2; };
-const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
-const hexRgb = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
-const mixRgb = (a, b, u) => [lerp(a[0], b[0], u), lerp(a[1], b[1], u), lerp(a[2], b[2], u)];
-const css = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
-const lum = (c) => (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255;
+const pad2 = (n) => String(n).padStart(2, '0');
+const tc = (t) => { const s = Math.max(0, t); return `${pad2(Math.floor(s / 60))}:${pad2(Math.floor(s % 60))}.${pad2(Math.floor((s % 1) * 100))}`; };
+export const STEMS = [
+  ['kick', 'KICK', 'キック'], ['snare', 'SNR', 'スネア'], ['hats', 'HAT', 'ハイハット'], ['perc', 'PRC', 'シェイカー'], ['bass', 'BASS', 'ベース'],
+  ['chords', 'CHRD', '和音'], ['lead', 'BELL', '鈴'], ['chops', 'VOX', '声'], ['keys', 'KEYS', '鍵盤'], ['fx', 'FX', '効果音'],
+];
+const DRUM_LANE = 34;
+const SEC_CODE = { intro: 'INTRO', verse: 'VERSE', build1: 'BUILD', build2: 'BUILD', drop1: 'DROP', drop2: 'DROP', break: 'BREAK', outro: 'OUTRO' };
 
-function rrect(ctx, x, y, w, h, r) {
+// ------------------------------------------------------------------ 配置（x, y, w, h）
+const P = {
+  spec: [24, 172, 600, 348], scope: [24, 536, 600, 224], stereo: [24, 776, 600, 284],
+  notes: [640, 172, 640, 348], seq: [640, 536, 640, 224], harm: [640, 776, 640, 284],
+  ch: [1296, 172, 600, 448], loud: [1296, 636, 600, 224], log: [1296, 876, 600, 184],
+};
+const TITLES = {
+  spec: ['SPECTRUM', '周波数', '48 BANDS · 40 Hz – 14 kHz'], scope: ['OSCILLOSCOPE', '波形', 'L / R · 21 ms · TRIG ↑'],
+  stereo: ['STEREO FIELD', '左右の広がり', 'M / S · CORRELATION'], notes: ['NOTE MONITOR', '音符', 'PITCH × TIME · −2.6 s / +1.4 s'],
+  seq: ['SEQUENCER', 'リズム', ''], harm: ['HARMONY', '和音', 'KEY D MAJOR'],
+  ch: ['CHANNELS', '楽器ごとの音量', '10 STEMS · REL dB'], loud: ['LOUDNESS', 'ラウドネス', 'ITU-R BS.1770 · LUFS'], log: ['DOWNLINK LOG', '受信の記録', 'EVENTS'],
+};
+
+function panelFrame(ctx, key) {
+  const [x, y, w, h] = P[key];
+  const [title, jp, info] = TITLES[key];
+  ctx.fillStyle = C.panel;
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = C.line;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  // 角の印
+  ctx.strokeStyle = C.dim;
+  for (const [cx, cy, dx, dy] of [[x, y, 1, 1], [x + w, y, -1, 1], [x, y + h, 1, -1], [x + w, y + h, -1, -1]]) {
+    ctx.beginPath();
+    ctx.moveTo(cx + 0.5 * dx, cy + 9 * dy);
+    ctx.lineTo(cx + 0.5 * dx, cy + 0.5 * dy);
+    ctx.lineTo(cx + 9 * dx, cy + 0.5 * dy);
+    ctx.stroke();
+  }
+  ctx.fillStyle = C.acc;
+  ctx.fillRect(x + 12, y + 12, 6, 6);
+  ctx.fillStyle = C.text;
+  ctx.font = fm(13, 700);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(title, x + 26, y + 16);
+  const tw = ctx.measureText(title).width;
+  ctx.fillStyle = C.dim;
+  ctx.font = fj(12, 500);
+  ctx.fillText(jp, x + 34 + tw, y + 16);
+  ctx.font = fm(11, 500);
+  ctx.textAlign = 'right';
+  ctx.fillText(info, x + w - 12, y + 16);
+  ctx.strokeStyle = C.grid2;
   ctx.beginPath();
-  ctx.roundRect(x, y, w, h, Math.min(r, h / 2, w / 2));
-}
-function star4(ctx, x, y, r) {
-  ctx.beginPath();
-  ctx.moveTo(x, y - r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.quadraticCurveTo(x, y, x, y + r);
-  ctx.quadraticCurveTo(x, y, x - r, y);
-  ctx.quadraticCurveTo(x, y, x, y - r);
-  ctx.closePath();
+  ctx.moveTo(x + 1, y + 30.5);
+  ctx.lineTo(x + w - 1, y + 30.5);
+  ctx.stroke();
+  ctx.textBaseline = 'alphabetic';
 }
 
 // ------------------------------------------------------------------ 本体
-export function createStage(data) {
+export function createStage(data, opt = {}) {
   const S = data.score;
-  const BEAT = S.beat, BAR = S.bar, STEP = BEAT / 4;
-  const END = S.bars * BAR;
-  const pal = Object.fromEntries(Object.entries(PAL).map(([k, p]) => [k, {
-    ...p, topC: hexRgb(p.top), botC: hexRgb(p.bot), inkC: hexRgb(p.ink), accentC: hexRgb(p.accent), accent2C: hexRgb(p.accent2),
-  }]));
-  const overview = data.overview(300);
-  const bandsBuf = new Float32Array(data.nBands);
-  const kicks = data.drums.kick, snares = data.drums.snare.filter((d) => d.vel >= 0.5);
-  const stabs = data.stabs;
+  const BEAT = S.beat, BAR = S.bar, STEP = BEAT / 4, END = S.bars * BAR;
+  const bandHz = S.levels.bandHz;
+  const NB = data.nBands;
+  const bandsBuf = new Float32Array(NB);
   const allChops = [...data.chops, ...data.harmony].sort((a, b) => a.t - b.t);
-  const keyNotes = [...S.notes.keys.map((n) => ({ ...n, src: 'keys', d: Math.max(0.16, Math.min(n.d, 0.5)) })),
-    ...S.notes.chip.map((n) => ({ ...n, src: 'keys' })), ...S.notes.bell.map((n) => ({ ...n, src: 'bell' }))].sort((a, b) => a.t - b.t);
+  const keysNotes = S.notes.keys;
+  const chipNotes = S.notes.chip;
+  const bassNotes = S.notes.bass;
+  const snares = data.drums.snare.filter((d) => d.vel >= 0.5);
   const fx = data.fxBy;
 
   // 小節ごとのリズムの格子（16 分に丸める）
   const grid = [];
-  const put = (rows, list, row, minVel = 0) => {
+  const put = (list, row, minVel = 0) => {
     for (const e of list) {
-      if ((e.vel ?? 1) < minVel) continue;
+      if ((e.vel ?? 1) < minVel || e.radio) continue;
       const b = Math.floor(e.t / BAR + 1e-6);
       const s = Math.round((e.t - b * BAR) / STEP);
-      const bb = s >= 16 ? b + 1 : b, ss = s >= 16 ? s - 16 : s;
-      (rows[bb] ||= [[], [], [], []]);
-      const cell = rows[bb][row].find((c) => c.s === ss);
-      if (cell) cell.v = Math.max(cell.v, e.vel ?? 1); else rows[bb][row].push({ s: ss, v: e.vel ?? 1, t: e.t });
+      const bb = s >= 16 ? b + 1 : b, ss = s % 16;
+      (grid[bb] ||= [[], [], [], [], []]);
+      const cell = grid[bb][row].find((c) => c.s === ss);
+      if (cell) cell.v = Math.max(cell.v, e.vel ?? 1); else grid[bb][row].push({ s: ss, v: e.vel ?? 1, t: e.t });
     }
   };
-  put(grid, data.chops, 0);
-  put(grid, data.drums.kick, 1);
-  put(grid, data.drums.snare, 2, 0.3);
-  put(grid, data.drums.hat, 3);
+  put(data.chops, 0);
+  put(data.drums.kick, 1);
+  put(data.drums.snare, 2, 0.3);
+  put(data.drums.hat, 3);
+  put(data.drums.perc, 4);
 
-  // 時刻 t の色（区間が変わると 1.2 秒かけて移る。Build の終わりは次の区間の色へ近づく）
-  function palAt(t) {
-    const i = S.sections.findIndex((s) => t >= s.t0 && t < s.t1);
-    const k = i < 0 ? S.sections.length - 1 : i;
-    const sec = S.sections[k];
-    let P = pal[sec.id];
-    const prev = k > 0 ? pal[S.sections[k - 1].id] : P;
-    const u = smooth((t - sec.t0) / 1.2);
-    const blend = (A, B, w) => ({
-      topC: mixRgb(A.topC, B.topC, w), botC: mixRgb(A.botC, B.botC, w), inkC: mixRgb(A.inkC, B.inkC, w),
-      accentC: mixRgb(A.accentC, B.accentC, w), accent2C: mixRgb(A.accent2C, B.accent2C, w), star: lerp(A.star, B.star, w),
-    });
-    let out = blend(prev, P, u);
-    if (sec.id.startsWith('build') && k + 1 < S.sections.length) {
-      const pr = clamp((t - sec.t0) / (sec.t1 - sec.t0));
-      out = blend(out, pal[S.sections[k + 1].id], 0.35 * pr ** 2.2);
+  // 受信の記録（出来事を 1 行ずつ）
+  const events = [];
+  for (const c of S.chords) events.push({ t: c.t0, k: 'CHORD', a: sharp(c.name).padEnd(10), b: sharp(c.roman) });
+  for (const c of data.chops) events.push({ t: c.t, k: 'VOX', a: c.syl.padEnd(10), b: `${noteName(c.m)}  ${c.kana}` });
+  for (const d of data.drums.kick) if (d.vel >= 0.85) events.push({ t: d.t, k: 'KICK', a: `vel ${d.vel.toFixed(2)}`.padEnd(10), b: '' });
+  for (const d of snares) events.push({ t: d.t, k: 'SNARE', a: `vel ${d.vel.toFixed(2)}`.padEnd(10), b: '' });
+  for (const e of S.fx) if (e.type !== 'pop') events.push({ t: e.t, k: 'FX', a: e.type.padEnd(10), b: '' });
+  for (const s of S.sections) events.push({ t: s.t0, k: 'SECT', a: SEC_CODE[s.id].padEnd(10), b: `bar ${s.bar + 1}–${s.bar + s.bars}` });
+  events.sort((a, b) => a.t - b.t);
+  const kanaList = data.chops;
+
+  // 進み具合の帯の値
+  const OV_X = 132, OV_W = 1752, OV_N = 292;
+  const overview = data.overview(OV_N);
+
+  // 値の読み出し（ピークは過去のコマを見て、状態を持たずに求める）
+  const lv = (name, t) => (t < 0 ? 0 : data.level(name, t));
+  const peakOf = (fn, t, hold = 0.5, fall = 0.9, look = 1.2) => {
+    let p = 0;
+    for (let k = 0; k <= look * 30; k++) {
+      const dt = k / 30;
+      const v = fn(t - dt) - Math.max(0, dt - hold) * fall;
+      if (v > p) p = v;
     }
-    const dark = clamp((0.62 - lum(out.topC)) / 0.32);
-    out.dark = dark;
-    out.card = css(mixRgb([255, 252, 247], [26, 30, 70], dark), lerp(0.88, 0.72, dark));
-    out.cardLine = css(mixRgb([255, 255, 255], [140, 150, 230], dark), lerp(0.9, 0.35, dark));
-    out.ink = css(out.inkC);
-    out.inkSoft = css(out.inkC, 0.62);
-    out.accent = css(out.accentC);
-    out.accent2 = css(out.accent2C);
-    out.sec = sec;
-    return out;
-  }
-
-  const lastHit = (list, t, win) => {
-    const i = lastBefore(list, t);
-    if (i < 0) return null;
-    const e = list[i];
-    return t - e.t <= win ? e : null;
+    return p;
   };
+  const lufsOf = (name, t) => lv(name, t) * 40 - 40;
+  const meterCurve = (v) => Math.min(1, 0.93 * v ** 1.6);
+  const specCurve = (v) => Math.min(1, 0.95 * v ** 1.6);
 
-  // ================================================================ 背景
-  function sky(ctx, P) {
-    const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, css(P.topC));
-    g.addColorStop(1, css(P.botC));
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
-  }
-  function stars(ctx, t, P) {
-    if (P.star < 0.01) return;
-    for (let i = 0; i < 110; i++) {
-      const x = hash(i) * W, y = hash(i + 500) * H * 0.82;
-      const tw = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(t * (0.5 + hash(i + 900) * 1.2) + hash(i + 77) * 6.28));
-      const r = 1 + hash(i + 33) * 2.2;
-      ctx.fillStyle = `rgba(255,250,235,${P.star * tw * 0.9})`;
-      if (r > 2.6) { star4(ctx, x, y, r * 2.4); ctx.fill(); } else { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+  // ---------------------------------------------------------------- 動かない部分
+  const stat = document.createElement('canvas');
+  stat.width = W;
+  stat.height = H;
+  {
+    // 撮影モード（opt.cpu）は表示用の canvas も CPU なので、こちらもそろえる（GPU の絵を貼ると、最初のコマだけ描き方が変わった）
+    const g = stat.getContext('2d', { willReadFrequently: !!opt.cpu });
+    g.fillStyle = C.bg;
+    g.fillRect(0, 0, W, H);
+    // うっすらとした方眼
+    g.strokeStyle = '#0E1216';
+    g.lineWidth = 1;
+    for (let x = 0; x < W; x += 24) { g.beginPath(); g.moveTo(x + 0.5, 0); g.lineTo(x + 0.5, H); g.stroke(); }
+    for (let y = 0; y < H; y += 24) { g.beginPath(); g.moveTo(0, y + 0.5); g.lineTo(W, y + 0.5); g.stroke(); }
+    for (const k of Object.keys(P)) panelFrame(g, k);
+    // 上の帯: 名前
+    g.strokeStyle = C.acc;
+    g.strokeRect(24.5, 24.5, 66, 46);
+    g.fillStyle = C.acc;
+    g.font = fm(13, 800);
+    g.textAlign = 'center';
+    g.fillText('WS-01', 57.5, 44);
+    g.fillStyle = C.dim;
+    g.font = fm(10, 500);
+    g.fillText('DOWNLINK', 57.5, 60);
+    g.textAlign = 'left';
+    g.fillStyle = C.text;
+    g.font = fm(27, 800);
+    g.fillText('WATAAME SATELLITE', 106, 50);
+    g.fillStyle = C.dim;
+    g.font = fj(13, 500);
+    g.fillText('わたあめサテライト ・ kawaii future bass ・ 作曲・音・画面: Claude', 108, 70);
+    // 進み具合の帯の枠
+    g.fillStyle = C.panel;
+    g.fillRect(24, 90, 1872, 68);
+    g.strokeStyle = C.line;
+    g.strokeRect(24.5, 90.5, 1871, 67);
+    g.fillStyle = C.text;
+    g.font = fm(12, 700);
+    g.fillText('TIMELINE', 38, 118);
+    g.fillStyle = C.dim;
+    g.font = fm(11, 500);
+    g.fillText(`80 BARS · ${Math.floor(END / 60)}:${pad2(Math.round(END % 60))}`, 38, 138);
+    const cw = OV_W / OV_N;
+    for (let i = 0; i < OV_N; i++) {
+      const h = 3 + 22 * overview[i];
+      g.fillStyle = C.faint;
+      g.fillRect(OV_X + i * cw, 128 - h, cw - 2, h * 2);
     }
-  }
-  const CLOUDS = [
-    { x: 80, y: 250, s: 1.25, v: 9 }, { x: 760, y: 140, s: 0.8, v: 14 }, { x: 1250, y: 330, s: 1.1, v: 7 },
-    { x: 1700, y: 210, s: 0.9, v: 11 }, { x: 420, y: 470, s: 0.7, v: 16 }, { x: 1500, y: 560, s: 0.75, v: 13 },
-  ];
-  function clouds(ctx, t, P) {
-    const a = lerp(0.62, 0.1, P.dark);
-    ctx.fillStyle = `rgba(255,255,255,${a})`;
-    for (const c of CLOUDS) {
-      const x = ((c.x + t * c.v) % 2300) - 220;
-      const s = c.s;
-      ctx.beginPath();
-      for (const [dx, dy, r] of [[0, 0, 60], [60, -22, 72], [130, 0, 58], [65, 18, 62], [-50, 14, 44], [180, 16, 40]]) {
-        ctx.moveTo(x + dx * s + r * s, c.y + dy * s);
-        ctx.arc(x + dx * s, c.y + dy * s, r * s, 0, Math.PI * 2);
-      }
-      ctx.fill();
+    for (const s of S.sections) {
+      const x = OV_X + (s.t0 / END) * OV_W;
+      g.fillStyle = C.line;
+      g.fillRect(x, 92, 1, 64);
+      g.fillStyle = C.dim;
+      g.font = fm(10, 700);
+      g.fillText(SEC_CODE[s.id], x + 4, 103);
     }
-  }
-  function skyline(ctx, P, bands) {
-    const n = bands.length, w = W / n;
-    ctx.fillStyle = P.dark > 0.5 ? css(P.accent2C, 0.22) : 'rgba(255,255,255,0.32)';
-    for (let i = 0; i < n; i++) {
-      const h = 18 + 190 * bands[i] ** 1.25;
-      rrect(ctx, i * w + 6, H - h + 14, w - 12, h, 14);
-      ctx.fill();
+    // スペクトル: 消えている LED と目盛り
+    {
+      const [x, y] = P.spec;
+      const px = x + 52, py = y + 44, pw = 536, ph = 270, segs = 45;
+      const bw = pw / NB;
+      g.fillStyle = C.off;
+      for (let b = 0; b < NB; b++) for (let s = 0; s < segs; s++) g.fillRect(px + b * bw + 1, py + ph - (s + 1) * 6 + 2, bw - 3, 4);
+      g.fillStyle = C.dim;
+      g.font = fm(10, 500);
+      g.textAlign = 'right';
+      for (let i = 0; i <= 4; i++) g.fillText(`${-i * 12}`, px - 8, py + 4 + (i / 4.5) * ph);
+      g.textAlign = 'center';
+      for (const f of [50, 100, 250, 500, 1000, 2500, 5000, 10000]) {
+        let bi = 0;
+        for (let b = 0; b < NB; b++) if (Math.abs(Math.log(bandHz[b] / f)) < Math.abs(Math.log(bandHz[bi] / f))) bi = b;
+        g.fillText(f >= 1000 ? `${f / 1000}k` : `${f}`, px + (bi + 0.5) * bw, py + ph + 18);
+      }
+      g.textAlign = 'left';
+      g.fillText('dB', x + 12, py + 4);
+      g.fillText('Hz', x + 12, py + ph + 18);
     }
-  }
-
-  // ================================================================ 衛星
-  const CX = 640, CY = 548, R = 168;
-
-  function satellite(ctx, t, P, o) {
-    const red = o.reduced ? 0.3 : 1;
-    const kick = lastHit(kicks, t, 0.6);
-    const kv = kick ? Math.exp(-(t - kick.t) / 0.11) * kick.vel : 0;
-    const sn = lastHit(snares, t, 0.8);
-    const sv = sn ? Math.exp(-(t - sn.t) / 0.13) : 0;
-    const st = lastHit(stabs, t, 0.4);
-    const stabGlow = st ? Math.exp(-(t - st.t) / 0.12) : 0;
-    const pump = data.level('pump', t);
-    const chopsLv = data.level('chops', t);
-    const chordsLv = data.level('chords', t);
-    const [ts0, ts1] = S.tapeStop;
-    const tape = t >= ts0 && t < ts1 + 0.6 ? smooth((t - ts0) / (ts1 - ts0)) * (1 - smooth((t - ts1) / 0.6)) : 0;
-    let jx = 0;
-    for (const w of fx.wob || []) {
-      if (t >= w.t && t < w.t + w.d) {
-        const rate = (t - w.t < 2 * BEAT ? 6 : 8) / BEAT;
-        jx = Math.sin((t - w.t) * rate * Math.PI * 2) * 7 * chordsLv * red;
-      }
+    // オシロスコープの方眼
+    {
+      const [x, y, w, h] = P.scope;
+      const px = x + 12, py = y + 40, pw = w - 24, ph = h - 52;
+      g.strokeStyle = C.grid2;
+      for (let i = 0; i <= 8; i++) { g.beginPath(); g.moveTo(px + (i / 8) * pw + 0.5, py); g.lineTo(px + (i / 8) * pw + 0.5, py + ph); g.stroke(); }
+      for (let i = 0; i <= 4; i++) { g.beginPath(); g.moveTo(px, py + (i / 4) * ph + 0.5); g.lineTo(px + pw, py + (i / 4) * ph + 0.5); g.stroke(); }
     }
-    const sx = 1 + 0.05 * kv * red, sy = 1 - 0.07 * kv * red;
-    const cx = CX + jx;
-    const cy = CY + Math.sin(t * 1.3) * 8 * red - 16 * sv * red + 46 * tape;
-
-    // 軌道（奥の半分）
-    const orbit = (front) => {
-      ctx.save();
-      ctx.translate(cx, cy + 24);
-      ctx.rotate(-0.17);
-      ctx.strokeStyle = css(P.inkC, 0.26);
-      ctx.lineWidth = 3;
-      ctx.setLineDash([10, 12]);
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 390, 112, 0, front ? 0 : Math.PI, front ? Math.PI : Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      const barFrac = (t % BAR) / BAR;
-      for (let k = 0; k < 4; k++) {
-        const a = -Math.PI / 2 + (k * Math.PI) / 2;
-        const isFront = Math.sin(a) >= 0;
-        if (isFront !== front) continue;
-        const since = ((t - k * BEAT) % BAR + BAR) % BAR;
-        const g = since < BEAT ? Math.exp(-since / 0.22) : 0;
-        ctx.fillStyle = css(P.accentC, 0.35 + 0.65 * g);
-        ctx.beginPath();
-        ctx.arc(390 * Math.cos(a), 112 * Math.sin(a), 7 + 6 * g * red, 0, Math.PI * 2);
-        ctx.fill();
+    // 左右の広がり: 円と軸
+    {
+      const [x, y] = P.stereo;
+      const cx = x + 140, cy = y + 156, r = 112;
+      g.strokeStyle = C.grid2;
+      g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke();
+      g.beginPath(); g.arc(cx, cy, r / 2, 0, Math.PI * 2); g.stroke();
+      g.beginPath(); g.moveTo(cx - r, cy); g.lineTo(cx + r, cy); g.moveTo(cx, cy - r); g.lineTo(cx, cy + r); g.stroke();
+      g.strokeStyle = C.faint;
+      g.beginPath(); g.moveTo(cx - r * 0.7, cy - r * 0.7); g.lineTo(cx + r * 0.7, cy + r * 0.7); g.moveTo(cx + r * 0.7, cy - r * 0.7); g.lineTo(cx - r * 0.7, cy + r * 0.7); g.stroke();
+      g.fillStyle = C.dim;
+      g.font = fm(10, 700);
+      g.textAlign = 'center';
+      g.fillText('M', cx, cy - r - 6);
+      g.fillText('L', cx - r * 0.78, cy - r * 0.78);
+      g.fillText('R', cx + r * 0.78, cy - r * 0.78);
+      g.fillText('S', cx + r + 10, cy + 4);
+      g.textAlign = 'left';
+      const rx = x + 290;
+      g.font = fm(11, 700);
+      for (const [label, yy] of [['CORRELATION', y + 58], ['WIDTH', y + 130], ['PEAK L', y + 190], ['PEAK R', y + 238]]) g.fillText(label, rx, yy);
+      g.fillStyle = C.off;
+      for (const yy of [y + 72, y + 144, y + 202, y + 250]) g.fillRect(rx, yy, 296, 12);
+      g.fillStyle = C.dim;
+      g.font = fm(10, 500);
+      g.fillText('−1', rx, y + 100);
+      g.textAlign = 'center';
+      g.fillText('0', rx + 148, y + 100);
+      g.textAlign = 'right';
+      g.fillText('+1', rx + 296, y + 100);
+      g.textAlign = 'left';
+      g.fillStyle = C.faint;
+      g.fillRect(rx + 148, y + 70, 1, 16);
+    }
+    // 音符のモニター: オクターブの線
+    {
+      const [x, y, w, h] = P.notes;
+      const px = x + 48, py = y + 40, pw = w - 60, ph = h - 52 - DRUM_LANE;
+      g.strokeStyle = C.grid2;
+      g.strokeRect(px + 0.5, py + ph + 6.5, pw - 1, DRUM_LANE - 8);
+      g.fillStyle = C.dim;
+      g.font = fm(10, 700);
+      g.textAlign = 'right';
+      g.fillText('DRUM', px - 6, py + ph + 6 + DRUM_LANE / 2);
+      for (let m = 36; m <= 96; m += 12) {
+        const yy = py + ph - ((m - 26) / 76) * ph;
+        g.strokeStyle = C.grid2;
+        g.beginPath(); g.moveTo(px, yy + 0.5); g.lineTo(px + pw, yy + 0.5); g.stroke();
+        g.fillStyle = C.dim;
+        g.font = fm(10, 500);
+        g.textAlign = 'right';
+        g.fillText(noteName(m), px - 6, yy + 4);
       }
-      const a = -Math.PI / 2 + barFrac * Math.PI * 2;
-      if ((Math.sin(a) >= 0) === front) {
-        ctx.fillStyle = '#FFF8E7';
-        ctx.strokeStyle = css(P.accent2C);
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.arc(390 * Math.cos(a), 112 * Math.sin(a), 15, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      }
-      ctx.restore();
-    };
-    orbit(false);
-
-    // 太陽電池の板（サイドチェインで少し傾く）
-    for (const side of [-1, 1]) {
-      ctx.save();
-      const px = cx + side * (R + 128), py = cy + 4;
-      ctx.strokeStyle = BODY_INK;
-      ctx.lineWidth = 7;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(cx + side * (R - 10), cy + 4);
-      ctx.lineTo(px - side * 78, py);
-      ctx.stroke();
-      ctx.translate(px, py);
-      ctx.rotate(side * (-0.05 - 0.13 * (1 - pump) * red));
-      rrect(ctx, -82, -50, 164, 100, 16);
-      ctx.fillStyle = css(P.accent2C);
-      ctx.fill();
-      ctx.lineWidth = 5;
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.stroke();
-      for (let gx = 0; gx < 4; gx++) {
-        for (let gy = 0; gy < 2; gy++) {
-          rrect(ctx, -72 + gx * 37, -40 + gy * 41, 32, 36, 7);
-          ctx.fillStyle = `rgba(255,255,255,${0.32 + 0.5 * stabGlow * ((gx + gy + (side > 0 ? 1 : 0)) % 2)})`;
-          ctx.fill();
+      g.textAlign = 'left';
+    }
+    // シーケンサー: 番号と空の升
+    {
+      const [x, y] = P.seq;
+      const gx = x + 112, cw2 = 32;
+      const rows = [['VOX', '声'], ['KICK', 'キック'], ['SNARE', 'スネア'], ['HAT', 'ハイハット'], ['PERC', 'シェイカー']];
+      g.font = fm(10, 500);
+      g.fillStyle = C.dim;
+      g.textAlign = 'center';
+      for (let s = 0; s < 16; s++) g.fillText(pad2(s + 1), gx + s * cw2 + cw2 / 2, y + 50);
+      rows.forEach(([code, jp], r) => {
+        const yy = y + 60 + r * 31;
+        g.textAlign = 'left';
+        g.fillStyle = C.text;
+        g.font = fm(12, 700);
+        g.fillText(code, x + 14, yy + 18);
+        g.fillStyle = C.dim;
+        g.font = fj(10, 500);
+        g.fillText(jp, x + 58, yy + 18);
+        for (let s = 0; s < 16; s++) {
+          g.strokeStyle = s % 4 === 0 ? C.faint : C.grid2;
+          g.strokeRect(gx + s * cw2 + 4.5, yy + 3.5, cw2 - 8, 22);
         }
+      });
+      g.textAlign = 'left';
+    }
+    // 和音: 12 音の帯の名前
+    {
+      const [x, y] = P.harm;
+      const sx = x + 314;
+      g.font = fm(10, 700);
+      g.textAlign = 'center';
+      for (let i = 0; i < 12; i++) {
+        g.fillStyle = C.off;
+        g.fillRect(sx + i * 26 + 1, y + 46, 23, 34);
+        g.fillStyle = C.dim;
+        g.fillText(NAMES[i].replace('#', '♯'), sx + i * 26 + 12.5, y + 94);
       }
-      ctx.restore();
+      g.textAlign = 'left';
+      g.fillStyle = C.dim;
+      g.font = fm(10, 700);
+      g.fillText('PITCH CLASS', sx, y + 40);
     }
-
-    // アンテナ（拍ごとに光る）
-    const beatAge = t % BEAT;
-    const glow = Math.exp(-beatAge / 0.1);
-    const ax = cx + Math.sin(t * 2) * 8 * red, ay = cy - R * sy - 66;
-    ctx.strokeStyle = BODY_INK;
-    ctx.lineWidth = 6;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - R * sy + 12);
-    ctx.quadraticCurveTo(cx + 4, cy - R * sy - 30, ax, ay);
-    ctx.stroke();
-    ctx.fillStyle = css(P.accentC, 0.35 * glow);
-    ctx.beginPath();
-    ctx.arc(ax, ay, 28, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = css(P.accentC);
-    ctx.beginPath();
-    ctx.arc(ax, ay, 12 + 4 * glow * red, 0, Math.PI * 2);
-    ctx.fill();
-
-    // わたあめの体（輪郭が周波数でふくらむ。上が高い音、下が低い音）
-    const bands = data.bands(t, bandsBuf);
-    const N = 120, pts = [];
-    for (let i = 0; i < N; i++) {
-      const th = (i / N) * Math.PI * 2;
-      const phi = th <= Math.PI ? th / Math.PI : (2 * Math.PI - th) / Math.PI;
-      const bf = (1 - phi) * (bands.length - 1);
-      const b0 = Math.floor(bf), b1 = Math.min(bands.length - 1, b0 + 1);
-      const v = lerp(bands[b0], bands[b1], bf - b0);
-      const r = R * (1 + 0.13 * v ** 1.3 * (o.reduced ? 0.5 : 1) + 0.022 * Math.sin(th * 14 + t * 0.7) + 0.01 * Math.sin(th * 5 + t * 1.9));
-      pts.push([cx + r * Math.sin(th) * sx, cy - r * Math.cos(th) * sy]);
-    }
-    ctx.save();
-    ctx.beginPath();
-    for (let i = 0; i <= N; i++) {
-      const p = pts[i % N], q = pts[(i + 1) % N];
-      const mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2;
-      if (i === 0) ctx.moveTo(mx, my); else ctx.quadraticCurveTo(p[0], p[1], mx, my);
-    }
-    ctx.closePath();
-    const g = ctx.createRadialGradient(cx - R * 0.35, cy - R * 0.4, R * 0.08, cx, cy, R * 1.25);
-    g.addColorStop(0, '#FFFFFF');
-    g.addColorStop(0.38, '#FFE2EF');
-    g.addColorStop(0.74, '#FFBFDA');
-    g.addColorStop(1, '#B5DEFF');
-    ctx.shadowColor = 'rgba(40,30,90,0.22)';
-    ctx.shadowBlur = 36;
-    ctx.shadowOffsetY = 14;
-    ctx.fillStyle = g;
-    ctx.fill();
-    ctx.shadowColor = 'transparent';
-    ctx.lineWidth = 7;
-    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
-    ctx.stroke();
-    ctx.clip();
-    // ふわふわの模様
-    for (let i = 0; i < 9; i++) {
-      const a = hash(i + 40) * Math.PI * 2 + t * 0.08 * (i % 2 ? 1 : -1);
-      const rr = R * (0.25 + 0.55 * hash(i + 60));
-      ctx.fillStyle = 'rgba(255,255,255,0.22)';
-      ctx.beginPath();
-      ctx.arc(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.8, R * (0.18 + 0.12 * hash(i + 80)), 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-
-    // 顔
-    const sq = lastHit(fx.squeak || [], t, 0.38);
-    const ex = 60 * sx, ey = cy - 16;
-    const blinkPhase = (t + 0.7) % 3.9;
-    const blink = blinkPhase < 0.12 ? 1 - Math.sin((blinkPhase / 0.12) * Math.PI) : 1;
-    const sleepy = Math.max(tape, clamp((t - END - 0.3) / 1.5));
-    ctx.fillStyle = BODY_INK;
-    ctx.strokeStyle = BODY_INK;
-    ctx.lineCap = 'round';
-    ctx.lineWidth = 6;
-    for (const side of [-1, 1]) {
-      const x = cx + side * ex;
-      if (sq) {
-        ctx.beginPath();
-        ctx.moveTo(x - side * 14, ey - 12);
-        ctx.lineTo(x + side * 8, ey);
-        ctx.lineTo(x - side * 14, ey + 12);
-        ctx.stroke();
-      } else if (sleepy > 0.5) {
-        ctx.beginPath();
-        ctx.arc(x, ey - 4, 14, 0.15 * Math.PI, 0.85 * Math.PI);
-        ctx.stroke();
-      } else {
-        ctx.beginPath();
-        ctx.ellipse(x, ey, 15, 21 * blink * (1 - sleepy), 0, 0, Math.PI * 2);
-        ctx.fill();
-        if (blink > 0.6) {
-          ctx.fillStyle = '#FFFFFF';
-          ctx.beginPath();
-          ctx.arc(x - 4, ey - 8, 4.5, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = BODY_INK;
-        }
+    // チャンネル: 消えている LED
+    {
+      const [x, y] = P.ch;
+      const segs = 38;
+      for (let i = 0; i < STEMS.length; i++) {
+        const mx = x + 26 + i * 56;
+        g.fillStyle = C.off;
+        for (let s = 0; s < segs; s++) g.fillRect(mx, y + 380 - (s + 1) * 9 + 2, 34, 7);
+        g.fillStyle = C.text;
+        g.font = fm(12, 700);
+        g.textAlign = 'center';
+        g.fillText(STEMS[i][1], mx + 17, y + 404);
+        g.fillStyle = C.dim;
+        g.font = fj(10, 500);
+        g.fillText(STEMS[i][2], mx + 17, y + 422);
       }
+      g.textAlign = 'left';
     }
-    // ほっぺ（声が出ているときに赤くなる）
-    ctx.fillStyle = `rgba(255,120,160,${0.32 + 0.4 * chopsLv})`;
-    for (const side of [-1, 1]) {
-      ctx.beginPath();
-      ctx.ellipse(cx + side * 104 * sx, cy + 24, 27, 15, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // 口（いま鳴っているチョップの母音の形）
-    const ci = lastBefore(allChops, t);
-    let chop = null;
-    for (let i = ci; i >= 0 && i > ci - 3; i--) {
-      const c = allChops[i];
-      if (!c.h && t < c.t + c.d + 0.04) { chop = c; break; }
-    }
-    const mx = cx, my = cy + 40;
-    if (chop) {
-      const open = clamp(0.35 + chopsLv * 1.1);
-      const shape = { a: [17, 15], i: [21, 5], u: [8, 9], e: [17, 10], o: [12, 14], n: [12, 2] }[chop.v] || [14, 10];
-      const w = shape[0], h = Math.max(3, shape[1] * open);
-      ctx.fillStyle = '#7A2E4A';
-      ctx.beginPath();
-      ctx.ellipse(mx, my, w, h, 0, 0, Math.PI * 2);
-      ctx.fill();
-      if (h > 7) {
-        ctx.fillStyle = '#FF8FAB';
-        ctx.beginPath();
-        ctx.ellipse(mx, my + h * 0.45, w * 0.6, h * 0.42, 0, 0, Math.PI * 2);
-        ctx.fill();
+    // ラウドネスの方眼
+    {
+      const [x, y] = P.loud;
+      const gx = x + 250, gy = y + 46, gw = 336, gh = 150;
+      g.strokeStyle = C.grid2;
+      g.fillStyle = C.dim;
+      g.font = fm(10, 500);
+      g.textAlign = 'right';
+      for (const v of [0, -6, -12, -18, -24, -30]) {
+        const yy = gy + (-v / 30) * gh;
+        g.beginPath(); g.moveTo(gx, yy + 0.5); g.lineTo(gx + gw, yy + 0.5); g.stroke();
+        g.fillText(`${v}`, gx - 6, yy + 4);
       }
-    } else {
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.arc(mx, my - 8, 13, 0.2 * Math.PI, 0.8 * Math.PI);
-      ctx.stroke();
+      g.textAlign = 'left';
+      g.fillText('−12 s', gx, gy + gh + 16);
+      g.textAlign = 'right';
+      g.fillText('NOW', gx + gw, gy + gh + 16);
+      g.textAlign = 'left';
+      g.fillStyle = C.dim;
+      g.font = fm(11, 700);
+      g.fillText('MOMENTARY', x + 14, y + 52);
+      g.fillText('SHORT-TERM', x + 14, y + 132);
     }
+  }
 
-    orbit(true);
-
-    // 和音の札（ぶら下がって揺れる）
-    const idx = chordIndexAt(S, t);
-    const ch = S.chords[idx];
-    const next = S.chords[idx + 1];
-    const swing = 0.05 * Math.sin(t * 1.9) * red + 0.06 * stabGlow * red;
-    ctx.save();
-    ctx.translate(cx, cy + R * sy - 6);
-    ctx.rotate(swing);
-    ctx.strokeStyle = BODY_INK;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(-40, 0);
-    ctx.lineTo(-58, 56);
-    ctx.moveTo(40, 0);
-    ctx.lineTo(58, 56);
-    ctx.stroke();
-    const tagS = 1 + 0.05 * stabGlow * red;
-    ctx.translate(0, 98);
-    ctx.scale(tagS, tagS);
-    rrect(ctx, -140, -44, 280, 92, 26);
-    ctx.fillStyle = 'rgba(255,253,249,0.95)';
-    ctx.fill();
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = css(P.accentC);
-    ctx.stroke();
-    ctx.fillStyle = BODY_INK;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-    ctx.font = font(40, 800);
-    ctx.fillText(ch.name.replace('#', '♯').replace('b5', '♭5').replace('Bb', 'B♭').replace('b9', '♭9'), 0, 8);
-    ctx.font = font(19, 700);
-    ctx.fillStyle = css(P.accentC);
-    ctx.fillText(ch.roman.replace('#', '♯').replace('b', '♭'), 0, 36);
-    ctx.restore();
-    if (next) {
-      ctx.font = font(19, 700);
+  // ---------------------------------------------------------------- 動く部分
+  function topBar(ctx, t) {
+    const sec = sectionAt(S, t);
+    // 区間の帯
+    const sx0 = 700, sw = 640;
+    for (const s of S.sections) {
+      const x = sx0 + (s.t0 / END) * sw, w = ((s.t1 - s.t0) / END) * sw;
+      const cur = s === sec, past = s.t1 <= t;
+      ctx.fillStyle = cur ? 'rgba(63,208,255,0.16)' : past ? '#10161B' : C.panel;
+      ctx.fillRect(x + 1, 28, w - 2, 40);
+      ctx.strokeStyle = cur ? C.acc : C.line;
+      ctx.strokeRect(x + 1.5, 28.5, w - 3, 39);
+      if (cur) {
+        ctx.fillStyle = C.acc;
+        ctx.fillRect(x + 1, 64, (w - 2) * clamp((t - s.t0) / (s.t1 - s.t0)), 4);
+      }
+      ctx.fillStyle = cur ? C.text : past ? C.dim : C.faint;
+      ctx.font = fm(12, 700);
+      ctx.textAlign = 'center';
+      ctx.fillText(SEC_CODE[s.id], x + w / 2, 52);
+    }
+    // 読み取り
+    const b = Math.floor(t / BAR + 1e-9), beat = Math.floor((t % BAR) / BEAT);
+    const boxes = [['TC', tc(Math.min(t, S.duration)), 164], ['BAR', `${String(Math.min(S.bars, b + 1)).padStart(3, '0')}.${beat + 1}`, 120], ['BPM', S.bpm.toFixed(1), 104], ['KEY', 'D MAJ', 104]];
+    let x = 1904;
+    for (let i = boxes.length - 1; i >= 0; i--) {
+      const [label, val, w] = boxes[i];
+      x -= w;
+      ctx.fillStyle = C.panel;
+      ctx.fillRect(x, 24, w - 8, 46);
+      ctx.strokeStyle = C.line;
+      ctx.strokeRect(x + 0.5, 24.5, w - 9, 45);
+      ctx.fillStyle = C.dim;
+      ctx.font = fm(10, 700);
       ctx.textAlign = 'left';
-      ctx.fillStyle = P.inkSoft;
-      ctx.fillText(`つぎ ${next.name.replace('#', '♯')}`, cx + 162, cy + R + 104);
-    }
-
-    // チョップのかな（口から吹き出しが上がる）
-    const recent = between(allChops, t - 1.3, t + 1e-6);
-    for (const c of recent) {
-      const age = t - c.t;
-      const u = age / 1.3;
-      const hx = hash(c.t * 13.7), hy = hash(c.t * 7.3 + 1);
-      const side = c.h ? -1 : 1;
-      const x = mx + side * (150 + (110 + 110 * hx) * easeOut(u) * (o.reduced ? 0.6 : 1));
-      const y = my - 10 - (220 + 90 * hy) * easeOut(u);
-      const s = (age < 0.09 ? easeBack(age / 0.09) : 1) * (c.h ? 0.7 : 0.75 + 0.35 * c.vel);
-      const a = 1 - u ** 2.2;
-      ctx.save();
-      ctx.globalAlpha = a;
-      ctx.translate(x, y);
-      ctx.scale(s, s);
-      ctx.fillStyle = 'rgba(255,255,255,0.94)';
-      ctx.strokeStyle = c.radio ? css(P.inkC, 0.4) : css(P.accentC);
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.arc(0, 0, 34, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = BODY_INK;
-      ctx.font = font(40, 800);
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(c.kana, 0, 2);
-      ctx.restore();
-    }
-    // 「キュッ」
-    if (sq) {
-      const u = (t - sq.t) / 0.38;
-      ctx.save();
-      ctx.globalAlpha = 1 - u;
-      ctx.font = font(36, 800);
-      ctx.fillStyle = css(P.accentC);
-      ctx.textAlign = 'center';
-      ctx.fillText('キュッ', cx - 250, cy - R + 10 - 30 * u);
-      ctx.restore();
-    }
-    return { cx, cy, kv, sv };
-  }
-
-  // ================================================================ 効果
-  function sparkles(ctx, t, P, cx, cy, o) {
-    for (const e of between(fx.sparkle || [], t - 1.8, t + 1e-6)) {
-      const age = t - e.t;
-      for (let i = 0; i < 16; i++) {
-        const d = i * 0.045;
-        const u = (age - d) / 1.1;
-        if (u < 0 || u > 1) continue;
-        const a = hash(e.t + i * 3.1) * Math.PI * 2;
-        const rr = R + 50 + 260 * hash(e.t * 2 + i) + 60 * u * (o.reduced ? 0.3 : 1);
-        const r = 16 * Math.sin(u * Math.PI) * (0.6 + 0.6 * hash(i + e.t));
-        ctx.fillStyle = i % 3 === 0 ? css(P.accentC, 0.9) : 'rgba(255,248,214,0.95)';
-        star4(ctx, cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.75, r);
-        ctx.fill();
-      }
-    }
-  }
-  function impacts(ctx, t, P, cx, cy) {
-    for (const e of between(fx.impact || [], t - 1.0, t + 1e-6)) {
-      const u = (t - e.t) / 0.95;
-      ctx.strokeStyle = css(P.accentC, 0.55 * (1 - u));
-      ctx.lineWidth = 14 * (1 - u);
-      ctx.beginPath();
-      ctx.arc(cx, cy, R + 1000 * easeOut(u), 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    const sn = lastHit(snares, t, 0.7);
-    if (sn) {
-      const u = (t - sn.t) / 0.7;
-      ctx.strokeStyle = `rgba(255,255,255,${0.55 * (1 - u)})`;
-      ctx.lineWidth = 6 * (1 - u);
-      ctx.beginPath();
-      ctx.arc(cx, cy, R + 30 + 220 * easeOut(u), 0, Math.PI * 2);
-      ctx.stroke();
-    }
-  }
-  function riserParticles(ctx, t, P) {
-    const sec = P.sec;
-    if (!sec.id.startsWith('build')) return;
-    const pr = clamp((t - sec.t0) / (sec.t1 - sec.t0));
-    const speed = 60 + 620 * pr ** 2;
-    ctx.fillStyle = P.dark > 0.5 ? `rgba(255,240,200,${0.25 + 0.55 * pr})` : css(P.accentC, 0.2 + 0.5 * pr);
-    for (let i = 0; i < 46; i++) {
-      const x = 40 + hash(i + 300) * 1100;
-      const y = H - (((t - sec.t0) * speed * (0.6 + 0.8 * hash(i + 400)) + hash(i + 200) * 1300) % 1300);
-      const r = 2.5 + 3 * hash(i + 100);
-      rrect(ctx, x - r / 2, y, r, r * (2 + 8 * pr), r);
-      ctx.fill();
-    }
-  }
-
-  // ================================================================ 鍵盤と泡
-  const KX0 = 64, KX1 = 1136, KLO = 60, KHI = 96;
-  const whiteIdx = [];
-  for (let m = KLO; m <= KHI; m++) if (![1, 3, 6, 8, 10].includes(m % 12)) whiteIdx.push(m);
-  const KW = (KX1 - KX0) / whiteIdx.length;
-  const KY = 934, KH = 116, BKH = 70;
-  const keyX = (m) => {
-    if (m < KLO || m > KHI) return null;
-    const isBlack = [1, 3, 6, 8, 10].includes(m % 12);
-    if (!isBlack) return KX0 + whiteIdx.indexOf(m) * KW + KW / 2;
-    return KX0 + whiteIdx.indexOf(m - 1) * KW + KW;
-  };
-  function keyboard(ctx, t, P) {
-    const lit = new Map();
-    const take = (list, color, release = 0.22) => {
-      for (const n of between(list, t - 2.0, t + 1e-6)) {
-        let m = n.m;
-        while (m > KHI) m -= 12;
-        const end = n.t + Math.max(0.1, n.d);
-        const v = t < end ? 1 : Math.exp(-(t - end) / release);
-        if (v < 0.03) continue;
-        const cur = lit.get(m);
-        if (!cur || cur.v < v) lit.set(m, { v, color });
-      }
-    };
-    take(keyNotes.filter((n) => n.src === 'keys'), hexRgb('#27A9E6'));
-    take(allChops, hexRgb('#F25FC2'));
-    // 台
-    rrect(ctx, KX0 - 24, KY - 40, KX1 - KX0 + 48, KH + 62, 28);
-    ctx.fillStyle = P.card;
-    ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = P.cardLine;
-    ctx.stroke();
-    ctx.fillStyle = P.ink;
-    ctx.font = font(18, 800);
-    ctx.textAlign = 'left';
-    ctx.fillText('わたあめ鍵盤', KX0, KY - 13);
-    ctx.font = font(15, 600);
-    ctx.fillStyle = P.inkSoft;
-    ctx.fillText('ピンク = 声（チョップ）　青 = オルゴール・カリンバ・ピコピコ', KX0 + 140, KY - 13);
-    for (let i = 0; i < whiteIdx.length; i++) {
-      const m = whiteIdx[i];
-      const L = lit.get(m);
-      const x = KX0 + i * KW;
-      const press = L ? 4 * L.v : 0;
-      rrect(ctx, x + 2, KY + press, KW - 4, KH - press, 9);
-      ctx.fillStyle = L ? css(mixRgb([255, 255, 255], L.color, 0.85 * L.v)) : '#FFFFFF';
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(43,47,85,0.18)';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      if (m % 12 === 0) {
-        ctx.fillStyle = 'rgba(43,47,85,0.42)';
-        ctx.font = font(13, 700);
-        ctx.textAlign = 'center';
-        ctx.fillText(noteName(m), x + KW / 2, KY + KH - 10);
-      }
-    }
-    for (let m = KLO; m <= KHI; m++) {
-      if (![1, 3, 6, 8, 10].includes(m % 12)) continue;
-      const L = lit.get(m);
-      const x = keyX(m);
-      const press = L ? 3 * L.v : 0;
-      rrect(ctx, x - KW * 0.31, KY + press, KW * 0.62, BKH, 7);
-      ctx.fillStyle = L ? css(mixRgb(hexRgb(BODY_INK), L.color, 0.9 * L.v)) : BODY_INK;
-      ctx.fill();
-    }
-  }
-  function bubbles(ctx, t, P) {
-    const life = 2.4;
-    const list = [...between(data.chops, t - life, t + 1e-6), ...between(keyNotes, t - life, t + 1e-6).filter((n) => n.src === 'keys' && n.k === 'musicbox')];
-    for (const n of list) {
-      let m = n.m;
-      while (m > KHI) m -= 12;
-      const kx = keyX(m);
-      if (kx == null) continue;
-      const age = t - n.t, u = age / life;
-      const big = n.syl ? 1 : 0.55;
-      const x = kx + 14 * Math.sin(age * 3 + hash(n.t) * 6.28);
-      const y = KY - 46 - 300 * u ** 0.85;
-      const r = (6 + 9 * (n.vel ?? 0.6)) * big;
-      if (u > 0.9) {
-        const k = (u - 0.9) / 0.1;
-        ctx.strokeStyle = `rgba(255,255,255,${0.7 * (1 - k)})`;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(x, y, r * (1 + 1.2 * k), 0, Math.PI * 2);
-        ctx.stroke();
-        continue;
-      }
-      ctx.fillStyle = 'rgba(255,255,255,0.22)';
-      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = 'rgba(255,255,255,0.9)';
-      ctx.beginPath();
-      ctx.arc(x - r * 0.35, y - r * 0.35, r * 0.22, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // 「ぽん」の効果音
-    for (const e of between(fx.pop || [], t - 0.35, t + 1e-6)) {
-      const u = (t - e.t) / 0.35;
-      const x = KX0 + 60 + hash(e.t * 3.3) * (KX1 - KX0 - 120), y = KY - 120 - 160 * hash(e.t * 5.1);
-      ctx.strokeStyle = css(P.accent2C, 0.8 * (1 - u));
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(x, y, 8 + 30 * easeOut(u), 0, Math.PI * 2);
-      ctx.stroke();
-    }
-  }
-
-  // ================================================================ 右の板
-  function card(ctx, P, x, y, w, h, title, note) {
-    rrect(ctx, x, y, w, h, 26);
-    ctx.fillStyle = P.card;
-    ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = P.cardLine;
-    ctx.stroke();
-    ctx.fillStyle = P.ink;
-    ctx.font = font(23, 800);
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText(title, x + 28, y + 40);
-    if (note) {
-      ctx.font = font(16, 600);
-      ctx.fillStyle = P.inkSoft;
-      ctx.textAlign = 'right';
-      ctx.fillText(note, x + w - 26, y + 39);
-    }
-  }
-  function chordPath(ctx, t, P) {
-    const x = 1180, y = 232, w = 680, h = 236;
-    card(ctx, P, x, y, w, h, 'いまの和音', '帯の長さ = 和音が続く長さ');
-    const L = x + 28, Rr = x + w - 28, pps = (Rr - L) / 4.2;
-    const tx = (tt) => L + (tt - (t - 1.0)) * pps;
-    ctx.save();
-    rrect(ctx, L - 4, y + 54, Rr - L + 8, h - 64, 14);
-    ctx.clip();
-    const idx = chordIndexAt(S, t);
-    const from = Math.max(0, idx - 4), to = Math.min(S.chords.length, idx + 10);
-    for (let i = from; i < to; i++) {
-      const c = S.chords[i];
-      const x0 = tx(c.t0) + 3, x1 = tx(c.t1) - 3;
-      if (x1 < L - 10 || x0 > Rr + 10) continue;
-      const cur = i === idx;
-      rrect(ctx, x0, y + 62, x1 - x0, 70, 16);
-      ctx.fillStyle = cur ? css(P.accentC) : (c.t1 <= t ? css(P.inkC, 0.12) : 'rgba(255,255,255,0.72)');
-      ctx.fill();
-      if (x1 - x0 > 30) {
-        const wide = x1 - x0 > 96;
-        ctx.save();
-        rrect(ctx, x0 + 4, y + 62, x1 - x0 - 8, 70, 12);
-        ctx.clip();
-        ctx.fillStyle = cur ? '#FFFFFF' : BODY_INK;
-        if (!cur && c.t1 <= t) ctx.fillStyle = P.inkSoft;
-        ctx.textAlign = 'left';
-        ctx.font = font(wide ? 23 : 16, 800);
-        ctx.fillText(c.name.replace('#', '♯').replace('Bb', 'B♭').replace('b5', '♭5').replace('b9', '♭9'), x0 + (wide ? 12 : 8), y + (wide ? 96 : 102));
-        if (wide) {
-          ctx.font = font(14, 700);
-          ctx.fillText(c.roman.replace('#', '♯').replace('b', '♭'), x0 + 12, y + 120);
+      ctx.fillText(label, x + 8, 38);
+      ctx.fillStyle = C.text;
+      ctx.font = fm(21, 700);
+      ctx.fillText(val, x + 8, 62);
+      if (label === 'BAR') {
+        for (let k = 0; k < 4; k++) {
+          ctx.fillStyle = k === beat ? C.amb : C.faint;
+          ctx.fillRect(x + w - 44 + k * 8, 32, 6, 6);
         }
-        ctx.restore();
       }
     }
-    // ベースの動き
-    const by = (m) => y + 214 - ((m - 28) / 13) * 64;
-    ctx.strokeStyle = '#5B7CFA';
-    ctx.lineWidth = 6;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    ctx.textAlign = 'left';
+  }
+  function timeline(ctx, t) {
+    const cw = OV_W / OV_N;
+    const pos = clamp(t / END);
+    const n = Math.floor(pos * OV_N);
+    ctx.fillStyle = C.accMid;
+    for (let i = 0; i < n; i++) {
+      const h = 3 + 22 * overview[i];
+      ctx.fillRect(OV_X + i * cw, 128 - h, cw - 2, h * 2);
+    }
+    const px = OV_X + pos * OV_W;
+    ctx.fillStyle = C.amb;
+    ctx.fillRect(px - 1, 92, 2, 64);
+    ctx.beginPath();
+    ctx.moveTo(px - 6, 92);
+    ctx.lineTo(px + 6, 92);
+    ctx.lineTo(px, 99);
+    ctx.fill();
+  }
+  function spectrum(ctx, t) {
+    const [x, y] = P.spec;
+    const px = x + 52, py = y + 44, pw = 536, ph = 270, segs = 45;
+    const bw = pw / NB;
+    const bands = Float32Array.from(data.bands(t, bandsBuf));
+    const cols = [[C.acc, 0, 30], [C.amb, 30, 40], [C.hot, 40, 45]];
+    for (const [col, a, z] of cols) {
+      ctx.fillStyle = col;
+      for (let b = 0; b < NB; b++) {
+        const lit = Math.round(specCurve(bands[b]) * segs);
+        for (let s = a; s < Math.min(lit, z); s++) ctx.fillRect(px + b * bw + 1, py + ph - (s + 1) * 6 + 2, bw - 3, 4);
+      }
+    }
+    // ピーク（過去 0.9 秒の最大から、0.35 秒たつと下がり始める）
+    const peaks = new Float32Array(NB);
+    for (let k = 0; k <= 27; k++) {
+      const dt = k / 30;
+      if (t - dt < 0) break;
+      const v = data.bands(t - dt, bandsBuf);
+      const drop = Math.max(0, dt - 0.35) * 0.8;
+      for (let b = 0; b < NB; b++) if (v[b] - drop > peaks[b]) peaks[b] = v[b] - drop;
+    }
+    ctx.fillStyle = '#FFFFFF';
+    for (let b = 0; b < NB; b++) {
+      const s = Math.round(specCurve(peaks[b]) * segs);
+      if (s > 0) ctx.fillRect(px + b * bw + 1, py + ph - s * 6 + 2, bw - 3, 2);
+    }
+  }
+  function scope(ctx, t, A) {
+    const [x, y, w, h] = P.scope;
+    const px = x + 12, py = y + 40, pw = w - 24, ph = h - 52, cy = py + ph / 2;
+    if (!A) {
+      ctx.fillStyle = C.dim;
+      ctx.font = fm(14, 700);
+      ctx.textAlign = 'center';
+      ctx.fillText('NO SIGNAL', px + pw / 2, cy + 5);
+      ctx.textAlign = 'left';
+      return;
+    }
+    const n = 1008;
+    let i0 = Math.round(t * A.sr) - 512;
+    // 上がりながら 0 を横切る所にそろえる（波形が左右に流れて見えないように）
+    for (let k = i0 + 256; k > i0 - 256 && k > 1; k--) {
+      const a = A.L[k - 1] + A.R[k - 1], b = A.L[k] + A.R[k];
+      if (a < 0 && b >= 0) { i0 = k - 128; break; }
+    }
+    const draw = (arr, col, alpha) => {
+      ctx.strokeStyle = col;
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      for (let j = 0; j < n; j += 2) {
+        const v = arr[i0 + j] || 0;
+        const xx = px + (j / n) * pw, yy = cy - clamp(v, -1.1, 1.1) * (ph / 2) * 0.9;
+        if (j === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+      }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 1;
+    };
+    draw(A.R, C.amb, 0.75);
+    draw(A.L, C.acc, 1);
+  }
+  function stereo(ctx, t, A) {
+    const [x, y] = P.stereo;
+    const cx = x + 140, cy = y + 156, r = 112;
+    const rx = x + 290;
+    if (!A) return;
+    const i0 = Math.max(0, Math.round(t * A.sr) - 1024);
+    let sLL = 0, sRR = 0, sLR = 0, sM = 0, sS = 0;
+    ctx.fillStyle = 'rgba(63,208,255,0.55)';
+    for (let j = 0; j < 2048; j += 2) {
+      const l = A.L[i0 + j] || 0, rr = A.R[i0 + j] || 0;
+      sLL += l * l; sRR += rr * rr; sLR += l * rr;
+      const m = (l + rr) * 0.7071, s = (l - rr) * 0.7071;
+      sM += m * m; sS += s * s;
+      ctx.fillRect(cx + clamp(s * 1.6, -1, 1) * r - 1, cy - clamp(m, -1, 1) * r - 1, 2, 2);
+    }
+    const corr = sLL > 1e-9 && sRR > 1e-9 ? sLR / Math.sqrt(sLL * sRR) : 0;
+    const width = sM + sS > 1e-9 ? sS / (sM + sS) : 0;
+    // 相関の針
+    const nx = rx + 148 + corr * 148;
+    ctx.fillStyle = corr >= 0 ? C.accMid : C.hot;
+    ctx.fillRect(Math.min(rx + 148, nx), y + 72, Math.abs(nx - rx - 148), 12);
+    ctx.fillStyle = C.amb;
+    ctx.fillRect(nx - 1.5, y + 66, 3, 24);
+    ctx.fillStyle = C.text;
+    ctx.font = fm(18, 700);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${corr >= 0 ? '+' : '−'}${Math.abs(corr).toFixed(2)}`, rx + 296, y + 58);
+    // 広がり
+    ctx.fillStyle = C.accMid;
+    ctx.fillRect(rx, y + 144, 296 * clamp(width * 2), 12);
+    ctx.fillStyle = C.text;
+    ctx.fillText(`${Math.round(width * 100)}%`, rx + 296, y + 130);
+    // ピーク（直近 0.3 秒の最大）
+    const j1 = Math.round(t * A.sr), j0 = Math.max(0, j1 - Math.round(0.3 * A.sr));
+    for (const [arr, yy] of [[A.L, y + 202], [A.R, y + 250]]) {
+      let pk = 0;
+      for (let j = j0; j < j1; j += 3) { const v = Math.abs(arr[j] || 0); if (v > pk) pk = v; }
+      const dbv = pk > 1e-5 ? 20 * Math.log10(pk) : -60;
+      ctx.fillStyle = dbv > -3 ? C.amb : C.acc;
+      ctx.fillRect(rx, yy, 296 * clamp((dbv + 48) / 48), 12);
+      ctx.fillStyle = C.text;
+      ctx.font = fm(14, 700);
+      ctx.fillText(`${dbv > -59 ? dbv.toFixed(1).replace('-', '−') : '−∞'} dBFS`, rx + 296, yy - 12);
+    }
+    ctx.textAlign = 'left';
+  }
+  function notes(ctx, t) {
+    const [x, y, w, h] = P.notes;
+    const px = x + 48, py = y + 40, pw = w - 60, ph = h - 52 - DRUM_LANE;
+    const t0 = t - 2.6, t1 = t + 1.4, pps = pw / (t1 - t0);
+    const X = (tt) => px + (tt - t0) * pps;
+    const Y = (m) => py + ph - ((m - 26) / 76) * ph;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(px, py, pw, ph);
+    ctx.clip();
+    const lane = (list, col, hgt, maxD = 99) => {
+      ctx.fillStyle = col;
+      for (const n of between(list, t0 - 2, t1)) {
+        const d = Math.min(Math.max(n.d, 0.04), maxD);
+        if (n.t + d < t0) continue;
+        const on = t >= n.t && t < n.t + d;
+        ctx.globalAlpha = on ? 1 : n.t > t ? 0.35 : 0.6;
+        ctx.fillRect(X(n.t), Y(n.m) - hgt / 2, Math.max(2, d * pps - 1), hgt);
+      }
+      ctx.globalAlpha = 1;
+    };
+    lane(bassNotes, C.acc, 5);
+    lane(keysNotes, C.keys, 3, 0.4);
+    lane(chipNotes, C.accMid, 2);
+    lane(allChops, C.amb, 4);
+    // 鳴った声の音節
+    ctx.font = fj(13, 600);
+    ctx.fillStyle = C.amb;
+    for (const n of between(allChops, t - 0.5, t + 1e-6)) {
+      if (n.h) continue;
+      ctx.globalAlpha = 1 - (t - n.t) / 0.5;
+      ctx.fillText(n.kana, X(n.t), Y(n.m) - 7);
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    // ドラムの段（キック = 水色、スネア = 琥珀色、ハイハット = 灰色）
+    const ly = py + ph + 8, lh = DRUM_LANE - 12;
+    for (const [list, col, hh, off] of [[data.drums.hat, C.faint, 0.35, 0], [data.drums.kick, C.acc, 1, 0], [snares, C.amb, 0.7, 0]]) {
+      for (const d of between(list, t0, t1)) {
+        const xx = X(d.t);
+        if (xx < px || xx > px + pw) continue;
+        const hit = t >= d.t && t - d.t < 0.12;
+        ctx.globalAlpha = d.t > t ? 0.35 : hit ? 1 : 0.75;
+        ctx.fillStyle = hit ? '#FFFFFF' : col;
+        const hgt = lh * hh * (0.5 + 0.5 * Math.min(1, d.vel));
+        ctx.fillRect(xx, ly + (lh - hgt) / 2 + off, 3, hgt);
+      }
+    }
+    ctx.globalAlpha = 1;
+    // いまの線と拍の印
+    ctx.fillStyle = C.amb;
+    ctx.fillRect(X(t) - 0.5, py, 1.5, ph + DRUM_LANE);
+    ctx.fillStyle = C.faint;
+    for (let k = Math.ceil(t0 / BEAT); k * BEAT < t1; k++) {
+      const xx = X(k * BEAT);
+      ctx.fillRect(xx, py + ph + DRUM_LANE - 2, 1, k % 4 === 0 ? 6 : 3);
+    }
+  }
+  function sequencer(ctx, t) {
+    const [x, y, w] = P.seq;
+    const gx = x + 112, cw2 = 32;
+    const b = Math.floor(t / BAR + 1e-9);
+    const rows = grid[b] || [[], [], [], [], []];
+    const cur = Math.floor((t - b * BAR) / STEP);
+    ctx.fillStyle = 'rgba(63,208,255,0.10)';
+    ctx.fillRect(gx + cur * cw2 + 1, y + 36, cw2 - 2, 180);
+    ctx.fillStyle = C.amb;
+    ctx.fillRect(gx + cur * cw2 + 1, y + 36, cw2 - 2, 3);
+    rows.forEach((cells, r) => {
+      const yy = y + 60 + r * 31;
+      for (const c of cells) {
+        const done = c.s <= cur;
+        const flash = done && t - c.t < 0.12 ? 1 - (t - c.t) / 0.12 : 0;
+        ctx.globalAlpha = done ? 0.45 + 0.55 * clamp(c.v) : 0.22;
+        ctx.fillStyle = flash > 0 ? '#FFFFFF' : r === 0 ? C.amb : C.acc;
+        ctx.fillRect(gx + c.s * cw2 + 5, yy + 4, cw2 - 10, 21);
+      }
+      ctx.globalAlpha = 1;
+    });
+    ctx.fillStyle = C.dim;
+    ctx.font = fm(11, 700);
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`BAR ${String(b + 1).padStart(3, '0')} · ${SEC_CODE[sectionAt(S, t).id]} · 16 STEPS`, x + w - 12, y + 16);
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'left';
+  }
+  function harmony(ctx, t) {
+    const [x, y, w] = P.harm;
+    const idx = chordIndexAt(S, t);
+    const ch = S.chords[idx], next = S.chords[idx + 1];
+    ctx.fillStyle = t - ch.t0 < 0.12 ? '#FFFFFF' : C.text;
+    ctx.font = fm(44, 800);
+    ctx.fillText(sharp(ch.name), x + 14, y + 86);
+    ctx.fillStyle = C.acc;
+    ctx.font = fm(16, 700);
+    ctx.fillText(sharp(ch.roman), x + 16, y + 112);
+    ctx.fillStyle = C.dim;
+    ctx.font = fm(12, 500);
+    ctx.fillText(`ROOT ${noteName(ch.bass).replace('#', '♯')}`, x + 16, y + 136);
+    if (next) ctx.fillText(`NEXT ${sharp(next.name)} · ${(next.t0 - t).toFixed(2)} s`, x + 120, y + 136);
+    // 12 音の帯
+    const sx = x + 314;
+    const pcs = new Set(ch.notes.map((m) => m % 12));
+    for (let i = 0; i < 12; i++) {
+      if (pcs.has(i)) {
+        ctx.fillStyle = C.acc;
+        ctx.fillRect(sx + i * 26 + 1, y + 46, 23, 34);
+      }
+      if (ch.bass % 12 === i) {
+        ctx.strokeStyle = C.amb;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(sx + i * 26 + 2, y + 47, 21, 32);
+        ctx.lineWidth = 1;
+      }
+    }
+    // 和音の流れ（-3 秒〜+5 秒）
+    const lx = x + 14, lw = w - 28, ly = y + 156, t0 = t - 3, pps = lw / 8;
+    const X = (tt) => lx + (tt - t0) * pps;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(lx, ly, lw, 120);
+    ctx.clip();
+    for (let i = Math.max(0, idx - 5); i < Math.min(S.chords.length, idx + 10); i++) {
+      const c = S.chords[i];
+      const x0 = X(c.t0) + 1, x1 = X(c.t1) - 1;
+      const cur = i === idx;
+      ctx.fillStyle = cur ? 'rgba(63,208,255,0.18)' : c.t1 <= t ? '#10151A' : C.panel;
+      ctx.fillRect(x0, ly, x1 - x0, 46);
+      ctx.strokeStyle = cur ? C.acc : C.line;
+      ctx.strokeRect(x0 + 0.5, ly + 0.5, x1 - x0 - 1, 45);
+      if (x1 - x0 > 34) {
+        ctx.fillStyle = cur ? C.text : C.dim;
+        ctx.font = fm(x1 - x0 > 70 ? 13 : 10, 700);
+        ctx.fillText(sharp(c.name), x0 + 6, ly + 20);
+        if (x1 - x0 > 70) {
+          ctx.font = fm(10, 500);
+          ctx.fillText(sharp(c.roman), x0 + 6, ly + 37);
+        }
+      }
+    }
+    // ベースの線
+    const BY = (m) => ly + 112 - ((m - 28) / 14) * 50;
+    ctx.strokeStyle = C.acc;
+    ctx.lineWidth = 2;
     ctx.beginPath();
     let first = true;
-    for (let i = from; i < to; i++) {
+    for (let i = Math.max(0, idx - 5); i < Math.min(S.chords.length, idx + 10); i++) {
       const c = S.chords[i];
-      const x0 = tx(c.t0), x1 = tx(c.t1);
-      if (first) { ctx.moveTo(x0, by(c.bass)); first = false; } else ctx.lineTo(x0, by(c.bass));
-      ctx.lineTo(x1, by(c.bass));
+      if (first) { ctx.moveTo(X(c.t0), BY(c.bass)); first = false; } else ctx.lineTo(X(c.t0), BY(c.bass));
+      ctx.lineTo(X(c.t1), BY(c.bass));
     }
     ctx.stroke();
+    ctx.lineWidth = 1;
     ctx.restore();
-    const cur = S.chords[idx];
-    ctx.fillStyle = '#5B7CFA';
-    ctx.beginPath();
-    ctx.arc(tx(t), by(cur.bass), 9, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.font = font(16, 800);
-    ctx.textAlign = 'left';
-    ctx.fillStyle = P.ink;
-    ctx.fillText(`ベース ${noteName(cur.bass)}`, tx(t) + 14, by(cur.bass) - 10);
-    // いま
-    ctx.strokeStyle = css(P.inkC, 0.7);
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(tx(t), y + 56);
-    ctx.lineTo(tx(t), y + h - 10);
-    ctx.stroke();
+    ctx.fillStyle = C.dim;
+    ctx.font = fm(10, 700);
+    ctx.fillText('BASS', lx, ly + 62);
+    ctx.fillStyle = C.amb;
+    ctx.fillRect(X(t) - 0.5, ly, 1.5, 120);
   }
-  function rhythm(ctx, t, P) {
-    const x = 1180, y = 488, w = 680, h = 252;
-    card(ctx, P, x, y, w, h, 'リズム', 'この小節の 16 分音符');
-    const b = Math.floor(t / BAR + 1e-9);
-    const rows = grid[b] || [[], [], [], []];
-    const labels = [['声', '#F25FC2'], ['キック', '#FF6B8B'], ['スネア', '#FF9F43'], ['ハイハット', '#E2B308']];
-    const gx = x + 150, gw = w - 178, cw = gw / 16, ry0 = y + 84, rh = 44;
-    const curStep = Math.floor((t - b * BAR) / STEP);
-    for (let s = 0; s < 16; s += 4) {
-      rrect(ctx, gx + s * cw, ry0 - 22, cw * 4 - 4, rh * 4, 12);
-      ctx.fillStyle = css(P.inkC, (s / 4) % 2 ? 0.05 : 0.09);
-      ctx.fill();
-    }
-    rrect(ctx, gx + curStep * cw, ry0 - 26, cw - 2, rh * 4 + 8, 10);
-    ctx.fillStyle = css(P.accentC, 0.22);
-    ctx.fill();
-    for (let r = 0; r < 4; r++) {
-      const yy = ry0 + r * rh;
-      ctx.fillStyle = P.ink;
-      ctx.font = font(18, 800);
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(labels[r][0], x + 28, yy);
-      const col = hexRgb(labels[r][1]);
-      for (const c of rows[r]) {
-        const cx = gx + c.s * cw + cw / 2;
-        const done = c.s <= curStep;
-        const pulse = done && t - c.t < 0.2 ? Math.exp(-(t - c.t) / 0.08) : 0;
-        const rad = 5 + 9 * clamp(c.v) + 5 * pulse;
-        ctx.beginPath();
-        ctx.arc(cx, yy, rad, 0, Math.PI * 2);
-        if (done) { ctx.fillStyle = css(col); ctx.fill(); } else { ctx.strokeStyle = css(col, 0.75); ctx.lineWidth = 3; ctx.stroke(); }
-      }
-    }
-    ctx.textBaseline = 'alphabetic';
-  }
-  function meters(ctx, t, P) {
-    const x = 1180, y = 760, w = 680, h = 290;
-    card(ctx, P, x, y, w, h, '楽器ごとの音量', '');
+  function channels(ctx, t) {
+    const [x, y] = P.ch;
+    const segs = 38;
     for (let i = 0; i < STEMS.length; i++) {
-      const [id, label, color] = STEMS[i];
-      const col = i < 5 ? 0 : 1, row = i % 5;
-      const lx = x + 28 + col * 322, ly = y + 74 + row * 36;
-      const v = data.level(id, t);
-      ctx.fillStyle = P.ink;
-      ctx.font = font(16, 700);
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, lx, ly);
-      const bx = lx + 128, bw = 166;
-      rrect(ctx, bx, ly - 8, bw, 16, 8);
-      ctx.fillStyle = css(P.inkC, 0.12);
-      ctx.fill();
-      if (v > 0.02) {
-        rrect(ctx, bx, ly - 8, Math.max(16, bw * v), 16, 8);
-        ctx.fillStyle = color;
-        ctx.fill();
+      const id = STEMS[i][0];
+      const mx = x + 26 + i * 56;
+      const lit = Math.round(meterCurve(lv(id, t)) * segs);
+      for (let s = 0; s < lit; s++) {
+        ctx.fillStyle = s >= 34 ? C.hot : s >= 28 ? C.amb : C.acc;
+        ctx.fillRect(mx, y + 380 - (s + 1) * 9 + 2, 34, 7);
+      }
+      const pk = Math.round(meterCurve(peakOf((tt) => lv(id, tt), t, 0.6, 0.7, 1.4)) * segs);
+      if (pk > 0) {
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(mx, y + 380 - pk * 9 + 2, 34, 2);
       }
     }
-    // サイドチェイン（直近 1.5 秒の音量の曲線）
-    const gx = x + 190, gy = y + 262, gw = w - 218, gh = 34;
-    ctx.fillStyle = P.ink;
-    ctx.font = font(16, 700);
-    ctx.textAlign = 'left';
-    ctx.fillText('サイドチェイン', x + 28, gy - 10);
+  }
+  function loudness(ctx, t) {
+    const [x, y] = P.loud;
+    const m = lufsOf('lufsM', t), s = lufsOf('lufsS', t);
+    const fmt = (v) => (v <= -39.9 ? '−∞' : v.toFixed(1).replace('-', '−'));
+    ctx.fillStyle = C.text;
+    ctx.font = fm(44, 800);
+    ctx.fillText(fmt(m), x + 14, y + 100);
+    ctx.font = fm(30, 700);
+    ctx.fillText(fmt(s), x + 14, y + 172);
+    ctx.fillStyle = C.dim;
+    ctx.font = fm(11, 700);
+    ctx.fillText('LUFS', x + 158, y + 100);
+    ctx.fillText('LUFS', x + 130, y + 172);
+    ctx.fillText(`TARGET ${S.lufs.toFixed(1).replace('-', '−')} INTEGRATED`, x + 14, y + 204);
+    // 履歴（瞬間 = 水色、短時間 = 琥珀色）
+    const gx = x + 250, gy = y + 46, gw = 336, gh = 150;
+    const Yv = (v) => gy + clamp(-v / 30) * gh;
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = C.ambDim;
     ctx.beginPath();
-    for (let i = 0; i <= 90; i++) {
-      const tt = t - 1.5 + (i / 90) * 1.5;
-      const v = tt < 0 ? 1 : data.level('pump', tt);
-      const px = gx + (i / 90) * gw, py = gy - v * gh;
-      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    ctx.moveTo(gx, Yv(S.lufs));
+    ctx.lineTo(gx + gw, Yv(S.lufs));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    for (const [name, col] of [['lufsS', C.amb], ['lufsM', C.acc]]) {
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let i = 0; i <= 168; i++) {
+        const tt = t - 12 + (i / 168) * 12;
+        const v = tt < 0 ? -40 : lufsOf(name, tt);
+        const xx = gx + (i / 168) * gw, yy = Yv(v);
+        if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+      }
+      ctx.stroke();
     }
-    ctx.lineTo(gx + gw, gy);
-    ctx.lineTo(gx, gy);
-    ctx.closePath();
-    ctx.fillStyle = css(P.accent2C, 0.25);
-    ctx.fill();
-    ctx.strokeStyle = css(P.accent2C);
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    ctx.textBaseline = 'alphabetic';
+    ctx.lineWidth = 1;
   }
-
-  // ================================================================ 上の帯と進み具合
-  function chip(ctx, P, xr, y, text) {
-    ctx.font = font(22, 800);
-    const w = ctx.measureText(text).width + 40;
-    rrect(ctx, xr - w, y, w, 48, 24);
-    ctx.fillStyle = P.card;
-    ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = P.cardLine;
-    ctx.stroke();
-    ctx.fillStyle = P.ink;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, xr - w / 2, y + 25);
-    ctx.textBaseline = 'alphabetic';
-    return xr - w - 12;
-  }
-  function header(ctx, t, P) {
-    // 小さな衛星の印
-    ctx.fillStyle = css(P.accent2C);
-    rrect(ctx, 40, 62, 26, 18, 4); ctx.fill();
-    rrect(ctx, 106, 62, 26, 18, 4); ctx.fill();
-    ctx.fillStyle = '#FFD3E6';
-    ctx.beginPath(); ctx.arc(86, 71, 22, 0, Math.PI * 2); ctx.fill();
-    ctx.lineWidth = 4; ctx.strokeStyle = '#FFFFFF'; ctx.stroke();
-    ctx.fillStyle = BODY_INK;
-    ctx.beginPath(); ctx.arc(79, 68, 3, 0, Math.PI * 2); ctx.arc(93, 68, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = P.ink;
-    ctx.font = font(42, 800);
-    ctx.textAlign = 'left';
-    ctx.fillText(S.title, 150, 84);
-    ctx.font = font(19, 600);
-    ctx.fillStyle = P.inkSoft;
-    ctx.fillText(`${S.titleEn}　・　kawaii future bass　・　作曲・音・画面: Claude`, 152, 114);
-    const b = Math.floor(t / BAR + 1e-9), beat = Math.floor((t % BAR) / BEAT);
-    let xr = 1860;
-    xr = chip(ctx, P, xr, 46, `${fmtTime(Math.min(t, END))} / ${fmtTime(END)}`);
-    xr = chip(ctx, P, xr, 46, `${Math.min(S.bars, b + 1)} 小節 ・ ${beat + 1} 拍`);
-    xr = chip(ctx, P, xr, 46, 'D メジャー');
-    chip(ctx, P, xr, 46, `${S.bpm} BPM`);
-  }
-  function progress(ctx, t, P) {
-    const x0 = 60, x1 = 1860, w = x1 - x0, y = 178;
-    const n = overview.length, cw = w / n;
-    const pos = clamp(t / END);
-    for (let i = 0; i < n; i++) {
-      const tt = ((i + 0.5) / n) * END;
-      const sec = sectionAt(S, tt);
-      const c = pal[sec.id].accentC;
-      const v = overview[i];
-      const hh = 6 + 40 * v;
-      rrect(ctx, x0 + i * cw + 1, y - hh / 2, cw - 2, hh, 3);
-      ctx.fillStyle = css(c, i / n <= pos ? 0.95 : 0.32);
-      ctx.fill();
+  function downlink(ctx, t) {
+    const [x, y, w] = P.log;
+    // 受信した文字（声の音節）
+    const k = lastBefore(kanaList, t);
+    ctx.fillStyle = C.dim;
+    ctx.font = fm(11, 700);
+    ctx.fillText('DECODED ›', x + 14, y + 52);
+    ctx.font = fj(22, 600);
+    const recent = [];
+    for (let i = k; i >= 0 && recent.length < 18; i--) recent.unshift(kanaList[i]);
+    recent.forEach((c, i) => {
+      const newest = i === recent.length - 1 && t - c.t < 0.4;
+      ctx.fillStyle = newest ? C.amb : i > recent.length - 6 ? C.text : C.dim;
+      ctx.fillText(c.kana, x + 96 + i * 26, y + 55);
+    });
+    ctx.fillStyle = C.faint;
+    ctx.fillRect(x + 12, y + 70, w - 24, 1);
+    // 出来事の行（下が新しい）
+    const li = lastBefore(events, t);
+    ctx.font = fm(12, 500);
+    for (let r = 0; r < 5; r++) {
+      const e = events[li - r];
+      if (!e) break;
+      const yy = y + 170 - r * 19;
+      ctx.fillStyle = r === 0 ? C.text : r < 3 ? C.dim : C.faint;
+      ctx.fillText(`${tc(e.t)}  ${e.k.padEnd(6)}${e.a}${e.b}`, x + 14, yy);
+      if (r === 0 && t - e.t < 0.15) {
+        ctx.fillStyle = C.amb;
+        ctx.fillRect(x + 4, yy - 10, 3, 12);
+      }
     }
-    ctx.font = font(15, 800);
-    ctx.textAlign = 'left';
-    for (const s of S.sections) {
-      const sx = x0 + (s.t0 / END) * w;
-      ctx.fillStyle = P.inkSoft;
-      ctx.fillText(s.name, sx + 4, y - 30);
-      ctx.fillStyle = css(P.inkC, 0.25);
-      ctx.fillRect(sx, y - 44, 2, 70);
-    }
-    const px = x0 + pos * w;
-    ctx.strokeStyle = P.ink;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(px, y - 34);
-    ctx.lineTo(px, y + 28);
-    ctx.stroke();
-    ctx.fillStyle = '#FFE2EF';
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(px, y + 30, 11, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
   }
-  function banner(ctx, t, P) {
-    const sec = P.sec;
+  function overlays(ctx, t, o) {
+    // drop の始まり: 枠が琥珀色に光る（1 回だけ）
+    for (const e of between(fx.impact || [], t - 0.5, t + 1e-6)) {
+      const a = Math.exp(-(t - e.t) / 0.14) * e.vel;
+      ctx.strokeStyle = `rgba(255,178,30,${0.9 * a})`;
+      ctx.lineWidth = 2;
+      for (const [px, py, pw, ph] of Object.values(P)) ctx.strokeRect(px + 1, py + 1, pw - 2, ph - 2);
+      ctx.lineWidth = 1;
+    }
+    // 区間が変わった知らせ
+    const sec = sectionAt(S, t);
     const age = t - sec.t0;
-    if (age < 0 || age > 2.8) return;
-    const xIn = lerp(-520, 76, easeBack(age / 0.5));
-    const a = 1 - smooth((age - 2.1) / 0.7);
-    ctx.save();
-    ctx.globalAlpha = a;
-    ctx.fillStyle = P.ink;
-    ctx.textAlign = 'left';
-    ctx.font = font(76, 800);
-    ctx.fillText(sec.name, xIn, 320);
-    ctx.font = font(30, 700);
-    ctx.fillStyle = css(P.accentC);
-    ctx.fillText(SEC_JA[sec.id] || '', xIn + 4, 362);
-    ctx.restore();
-  }
-
-  // ================================================================ 1 コマ
-  return function draw(ctx, t, o = {}) {
-    const P = palAt(t);
-    ctx.save();
-    ctx.clearRect(0, 0, W, H);
-    sky(ctx, P);
-    stars(ctx, t, P);
-    clouds(ctx, t, P);
-    skyline(ctx, P, data.bands(t, bandsBuf));
-    // 衛星のまわり（打った瞬間に少し寄る）
-    let zoom = 1;
-    if (!o.reduced) {
-      for (const e of between(fx.impact || [], t - 0.8, t + 1e-6)) zoom += 0.03 * Math.exp(-(t - e.t) / 0.22);
+    if (age >= 0 && age < 1.6 && !o.reduced) {
+      const [x, y] = P.notes;
+      ctx.globalAlpha = 1 - age / 1.6;
+      ctx.fillStyle = C.amb;
+      ctx.font = fm(22, 800);
+      ctx.fillText(`▶ ${SEC_CODE[sec.id]}`, x + 60, y + 70);
+      ctx.globalAlpha = 1;
     }
-    ctx.save();
-    ctx.translate(CX, CY);
-    ctx.scale(zoom, zoom);
-    ctx.translate(-CX, -CY);
-    riserParticles(ctx, t, P);
-    bubbles(ctx, t, P);
-    const sat = satellite(ctx, t, P, o);
-    impacts(ctx, t, P, sat.cx, sat.cy);
-    sparkles(ctx, t, P, sat.cx, sat.cy, o);
-    ctx.restore();
-    keyboard(ctx, t, P);
-    chordPath(ctx, t, P);
-    rhythm(ctx, t, P);
-    meters(ctx, t, P);
-    header(ctx, t, P);
-    progress(ctx, t, P);
-    banner(ctx, t, P);
-    // drop の始まりの光（1 回だけ）
-    for (const e of between(fx.impact || [], t - 0.6, t + 1e-6)) {
-      ctx.fillStyle = `rgba(255,255,255,${0.26 * e.vel * Math.exp(-(t - e.t) / 0.16)})`;
-      ctx.fillRect(0, 0, W, H);
-    }
-    // テープを止める演出: 色が抜ける
+    // テープを止める演出: 色が抜けて、信号が途切れる
     const [ts0, ts1] = S.tapeStop;
-    if (t >= ts0 && t < ts1 + 0.6) {
-      const u = smooth((t - ts0) / (ts1 - ts0)) * (1 - smooth((t - ts1) / 0.6));
+    if (t >= ts0 && t < ts1 + 0.5) {
+      const u = clamp((t - ts0) / (ts1 - ts0)) * (1 - clamp((t - ts1) / 0.5));
       ctx.globalCompositeOperation = 'saturation';
-      ctx.fillStyle = `rgba(128,128,128,${0.85 * u})`;
+      ctx.fillStyle = `rgba(128,128,128,${u})`;
       ctx.fillRect(0, 0, W, H);
       ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = `rgba(9,11,14,${0.45 * u})`;
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = `rgba(255,178,30,${u})`;
+      ctx.font = fm(40, 800);
+      ctx.textAlign = 'center';
+      ctx.fillText('SIGNAL DROP', W / 2, H / 2);
+      ctx.textAlign = 'left';
     }
-    ctx.restore();
+  }
+
+  return function draw(ctx, t, o = {}) {
+    ctx.drawImage(stat, 0, 0);
+    topBar(ctx, t);
+    timeline(ctx, t);
+    spectrum(ctx, t);
+    scope(ctx, t, o.audio);
+    stereo(ctx, t, o.audio);
+    notes(ctx, t);
+    sequencer(ctx, t);
+    harmony(ctx, t);
+    channels(ctx, t);
+    loudness(ctx, t);
+    downlink(ctx, t);
+    overlays(ctx, t, o);
   };
 }
 
 // 書体を先に読んでおく（Canvas の文字は、読み終える前に描くと別の書体になる）
 export async function loadFonts() {
   if (!document.fonts) return 'unsupported';
-  const sample = 'わたあめサテライトWataameSatellite0123456789:/・いまの和音帯の長さ続くベースリズムこの小節分音符声キックスネアハイハットシェイカー鈴チョップ鍵盤効果音サイドチェイン楽器ごとの量つぎ拍メジャーピンク青オルゴールカリンバピコイントロヴァースビルドドロップブレイクアウトロキュッあいうえおらりるれろなにぬねのまみむめもやゆよわをぱぴぷぺぽたてとかきくけこはひふへほん♯♭øABCDEFGmaj79/#b';
+  const latin = 'WATAAME SATELLITE DOWNLINK ANALYZER 0123456789:.·−+%/›▶↑×–ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz♯♭ø∞';
+  const jp = 'わたあめサテライト作曲・音画面周波数波形左右の広がり音符リズム和音楽器ごとの量ラウドネス受信記録キックスネアハイハットシェイカーベース鈴声鍵盤効果あいうえおらりるれろなにぬねのやゆよわぱぴぷぺぽはひふへほん';
+  // JetBrains Mono に無い記号（♯ ▶ − ∞ など）は IBM Plex Sans JP で描かれる。その記号の入った部分も先に読む
+  const sym = '·−–♯♭ø↑×›▶∞%/:.+-#';
   const t0 = performance.now();
-  await Promise.all([600, 700, 800].map((w) => document.fonts.load(`${w} 40px "M PLUS Rounded 1c"`, sample)));
+  await Promise.all([
+    ...[500, 700, 800].map((w) => document.fonts.load(`${w} 20px "JetBrains Mono"`, latin + sym)),
+    ...[500, 600, 700, 800].map((w) => document.fonts.load(`${w} 20px "IBM Plex Sans JP"`, jp + sym + latin)),
+  ]);
   await document.fonts.ready;
   return Math.round(performance.now() - t0);
 }

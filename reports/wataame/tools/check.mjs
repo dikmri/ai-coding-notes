@@ -99,10 +99,17 @@ try {
   ok('再生ページ: 一時停止すると時刻が止まる', paused.btn === '再生' && Math.abs(paused2 - paused.a) < 0.01, `${paused.a} → ${paused2}`);
   const dec = await page.evaluate(`(async () => { const ac = new OfflineAudioContext(2, 48000, 48000); const b = await ac.decodeAudioData(await (await fetch('../media/wataame.m4a')).arrayBuffer()); return b.duration; })()`);
   ok('再生ページ: 配信用の音を読むと 123.00 秒（AAC の先頭の無音が除かれている）', Math.abs(dec - 123) < 0.03, `${dec.toFixed(4)} 秒`);
-  await page.send('Emulation.setDeviceMetricsOverride', { width: 400, height: 800, deviceScaleFactor: 1, mobile: true });
-  await sleep(300);
-  const narrow = await page.evaluate('({ sw: document.scrollingElement.scrollWidth, iw: innerWidth })');
-  ok('再生ページ: 幅 400 px で横にはみ出さない', narrow.sw <= narrow.iw + 1, `scrollWidth=${narrow.sw}`);
+  // 1 画面に収まる（縦にも横にもスクロールが出ない）。canvas は画面の中に全部見える
+  for (const [w, h, mobile] of [[1366, 768, false], [1920, 937, false], [1280, 600, false], [375, 812, true], [812, 375, true]]) {
+    await page.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile });
+    await sleep(350);
+    const o = await page.evaluate(`(() => { const se = document.scrollingElement; const r = document.getElementById('stage').getBoundingClientRect(); return { sw: se.scrollWidth, sh: se.scrollHeight, iw: innerWidth, ih: innerHeight, c: [Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom)] }; })()`);
+    const fits = o.sw <= o.iw + 1 && o.sh <= o.ih + 1 && o.c[0] >= 0 && o.c[1] >= 0 && o.c[2] <= o.iw && o.c[3] <= o.ih;
+    ok(`再生ページ: ${w}×${h} で 1 画面に収まる`, fits, `scroll=${o.sw}×${o.sh} canvas=${o.c.join(',')}`);
+  }
+  // 青い箱（サイドチェインの曲線のグラフ）を外したこと: 描画のコードに、その見出しも pump の値の読み出しも無い
+  const src = await page.evaluate(`fetch('../js/stage.mjs').then((r) => r.text())`);
+  ok('再生ページ: サイドチェインの青い箱を描く部分が無い', !src.includes('サイドチェイン') && !src.includes("'pump'"));
   await page.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   await sleep(300);
   ok('再生ページ: 動きを減らす設定でも止まらない', (await page.evaluate('typeof window.requestDraw')) === 'function');

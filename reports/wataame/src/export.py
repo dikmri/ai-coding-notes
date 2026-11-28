@@ -24,7 +24,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import instruments as I  # noqa: E402
 import score as S  # noqa: E402
-from dsp import SR, to_db  # noqa: E402
+from dsp import SR, k_weight, to_db  # noqa: E402
 from render import LOGS, OUT, ROOT, STEMS, log  # noqa: E402
 
 FPS = 60
@@ -99,6 +99,16 @@ def main():
     for c, nm_ in ((0, 'L'), (1, 'R')):
         db = to_db(frame_rms(master[c:c + 1], frames, 0.05) * np.sqrt(2))
         chans.append(release(np.clip((db + 40) / 37, 0, 1), 0.1))
+        names.append(nm_)
+    # ラウドネス（瞬間 = 0.4 秒、短時間 = 3 秒の窓。-40〜0 LUFS を 0〜1 に）
+    kw = np.sum(k_weight(master) ** 2, axis=0)
+    ck = np.concatenate(([0.0], np.cumsum(kw)))
+    ends = np.clip((np.arange(frames) / FPS * SR).astype(int), 0, len(kw))
+    for nm_, win in (('lufsM', 0.4), ('lufsS', 3.0)):
+        st = np.clip(ends - int(win * SR), 0, len(kw))
+        ms = (ck[ends] - ck[st]) / max(1, int(win * SR))
+        lk = -0.691 + 10 * np.log10(np.maximum(ms, 1e-12))
+        chans.append(np.clip((lk + 40) / 40, 0, 1))
         names.append(nm_)
     pump = np.load(OUT / 'pump.npy')
     tt = np.arange(frames) / FPS
