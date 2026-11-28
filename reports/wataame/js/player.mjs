@@ -1,6 +1,7 @@
-// 再生ページ: 音を Web Audio で鳴らし、音の時計の時刻で stage.mjs の絵を描く。
-// ?capture=1 では音を鳴らさず、window.__wataame.renderAt(t) で 1 コマずつ描けるようにする（動画の撮影用）。
-// オシロスコープと左右の広がりは、配信用の音を解いた波形をそのまま読む（どちらのモードでも同じ）。
+// 再生プレーヤー（レポートの中と、プレーヤーだけのページで共通）: 音を Web Audio で鳴らし、音の時計の時刻で stage.mjs の絵を描く。
+// ・音（3 MB）は「再生」を押したときに初めて読む。オシロスコープと左右の広がりは、その音を解いた波形を読む
+// ・「ページいっぱい」（ブラウザの窓いっぱい）と「全画面」（モニター全体）に切り替えられる
+// ・?capture=1 では音を鳴らさず、window.__wataame.renderAt(t) で 1 コマずつ描けるようにする（手元で動画を作る道具用）
 import { loadData, sectionAt, fmtTime, fmtTimeJa } from './data.mjs';
 import { createStage, loadFonts, W, H } from './stage.mjs';
 import { log, watchErrors, logFile } from './log.mjs';
@@ -8,6 +9,8 @@ import { log, watchErrors, logFile } from './log.mjs';
 const base = new URL('../', import.meta.url).href;
 const params = new URLSearchParams(location.search);
 const capture = params.has('capture');
+const root = document.getElementById('player');
+const standalone = root.hasAttribute('data-standalone');
 const canvas = document.getElementById('stage');
 // 撮影モードは CPU で描く（GPU だと半透明の重なりが描くたびに少し変わり、読み出しも遅い）
 const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: capture });
@@ -18,35 +21,48 @@ let reduced = reducedQuery.matches && !capture;
 reducedQuery.addEventListener('change', (e) => { reduced = e.matches && !capture; log('reduced_motion', { reduced }); requestDraw(); });
 
 watchErrors();
-log('load', { capture, logFile, ua: navigator.userAgent.slice(0, 120), dpr: devicePixelRatio, reduced, viewport: `${innerWidth}x${innerHeight}` });
+log('load', { capture, standalone, logFile, ua: navigator.userAgent.slice(0, 120), dpr: devicePixelRatio, reduced, viewport: `${innerWidth}x${innerHeight}` });
 
-let data, draw, ready, audio = null, actx = null, buffer = null;
+let data, draw, ready, audio = null, actx = null, buffer = null, decoding = null;
 const statusEl = document.getElementById('status');
 const setStatus = (s) => { if (statusEl) statusEl.textContent = s; };
 
-// 配信用の音を読んで解く（再生にも、波形の表示にも使う）
-async function decodeAudio() {
-  const t0 = performance.now();
-  const res = await fetch(`${base}media/wataame.m4a`);
-  if (!res.ok) throw new Error(`wataame.m4a ${res.status}`);
-  const ab = await res.arrayBuffer();
-  const dec = capture ? new OfflineAudioContext(2, 48000, 48000) : (actx ||= new AudioContext({ latencyHint: 'playback' }));
-  buffer = await dec.decodeAudioData(ab);
-  audio = { L: buffer.getChannelData(0), R: buffer.getChannelData(buffer.numberOfChannels > 1 ? 1 : 0), sr: buffer.sampleRate };
-  log('decode', { seconds: +buffer.duration.toFixed(3), sampleRate: buffer.sampleRate, ms: Math.round(performance.now() - t0), capture });
-  return buffer;
+// 配信用の音を読んで解く（再生にも、波形の表示にも使う）。再生を押すまで読まない
+function decodeAudio() {
+  if (decoding) return decoding;
+  decoding = (async () => {
+    const t0 = performance.now();
+    setStatus('音を読んでいます…');
+    const res = await fetch(`${base}media/wataame.m4a`);
+    if (!res.ok) throw new Error(`wataame.m4a ${res.status}`);
+    const ab = await res.arrayBuffer();
+    const dec = capture ? new OfflineAudioContext(2, 48000, 48000) : (actx ||= new AudioContext({ latencyHint: 'playback' }));
+    buffer = await dec.decodeAudioData(ab);
+    audio = { L: buffer.getChannelData(0), R: buffer.getChannelData(buffer.numberOfChannels > 1 ? 1 : 0), sr: buffer.sampleRate };
+    log('decode', { bytes: ab.byteLength, seconds: +buffer.duration.toFixed(3), sampleRate: buffer.sampleRate, ms: Math.round(performance.now() - t0), capture });
+    setStatus('');
+    return buffer;
+  })().catch((err) => {
+    log('error.audio', { msg: String(err) }, `error ${err.message}`);
+    setStatus('音を読めませんでした。ページを読み直してください。');
+    decoding = null;
+    throw err;
+  });
+  return decoding;
 }
 
 async function init() {
   const t0 = performance.now();
   try {
-    const [d, fontsMs] = await Promise.all([loadData(base), loadFonts(), decodeAudio()]);
+    const jobs = [loadData(base), loadFonts()];
+    if (capture) jobs.push(decodeAudio());
+    const [d, fontsMs] = await Promise.all(jobs);
     data = d;
     draw = createStage(data, { cpu: capture });
     log('data', { chords: data.score.chords.length, chops: data.chops.length, frames: data.score.levels.frames, fontsMs, ms: Math.round(performance.now() - t0) });
   } catch (err) {
     log('error.data', { msg: String(err) }, `error ${err.message}`);
-    setStatus('データか音を読めませんでした。ページを読み直してください。');
+    setStatus('データを読めませんでした。ページを読み直してください。');
     throw err;
   }
   return data;
@@ -69,7 +85,7 @@ function renderAt(t) {
   return true;
 }
 
-// ------------------------------------------------------------------ 再生ページ
+// ------------------------------------------------------------------ 再生プレーヤー
 function setupPlayer() {
   const playBtn = document.getElementById('play');
   const restartBtn = document.getElementById('restart');
@@ -77,13 +93,20 @@ function setupPlayer() {
   const vol = document.getElementById('volume');
   const timeEl = document.getElementById('time');
   const nowEl = document.getElementById('now');
+  const fitBtn = document.getElementById('fit');
+  const fsBtn = document.getElementById('fullscreen');
   let gain = null, src = null;
   let playing = false, offset = 0, startAt = 0;
   let lastSection = '';
   let raf = 0, perf = { frames: 0, worst: 0, since: performance.now(), last: 0 };
+  let visible = true;
 
   const syncSlider = (el) => { el.style.setProperty('--control-value', el.value); el.style.setProperty('--attr-min', el.min || 0); el.style.setProperty('--attr-max', el.max || 100); };
   syncSlider(vol);
+  const layoutLog = (event) => {
+    const se = document.scrollingElement, r = canvas.getBoundingClientRect();
+    log(event, { mode: mode(), viewport: `${innerWidth}x${innerHeight}`, scroll: `${se.scrollWidth}x${se.scrollHeight}`, canvas: `${Math.round(r.width)}x${Math.round(r.height)}` });
+  };
 
   ready = init().then(() => {
     const end = data.score.bars * data.score.bar;
@@ -95,10 +118,17 @@ function setupPlayer() {
     setStatus('');
     updateTexts(0);
     requestDraw();
-    // 画面に収まっているかを記録する（縦や横のスクロールが出ていないか）
-    const se = document.scrollingElement;
-    log('layout', { viewport: `${innerWidth}x${innerHeight}`, scroll: `${se.scrollWidth}x${se.scrollHeight}`, canvas: `${Math.round(canvas.getBoundingClientRect().width)}x${Math.round(canvas.getBoundingClientRect().height)}` });
+    layoutLog('layout');
   });
+
+  // プレーヤーが画面の外にあるあいだは描かない（音は鳴らし続ける）
+  if ('IntersectionObserver' in window && !standalone) {
+    new IntersectionObserver(([e]) => {
+      const was = visible;
+      visible = e.isIntersecting;
+      if (visible !== was) { log('visible', { visible, pos: +position().toFixed(2), playing }); if (visible) requestDraw(); }
+    }, { rootMargin: '100px 0px' }).observe(root);
+  }
 
   function ensureGain() {
     if (!gain) {
@@ -121,7 +151,12 @@ function setupPlayer() {
 
   async function play(via) {
     await ready;
+    if (!actx) actx = new AudioContext({ latencyHint: 'playback' });
     if (actx.state === 'suspended') await actx.resume();
+    if (!buffer) {
+      playBtn.disabled = true;
+      try { await decodeAudio(); } finally { playBtn.disabled = false; }
+    }
     ensureGain();
     const end = data.score.bars * data.score.bar;
     if (offset >= end - 0.05) offset = 0;
@@ -141,7 +176,7 @@ function setupPlayer() {
     startAt = actx.currentTime - offset;
     playing = true;
     perf = { frames: 0, worst: 0, since: performance.now(), last: 0 };
-    log('play', { pos: +offset.toFixed(2), via, state: actx.state, outputLatency: actx.outputLatency ?? null });
+    log('play', { pos: +offset.toFixed(2), via, mode: mode(), state: actx.state, outputLatency: actx.outputLatency ?? null });
     updateButtons();
     loop();
   }
@@ -186,7 +221,7 @@ function setupPlayer() {
   function frame(now) {
     raf = 0;
     const t = position();
-    draw(ctx, t, { reduced, audio });
+    if (visible) draw(ctx, t, { reduced, audio });
     updateTexts(t);
     if (playing) {
       const dt = perf.last ? now - perf.last : 0;
@@ -194,7 +229,7 @@ function setupPlayer() {
       perf.frames++;
       if (dt > perf.worst) perf.worst = dt;
       if (now - perf.since > 10000) {
-        log('perf', { fps: +((perf.frames * 1000) / (now - perf.since)).toFixed(1), worstMs: Math.round(perf.worst), pos: +t.toFixed(1) });
+        log('perf', { fps: +((perf.frames * 1000) / (now - perf.since)).toFixed(1), worstMs: Math.round(perf.worst), pos: +t.toFixed(1), mode: mode(), visible });
         perf = { frames: 0, worst: 0, since: now, last: now };
       }
       loop();
@@ -202,6 +237,53 @@ function setupPlayer() {
   }
   function loop() { if (!raf && draw) raf = requestAnimationFrame(frame); }
   window.requestDraw = () => loop();
+
+  // ---------------- ページいっぱい・全画面
+  const mode = () => (document.fullscreenElement === root ? 'fullscreen' : root.classList.contains('is-fit') && !standalone ? 'fit' : 'inline');
+  let inerted = [];
+  function setFit(on, via) {
+    if (standalone || !fitBtn) return;
+    if (on === root.classList.contains('is-fit')) return;
+    root.classList.toggle('is-fit', on);
+    document.documentElement.classList.toggle('wp-fit-open', on);
+    fitBtn.setAttribute('aria-pressed', String(on));
+    // 窓いっぱいのあいだは、後ろのページを操作できないようにする
+    if (on) {
+      inerted = [];
+      for (let el = root; el && el !== document.body; el = el.parentElement) {
+        for (const sib of el.parentElement.children) {
+          if (sib !== el && !sib.inert && sib.tagName !== 'SCRIPT') { sib.inert = true; inerted.push(sib); }
+        }
+      }
+    } else {
+      for (const el of inerted) el.inert = false;
+      inerted = [];
+    }
+    log('fit', { on, via });
+    requestDraw();
+    requestAnimationFrame(() => layoutLog('layout'));
+  }
+  if (fitBtn) fitBtn.addEventListener('click', () => setFit(!root.classList.contains('is-fit'), 'button'));
+  if (fsBtn && document.fullscreenEnabled && root.requestFullscreen) {
+    fsBtn.hidden = false;
+    fsBtn.addEventListener('click', async () => {
+      try {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else { setFit(false, 'fullscreen'); await root.requestFullscreen({ navigationUI: 'hide' }); }
+      } catch (err) {
+        log('error.fullscreen', { msg: String(err) }, `error ${err.message}`);
+      }
+    });
+    document.addEventListener('fullscreenchange', () => {
+      const on = document.fullscreenElement === root;
+      fsBtn.setAttribute('aria-pressed', String(on));
+      log('fullscreen', { on });
+      requestDraw();
+      requestAnimationFrame(() => layoutLog('layout'));
+    });
+  } else {
+    log('fullscreen.unsupported', {});
+  }
 
   playBtn.addEventListener('click', () => (playing ? pause('button') : play('button')));
   restartBtn.addEventListener('click', () => seekTo(0, 'restart'));
@@ -217,7 +299,10 @@ function setupPlayer() {
     clearTimeout(volTimer);
     volTimer = setTimeout(() => log('volume', { value: Number(vol.value) }), 400);
   });
+  // キー操作: プレーヤーだけのページと、ページいっぱい・全画面のときだけ（記事の中ではスペースでのスクロールを奪わない）
   document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && root.classList.contains('is-fit') && !standalone) { setFit(false, 'escape'); return; }
+    if (!(standalone || mode() !== 'inline')) return;
     if (e.target.closest('input, button, select, textarea, a')) return;
     if (e.key === ' ') { e.preventDefault(); log('key', { key: 'space' }); playing ? pause('key') : play('key'); }
     else if (e.key === 'ArrowRight') { log('key', { key: 'right' }); seekTo(position() + 5, 'key'); }
@@ -227,10 +312,7 @@ function setupPlayer() {
   let resizeTimer = 0;
   addEventListener('resize', () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => {
-      const se = document.scrollingElement;
-      log('resize', { viewport: `${innerWidth}x${innerHeight}`, scroll: `${se.scrollWidth}x${se.scrollHeight}` });
-    }, 500);
+    resizeTimer = setTimeout(() => layoutLog('resize'), 500);
   });
 }
 

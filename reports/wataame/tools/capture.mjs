@@ -1,4 +1,5 @@
 // わたあめサテライトの画面を、画面なしの Chrome（音なし）で 1 コマずつ撮り、ffmpeg で音と合わせて mp4 にする。
+// 動画はサイトに載せない（34 MB になるため。ページの中のプレーヤーが同じ絵をその場で描く）。作った mp4 は build/wataame/ に置く。
 //
 //   node reports/wataame/tools/capture.mjs --port 8798 --shots 0,30,40.5     その時刻の静止画を build/wataame/shots/ に PNG で保存
 //   node reports/wataame/tools/capture.mjs --port 8798 --video               全部のコマを撮って build/wataame/wataame.mp4 を作る
@@ -8,7 +9,7 @@
 //
 // 先に tools/serve.mjs をその番号で動かしておく。記録は logs/wataame-capture.log。
 import { spawn } from 'node:child_process';
-import { mkdirSync, appendFileSync, writeFileSync, copyFileSync, existsSync, statSync } from 'node:fs';
+import { mkdirSync, appendFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openBrowser } from '../../../tools/lib/cdp.mjs';
@@ -94,11 +95,6 @@ try {
     ff.stdin.end();
     await done;
     log('video.done', { out, frames: n, bytes: statSync(out).size, sec: +((Date.now() - t0) / 1000).toFixed(1) });
-    if (has('publish') && !part) {
-      const dest = join(ROOT, 'reports', 'wataame', 'media', 'wataame.mp4');
-      copyFileSync(out, dest);
-      log('video.publish', { dest });
-    }
   }
   if (page.consoleErrors.length) log('console', { errors: page.consoleErrors.slice(0, 5) }, 'error');
 } catch (err) {

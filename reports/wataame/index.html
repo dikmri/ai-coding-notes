@@ -4,11 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Claude が作曲した kawaii future bass「わたあめサテライト」と、曲に合わせて動く画面 ― AI コーディングノート</title>
-<meta name="description" content="Claude が作曲し、numpy で音を合成した kawaii future bass の曲と、曲に合わせて動くブラウザの画面を作り、画面なしの Chrome で 1 コマずつ撮って動画にした実験。1 回目のデモで作者に「リズムが一定」と言われ、原因を楽譜から数えて作り直した記録も載せる。">
+<meta name="description" content="Claude が作曲し、numpy で音を合成した kawaii future bass の曲と、曲に合わせて動くブラウザの画面を作った実験。動画は載せず、ページの中でその場で描いて再生する。1 回目のデモで作者に「リズムが一定」と言われ、原因を楽譜から数えて作り直した記録も載せる。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='800'%3EAI%3C/text%3E%3Cpath d='M15 51H49' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="../../css/site.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@500;600&family=JetBrains+Mono:wght@500;700;800&display=swap">
 <link rel="stylesheet" href="wataame.css">
+<link rel="stylesheet" href="player-ui.css">
 <script type="module" src="js/figures.mjs"></script>
+<script type="module" src="js/player.mjs"></script>
 </head>
 <body>
 <a class="skip" href="#main">本文へ移動</a>
@@ -30,19 +35,33 @@
 <article>
   <p class="kicker">試せる実験 ・ 2026 年 11 月 28 日（音が出ます）</p>
   <h1>Claude が作曲した kawaii future bass「わたあめサテライト」と、曲に合わせて動く画面</h1>
-  <p class="lede">作者が YouTube で見つけた動画は、自作の曲を、自作の画面を表示しながら再生するものでした。同じ種類の物を Claude が作れるかを試しました。曲は Claude が作曲し、音も Python と numpy でコードから合成しています。画面はブラウザの Canvas で描き、画面なしの Chrome で 1 コマずつ撮って動画にしました。</p>
+  <p class="lede">作者が YouTube で見つけた動画は、自作の曲を、自作の画面を表示しながら再生するものでした。同じ種類の物を Claude が作れるかを試しました。曲は Claude が作曲し、音も Python と numpy でコードから合成しています。画面はブラウザの Canvas で描き、このページの中でその場で再生します。動画のファイルは載せていません。</p>
   <p class="lede">1 回目のデモは、作者に「リズムが一定で、ありがち」と言われました。原因を楽譜から数えて確かめ、和音とリズムを作り直しています。その過程もこのページに載せました。</p>
 
-  <figure>
-    <video controls preload="metadata" playsinline poster="img/hero.webp" width="1920" height="1080">
-      <source src="media/wataame.mp4" type="video/mp4">
-    </video>
-    <figcaption>動画「わたあめサテライト」（2 分 3 秒、1920×1080、60 コマ/秒）。音も画面も、生成 AI のサービスを使わずにコードで作りました。</figcaption>
-  </figure>
-  <div class="cta">
-    <a class="go" href="player/">その場で再生する（音が出ます）</a>
-    <span class="small">同じ画面を、ブラウザが音に合わせてその場で描きます。シークもできます。</span>
-  </div>
+  <section class="wp" id="player" aria-label="再生プレーヤー">
+    <div class="wp-stage">
+      <canvas id="stage" width="1920" height="1080" role="img"
+        aria-label="曲に合わせて動く解析コンソールの画面。周波数のスペクトル、オシロスコープ、左右の広がり、流れる音符、16 ステップのリズム、和音、楽器ごとの LED メーター、ラウドネス、受信した出来事の記録が並ぶ。"></canvas>
+    </div>
+    <div class="wp-bar">
+      <button type="button" id="play" class="wp-play" disabled>再生</button>
+      <button type="button" id="restart" disabled>最初から</button>
+      <label class="wp-seek">
+        <span class="wp-vh">再生位置</span>
+        <input type="range" id="seek" min="0" max="120" step="0.01" value="0" disabled>
+      </label>
+      <span id="time" class="wp-time" aria-hidden="true">0:00 / 2:00</span>
+      <label class="wp-vol">
+        <span>音量</span>
+        <input type="range" id="volume" min="0" max="100" step="1" value="80">
+      </label>
+      <button type="button" id="fit" aria-pressed="false">ページいっぱい</button>
+      <button type="button" id="fullscreen" aria-pressed="false" hidden>全画面</button>
+      <span id="status" class="wp-status" role="status">データを読んでいます…</span>
+    </div>
+    <p id="now" class="wp-vh" aria-live="polite"></p>
+  </section>
+  <p class="small">「再生」を押すと音が出ます（2 分）。音のファイル（3 MB）は、再生を押したときに初めて読みます。「ページいっぱい」はブラウザの窓いっぱいに、「全画面」はモニター全体に広げます（Esc で戻ります）。<a href="player/">プレーヤーだけのページ</a>もあります。</p>
 
   <h2 id="what">作ったもの</h2>
   <div class="table-wrap" tabindex="0">
@@ -52,8 +71,8 @@
       <tbody>
         <tr><th scope="row">曲</th><td data-label="中身">2 分。160 BPM（ドラムは半分の速さで刻む）、D メジャー、80 小節</td><td data-label="作り方">楽譜を Python のコードで書き、numpy と scipy で 48 kHz のステレオに合成</td></tr>
         <tr><th scope="row">画面</th><td data-label="中身">衛星から届く信号を解析するコンソール風の画面（計器 9 つ）</td><td data-label="作り方">Canvas 2D に、時刻 t だけで 1 コマを描く関数（renderAt）</td></tr>
-        <tr><th scope="row">動画</th><td data-label="中身">7,380 コマ。H.264 と AAC の mp4</td><td data-label="作り方">画面なしの Chrome（音なし）で 1/60 秒ずつ描いて撮り、ffmpeg で音と合わせる</td></tr>
-        <tr><th scope="row">再生ページ</th><td data-label="中身">音に合わせてその場で描くページ</td><td data-label="作り方">Web Audio で音を鳴らし、出力の時計の時刻で同じ関数を呼ぶ</td></tr>
+        <tr><th scope="row">動画（手元で作る）</th><td data-label="中身">7,380 コマの mp4。サイトには載せていない</td><td data-label="作り方">画面なしの Chrome（音なし）で 1/60 秒ずつ描いて撮り、ffmpeg で音と合わせる道具</td></tr>
+        <tr><th scope="row">プレーヤー</th><td data-label="中身">このページの上と、プレーヤーだけのページ。ページいっぱい・全画面に切り替えられる</td><td data-label="作り方">Web Audio で音を鳴らし、出力の時計の時刻で同じ関数を呼ぶ</td></tr>
       </tbody>
     </table>
   </div>
@@ -194,11 +213,11 @@
   <div class="listen">
     <figure>
       <figcaption><strong>1 回目のデモ</strong>（Build → Drop、30 秒）</figcaption>
-      <audio controls preload="none" src="media/demo-v1.m4a"></audio>
+      <audio controls loading="lazy" preload="none" src="media/demo-v1.m4a"></audio>
     </figure>
     <figure>
       <figcaption><strong>2 回目のデモ</strong>（作り直した版）</figcaption>
-      <audio controls preload="none" src="media/demo-v2.m4a"></audio>
+      <audio controls loading="lazy" preload="none" src="media/demo-v2.m4a"></audio>
     </figure>
   </div>
 
@@ -261,6 +280,24 @@
     </figure>
   </div>
 
+  <h3 id="no-video">動画をやめて、ページの中で描く</h3>
+  <p>はじめはこのページの頭に mp4 の動画を置いていました。作者は、このサイトのもとの考え方が「HTML と CSS と JavaScript だけで、あらゆる表現ができる」ことだと話しました。GitHub で公開することも考えると、動画のファイルをそのまま置くのは重く、余計に見えるという指摘でした。</p>
+  <p>画面は、もともと時刻 t だけで絵が決まる作りです。動画の 1 コマ 1 コマも、このページが描く絵と同じです。そこで動画を外し、プレーヤーをページに埋め込みました。読み込む量は約 9 分の 1 になります。</p>
+  <div class="table-wrap" tabindex="0">
+    <table>
+      <caption>動画とページの中のプレーヤーの重さ</caption>
+      <thead><tr><th scope="col">比べる点</th><th scope="col">動画（mp4）</th><th scope="col">ページの中のプレーヤー</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">読み込む量</th><td class="num">34 MB</td><td class="num">約 3.7 MB（音 3.07 MB、データ 0.57 MB、JS・CSS 約 0.1 MB）</td></tr>
+        <tr><th scope="row">読み込む時機</th><td>再生を押したとき</td><td>データは開いたとき、音は再生を押したとき</td></tr>
+        <tr><th scope="row">描くための計算</th><td>動画の展開</td><td>1 コマ 1〜2 ms（作者の PC で 1 秒に 144 コマ）</td></tr>
+        <tr><th scope="row">メモリ</th><td>動画の展開の分</td><td>解いた音で約 47 MB</td></tr>
+        <tr><th scope="row">シークや一時停止</th><td>できる</td><td>できる。止めた所の絵もそのまま描く</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>プレーヤーが画面の外にあるあいだは、描くのをやめます（音は鳴り続けます）。撮影の道具（<code>capture.mjs</code>）は残してあり、手元で同じ絵の mp4 を作れます。</p>
+
   <h2 id="mix">ミックスの判断（耳の代わりに測る）</h2>
   <p>音量の釣り合いは、聞いて決められません。そこで、楽器の段（キック・スネア・ハイハット・シェイカー・ベース・和音・鈴・声・鍵盤・効果音）を別々に合成しました。段ごとに Drop の区間のラウドネス（ITU-R BS.1770 の LUFS）を測り、目標の値になるように音量を決めています。目標は、キック -13、ベース -14.8、和音 -14、声 -15、スネア -15 LUFS のように、低音と主役の段を大きく、ハイハットと鈴を小さくしました。</p>
   <p>最後の段では、26 Hz より下を切り、ゆるく圧縮し（1.8 : 1）、tanh で少し丸め、先読みのリミッターで -1.7 dBFS に抑えます。全体の統合ラウドネスは -9.5 LUFS、真のピーク（4 倍に増やした点で測った値）は -1.53 dBTP です。</p>
@@ -277,7 +314,7 @@
     <li><strong>画面が読むデータを作る（export.py、約 8 秒）</strong>和音・音符・ドラム・効果音の時刻を score.json に、1/60 秒ごとの 61 個の値（段ごとの音量・左右・サイドチェイン・周波数 48 帯）を levels.bin に書きます。配信用の音（AAC）も作ります。</li>
     <li><strong>時刻 t だけで 1 コマを描く（stage.mjs）</strong>前のコマの状態を持たず、ピークの印も過去のコマの値から求めます。枠・目盛り・消えている LED は最初に 1 回だけ別の Canvas に描き、毎コマそれを貼ってから動く部分を描きます。オシロスコープと左右の広がりは、配信用の音を解いた波形を、その時刻の所から読みます。同じ t からは毎回同じ絵になります。撮影モードで 120 コマを描いた平均は 6.5 ms でした。</li>
     <li><strong>再生ページは、音の時計で描く（player.mjs）</strong>Web Audio で音を鳴らし、<code>getOutputTimestamp()</code> で「いまスピーカーから出ている時刻」を求め、その t で描きます。出力の遅れの分だけ、画面が音より先に進むのを防ぎます。</li>
-    <li><strong>動画は 1 コマずつ撮る（capture.mjs）</strong>画面なしの Chrome（音なし）でページを撮影モードで開き、t = 0、1/60、2/60… と描いて JPEG で受け取り、ffmpeg に流します。音は元の WAV を使うので、音と絵はずれません。7,380 コマを 6 分 41 秒で撮りました。作り直した画面は、細かい LED の区切りや波形の細い線が多く、動画にすると圧縮しにくくなります。最初の画面で使った画質の設定（CRF 27）では 52 MB になったので、文字と LED の見え方を確かめたうえで CRF 32（34 MB）にしました。
+    <li><strong>手元で動画を作るときは 1 コマずつ撮る（capture.mjs）</strong>動画はサイトに載せていませんが、手元で作れます。画面なしの Chrome（音なし）でページを撮影モードで開き、t = 0、1/60、2/60… と描いて JPEG で受け取り、ffmpeg に流します。音は元の WAV を使うので、音と絵はずれません。7,380 コマを 6 分 41 秒で撮りました。作り直した画面は、細かい LED の区切りや波形の細い線が多く、動画にすると圧縮しにくくなります。最初の画面で使った画質の設定（CRF 27）では 52 MB、文字と LED の見え方を保てる CRF 32 でも 34 MB になりました。この重さが、動画をサイトに載せるのをやめた理由の 1 つです。
     <div class="note">
       <p><strong>同じ時刻なのに絵が変わった不具合</strong></p>
       <p>確かめの台本で、同じ時刻を 2 回描いて比べると、99 点だけ絵が違いました。違うのは、半透明を重ねて描く所（チョップのかなの文字と、左右の広がりの点）だけでした。調べると、違うのはページを開いてから最初の 1 コマだけで、そのあとは何回描いても一致しました。</p>
@@ -287,7 +324,7 @@
 
   <h2 id="try">すぐ試す手順</h2>
   <ol class="steps">
-    <li><strong>聞いて、見る</strong>このページの上の動画か、<a href="player/">再生ページ</a>で再生します。再生ページでは、スペースキーで再生と一時停止、← → で 5 秒ずつ動きます。</li>
+    <li><strong>聞いて、見る</strong>このページの上のプレーヤーで「再生」を押します。「ページいっぱい」か「全画面」に広げると見やすくなります。広げているあいだは、スペースキーで再生と一時停止、← → で 5 秒ずつ動きます。</li>
     <li><strong>手元で曲を作り直す</strong>Python 3.12 以上と numpy・scipy・Pillow、ffmpeg を用意します。リポジトリの一番上で次を動かすと、build/wataame/wataame.wav と画面のデータができます。
 <pre class="code">git clone https://github.com/dikmri/ai-coding-notes.git
 cd ai-coding-notes
@@ -314,9 +351,10 @@ for (let i = 0; i &lt; frames; i++) {
     <li><strong>Claude は音を聞いていません。</strong>ミックスは、ラウドネス・周波数の配分・スペクトログラム・雑音の機械的な検出で決めました。聞いた印象の判断は、作者の 2 回の感想だけです。</li>
     <li>ボーカルチョップは合成の声です。歌手の録音を刻んだ物のような息づかいや質感はありません。</li>
     <li>参考の動画の音は解析していません。見たのは画面だけで、音は消していました。</li>
-    <li>再生ページは Chrome で確かめました。Safari と Firefox での再生と、スマートフォンでの描画の速さは確かめていません。</li>
+    <li>プレーヤーは Chrome で確かめました。Safari と Firefox での再生と、スマートフォンでの描画の速さは確かめていません。</li>
     <li>画面の書体（JetBrains Mono と IBM Plex Sans JP）は Google Fonts から読みます。読めないときは、端末にある等幅の書体とゴシック体で描きます。</li>
-    <li>動画は 1 つの mp4 で 34 MB あります（画質の設定 CRF 32）。回線が遅いと読み込みに時間がかかります。</li>
+    <li>再生を押すと 3 MB の音を読み、解いた音でメモリを約 47 MB 使います。回線が遅いと、鳴り始めるまでに時間がかかります。</li>
+    <li>iPhone の Safari は、動画以外の要素の全画面に対応していないので、「全画面」のボタンを出しません（「ページいっぱい」は使えます）。</li>
   </ul>
 
   <h2 id="files">使った道具とファイル</h2>

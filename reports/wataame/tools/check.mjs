@@ -23,32 +23,66 @@ try {
   await page.navigate(base);
   await page.waitFor('#fig-spectrum svg', 15000);
   await sleep(500);
+  await page.waitFor('#play:not([disabled])', 15000);
   const rep = await page.evaluate(`(async () => {
     const imgs = [...document.images];
     // loading="lazy" の画像は画面の外だと読み込まれないので、先に読ませる（読めないときは 8 秒で先へ進む）
     for (const i of imgs) i.loading = 'eager';
     const settle = (i) => (i.complete && i.naturalWidth ? Promise.resolve() : new Promise((r) => { i.addEventListener('load', r, { once: true }); i.addEventListener('error', r, { once: true }); }));
     await Promise.race([Promise.all(imgs.map(settle)), new Promise((r) => setTimeout(r, 8000))]);
-    const v = document.querySelector('video');
-    if (v.readyState < 1) await new Promise((r) => { v.addEventListener('loadedmetadata', r, { once: true }); setTimeout(r, 8000); });
-    const urls = ['player/', 'media/wataame.m4a', 'media/demo-v1.m4a', 'media/demo-v2.m4a', 'data/score.json', 'data/levels.bin', 'data/compare.json'];
-    const codes = await Promise.all(urls.map((u) => fetch(u, { method: 'HEAD' }).then((r) => r.status).catch(() => 0)));
+    const fetched = performance.getEntriesByType('resource').map((e) => e.name);
     return {
       svgs: document.querySelectorAll('.chart svg').length,
       broken: imgs.filter((i) => !i.naturalWidth).map((i) => i.getAttribute('src')),
       imgs: imgs.length,
       alts: imgs.filter((i) => !i.alt).length,
-      video: { dur: v.duration, w: v.videoWidth, h: v.videoHeight },
-      codes: Object.fromEntries(urls.map((u, i) => [u, codes[i]])),
-      h1: document.querySelector('h1').textContent,
-      tables: document.querySelectorAll('table').length,
+      videos: document.querySelectorAll('video').length,
+      mp4Links: [...document.querySelectorAll('[src], [href]')].some((e) => (e.getAttribute('src') || e.getAttribute('href')).split('?')[0].endsWith('.mp4')),
+      player: !!document.querySelector('#player canvas#stage'),
+      m4aBeforePlay: fetched.some((u) => u.includes('wataame.m4a')),
+      fsShown: !document.getElementById('fullscreen').hidden,
+      fsEnabled: document.fullscreenEnabled,
     };
   })()`);
   ok('レポート: グラフが 10 枚（和音の長さ・格子 2・サイドチェイン・配分・母音 5）', rep.svgs === 10, `svg=${rep.svgs}`);
   ok('レポート: 画像がすべて読める', rep.broken.length === 0 && rep.imgs >= 9, `画像 ${rep.imgs} 枚、読めない ${rep.broken.join(',') || 'なし'}`);
   ok('レポート: 画像に代わりの文がある', rep.alts === 0);
-  ok('レポート: 動画が 1920×1080、約 123 秒', rep.video.w === 1920 && rep.video.h === 1080 && Math.abs(rep.video.dur - 123) < 0.2, JSON.stringify(rep.video));
-  ok('レポート: 再生ページと音とデータがある', Object.values(rep.codes).every((c) => c === 200), JSON.stringify(rep.codes));
+  ok('レポート: 動画を置いていない（video も mp4 も無い）', rep.videos === 0 && !rep.mp4Links);
+  ok('レポート: プレーヤーが埋め込まれている', rep.player);
+  ok('レポート: 再生を押すまで音（3 MB）を読まない', !rep.m4aBeforePlay);
+  ok('レポート: 全画面のボタンは、使えるときだけ出る', rep.fsShown === rep.fsEnabled, `出ている=${rep.fsShown} 使える=${rep.fsEnabled}`);
+  // 記事の中ではスペースキーでページを送れる（プレーヤーが奪わない）
+  await page.evaluate(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }))`);
+  await sleep(400);
+  ok('レポート: 記事の中ではスペースキーで再生しない', (await page.evaluate(`document.getElementById('play').textContent`)) === '再生');
+  // 再生 → 時刻が進み、ここで初めて音を読む
+  await page.evaluate(`document.getElementById('play').click()`);
+  await sleep(3000);
+  const rp = await page.evaluate(`({ btn: document.getElementById('play').textContent, seek: +document.getElementById('seek').value, m4a: performance.getEntriesByType('resource').some((e) => e.name.includes('wataame.m4a')) })`);
+  ok('レポート: 埋め込みのプレーヤーで再生でき、音はこのとき読む', rp.btn === '一時停止' && rp.seek > 0.5 && rp.m4a, JSON.stringify(rp));
+  await page.evaluate(`document.getElementById('play').click()`);
+  // ページいっぱい → 1 画面に収まり、後ろのページは操作できない → Esc で戻る
+  await page.evaluate(`document.getElementById('fit').click()`);
+  await sleep(400);
+  const fit = await page.evaluate(`(() => { const se = document.scrollingElement, r = document.getElementById('stage').getBoundingClientRect(); return { on: document.getElementById('player').classList.contains('is-fit'), pressed: document.getElementById('fit').getAttribute('aria-pressed'), c: [r.left, r.top, r.right, r.bottom].map(Math.round), iw: innerWidth, ih: innerHeight, inertH1: !!document.querySelector('h1').closest('[inert]'), playerInert: !!document.getElementById('player').closest('[inert]') }; })()`);
+  ok('レポート: 「ページいっぱい」で窓いっぱいに広がり、絵が全部見える', fit.on && fit.pressed === 'true' && fit.c[0] >= 0 && fit.c[1] >= 0 && fit.c[2] <= fit.iw && fit.c[3] <= fit.ih && fit.c[2] - fit.c[0] > fit.iw * 0.6, JSON.stringify(fit));
+  ok('レポート: 「ページいっぱい」のあいだ、後ろの記事は操作できない', fit.inertH1 && !fit.playerInert);
+  await page.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+  await sleep(300);
+  const unfit = await page.evaluate(`({ on: document.getElementById('player').classList.contains('is-fit'), inert: document.querySelectorAll('[inert]').length })`);
+  ok('レポート: Esc でもとに戻り、記事も操作できる', !unfit.on && unfit.inert === 0, JSON.stringify(unfit));
+  // 全画面（本物のクリックで押す）
+  if (rep.fsEnabled) {
+    const b = await page.evaluate(`(() => { const r = document.getElementById('fullscreen').getBoundingClientRect(); document.getElementById('fullscreen').scrollIntoView({ block: 'center' }); const r2 = document.getElementById('fullscreen').getBoundingClientRect(); return [r2.left + r2.width / 2, r2.top + r2.height / 2]; })()`);
+    await page.click(b[0], b[1]);
+    await sleep(700);
+    const fs = await page.evaluate(`({ fs: document.fullscreenElement?.id || null, pressed: document.getElementById('fullscreen').getAttribute('aria-pressed') })`);
+    ok('レポート: 「全画面」でプレーヤーだけが全画面になる', fs.fs === 'player' && fs.pressed === 'true', JSON.stringify(fs));
+    await page.evaluate(`document.exitFullscreen?.()`);
+    await sleep(500);
+  }
+  const codes = await page.evaluate(`(async () => { const urls = ['player/', 'player-ui.css', 'media/wataame.m4a', 'media/demo-v1.m4a', 'media/demo-v2.m4a', 'data/score.json', 'data/levels.bin', 'data/compare.json']; const c = await Promise.all(urls.map((u) => fetch(u, { method: 'HEAD' }).then((r) => r.status).catch(() => 0))); return Object.fromEntries(urls.map((u, i) => [u, c[i]])); })()`);
+  ok('レポート: プレーヤーだけのページと音とデータがある', Object.values(codes).every((c) => c === 200), JSON.stringify(codes));
   for (const w of [400, 768]) {
     await page.send('Emulation.setDeviceMetricsOverride', { width: w, height: 900, deviceScaleFactor: 1, mobile: w < 600 });
     await sleep(300);

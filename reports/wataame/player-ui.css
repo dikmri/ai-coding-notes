@@ -1,0 +1,131 @@
+/* わたあめサテライトの再生プレーヤー（レポートの中と、プレーヤーだけのページで共通）
+   ふだんは記事の幅に合わせた 16:9。「ページいっぱい」（.is-fit）と「全画面」（:fullscreen）では、
+   画面の残りの高さと幅の両方に収まる、いちばん大きい 16:9 にして、スクロールを出さない */
+.wp {
+  --p-bg: #07090b;
+  --p-panel: #0d1014;
+  --p-line: #252b33;
+  --p-text: #d6dde5;
+  --p-dim: #8a95a1;
+  --p-acc: #3fd0ff;
+  --p-amb: #ffb21e;
+  --p-track: #2a313a;
+  color-scheme: dark;
+  background: var(--p-bg);
+  color: var(--p-text);
+  border: 1px solid var(--p-line);
+  font: 500 14px/1.5 "JetBrains Mono", "IBM Plex Sans JP", ui-monospace, Consolas, monospace;
+  font-size-adjust: from-font;
+}
+.wp .wp-stage { min-block-size: 0; }
+.wp canvas {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  aspect-ratio: 16 / 9;
+  background: #090b0e;
+}
+.wp .wp-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
+  padding: 8px 12px;
+  border-block-start: 1px solid var(--p-line);
+  background: var(--p-panel);
+}
+.wp .wp-back { color: var(--p-dim); text-decoration: none; font-weight: 700; white-space: nowrap; }
+.wp .wp-back:hover { color: var(--p-text); }
+.wp .wp-back:focus-visible { outline: 2px solid var(--p-acc); outline-offset: 3px; }
+.wp button {
+  font: inherit; font-weight: 700; color: var(--p-text);
+  background: transparent; border: 1px solid var(--p-line); border-radius: 2px;
+  padding: 6px 12px; min-block-size: 40px; cursor: pointer; white-space: nowrap;
+}
+.wp button.wp-play { background: var(--p-acc); color: #04161d; border-color: var(--p-acc); min-inline-size: 7.5em; }
+.wp button[aria-pressed="true"] { border-color: var(--p-amb); color: var(--p-amb); }
+.wp button:disabled { opacity: 0.45; cursor: progress; }
+.wp button:focus-visible { outline: 2px solid var(--p-amb); outline-offset: 3px; }
+.wp .wp-seek { flex: 1 1 140px; display: flex; }
+.wp .wp-time { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wp .wp-vol { display: flex; align-items: center; gap: 8px; font-weight: 700; white-space: nowrap; color: var(--p-dim); }
+.wp .wp-vol input { inline-size: 84px; }
+.wp .wp-status { color: var(--p-amb); font-weight: 700; }
+.wp .wp-status:empty { display: none; }
+.wp .wp-vh {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+/* ページいっぱい・全画面 */
+.wp.is-fit, .wp:fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  inline-size: 100%;
+  block-size: 100dvh;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  border: 0;
+}
+.wp:fullscreen { block-size: 100%; }
+.wp::backdrop { background: #000; }
+.wp.is-fit .wp-stage, .wp:fullscreen .wp-stage {
+  container-type: size;
+  display: grid;
+  place-items: center;
+  padding: 8px 8px 0;
+}
+.wp.is-fit canvas, .wp:fullscreen canvas { inline-size: min(100cqw, 100cqh * 16 / 9); }
+html.wp-fit-open { overflow: hidden; }
+
+/* 本来の range を使い、つまみと溝だけを整える（WebKit と Firefox は別の規則にする） */
+.wp input[type="range"] {
+  --slider-track-size: 4px;
+  --slider-thumb-size: 16px;
+  --slider-track-color: var(--p-track);
+  --slider-fill-color: var(--p-acc);
+  --slider-direction: to right;
+  --attr-min: 0;
+  --attr-max: 100;
+  --control-value: 0;
+  --slider-progress: calc((var(--control-value) - var(--attr-min)) / (var(--attr-max) - var(--attr-min)) * 100%);
+  appearance: none;
+  inline-size: 100%;
+  block-size: 40px;
+  margin: 0; padding: 0; border: 0; border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+  &:dir(rtl) { --slider-direction: to left; }
+}
+.wp input[type="range"]::-webkit-slider-runnable-track {
+  block-size: var(--slider-track-size);
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(var(--slider-direction), var(--slider-fill-color) var(--slider-progress), var(--slider-track-color) var(--slider-progress));
+}
+.wp input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  inline-size: var(--slider-thumb-size);
+  block-size: var(--slider-thumb-size);
+  margin-block-start: calc((var(--slider-track-size) - var(--slider-thumb-size)) / 2);
+  border: 2px solid var(--p-bg);
+  border-radius: 2px;
+  background: var(--p-amb);
+}
+.wp input[type="range"]::-moz-range-track {
+  block-size: var(--slider-track-size);
+  border: 0;
+  background: var(--slider-track-color);
+}
+.wp input[type="range"]::-moz-range-progress {
+  block-size: var(--slider-track-size);
+  background: var(--slider-fill-color);
+}
+.wp input[type="range"]::-moz-range-thumb {
+  inline-size: var(--slider-thumb-size);
+  block-size: var(--slider-thumb-size);
+  border: 2px solid var(--p-bg);
+  border-radius: 2px;
+  background: var(--p-amb);
+}
+.wp input[type="range"]:focus-visible { outline: 2px solid var(--p-amb); outline-offset: 2px; }
+.wp input[type="range"]:disabled { opacity: 0.45; }
