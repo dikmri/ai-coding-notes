@@ -49,7 +49,7 @@ export function binarize(gray, w, h, threshold = 128) {
 }
 
 // 墨の各画素から最も近い白の画素までの距離の 2 乗（Felzenszwalb の厳密な距離変換）
-function distanceSquared(ink, w, h) {
+export function distanceSquared(ink, w, h) {
   const INF = 1e20;
   const d = new Float64Array(w * h);
   for (let i = 0; i < w * h; i++) d[i] = ink[i] ? INF : 0;
@@ -373,7 +373,7 @@ export function traceStrokes(img, opts = {}) {
   const dOut = distanceFrom(regions.outside, w, h, 64);
   lap('領域を数える');
 
-  // 並べる: 外周に触れる筆 → 長い線 → 短い線。各段の中は、いまのペン先から近い順（逆向きも可）
+  // 筆ごとの長さ・記録点の数・外の白に触れる割合（順番は order.mjs が決める）
   for (const st of strokes) {
     let L = 0;
     for (let i = 1; i < st.points.length; i++) L += Math.hypot(st.points[i].x - st.points[i - 1].x, st.points[i].y - st.points[i - 1].y);
@@ -381,28 +381,10 @@ export function traceStrokes(img, opts = {}) {
     st.recorded = simplifiedCount(st.points, 0.5);
     let near = 0;
     for (const p of st.points) if (dOut[Math.round(p.y) * w + Math.round(p.x)] <= p.w / 2 + 2) near++;
-    st.stage = near / st.points.length > 0.5 && L >= 8 ? 0 : L >= longLen ? 1 : 2;
+    st.outside = near / st.points.length;
+    st.kind = 'line';
   }
-  const ordered = [];
-  let pen = { x: 0, y: 0 };
-  for (let stage = 0; stage < 3; stage++) {
-    const rest = strokes.filter((st) => st.stage === stage);
-    while (rest.length) {
-      let bi = 0, bd = Infinity, rev = false;
-      rest.forEach((st, k) => {
-        const a = st.points[0], b = st.points[st.points.length - 1];
-        const da = (a.x - pen.x) ** 2 + (a.y - pen.y) ** 2, db = (b.x - pen.x) ** 2 + (b.y - pen.y) ** 2;
-        if (da < bd) { bd = da; bi = k; rev = false; }
-        if (!st.closed && db < bd) { bd = db; bi = k; rev = true; }
-      });
-      const st = rest.splice(bi, 1)[0];
-      if (rev) st.points.reverse();
-      ordered.push(st);
-      pen = st.points[st.points.length - 1];
-    }
-  }
-  lap('順番を決める');
-  return { strokes: ordered, regions, skeleton: s, timings: t };
+  return { strokes, regions, skeleton: s, timings: t };
 }
 
 // 筆を「円を並べた可変幅のリボン」として塗る（upto 本目まで）。戻り値は塗った画素の 0/1

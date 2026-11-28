@@ -2,7 +2,7 @@
 // node --test probe/linetrace.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { traceStrokes } from './linetrace.mjs';
+import { traceStrokes } from '../reports/ippitsu/js/trace.mjs';
 
 // w x h の白地（0）に、塗る関数 f(x,y) が真の画素を墨（1）にした二値画像
 function canvas(w, h, f) {
