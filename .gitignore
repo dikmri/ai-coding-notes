@@ -8,3 +8,6 @@ node_modules/
 # Rust の GUI の比べ方: ビルドでできるもの
 reports/rust-gui/src/**/target/
 reports/rust-gui/src/tauri-app/src-tauri/gen/
+
+# Python が作る一時ファイル
+__pycache__/

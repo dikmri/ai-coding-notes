@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Claude が作曲した kawaii future bass「わたあめサテライト」と、曲に合わせて動く画面 ― AI コーディングノート</title>
+<meta name="description" content="Claude が作曲し、numpy で音を合成した kawaii future bass の曲と、曲に合わせて動くブラウザの画面を作り、画面なしの Chrome で 1 コマずつ撮って動画にした実験。1 回目のデモで作者に「リズムが一定」と言われ、原因を楽譜から数えて作り直した記録も載せる。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='800'%3EAI%3C/text%3E%3Cpath d='M15 51H49' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="wataame.css">
+<script type="module" src="js/figures.mjs"></script>
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="report">
+<article>
+  <p class="kicker">試せる実験 ・ 2026 年 11 月 28 日（音が出ます）</p>
+  <h1>Claude が作曲した kawaii future bass「わたあめサテライト」と、曲に合わせて動く画面</h1>
+  <p class="lede">作者が YouTube で見つけた動画は、自作の曲を、自作の画面を表示しながら再生するものでした。同じ種類の物を Claude が作れるかを試しました。曲は Claude が作曲し、音も Python と numpy でコードから合成しています。画面はブラウザの Canvas で描き、画面なしの Chrome で 1 コマずつ撮って動画にしました。</p>
+  <p class="lede">1 回目のデモは、作者に「リズムが一定で、ありがち」と言われました。原因を楽譜から数えて確かめ、和音とリズムを作り直しています。その過程もこのページに載せました。</p>
+
+  <figure>
+    <video controls preload="metadata" playsinline poster="img/hero.webp" width="1920" height="1080">
+      <source src="media/wataame.mp4" type="video/mp4">
+    </video>
+    <figcaption>動画「わたあめサテライト」（2 分 3 秒、1920×1080、60 コマ/秒）。音も画面も、生成 AI のサービスを使わずにコードで作りました。</figcaption>
+  </figure>
+  <div class="cta">
+    <a class="go" href="player/">その場で再生する（音が出ます）</a>
+    <span class="small">同じ画面を、ブラウザが音に合わせてその場で描きます。シークもできます。</span>
+  </div>
+
+  <h2 id="what">作ったもの</h2>
+  <div class="table-wrap" tabindex="0">
+    <table class="stack">
+      <caption>作ったものの一覧</caption>
+      <thead><tr><th scope="col">もの</th><th scope="col">中身</th><th scope="col">作り方</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">曲</th><td data-label="中身">2 分。160 BPM（ドラムは半分の速さで刻む）、D メジャー、80 小節</td><td data-label="作り方">楽譜を Python のコードで書き、numpy と scipy で 48 kHz のステレオに合成</td></tr>
+        <tr><th scope="row">画面</th><td data-label="中身">わたあめの衛星が音を受信する、音楽プレーヤー風の画面</td><td data-label="作り方">Canvas 2D に、時刻 t だけで 1 コマを描く関数（renderAt）</td></tr>
+        <tr><th scope="row">動画</th><td data-label="中身">7,380 コマ。H.264 と AAC の mp4</td><td data-label="作り方">画面なしの Chrome（音なし）で 1/60 秒ずつ描いて撮り、ffmpeg で音と合わせる</td></tr>
+        <tr><th scope="row">再生ページ</th><td data-label="中身">音に合わせてその場で描くページ</td><td data-label="作り方">Web Audio で音を鳴らし、出力の時計の時刻で同じ関数を呼ぶ</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>参考にした動画</h3>
+  <p>作者が見つけた動画は <a href="https://www.youtube.com/watch?v=KFA9YZselQ4">「Kawaii BASS [Riddim]」</a>（2026 年 11 月 19 日公開、2 分 52 秒）です。動画はダウンロードせず、ブラウザで音を消して再生し、画面を見ました。</p>
+  <ul>
+    <li>曲は約 148 BPM で、途中でキーが B から E♭ に変わり、最後はテンポを落として終わります。</li>
+    <li>画面は、淡いピンクの単色に青緑を少し差した、音楽の解析画面の形です。五度圏、楽器ごとの波形、スペクトル、譜面、和音の度数と機能が並び、どれも曲の中身を見せる作りでした。</li>
+  </ul>
+  <p>このページの曲と画面は、この動画の旋律・進行・絵柄をまねていません。参考にしたのは「かわいい・未来的・音楽プレーヤー風・曲の中身が見える」という方向だけです。曲名・テンポ・キー・画面の構成は、別の物にしました。</p>
+
+  <h2 id="screen">画面の見どころ</h2>
+  <p>空の色は曲の区間ごとに変わります。Intro は朝焼け、Verse は朝の空、Build は昼、Drop は青空、Break は夕焼けで、2 回目の Drop は夜です。中央の「わたあめ衛星」と右の 3 枚の板が、音に合わせて動きます。</p>
+  <figure>
+    <img src="img/hero.webp" alt="1 回目の Drop の画面。中央にピンクのわたあめの形の衛星があり、目が閉じた笑顔で、口から「ら」「ぴ」「ぱ」のかなの吹き出しが出ている。右に、いまの和音の帯、16 分のリズムの格子、楽器ごとの音量。下に鍵盤。" width="1920" height="1080" loading="lazy">
+    <figcaption>1 回目の Drop（28 小節目）。衛星の口から、いま鳴っているチョップの音節がかなで出ます。</figcaption>
+  </figure>
+  <div class="table-wrap" tabindex="0">
+    <table class="stack">
+      <caption>画面の部品と、動かしている値</caption>
+      <thead><tr><th scope="col">部品</th><th scope="col">動き</th><th scope="col">もとの値</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">衛星の体</th><td data-label="動き">キックで横に広がってつぶれ、スネアで少し跳ねて輪が広がる</td><td data-label="もとの値">キックとスネアの時刻と強さ</td></tr>
+        <tr><th scope="row">衛星の輪郭</th><td data-label="動き">わたあめのようにふくらむ。上が高い音、下が低い音</td><td data-label="もとの値">周波数 48 帯の強さ（1/60 秒ごと）</td></tr>
+        <tr><th scope="row">衛星の口</th><td data-label="動き">あ・い・う・え・お の形に変わる</td><td data-label="もとの値">鳴っているチョップの母音と、声の段の音量</td></tr>
+        <tr><th scope="row">アンテナと月</th><td data-label="動き">拍ごとに光り、月は 1 小節で軌道を 1 周する</td><td data-label="もとの値">拍と小節の位置</td></tr>
+        <tr><th scope="row">太陽電池の板</th><td data-label="動き">サイドチェインで傾き、和音の刻みで光る</td><td data-label="もとの値">サイドチェインの曲線、和音を刻んだ時刻</td></tr>
+        <tr><th scope="row">いまの和音</th><td data-label="動き">和音の帯が右から流れる。帯の長さは和音が続く長さ</td><td data-label="もとの値">和音の名前・度数・ベースの音</td></tr>
+        <tr><th scope="row">リズム</th><td data-label="動き">この小節の 16 分の格子に、声・キック・スネア・ハイハットの音を置く</td><td data-label="もとの値">音符とドラムの時刻</td></tr>
+        <tr><th scope="row">楽器ごとの音量</th><td data-label="動き">10 の段の音量と、サイドチェインの曲線</td><td data-label="もとの値">段ごとに合成した音の音量</td></tr>
+        <tr><th scope="row">鍵盤と泡</th><td data-label="動き">鳴っている音の鍵が光り、そこから泡が上がる</td><td data-label="もとの値">チョップとオルゴールの音の高さ</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="pair">
+    <figure>
+      <img src="img/build.webp" alt="Build の 7 小節目の画面。空は黄色からピンク。いまの和音の帯が細く並び、1 拍ずつ和音が変わっている。リズムの格子は、スネアが 16 分で全部埋まっている。" width="1920" height="1080" loading="lazy">
+      <figcaption>Build の 7 小節目。和音が 1 拍ずつ変わるので、和音の帯が細く並びます。スネアは 16 分で刻んでいます。</figcaption>
+    </figure>
+    <figure>
+      <img src="img/stop.webp" alt="Drop の 8 小節目の画面。衛星の目が「＞＜」の形になり、横に「キュッ」の文字。楽器ごとの音量はほとんど 0 になっている。" width="1920" height="1080" loading="lazy">
+      <figcaption>Drop の 8 小節目は、全体を止めます。おもちゃの「キュッ」に合わせて、衛星が「＞＜」の顔になります。</figcaption>
+    </figure>
+    <figure>
+      <img src="img/break.webp" alt="Break の画面。空は夕焼けの橙から紫。左に大きく Break ブレイク の文字。鍵盤は青い鍵がいくつも光っている。" width="1920" height="1080" loading="lazy">
+      <figcaption>Break。3 連符のオルゴールが鳴り、鍵盤の青い鍵が光ります。</figcaption>
+    </figure>
+    <figure>
+      <img src="img/drop2.webp" alt="2 回目の Drop の画面。夜空に星があり、板は暗い色。衛星はピンクのまま明るく見える。" width="1920" height="1080" loading="lazy">
+      <figcaption>2 回目の Drop は夜空。チップチューンの速いアルペジオが鍵盤を走ります。</figcaption>
+    </figure>
+    <figure>
+      <img src="img/tapestop.webp" alt="1 回目の Drop の最後の画面。全体の色がほとんど灰色になり、衛星は少し下がって目を閉じている。" width="1920" height="1080" loading="lazy">
+      <figcaption>1 回目の Drop の終わりの「テープを止める」演出。音の高さが下がりながら止まり、画面は色が抜けます。</figcaption>
+    </figure>
+    <figure>
+      <img src="img/verse.webp" alt="Verse の画面。空は水色からクリーム色。鍵盤の青い鍵が光り、いまの和音の帯には 2 拍の和音と 4 拍の和音が混ざっている。" width="1920" height="1080" loading="lazy">
+      <figcaption>Verse。カリンバ風の音が鍵盤の青い鍵を光らせます。和音の帯は、2 拍と 4 拍が混ざっています。</figcaption>
+    </figure>
+    <figure>
+      <img src="img/outro.webp" alt="Outro の画面。空は薄いピンクから水色に戻っている。和音は Gmaj7/D で、ベースの線は D2 のまままっすぐ。鍵盤の青い鍵が光っている。" width="1920" height="1080" loading="lazy">
+      <figcaption>Outro。空は朝焼けの色に戻ります。Intro と同じく D を伸ばしたまま和音が動き、最後は Dmaj9 で終わります。</figcaption>
+    </figure>
+    <figure>
+      <img src="img/intro.webp" alt="Intro の画面。空は薄いピンクから水色。和音は Dmaj9 で、ベースは D2 のまま横にまっすぐ伸びている。" width="1920" height="1080" loading="lazy">
+      <figcaption>Intro。ベースは D のまま、上の和音だけが動きます。和音の板のベースの線がまっすぐです。</figcaption>
+    </figure>
+  </div>
+
+  <h2 id="music">曲の作り方</h2>
+  <p>曲は、出来事（どの楽器を、何秒に、どの高さで、どれだけの長さ・強さで鳴らすか）の並びとして Python で書きました。合成する側は、出来事を 1 つずつ音の配列にして、楽器の段（stem）ごとに足し合わせます。生成 AI の作曲・音声のサービスは使っていません。</p>
+
+  <h3>構成</h3>
+  <div class="sections" aria-label="曲の構成。Intro 8 小節、Verse 8、Build 8、Drop 16、Break 8、Build 8、Drop 16、Outro 8">
+    <div class="s-intro" style="flex:8"><b>Intro</b>8</div>
+    <div class="s-verse" style="flex:8"><b>Verse</b>8</div>
+    <div class="s-build" style="flex:8"><b>Build</b>8</div>
+    <div class="s-drop" style="flex:16"><b>Drop</b>16</div>
+    <div class="s-break" style="flex:8"><b>Break</b>8</div>
+    <div class="s-build" style="flex:8"><b>Build</b>8</div>
+    <div class="s-drop" style="flex:16"><b>Drop</b>16</div>
+    <div class="s-outro" style="flex:8"><b>Outro</b>8</div>
+  </div>
+  <p class="small">数字は小節の数。1 小節は 1.5 秒です。</p>
+  <ul>
+    <li><strong>Intro と Outro</strong>: ベースを D のまま伸ばし、上の和音だけを Dmaj9 → Gmaj7 → Em9 → Gm6 と動かします。オルゴールのアルペジオと、こもらせたチョップ（遠くの衛星から届く信号のつもり）で始めます。</li>
+    <li><strong>Verse</strong>: カリンバ風のはじく音と、鈴のメロディ。和音は Dmaj9 → F♯m7・B7 → Em9 → A7sus4・A7 と 2 拍ずつ動く所を混ぜました。</li>
+    <li><strong>Build</strong>: 和音が変わる間隔を 4 拍 → 2 拍 → 1 拍と縮め、スネアを 4 分 → 8 分 → 16 分 → 32 分と細かくします。最後の 1 拍は全体を止め、チョップの「ら・り・る・れ」で Drop へつなぎます。</li>
+    <li><strong>Drop</strong>: 曲の中心です。下の「フック」で説明する 3+3+2 のリズムで、和音・チョップ・ベースが一緒に鳴ります。</li>
+    <li><strong>Break</strong>: テープが止まる演出のあと、1 小節を 3 連符で 12 に分けるノリに変えます。</li>
+  </ul>
+
+  <h3>Drop の和音の進行</h3>
+  <p>和音は 2 拍ごとに変わり、ベースは G → G♯ → A → A♯ → B と半音ずつ上がります。後半は、B7(♭9) で Em9 へ向かい、D メジャーの外から借りた B♭maj7 と C6/9 を通って A7 に戻ります。</p>
+  <div class="chordline" aria-label="Drop の進行。前半 4 小節: Gmaj9、G♯m7♭5、Dmaj9/A、A♯dim7、Bm9、Bm9/A、E9/G♯、Gm6。後半 4 小節: F♯m7、B7♭9、Em9、B♭maj7、C6/9、A7sus4、A7。">
+    <span style="width:4.5rem">Gmaj9<small>IV</small></span><span style="width:4.5rem">G♯ø7<small>♯iv</small></span><span style="width:4.5rem">D/A<small>I</small></span><span style="width:4.5rem">A♯dim7<small>♯v</small></span><span style="width:4.5rem">Bm9<small>vi</small></span><span style="width:4.5rem">Bm9/A<small>vi</small></span><span style="width:4.5rem">E9/G♯<small>II</small></span><span style="width:4.5rem">Gm6<small>iv</small></span>
+  </div>
+  <div class="chordline">
+    <span style="width:4.5rem">F♯m7<small>iii</small></span><span style="width:4.5rem">B7(♭9)<small>VI</small></span><span style="width:9.2rem">Em9<small>ii</small></span><span style="width:4.5rem">B♭maj7<small>♭VI</small></span><span style="width:4.5rem">C6/9<small>♭VII</small></span><span style="width:4.5rem">A7sus4<small>V</small></span><span style="width:4.5rem">A7<small>V</small></span>
+  </div>
+  <p class="small">帯の幅は拍の数に比べています（狭い帯 = 2 拍、広い帯 = 4 拍）。下の小さい字は度数です。</p>
+
+  <h3>フック（3+3+2 のリズム）</h3>
+  <p>1 小節を 16 分で 16 に分け、0・3・6 番目（3+3+2 の食い気味の型）と、10・11・13 番目に音を置きます。この型を、チョップのメロディと和音の刻みとベースで共有しました。1・2・3 小節目は同じ型で、4 小節目は長く伸ばす音で答えます。</p>
+
+  <h3>音色</h3>
+  <div class="table-wrap" tabindex="0">
+    <table class="stack">
+      <caption>楽器ごとの作り方（reports/wataame/src/instruments.py）</caption>
+      <thead><tr><th scope="col">楽器</th><th scope="col">作り方</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">キック</th><td data-label="作り方">サイン波の高さを 520 Hz から 44 Hz へ速く下げ、2 ms の雑音を重ねて少し歪ませる</td></tr>
+        <tr><th scope="row">スネア</th><td data-label="作り方">205 Hz の胴の音、帯域を絞った雑音、9 ms ずつずらした 3 回の手拍子を重ねる</td></tr>
+        <tr><th scope="row">ハイハット</th><td data-label="作り方">6 つの矩形波を重ね、6.5 kHz より下を切る（TR-808 と同じ考え方）</td></tr>
+        <tr><th scope="row">サブベース</th><td data-label="作り方">サイン波に 2 倍と 3 倍の音を少し足す。半音の動きは 50 ms でなめらかにつなぐ</td></tr>
+        <tr><th scope="row">和音（スーパーソー）</th><td data-label="作り方">のこぎり波 7 本の高さを最大 ±22 セントずらし、左右に広げる。PolyBLEP で折り返しの雑音を減らす</td></tr>
+        <tr><th scope="row">揺れる和音</th><td data-label="作り方">音量を 16 分の 3 連符から 32 分へ速めながら揺らし、最後に 2 半音下げる</td></tr>
+        <tr><th scope="row">ボーカルチョップ</th><td data-label="作り方">倍音を 1 本ずつ足す加算合成。倍音ごとの強さを、母音のフォルマントで決める（下で説明）</td></tr>
+        <tr><th scope="row">オルゴール・鈴</th><td data-label="作り方">FM 合成。変調する波の高さを、もとの 5 倍（オルゴール）と 3.5 倍（鈴）にする</td></tr>
+        <tr><th scope="row">カリンバ</th><td data-label="作り方">カープラス・ストロング法（短い雑音を、1 周期の長さで減らしながら繰り返す）</td></tr>
+        <tr><th scope="row">エレピ・ピコピコ</th><td data-label="作り方">エレピは FM（1 倍と 14 倍）、チップチューンは幅 12.5% と 25% の矩形波</td></tr>
+        <tr><th scope="row">効果音</th><td data-label="作り方">キュッ（高さを上げ下げするサイン波）、ぽん、きらきら（高い鈴を左右に散らす）、上がる雑音、逆再生のシンバルとスネア</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>声のように聞こえる音（ボーカルチョップ）</h3>
+  <p>録音した声は使っていません。声帯の音は、高さ f の音と、その 2 倍・3 倍…の倍音の集まりです。口の中の形（声道）が、ある周波数の倍音だけを通しやすくします。この通しやすい所がフォルマントで、母音ごとに位置が違います。そこで、倍音を 1 本ずつサイン波で作り、倍音の周波数でのフォルマントの高さを掛けて足しました。</p>
+  <p>子どもの声に近づけるため、フォルマントを全体に 1.28 倍しています。子音は、r（2 番目のフォルマントを動かし、一瞬だけ音量を下げる）、p・t・k（12 ms の雑音）、n・m（鼻の音から母音へ移る）、y・w（い・う から移る）、h（息の雑音）で作り分けました。音の出だしは下から入れ（しゃくり）、長い音には 0.13 秒後から揺れ（ビブラート）を付けます。</p>
+  <div class="chart" id="fig-vowels-wrap">
+    <div class="vowels" id="fig-vowels"></div>
+    <p class="small">5 つの母音の声道の通りやすさ（横軸は 0〜6 kHz）。下の青い点がフォルマントの位置です。</p>
+  </div>
+  <figure>
+    <img src="img/chops-zoom.webp" alt="Drop の頭の 4 小節の、チョップだけの拡大のスペクトログラム。縦じまの音のかたまりが、3 つ、休み、3 つの間隔で並び、音節ごとに明るい横線（倍音）の強さが違う。ところどころに斜めの線がある。" width="1600" height="440" loading="lazy">
+    <figcaption>チョップだけを拡大したスペクトログラム（Drop の頭の 4 小節、0〜6 kHz）。横線が倍音で、音節ごとに強い倍音の位置が変わります。斜めの線は、前の音からなめらかに高さを移した所です。音のかたまりの間の暗い所が休みです。</figcaption>
+  </figure>
+  <figure>
+    <img src="img/spectrogram.webp" alt="全曲のスペクトログラム。横が時間、縦が周波数。Intro は低い音が少なく、Build で右上がりの線が出て、Drop で全体が明るくなり、Break で暗くなる。" width="1600" height="520" loading="lazy">
+    <figcaption>全曲のスペクトログラム。Build では、和音の高さを上げる右上がりの線が見えます。Drop では全体が明るく（音が多く）なります。</figcaption>
+  </figure>
+
+  <h2 id="redo">1 回目のデモと作り直し</h2>
+  <p>曲は途中で一度、構成と 30 秒ほどのデモを作者に聞いてもらいました。作者の感想は「悪くはないが、ありがちな曲という感じ」「リズムが一定」でした。コード進行がありきたりなのかもしれない、という指摘もありました。</p>
+  <div class="listen">
+    <figure>
+      <figcaption><strong>1 回目のデモ</strong>（Build → Drop、30 秒）</figcaption>
+      <audio controls preload="none" src="media/demo-v1.m4a"></audio>
+    </figure>
+    <figure>
+      <figcaption><strong>2 回目のデモ</strong>（作り直した版）</figcaption>
+      <audio controls preload="none" src="media/demo-v2.m4a"></audio>
+    </figure>
+  </div>
+
+  <h3>楽譜を数えて分かったこと</h3>
+  <p>Claude は音を聞けないので、楽譜を数えて原因を探しました。同じ数え方を、作り直した版にも当てています。</p>
+  <div class="table-wrap" tabindex="0">
+    <table>
+      <caption>1 版と 2 版の楽譜の比べ（Drop は 1 回目の 16 小節）</caption>
+      <thead><tr><th scope="col">数えた項目</th><th scope="col">1 版</th><th scope="col">2 版</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">和音の数（種類）</th><td class="num">85（11）</td><td class="num">123（22）</td></tr>
+        <tr><th scope="row">ちょうど 4 拍続く和音の割合</th><td class="num">85%</td><td class="num">33%</td></tr>
+        <tr><th scope="row">同じ 6 和音の並びの使い回し</th><td class="num">8 回</td><td class="num">4 回（Drop の中だけ）</td></tr>
+        <tr><th scope="row">Drop でチョップが鳴っている 16 分の割合</th><td class="num">100%</td><td class="num">71%</td></tr>
+        <tr><th scope="row">Drop のチョップの休み</th><td class="num">0 か所</td><td class="num">51 か所</td></tr>
+        <tr><th scope="row">拍の頭で始まるチョップの音</th><td class="num">64</td><td class="num">29</td></tr>
+        <tr><th scope="row">チョップの強さの種類</th><td class="num">1</td><td class="num">27</td></tr>
+        <tr><th scope="row">Drop のキックとスネアの型の種類</th><td class="num">2</td><td class="num">6</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>1 版では、次のことが同時に起きていました。和音が毎小節同じ長さで変わり、メロディは休みなく 16 分で埋まり、毎拍の頭に必ず音がありました。サイドチェインも毎拍同じ深さで 64 回揺れていました。全部の周期が 1 拍か 1 小節にそろうため、作者の言う「一定」に聞こえたと考えられます。和音の頭の 4 つ（IV–V–iii–vi）は、J-POP で最もよく使われる「王道進行」で、同じ並びを Intro・Build・Drop・Break のすべてで使っていました。</p>
+  <p>その手前の原因は、作り方の順番です。1 版は、future bass によく使われる部品（王道進行、毎拍のサイドチェイン、16 分の刻み、スーパーソー）を先に並べ、この曲だけのリズムの型を決めていませんでした。2 版では、フックのリズムを最初に決め、和音・チョップ・ベース・ドラムをその型に合わせて書き直しました。</p>
+
+  <div class="chart" id="fig-lengths">
+    <div class="legend"><span><i class="s1"></i>1 版</span><span><i class="s2"></i>2 版</span></div>
+  </div>
+  <p class="small">和音が続く拍の数の割合。1 版は 4 拍（1 小節）がほとんどで、2 版は 2 拍が中心です。</p>
+
+  <div class="chart">
+    <div class="legend"><span><i class="s1"></i>1 版の Drop の頭の 4 小節</span></div>
+    <div id="fig-grid-v1"></div>
+    <div class="legend"><span><i class="s2"></i>2 版の Drop の頭の 4 小節</span></div>
+    <div id="fig-grid-v2"></div>
+  </div>
+  <p class="small">1 版は、声が 16 分で切れ目なく並び、和音は 1 小節ずつ伸びます。2 版は、声と和音が 3+3+2 の同じ所で鳴り、間に休みがあります。</p>
+
+  <div class="chart" id="fig-pump">
+    <div class="legend"><span><i class="s1"></i>1 版（毎拍同じ形）</span><span><i class="s2"></i>2 版（キックの所だけ下がる）</span></div>
+  </div>
+  <p class="small">サイドチェインで和音の音量が下がる様子（Drop の頭の 2 小節、1.0 = 下げない）。2 版はキックの位置（下の点）で下がるので、下がる間隔が 1 小節の中で変わります。</p>
+
+  <h2 id="mix">ミックスの判断（耳の代わりに測る）</h2>
+  <p>音量の釣り合いは、聞いて決められません。そこで、楽器の段（キック・スネア・ハイハット・シェイカー・ベース・和音・鈴・声・鍵盤・効果音）を別々に合成しました。段ごとに Drop の区間のラウドネス（ITU-R BS.1770 の LUFS）を測り、目標の値になるように音量を決めています。目標は、キック -13、ベース -14.8、和音 -14、声 -15、スネア -15 LUFS のように、低音と主役の段を大きく、ハイハットと鈴を小さくしました。</p>
+  <p>最後の段では、26 Hz より下を切り、ゆるく圧縮し（1.8 : 1）、tanh で少し丸め、先読みのリミッターで -1.7 dBFS に抑えます。全体の統合ラウドネスは -9.5 LUFS、真のピーク（4 倍に増やした点で測った値）は -1.53 dBTP です。</p>
+  <h3>直した所: 高い音とこもり</h3>
+  <p>最初の書き出しを 1/3 オクターブごとに測ると、12 kHz より上が 1 kHz とほぼ同じ強さでした。ふつうの曲より 8 dB ほど多く、「シャー」という音になります。段ごとに測ると、スネアのざらつきの成分が原因でした。12 kHz より上の量が、スネア自身の中音域より大きかったのです。上限のフィルターを付けると、16 kHz は -2.2 dB から -15.4 dB に下がりました。250 Hz 付近の盛り上がりはスネアの胴の音で、胴の音を弱めて少し高くしました。</p>
+  <div class="chart" id="fig-spectrum">
+    <div class="legend"><span><i class="s1"></i>直す前</span><span><i class="s2"></i>直した後</span></div>
+  </div>
+  <p class="small">1/3 オクターブの配分（1 kHz を 0 dB とした値、Build と Drop の 30 秒）。直す前は 12 kHz より上が高いままで、直した後は右下がりになります。</p>
+
+  <h2 id="video">画面と動画の作り方</h2>
+  <ol class="steps">
+    <li><strong>楽譜から音を作る（render.py、約 28 秒）</strong>score.py の出来事を音にし、楽器の段ごとの音と、全体の WAV を書き出します。</li>
+    <li><strong>画面が読むデータを作る（export.py、約 8 秒）</strong>和音・音符・ドラム・効果音の時刻を score.json に、1/60 秒ごとの 61 個の値（段ごとの音量・左右・サイドチェイン・周波数 48 帯）を levels.bin に書きます。配信用の音（AAC）も作ります。</li>
+    <li><strong>時刻 t だけで 1 コマを描く（stage.mjs）</strong>前のコマの状態を持たず、泡やきらきらも、もとの音の時刻から位置を計算します。乱数も時刻から作るので、同じ t からは毎回同じ絵になります。1 コマの描画は、中央値 1.2 ms でした。</li>
+    <li><strong>再生ページは、音の時計で描く（player.mjs）</strong>Web Audio で音を鳴らし、<code>getOutputTimestamp()</code> で「いまスピーカーから出ている時刻」を求め、その t で描きます。出力の遅れの分だけ、画面が音より先に進むのを防ぎます。</li>
+    <li><strong>動画は 1 コマずつ撮る（capture.mjs）</strong>画面なしの Chrome（音なし）でページを撮影モードで開き、t = 0、1/60、2/60… と描いて JPEG で受け取り、ffmpeg に流します。音は元の WAV を使うので、音と絵はずれません。7,380 コマを 5 分 22 秒で撮りました。最初は画質の設定を CRF 20 にして 53 MB になったので、文字の輪郭を確かめたうえで CRF 27（25 MB）にしました。</li>
+  </ol>
+
+  <h2 id="try">すぐ試す手順</h2>
+  <ol class="steps">
+    <li><strong>聞いて、見る</strong>このページの上の動画か、<a href="player/">再生ページ</a>で再生します。再生ページでは、スペースキーで再生と一時停止、← → で 5 秒ずつ動きます。</li>
+    <li><strong>手元で曲を作り直す</strong>Python 3.12 以上と numpy・scipy・Pillow、ffmpeg を用意します。リポジトリの一番上で次を動かすと、build/wataame/wataame.wav と画面のデータができます。
+<pre class="code">git clone https://github.com/dikmri/ai-coding-notes.git
+cd ai-coding-notes
+python reports/wataame/src/render.py      # 曲を合成（uv の場合は uv run reports/wataame/src/render.py）
+python reports/wataame/src/export.py      # 画面のデータと配信用の音
+node tools/serve.mjs 8798                 # http://localhost:8798/reports/wataame/player/ を開く</pre></li>
+    <li><strong>曲を自分の物に変える</strong>reports/wataame/src/score.py を書き換えます。たとえば、フックのリズムは <code>STAB_R1</code> と <code>HOOK</code>、Drop の進行は <code>PHRASE_A</code> と <code>PHRASE_B</code>、ドラムの型は <code>GROOVES</code> です。1 小節を 16 分で 16 に分けた位置で書きます。
+<pre class="code"># 例: 和音を刻む型を 3+3+2+3+3+2 に変える（始まり, 長さ）
+STAB_R1 = [(0, 3), (3, 3), (6, 2), (8, 3), (11, 3), (14, 2)]</pre>書き換えたら、上の render.py と export.py をもう一度動かします。30 秒だけ試すときは <code>--demo</code> を付けると、build/wataame/demo.wav に Build と Drop の頭を切り出します。</li>
+    <li><strong>自分のアニメーションを動画にする</strong>この作りは、ほかの Canvas のアニメーションにも使えます。要るのは「時刻 t を受け取って 1 コマを描く関数」だけです。
+<pre class="code">// ページの側: 時刻だけで描く関数を出しておく
+window.renderAt = (t) => { draw(ctx, t); return canvas.toDataURL('image/jpeg', 0.93); };
+
+// 撮る側（Node と Chrome の開発用の通信）: 1/60 秒ずつ描いて ffmpeg へ流す
+for (let i = 0; i &lt; frames; i++) {
+  const url = await evaluate(`renderAt(${i / 60})`);
+  ffmpeg.stdin.write(Buffer.from(url.split(',')[1], 'base64'));
+}
+// ffmpeg -f image2pipe -framerate 60 -c:v mjpeg -i - -i song.wav -c:v libx264 -pix_fmt yuv420p -c:a aac out.mp4</pre>このリポジトリの <code>reports/wataame/tools/capture.mjs</code> が、そのまま使える完全な版です。<code>node reports/wataame/tools/capture.mjs --port 8798 --video</code> で動画を、<code>--shots 40.6</code> でその時刻の静止画を作ります。</li>
+  </ol>
+
+  <h2 id="limits">限界</h2>
+  <ul>
+    <li><strong>Claude は音を聞いていません。</strong>ミックスは、ラウドネス・周波数の配分・スペクトログラム・雑音の機械的な検出で決めました。聞いた印象の判断は、作者の 2 回の感想だけです。</li>
+    <li>ボーカルチョップは合成の声です。歌手の録音を刻んだ物のような息づかいや質感はありません。</li>
+    <li>参考の動画の音は解析していません。見たのは画面だけで、音は消していました。</li>
+    <li>再生ページは Chrome で確かめました。Safari と Firefox での再生と、スマートフォンでの描画の速さは確かめていません。</li>
+    <li>画面の書体（M PLUS Rounded 1c）は Google Fonts から読みます。読めないときは、端末にある丸い書体か、ふつうのゴシック体で描きます。</li>
+    <li>動画は 1 つの mp4 で 25 MB あります（画質の設定 CRF 27）。回線が遅いと読み込みに時間がかかります。</li>
+  </ul>
+
+  <h2 id="files">使った道具とファイル</h2>
+  <div class="table-wrap" tabindex="0">
+    <table class="stack">
+      <caption>道具とファイル（場所はリポジトリの一番上から）</caption>
+      <thead><tr><th scope="col">もの</th><th scope="col">内容</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">reports/wataame/src/score.py</th><td data-label="内容">楽譜（区間・和音・メロディ・ドラムの型・効果音）。1 版は score_v1.py</td></tr>
+        <tr><th scope="row">reports/wataame/src/instruments.py、dsp.py</th><td data-label="内容">楽器と、発振器・フィルター・残響・ラウドネスの測定・リミッター</td></tr>
+        <tr><th scope="row">reports/wataame/src/render.py、export.py、figures.py</th><td data-label="内容">合成、画面のデータ、このページの図</td></tr>
+        <tr><th scope="row">reports/wataame/js/stage.mjs、player.mjs</th><td data-label="内容">画面の描画と、再生ページ</td></tr>
+        <tr><th scope="row">reports/wataame/tools/capture.mjs</th><td data-label="内容">画面なしの Chrome で撮って mp4 にする道具</td></tr>
+        <tr><th scope="row">道具の版</th><td data-label="内容">Python 3.13、numpy 2.4、scipy 1.16、Pillow 13、Node.js 24、Chrome 158（画面なし）、ffmpeg 8 系</td></tr>
+        <tr><th scope="row">作った AI</th><td data-label="内容">Claude（Opus 5.5）。作曲・合成・画面・動画・この文章</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="foot">2026 年 11 月 28 日。<a href="../">実験レポートの一覧へ戻る</a> ・ <a href="../../">図鑑の表紙へ</a></p>
+</article>
+</main>
+</body>
+</html>

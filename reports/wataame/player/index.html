@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>わたあめサテライト（その場で再生）― AI コーディングノート</title>
+<meta name="description" content="Claude が作曲し、コードで合成した kawaii future bass の曲「わたあめサテライト」を、曲に合わせて動く画面と一緒にその場で再生するページ。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='%23fff' font-family='sans-serif' font-weight='800'%3EAI%3C/text%3E%3Cpath d='M15 51H49' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@600;700;800&display=swap">
+<link rel="stylesheet" href="player.css">
+<script type="module" src="../js/player.mjs"></script>
+</head>
+<body>
+<main class="player">
+  <nav class="back" aria-label="戻る"><a href="../">レポートへ戻る</a></nav>
+  <h1 class="visually-hidden">わたあめサテライト（その場で再生）</h1>
+  <div class="frame">
+    <canvas id="stage" width="1920" height="1080" role="img"
+      aria-label="曲に合わせて動く画面。中央のわたあめの衛星が、キックでつぶれ、周波数で輪郭がふくらみ、声のチョップの母音に合わせて口を動かす。右に、いまの和音、16 分のリズム、楽器ごとの音量。下に鍵盤。"></canvas>
+  </div>
+  <div class="controls">
+    <button type="button" id="play" class="play" disabled>再生</button>
+    <button type="button" id="restart" disabled>最初から</button>
+    <label class="seek-wrap">
+      <span class="visually-hidden">再生位置</span>
+      <input type="range" id="seek" min="0" max="120" step="0.01" value="0" disabled>
+    </label>
+    <span id="time" class="time" aria-hidden="true">0:00 / 2:00</span>
+    <label class="vol-wrap">
+      <span>音量</span>
+      <input type="range" id="volume" min="0" max="100" step="1" value="80">
+    </label>
+  </div>
+  <p id="status" class="status" role="status">データを読んでいます…</p>
+  <p id="now" class="now" aria-live="polite"></p>
+  <p class="hint">スペースキーで再生と一時停止、← → で 5 秒ずつ動きます。音が出ます。</p>
+</main>
+</body>
+</html>

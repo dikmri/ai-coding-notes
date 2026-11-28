@@ -1,0 +1,132 @@
+:root {
+  --ink: #26305c;
+  --ink-2: #5a6187;
+  --paper: #fff8f1;
+  --card: #ffffff;
+  --rule: #e7dfe8;
+  --accent: #e2477f;
+  --accent-ink: #ffffff;
+  --track: #d9d2e3;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #f4efff;
+    --ink-2: #b9b4d6;
+    --paper: #141831;
+    --card: #1e2346;
+    --rule: #343a66;
+    --accent: #ff7eb6;
+    --accent-ink: #1b1530;
+    --track: #4a4f7d;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  font-size-adjust: from-font;
+  line-height: 1.6;
+}
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+.player { max-inline-size: 1600px; margin-inline: auto; padding: 16px 16px 40px; }
+.back { margin-block-end: 10px; font-weight: 700; }
+.back a { color: var(--ink); }
+.frame {
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 10px 40px rgb(40 30 90 / 0.18);
+  background: #f9d7e6;
+}
+#stage { display: block; inline-size: 100%; block-size: auto; aspect-ratio: 16 / 9; }
+.controls {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px;
+  margin-block-start: 14px; padding: 12px 16px;
+  background: var(--card); border: 1px solid var(--rule); border-radius: 16px;
+}
+button {
+  font: inherit; font-weight: 800; color: var(--ink);
+  background: transparent; border: 2px solid var(--rule); border-radius: 999px;
+  padding: 8px 18px; min-block-size: 44px; cursor: pointer;
+}
+button.play { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); min-inline-size: 7.5em; }
+button:disabled { opacity: 0.5; cursor: progress; }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.seek-wrap { flex: 1 1 260px; display: flex; }
+.time { font-weight: 800; font-variant-numeric: tabular-nums; min-inline-size: 7.5em; }
+.vol-wrap { display: flex; align-items: center; gap: 8px; font-weight: 700; white-space: nowrap; }
+.vol-wrap input { inline-size: 120px; }
+
+/* 本来の range を使い、つまみと溝だけを整える（WebKit と Firefox は別の規則にする） */
+input[type="range"] {
+  --slider-track-size: 0.6rem;
+  --slider-thumb-size: 1.35rem;
+  --slider-track-color: var(--track);
+  --slider-fill-color: var(--accent);
+  --slider-direction: to right;
+  --attr-min: 0;
+  --attr-max: 100;
+  --control-value: 0;
+  --slider-progress: calc((var(--control-value) - var(--attr-min)) / (var(--attr-max) - var(--attr-min)) * 100%);
+  appearance: none;
+  inline-size: 100%;
+  block-size: 2.5rem;
+  margin: 0; padding: 0; border: 0; border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+  &:dir(rtl) { --slider-direction: to left; }
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  block-size: var(--slider-track-size);
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(var(--slider-direction), var(--slider-fill-color) var(--slider-progress), var(--slider-track-color) var(--slider-progress));
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  inline-size: var(--slider-thumb-size);
+  block-size: var(--slider-thumb-size);
+  margin-block-start: calc((var(--slider-track-size) - var(--slider-thumb-size)) / 2);
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: var(--slider-fill-color);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.25);
+}
+input[type="range"]::-moz-range-track {
+  block-size: var(--slider-track-size);
+  border: 0;
+  border-radius: 999px;
+  background: var(--slider-track-color);
+}
+input[type="range"]::-moz-range-progress {
+  block-size: var(--slider-track-size);
+  border-radius: 999px;
+  background: var(--slider-fill-color);
+}
+input[type="range"]::-moz-range-thumb {
+  inline-size: var(--slider-thumb-size);
+  block-size: var(--slider-thumb-size);
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: var(--slider-fill-color);
+}
+input[type="range"]:focus-visible { outline: 3px solid var(--slider-fill-color); outline-offset: 4px; }
+input[type="range"]:disabled { opacity: 0.5; }
+
+.status { min-block-size: 1.6em; margin: 10px 4px 0; color: var(--ink-2); font-weight: 700; }
+.now { margin: 2px 4px; font-weight: 800; }
+.hint { margin: 2px 4px; color: var(--ink-2); font-size: 0.9rem; }
+
+/* 動画の撮影（?capture=1）: 1920×1080 の Canvas だけを出す */
+.capture body { background: #000; }
+.capture .player { max-inline-size: none; padding: 0; }
+.capture .back, .capture .controls, .capture .status, .capture .now, .capture .hint { display: none; }
+.capture .frame { border-radius: 0; box-shadow: none; inline-size: 1920px; block-size: 1080px; }
+.capture #stage { inline-size: 1920px; block-size: 1080px; }
