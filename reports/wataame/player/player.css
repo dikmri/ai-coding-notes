@@ -1,6 +1,8 @@
 /* プレーヤーだけのページ: いつも「ページいっぱい」の形（部品の見た目は ../player-ui.css） */
 * { box-sizing: border-box; }
 html, body { block-size: 100%; }
+/* 拡張機能などがページの末尾に何かを足しても、スクロールを出さない（プレーヤーは画面に固定してある） */
+html { overflow: hidden; }
 body { margin: 0; background: #07090b; color-scheme: dark; }
 
 /* 動画の撮影（?capture=1）: 1920×1080 の Canvas だけを出す */

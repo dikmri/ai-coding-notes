@@ -141,6 +141,11 @@ try {
     const fits = o.sw <= o.iw + 1 && o.sh <= o.ih + 1 && o.c[0] >= 0 && o.c[1] >= 0 && o.c[2] <= o.iw && o.c[3] <= o.ih;
     ok(`再生ページ: ${w}×${h} で 1 画面に収まる`, fits, `scroll=${o.sw}×${o.sh} canvas=${o.c.join(',')}`);
   }
+  // ページの末尾に 21 px の要素が足されても（作者の Chrome で起きた）、スクロールが出ない
+  await page.send('Emulation.setDeviceMetricsOverride', { width: 1920, height: 945, deviceScaleFactor: 1, mobile: false });
+  await sleep(300);
+  const extra = await page.evaluate(`(() => { const d = document.createElement('div'); d.textContent = '拡張機能が足した行'; d.style.height = '21px'; document.body.append(d); const se = document.scrollingElement; const r = { sh: se.scrollHeight, ih: innerHeight, sw: se.scrollWidth, iw: innerWidth, overflowY: getComputedStyle(document.documentElement).overflowY }; d.remove(); return r; })()`);
+  ok('再生ページ: 末尾に要素が足されてもスクロールが出ない', extra.overflowY === 'hidden' || (extra.sh <= extra.ih + 1 && extra.sw <= extra.iw + 1), JSON.stringify(extra));
   // 青い箱（サイドチェインの曲線のグラフ）を外したこと: 描画のコードに、その見出しも pump の値の読み出しも無い
   const src = await page.evaluate(`fetch('../js/stage.mjs').then((r) => r.text())`);
   ok('再生ページ: サイドチェインの青い箱を描く部分が無い', !src.includes('サイドチェイン') && !src.includes("'pump'"));
