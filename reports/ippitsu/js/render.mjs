@@ -37,6 +37,30 @@ export function fillStroke(ctx, pts, a, b, s) {
   ctx.fill();
 }
 
+// スクリーントーンの 1 枚（面）: 点ごとに網点の円を描く。1 回の塗りで済ませる
+export function fillDots(ctx, pts, a, b, s) {
+  ctx.beginPath();
+  for (let q = a; q < b; q++) {
+    const x = pts[q * 3] * s, y = pts[q * 3 + 1] * s, r = Math.max(0.25, (pts[q * 3 + 2] / 2) * s);
+    ctx.moveTo(x + r, y);
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+  }
+  ctx.fill();
+}
+
+// ベタの縁を整える 1 枚: 輪郭の多角形を even-odd で塗る。輪の区切りは w = -1 の点
+export function fillPolygon(ctx, pts, a, b, s) {
+  ctx.beginPath();
+  let start = true;
+  for (let q = a; q < b; q++) {
+    if (pts[q * 3 + 2] === -1) { ctx.closePath(); start = true; continue; }
+    const x = pts[q * 3] * s, y = pts[q * 3 + 1] * s;
+    if (start) { ctx.moveTo(x, y); start = false; } else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill('evenodd');
+}
+
 // 描いている途中の筆の 1 区間（端は丸い線）
 export function drawSegment(ctx, x0, y0, w0, x1, y1, w1, s) {
   ctx.lineWidth = Math.max(0.6, ((w0 + w1) / 2) * s);

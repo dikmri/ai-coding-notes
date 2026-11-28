@@ -1,7 +1,7 @@
 // 一筆ずつ描くペン画のプレーヤー。画像を読み、Web Worker で筆の列を作り、Canvas に一筆ずつ描く。
 // 画像はこのブラウザの中だけで処理する（送信しない）。手元で開いたときだけ操作の記録を logs/app.log へ送る。
 import { log, watchErrors } from './log.mjs';
-import { fillStroke, drawSegment } from './render.mjs';
+import { fillStroke as fillRibbon, fillDots, fillPolygon, drawSegment } from './render.mjs';
 import { toSVG, addPngText, PROGRAM_NOTE } from './export.mjs';
 
 const SAMPLES = {
@@ -128,6 +128,8 @@ function start() {
     const stageStart = [];
     for (let i = 0, s = -1; i < n; i++) if (msg.stage[i] !== s) { s = msg.stage[i]; stageStart[s] = i; }
     data = { ...msg, n, cum, stageStart };
+    KIND_OF.clear();
+    for (let k = 0; k < n; k++) KIND_OF.set(msg.off[k], k);
     setBusy(false); // data を入れてから。先に呼ぶとボタンが無効のまま残る
     // 確かめの台本（tools/check.mjs）が読む値
     Object.assign(root.dataset, { strokes: String(n), hatch: String(msg.info.hatchCount), mode: msg.info.mode, ms: String(Math.round(msg.ms)), size: `${msg.info.w}x${msg.info.h}`, job: String(msg.id) });
@@ -172,7 +174,17 @@ function start() {
   }
 
   // 層の表示（筆の種類ごと。0 = 主線、1 = 斜線、2 = 点描、3 = ベタ）。非表示の層は描かずに進む
-  const visible = [true, true, true, true];
+  const visible = [true, true, true, true, true]; // 4 = トーン
+  // 筆 1 本を塗る。トーン（種類 4）は網点の円、ベタの縁（種類 3 の level 1）は輪郭の多角形、それ以外は線のリボン
+  const KIND_OF = new Map();
+  const isPoly = (k) => data.kind[k] === 3 && data.level[k] === 1;
+  const isAtomic = (k) => data.kind[k] === 4 || isPoly(k); // 面ごとにまとめて描く筆
+  function fillStroke(c, pts, a, b, s) {
+    const k = data ? KIND_OF.get(a) ?? -1 : -1;
+    if (k >= 0 && data.kind[k] === 4) fillDots(c, pts, a, b, s);
+    else if (k >= 0 && isPoly(k)) fillPolygon(c, pts, a, b, s);
+    else fillRibbon(c, pts, a, b, s);
+  }
   const shown = (k) => visible[data.kind[k]] !== false;
 
   function redraw() {
@@ -203,6 +215,15 @@ function start() {
       // 非表示の層の筆は、時間だけ進めて描かない
       const show = shown(st.i);
       const drawSeg = show ? drawSegment : () => {};
+      // トーンとベタの縁は面ごとに 1 枚: 時間がたまったら、面をまとめて描く
+      if (isAtomic(st.i)) {
+        if (budget >= rest) {
+          if (show) fillStroke(ctx, pts, a, b, scale);
+          budget -= rest + PEN_LIFT_PX;
+          nextStroke(b - 1);
+        } else { st.arc += budget; budget = 0; }
+        continue;
+      }
       if (st.j === 0 && st.arc === 0 && budget >= len[st.i] + PEN_LIFT_PX) {
         if (show) fillStroke(ctx, pts, a, b, scale); // 1 フレームで丸ごと描ける筆は 1 回で塗る
         budget -= len[st.i] + PEN_LIFT_PX;
@@ -393,11 +414,12 @@ function start() {
       let wMin = Infinity, wMax = 0;
       for (let q = a; q < b; q++) { wMin = Math.min(wMin, pts[q * 3 + 2]); wMax = Math.max(wMax, pts[q * 3 + 2]); }
       set('no', `${fmt(k + 1)}`);
-      set('kind', kind[k] === 3 ? (data.level[k] ? 'ベタの縁（ペン）' : 'ベタ（筆）')
+      set('kind', kind[k] === 4 ? (data.level[k] ? `トーン ${data.level[k]}%` : 'グラデーショントーン')
+        : kind[k] === 3 ? (data.level[k] ? 'ベタの縁（輪郭で整える）' : 'ベタ（筆）')
         : kind[k] === 2 ? '点描の点' : kind[k] === 1 ? `斜線 ${data.level[k] + 1} 段目` : `線（${data.info.stages[stage[k]]}）`);
       set('pts', `${fmt(b - a)} 個`);
       set('len', `${len[k].toFixed(1)} px`);
-      set('w', `${wMin.toFixed(2)}〜${wMax.toFixed(2)} px`);
+      set('w', isPoly(k) ? '—（面）' : `${wMin.toFixed(2)}〜${wMax.toFixed(2)} px`);
       set('from', `${pts[a * 3].toFixed(1)}, ${pts[a * 3 + 1].toFixed(1)}`);
       set('to', `${pts[(b - 1) * 3].toFixed(1)}, ${pts[(b - 1) * 3 + 1].toFixed(1)}`);
     }
@@ -428,14 +450,15 @@ function start() {
   }
 
   // ---------------- 書き出し（表示している層だけ）
-  const shownLayers = () => ['主線', '斜線', '点描', 'ベタ'].filter((_, k) => visible[k] && layerCount[k] > 0);
+  const LAYER_NAMES = ['主線', '斜線', '点描', 'ベタ', 'トーン'];
+  const shownLayers = () => LAYER_NAMES.filter((_, k) => visible[k] && layerCount[k] > 0);
   function strokesForExport() {
     const out = [];
     for (let k = 0; k < data.n; k++) {
       if (!shown(k)) continue;
       const points = [];
       for (let q = data.off[k]; q < data.off[k + 1]; q++) points.push({ x: data.pts[q * 3], y: data.pts[q * 3 + 1], w: data.pts[q * 3 + 2] });
-      out.push({ points });
+      out.push({ points, dots: data.kind[k] === 4, poly: isPoly(k) });
     }
     return out;
   }
@@ -475,7 +498,7 @@ function start() {
 
   // ---------------- 層の表示の切り替え
   const layerBoxes = [...root.querySelectorAll('#ip-layers input[data-kind]')];
-  const layerCount = [0, 0, 0, 0];
+  const layerCount = [0, 0, 0, 0, 0];
   // 描き順ができたら、描いた層だけ選べるようにする（描いていない層は押せない）
   function updateLayerControls() {
     layerCount.fill(0);
@@ -490,7 +513,7 @@ function start() {
     box.addEventListener('change', () => {
       const k = Number(box.dataset.kind);
       visible[k] = box.checked;
-      log('layer', { layer: ['主線', '斜線', '点描', 'ベタ'][k], on: box.checked, strokes: layerCount[k] });
+      log('layer', { layer: LAYER_NAMES[k], on: box.checked, strokes: layerCount[k] });
       if (data) redraw();
     });
   }

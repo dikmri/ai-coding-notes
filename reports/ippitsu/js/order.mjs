@@ -7,16 +7,18 @@ import { strokeLength } from './pen.mjs';
 export const STAGES = {
   photo: ['長い輪郭', '中くらいの線', '短い線', '斜線'],
   photoBeta: ['長い輪郭', '中くらいの線', '短い線', 'ベタ', '点描'], // ベタ（kind 'fill'）があるとき
+  photoManga: ['長い輪郭', '中くらいの線', '短い線', 'ベタ', 'トーン'], // 漫画原稿（トーン = kind 'tone'）
   lineart: ['外周', '長い線', '短い線'],
 };
 
 export function orderStrokes(strokes, { mode = 'photo', longLen = 80, midLen = 25, start = { x: 0, y: 0 } } = {}) {
-  const hasFill = mode === 'photo' && strokes.some((s) => s.kind === 'fill');
+  const hasFill = mode === 'photo' && strokes.some((s) => s.kind === 'fill' || s.kind === 'tone');
   for (const s of strokes) {
     const L = s.length ?? strokeLength(s.points);
     s.length = L;
     if (mode === 'lineart') s.stage = (s.outside ?? 0) > 0.5 && L >= 8 ? 0 : L >= longLen ? 1 : 2;
     else if (s.kind === 'fill') s.stage = 3;
+    else if (s.kind === 'tone') s.stage = 4;
     else if (s.kind === 'dot') s.stage = hasFill ? 4 : 3;
     else s.stage = s.kind === 'hatch' ? 3 : L >= longLen ? 0 : L >= midLen ? 1 : 2;
   }

@@ -252,6 +252,26 @@ try {
     const onlyBeta = await page.evaluate(`[...document.querySelectorAll('#m-stages .ip-sname')].map((e) => e.textContent).join('/')`);
     const lineDisabled = await page.evaluate(`document.getElementById('ip-show-line').disabled && document.getElementById('ip-show-dot').disabled && !document.getElementById('ip-show-fill').disabled`);
     ok('「ベタだけ」では、ベタの段だけを描き、主線と点描の表示は押せない', onlyBeta === 'ベタ' && +(await ds('hatch')) === 0 && lineDisabled, `段 ${onlyBeta}、筆 ${await ds('strokes')}`);
+    // 漫画原稿: 線 → ベタ → トーン の段で描き、トーンの層を消すと網点が消える。トーンだけ表示して書き出すと SVG に網点のまとまりが出る
+    prev = await ds('job');
+    await setStyle('manga');
+    await waitJob(prev, 30000);
+    const mangaStages = await page.evaluate(`[...document.querySelectorAll('#m-stages .ip-sname')].map((e) => e.textContent).join('/')`);
+    const toneEnabled = await page.evaluate(`!document.getElementById('ip-show-tone').disabled && document.getElementById('ip-show-dot').disabled`);
+    await page.evaluate(`document.getElementById('ip-end').click()`);
+    await sleep(600);
+    const mangaKind = await page.evaluate(`document.querySelector('#m-cur [data-k="kind"]').textContent`);
+    await shot('manga-finished');
+    const mAll = await dark();
+    await setLayer('ip-show-tone', false);
+    await sleep(300);
+    const mNoTone = await dark();
+    await shot('manga-no-tone');
+    ok('「漫画原稿」では、線 → ベタ → トーン の順に描き、トーンを消すと網点が消える', mangaStages === '長い輪郭/中くらいの線/短い線/ベタ/トーン' && toneEnabled && /トーン/.test(mangaKind) && mNoTone.any < mAll.any * 0.85,
+      `段 ${mangaStages}、最後の筆 ${mangaKind}、墨のある画素 ${(mAll.any * 100).toFixed(1)}% → トーンなし ${(mNoTone.any * 100).toFixed(1)}%`);
+    await setLayer('ip-show-tone', true);
+    // 処理の時間（漫画原稿）
+    ok('「漫画原稿」の処理は 6 秒以内', +(await ds('ms')) < 6000, `${await ds('ms')} ms`);
     prev = await ds('job');
     await setStyle('beta-stipple-only');
     await waitJob(prev, 30000);

@@ -10,7 +10,8 @@ import { hatchStrokes, hatchHuman } from './hatch.mjs';
 import { stippleDots } from './stipple.mjs';
 import { betaRegions, betaStrokes } from './beta.mjs';
 import { orderStrokes, STAGES } from './order.mjs';
-import { penProfile } from './pen.mjs';
+import { penProfile, strokeLength } from './pen.mjs';
+import { joinStrokes, fairPath, gpenWidths, screenTones } from './manga.mjs';
 
 // 8 近傍でつながった墨のかたまりのうち、面積が minArea 未満のものを消す（写真から出る点のような線）
 export function removeSpecks(ink, w, h, minArea) {
@@ -60,6 +61,7 @@ export const DEFAULTS = {
   hatchDensity: 0.5, // 0〜1。大きいほど斜線が増える
   // 'hand'（人の斜線）| 'grid'（格子。前の方式）| 'stipple'（点描）| 'stipple-only'（点描だけ。主線なし）
   // | 'beta-stipple'（ベタと点描）| 'beta-stipple-only'（ベタと点描だけ。主線なし）| 'beta-only'（ベタだけ）
+  // | 'manga'（漫画原稿: G ペンの線・ベタ・スクリーントーン）
   hatchStyle: 'hand',
 };
 
@@ -72,7 +74,8 @@ export function drawPlan(rgba, w, h, options = {}) {
   const mode = o.mode === 'auto' ? (isLineArt(rgba, w, h) ? 'lineart' : 'photo') : o.mode;
   const gray = luminance(rgba, w, h);
   lap('見分ける');
-  let ink, flow = null;
+  let ink, flow = null, response = null;
+  const manga = mode === 'photo' && o.hatchStyle === 'manga';
   if (mode === 'lineart') {
     ink = binarizeLineArt(gray, w, h);
     lap('線を拾う');
@@ -81,8 +84,10 @@ export function drawPlan(rgba, w, h, options = {}) {
     lap('模様の向き');
     // detail 0 → 0.016、0.5 → 0.006、1 → 0.0022（指数で動かす）
     const threshold = 0.016 * Math.pow(0.1375, o.detail);
-    ink = extractLines(gray, w, h, { threshold, flow }).ink;
-    removeSpecks(ink, w, h, 8);
+    // 漫画原稿では、流れに沿ってならす幅を広げ、線をつながりやすくする
+    const lx = extractLines(gray, w, h, { threshold, flow, sigmaM: manga ? 4 : 3 });
+    ink = lx.ink; response = lx.response;
+    removeSpecks(ink, w, h, manga ? 14 : 8);
     lap('線を起こす');
   }
   const diag = Math.hypot(w, h);
@@ -103,7 +108,70 @@ export function drawPlan(rgba, w, h, options = {}) {
     'beta-only': { withBeta: true, noLines: true },
   }[o.hatchStyle];
   const stippleStyle = !!STYLE;
-  if (mode === 'photo' && o.hatch && stippleStyle) {
+  if (manga) {
+    // ---- 漫画原稿: ペン入れ → ベタ → トーン
+    const sc = diag / 1267, d = o.hatchDensity;
+    // ペン入れ: 細切れの線をつなぎ、ならし、G ペンの強弱を付ける
+    const toneSoft = gaussianBlur(stretch(gray), w, h, 3);
+    let respRef = 1e-6;
+    {
+      const v = [];
+      for (let i = 0; i < w * h; i += 7) if (ink[i]) v.push(-response[i]);
+      v.sort((a, b) => a - b);
+      respRef = Math.max(1e-6, v[Math.floor(v.length * 0.95)] ?? 1e-6);
+    }
+    const at = (arr, p) => arr[Math.min(h - 1, Math.max(0, Math.round(p.y))) * w + Math.min(w - 1, Math.max(0, Math.round(p.x)))];
+    // 輪郭か細部か: 大きくぼかした絵でも残る境目（人や物の外形）は輪郭。服の模様などの細部は、ぼかすと消える
+    const big = gaussianBlur(gray, w, h, 5 * sc);
+    const edgeBig = new Float32Array(w * h);
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) { const i = y * w + x; edgeBig[i] = Math.hypot(big[i + 1] - big[i - 1], big[i + w] - big[i - w]); }
+    let bigRef = 1e-6;
+    {
+      const v = [];
+      for (let i = 0; i < w * h; i += 7) if (ink[i]) v.push(edgeBig[i]);
+      v.sort((a, b) => a - b);
+      bigRef = Math.max(1e-6, v[Math.floor(v.length * 0.9)] ?? 1e-6);
+    }
+    strokes = joinStrokes(strokes, { gap: Math.max(5, diag * 0.006), maxAngle: 40 })
+      .filter((s) => s.points.length > 1 && strokeLength(s.points) >= 6 * sc)
+      .map((s) => {
+        // 画素をたどった道筋の波を落とし、迷いの無い曲線に引き直す
+        const pts = fairPath(s.points, { eps: 1.0 * sc, step: 1.5 });
+        let c = 0, cb = 0, dk = 0;
+        for (const p of pts) { c += Math.max(0, -at(response, p)); cb += at(edgeBig, p); dk += 1 - at(toneSoft, p); }
+        const local = Math.min(1, c / pts.length / respRef), outline = Math.min(1, cb / pts.length / bigRef);
+        const contrast = 0.65 * outline + 0.35 * local, dark = dk / pts.length;
+        // 短くて弱い切れ端は描かない（ためらった線に見えるため）
+        if (strokeLength(pts) < 14 * sc && contrast < 0.3) return null;
+        return { ...s, points: gpenWidths(pts, { wMin: Math.max(1, 1.0 * sc), wMax: Math.max(2.8, 3.6 * sc), wEnd: 0.15, refLen: diag * 0.16, contrast, dark, taperIn: 16 * sc, taperOut: 30 * sc }), penDone: true, length: undefined };
+      })
+      .filter(Boolean);
+    lap('ペン入れ');
+    // ベタ: 暗い面を大きくまとめ、縁をなめらかにしてから、筆とペンで塗る
+    const base = gaussianBlur(stretch(gray), w, h, 2);
+    const betaBelow = 0.12 + 0.12 * d;
+    const raw = betaRegions(base, w, h, { below: betaBelow, minArea: Math.max(300, Math.round(w * h * 0.002)) });
+    const soft = gaussianBlur(Float32Array.from(raw), w, h, 2.5 * sc);
+    const mask = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) mask[i] = soft[i] >= 0.5 ? 1 : 0;
+    // 筆で塗ってから、ぼかした面の輪郭（値 0.5 の所）をなぞった多角形で縁を整える。はみ出しも塗り残しも出ない
+    const fills = betaStrokes(mask, w, h, { brush: Math.max(4, diag * 0.005), field: soft });
+    lap('ベタ');
+    // トーン: 中間の明るさを、10・20・30% の網点とグラデーショントーンで表す。面ごとに 1 枚ずつ貼る
+    // トーンを貼り始める明るさは、画像の明るい側から 45% の所（0.6〜0.8）。暗めの絵でも肌などの明るい所は白く残す。
+    // 10・20・30% の境目は、その明るさとベタの明るさの間を 3 つに分けて決める
+    const toneMap = gaussianBlur(stretch(gray), w, h, 1.5);
+    const sorted = Float32Array.from(toneMap).sort();
+    const shift = (d - 0.5) * 0.12;
+    const white = Math.min(0.8, Math.max(0.6, sorted[Math.floor(sorted.length * 0.55)])) + shift;
+    const step = (white - betaBelow) / 3;
+    const levels = [{ below: white, level: 10 }, { below: white - step, level: 20 }, { below: white - 2 * step, level: 30 }];
+    const regions = screenTones(toneMap, w, h, { pitch: Math.max(3.5, diag * 0.0036), angle: 45, beta: mask, levels, minArea: Math.max(80, Math.round(w * h * 0.0003)) });
+    const tones = regions.map((r) => ({ points: r.dots, kind: 'tone', level: r.level, gradation: r.gradation, group: r.id, seq: 0, closed: false, length: Math.max(8, Math.sqrt(r.area) * 0.35) }));
+    hatchCount = tones.reduce((a, s) => a + s.points.length, 0);
+    strokes = strokes.concat(fills, tones);
+    lap('トーン');
+  } else if (mode === 'photo' && o.hatch && stippleStyle) {
     // 点描: 約 5mm 角（対角の 2.2%）のマスごとに、ほぼ同じ大きさの点を均等に散らして打つ
     const tone = gaussianBlur(stretch(gray), w, h, 1.2);
     const d = o.hatchDensity;
@@ -122,7 +190,7 @@ export function drawPlan(rgba, w, h, options = {}) {
     if (STYLE.withBeta) {
       // ベタ: 最も暗い面は筆とペンで黒く塗り、その中には点を打たない
       const mask = betaRegions(gaussianBlur(stretch(gray), w, h, 2), w, h, { below: 0.08 + 0.12 * d, minArea: Math.max(120, Math.round(w * h * 0.0004)) });
-      fills = betaStrokes(mask, w, h, { brush: Math.max(4, diag * 0.005), pen: Math.max(1.2, (diag / 1267) * 1.4) });
+      fills = betaStrokes(mask, w, h, { brush: Math.max(4, diag * 0.005), field: gaussianBlur(Float32Array.from(mask), w, h, 1.2) });
       for (let i = 0; i < w * h; i++) if (mask[i]) tone[i] = 1;
       lap('ベタ');
     }
@@ -176,7 +244,7 @@ export function drawPlan(rgba, w, h, options = {}) {
   lap('順番を決める');
   for (const s of ordered) {
     // ベタの筆とペンは塗り残しが出ないよう細くしない。人の描き方の斜線は、入りを短く、抜きを長くする（素早く払う線）
-    if (s.kind === 'fill') continue;
+    if (s.kind === 'fill' || s.kind === 'tone' || s.penDone) continue;
     s.points = s.fixedDir
       ? penProfile(s.points, { taperIn: 2.5, taperOut: Math.min(12, s.length * 0.4), minW: 0.3 })
       : penProfile(s.points, { taperIn: Math.min(12, diag * 0.01), taperOut: Math.min(16, diag * 0.014) });
@@ -185,7 +253,8 @@ export function drawPlan(rgba, w, h, options = {}) {
 
   // 段の名前: ベタがあれば「… → ベタ → 点描」、点描なら最後の段を「点描」、点描だけなら「点描」の 1 段
   let stages = STAGES[mode];
-  if (mode === 'photo' && ordered.some((s) => s.kind === 'fill')) stages = STAGES.photoBeta;
+  if (manga) stages = STAGES.photoManga;
+  else if (mode === 'photo' && ordered.some((s) => s.kind === 'fill')) stages = STAGES.photoBeta;
   else if (mode === 'photo' && stippleStyle) stages = [...STAGES.photo.slice(0, 3), '点描'];
   // 主線を描かないモードは、使う段だけにする（ベタ → 点描）
   if (mode === 'photo' && STYLE?.noLines) {
