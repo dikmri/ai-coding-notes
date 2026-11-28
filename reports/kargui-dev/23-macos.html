@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 23 章 Mac を持たずに macOS へ ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="Mac を持たずに、GitHub の CI の Mac だけで kargui の macOS の版を作った話。外からマウスとキーを送る確かめ方、日本語入力と CI の Mac の癖、信号の丸を残した題の帯、.app の束だけで動く通知、気づかずに通らなくなっていた読み上げの確かめ。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 23 章</p>
+  <h1>Mac を持たずに macOS へ</h1>
+  <p class="lede">kargui が macOS で動くようになりました。作者も私も Mac を持っていないので、作るたびに GitHub の CI の Mac で本物の窓を開き、外からマウスとキーの知らせを送って、写真と記録で確かめました。この章では、その確かめ方と、CI の Mac で見つけた癖と不具合を書きます。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>手元に無い OS の GUI を、CI だけで作って確かめる方法</li>
+      <li>自前の輪を持つフレームワークが、AppKit とどう付き合うか</li>
+      <li>Mac の日本語入力（NSTextInputClient）の受け方と、CI の Mac の癖</li>
+      <li>信号の丸を残して、アプリが題の帯を描く形</li>
+      <li>確かめが気づかないうちに通らなくなるのを防ぐ見方</li>
+    </ul>
+  </section>
+
+  <h2 id="ci">CI の Mac で作る</h2>
+  <p>作者は Mac を使わないので、対応はするが費用は小さくしたい、と決めていました。そこで、公開のリポジトリなら無料で使える GitHub Actions の Mac（Apple Silicon）で作ることにしました。手の感触を確かめる日だけ、Mac を借ります。</p>
+  <p>CI の Mac は macOS 26 で、画面は 1024 × 768、倍率は 1 です。作業用のブランチに送るたびに、見本を本物の窓で開き、次の 3 つの道具で操作しました。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-tools">
+    <table>
+      <caption id="t-tools">CI の Mac で使った道具（tools/ci の Swift）</caption>
+      <thead><tr><th scope="col">道具</th><th scope="col">すること</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">mac-drive</th><td data-label="すること">外から本物のクリック・引っ張り・ホイール・キー・文字を送る。入力の方法（日本語入力）の切り替え、明暗の切り替えの真似、読み上げの木の書き出しと押す操作、写真も受け持つ</td></tr>
+        <tr><th scope="row">mac-ime-ref</th><td data-label="すること">日本語入力の受け方だけを持つ最小の参考のアプリ。CI の Mac の日本語入力が、その回に動くかを先に確かめる</td></tr>
+        <tr><th scope="row">mac-drag-source</th><td data-label="すること">ファイルを引っ張って落とす元のアプリ。メモ帳の見本へファイルを落とす</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>見本は、自分で描いた絵を保存し、記録も書きます。CI は画面の写真と一緒に、それらを取り出せる形で残します。私はその写真と記録を読んで、次の直しを決めました。この章の写真は、どれも CI の Mac の画面です。</p>
+
+  <h2 id="steps">4 つの段階</h2>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-steps">
+    <table>
+      <caption id="t-steps">macOS の版の段階</caption>
+      <thead><tr><th scope="col">段階</th><th scope="col">中身</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">M1 窓</th><td data-label="中身">AppKit の窓と自前の NSView。CPU の絵を Core Animation で出す。マウス・ホイール・キー・クリップボード・大きさの変更・閉じる</td></tr>
+        <tr><th scope="row">M2 日本語入力</th><td data-label="中身">NSTextInputClient で、変換中の文字・文節・候補の窓の場所</td></tr>
+        <tr><th scope="row">M3 アプリの仕組み</th><td data-label="中身">ファイルのダイアログ、読み上げ（accesskit_macos）、複数の窓、ほかのアプリから落とすファイル</td></tr>
+        <tr><th scope="row">M4 OS とのつなぎ</th><td data-label="中身">OS の言語・明暗・コントラスト、アプリのメニュー、メニューバーのトレイ、通知、kargui が描く題の帯</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>kargui はどの OS でも、知らせを待つ輪を自分で持ちます。macOS でも、AppKit の標準の輪（NSApp の run）は使わず、知らせを 1 つずつ取り出して AppKit に渡します。ところが、窓の縁を引っ張って大きさを変える間は、AppKit が知らせの受け渡しの中で自分の輪を回し、kargui の輪は止まります。最初の版は、その間に 1 回も描き直しませんでした。窓と App を共有の箱に入れ、大きさが変わった時の呼び返しの中から 1 フレームを回す形にして直しました。</p>
+
+  <h2 id="ime">日本語入力と、CI の Mac の癖</h2>
+  <p>窓の中身を自前の NSView にし、日本語入力の受け方（NSTextInputClient）を持たせました。入力欄に焦点がある時は、キーを AppKit を通して日本語入力に渡します。変換中の文字は文節ごとに受け取り、候補の窓の場所はキャレットの位置で答えます。</p>
+  <!-- gen:ime -->
+<figure class="shot flat"><picture><img src="img/mac/ime-light.webp" alt="家計簿の窓。メモ欄に変換中の「日本語版」があり、その真下に候補の窓（日本語版・日本語訳・日本語字幕・日本語歌詞）が開いている" width="720" height="290" loading="lazy" decoding="async"></picture><figcaption>CI の Mac で、家計簿のメモ欄に nihongo と打ってスペースで変換した。候補の窓はメモ欄の真下に出る。</figcaption></figure>
+<!-- /gen:ime -->
+  <p>CI の Mac の日本語入力には、癖がありました。最初に日本語入力を使ったアプリは、テキストエディットでも英字をそのまま通しました。同じアプリを開き直した時も、多くの回で動きませんでした。回によっては、参考のアプリでも全く動きません。そこで CI の手順では、先にテキストエディットと参考のアプリで日本語入力を使い、動く回かどうかを見てから kargui を試しています。変換中の Enter の確定は、参考のアプリでも届きませんでした。これらは借りる Mac で確かめます。</p>
+
+  <h2 id="titlebar">信号の丸を残した題の帯</h2>
+  <p>アプリが題の帯に部品を置ける窓（<code>Options::custom_title_bar</code>）の形は、作者が決めました。左上の閉じる・最小化・全画面の丸（信号の丸）は OS に描かせ、その右に kargui が帯の中身を描きます。Safari や Xcode と同じ形です。</p>
+  <!-- gen:menubar -->
+<figure class="shot flat"><picture><img src="img/mac/menubar-light.webp" alt="画面の上の端。メニューバーの右にトレイのアイコンと、窓を出す・暗い色・ページ・押せない項目・見本を終えるのメニュー。その下に部品の見本の窓があり、左上に赤・黄・緑の丸、その右に「部品の見本」と「暗い色」" width="1024" height="200" loading="lazy" decoding="async"></picture><figcaption>見本の題の帯（信号の丸の右に、見本が帯に置いた「部品の見本」と「暗い色」）と、メニューバーのトレイのメニュー。</figcaption></figure>
+<!-- /gen:menubar -->
+  <p>窓の中身を題の帯の下まで広げ、帯を透明にします。空の道具の帯を付けると帯が高くなり、信号の丸が帯の縦の真ん中に来ます。kargui は、信号の丸の右端から 12 空けた所（CI の Mac では 84）から帯の中身を並べます。帯の何も無い所を引っ張ると窓が動き、2 回押すと OS の設定どおりに最大化します。</p>
+  <p>もう 1 つ、Mac の決まりに合わせました。前面にない窓を押した 1 回目は、窓を前面にするだけで、部品は押しません。この直しの後、CI のファイルのダイアログの確かめが止まりました。ダイアログを閉じても元の窓が前面に戻っておらず、次の押下が「1 回目」と扱われていたためです。ダイアログを閉じた後に元の窓を前面に戻すようにしました。</p>
+  <!-- gen:dialog -->
+<figure class="shot flat"><picture><img src="img/mac/dialog-light.webp" alt="部品の見本の窓の上に、ファイルを開くダイアログが重なり、場所を打つ欄に /tmp/kargui-open.txt と入っている" width="900" height="540" loading="lazy" decoding="async"></picture><figcaption>ファイルのダイアログ（NSOpenPanel）。Command+Shift+G で場所を打って選び、見本が答えを受け取る所まで確かめた。</figcaption></figure>
+<!-- /gen:dialog -->
+
+  <h2 id="notify">通知は .app の束だけで</h2>
+  <p>Mac の通知の仕組み（UNUserNotificationCenter）は、アプリが .app の束（<code>Info.plist</code> を持つ）でないと使えません。束でないアプリが使おうとすると、例外で止まります。作者と話して、束のアプリだけで動く形にしました。<code>cargo run</code> のように束でない時は、記録に <code>notify.unavailable</code> と書いて何もしません。</p>
+  <p>CI では、その場で見本を束にして試しました。kargui は許可を頼みましたが、CI の Mac は許可の窓を出さずに断りました（<code>Notifications are not allowed for this application</code>）。通知が出るか、押した答えが届くかは、借りる Mac で確かめます。</p>
+
+  <h2 id="unnoticed">気づかずに通らなくなっていた確かめ</h2>
+  <p>題の帯を作った後、CI の読み上げの確かめの記録を前の回と比べました。読み上げの操作で「ふつう」のボタンを押す確かめで、当たった所が中身の無いまとまり（AXGroup）になっていました。押せていた回はボタン（AXButton）に当たっていました。取り出して読んだ記録をさかのぼると、5 回続けて通っていませんでした。</p>
+  <p>読み上げが使われ始めると、kargui は「木は次のフレームで渡す」として輪を起こします。ところが、その知らせはどの窓にも向かないので、どの窓にも描き直しの印が立たず、木を渡すフレームが回りませんでした。それまで通っていたのは、ほかの理由で描き直しが続いていたためです。窓ごとに「木を渡してほしい」印を持たせて直し、ボタンを 2 回押せることを確かめました。</p>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい確かめ方: 段が通ったことだけを見る</span>
+    <p>読み上げの確かめは、押せなくても段そのものは通る作りでした。CI が緑のままなので、5 回続けて見落としました。結果の中身（当たった部品の種類、押した回数）を前の回と比べてください。通るはずの物が通らない時に段を失敗にする作りなら、もっと良いです。</p>
+  </div>
+  <p>CI の手順にも、直す所がありました。1 つの確かめで見本が止まると、その後の確かめが全部走りませんでした。止まった確かめの名前を数え、全部を走らせてから最後に失敗にする形に変えました。</p>
+
+  <h2 id="next">次の段階</h2>
+  <p>macOS の版は main に入り、CI の Mac で 19 の確かめが通っています。残りは、Retina（倍率 2）の画面と、借りる Mac での手の確かめ（日本語入力の感触、通知の表示と答え、題の帯の見た目と動き）です。その後、macOS に対応した版として 0.5.0 を出す予定です。</p>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="22-long-text.html">← 第 22 章 長い文字の入力欄</a>
+    <a href="./">目次 →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>
