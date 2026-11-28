@@ -24601,3 +24601,816 @@ button:active { scale: 0.97; }
     requestAnimationFrame(spin);
   },
 });
+
+dekiru.add({
+  id: 'tr-20261128-tab-cluster', c: 'trend', lv: 3, date: '2026-11-28',
+  t: 'ページの中の Web Worker をノードにして小さな Kubernetes を動かし、タブを閉じると Pod が別のノードへ移る',
+  y: 'ぺーじのなかの うぇぶわーかーを のーどにして ちいさな くばねてぃすを うごかし たぶを とじると ぽっどが べつの のーどへ うつる',
+  tags: ['tabernetes', 'Kubernetes', 'Web Worker', 'スケジューラ', '制御ループ', 'canvas'],
+  d: '2026-11-27、Farid Zakaria さんが tabernetes を公開し、ブログ記事「Your phone is a Kubernetes node」を書いた。11-28 の Hacker News でも上位に入った（127 点・コメント 42 件の時点で確かめた）。tabernet.es を開くと、そのタブが本物の Kubernetes（k3s）のノードになる。スケジューラがタブに Pod を割り当て、Pod のプログラムは、タブの中で起動した Linux（Linux のカーネルを WebAssembly にした unkernel）で動く。タブを閉じるとノードが消え、Kubernetes はその Pod を別の人のタブで動かし直す。クラスタは、64 枚のタイルに分けたマンデルブロ集合を、各ノードの Pod に描かせる。'
+    + 'この見本は、その「ノードが来ては去っても、決めた数の Pod が動き続ける」仕組みを 1 枚のページの中で作った。タブの代わりに Web Worker を 1 つずつ作ってノードにする。ページの主の側には、API サーバー（ノードと Pod の表）、ReplicaSet（Pod の数を保つ）、スケジューラ（Pod を置くノードを選ぶ）、ノードの見張り（lease が途切れたノードを NotReady にし、Pod を追い出す）、Service（動いている Pod へ順番に問い合わせを送る）を一から書いた。ページを開くと、スマホ 2 台と PC 1 台のタブが参加し、mandel の Pod 4 個と counter の Pod 1 個が置かれ、最初の絵を描き始める。'
+    + '「閉じる」は Worker を terminate する。元の tabernetes と同じく、つながりが切れたことでノードを消すので、Pod はすぐ別のノードへ移る。「止める」は、スマホの画面を消した時のように、タブが何も返さない状態にする。コントロールプレーンは lease が届かないことでしか気づけないので、1.5 秒で NotReady にして Service の窓口から外し、さらに 1 秒たってから Pod を追い出す（Kubernetes の既定では、lease の更新は 10 秒ごと、NotReady になるまで 50 秒、追い出しを始めるまでさらに 5 分）。描いている途中のタイルは、答えが 1.2 秒来なければ別の Pod に送り直すので、途中でタブを閉じても止めても、絵は最後まで埋まる。タイルの左上の小さな三角は描いたノードの色で、タイルを指すと、描いたノードと Pod の名前、計算と往復にかかった時間が出る（元のページの「タイルを指すと、どの機器が描いたか分かる」をまねた）。'
+    + 'counter の Pod は訪問を数える。数は 2 か所に置く。1 つは Pod の中の変数で、Pod が別のノードへ移ると 0 から数え直す。もう 1 つはサーバーの側（主のページ）に置き、Pod が移っても続く。元の tabernetes で、タブは CPU と記憶だけを貸し、イメージとファイルはサーバーに残る（だから Redis を別のスマホへ移しても中身が消えない）のをまねた。「counter を Android のノードだけに置く」を入れると、元の記事の例と同じ nodeSelector が付く。'
+    + '再現できていない所: 本物の Kubernetes の API・etcd・kubelet・WebSocket・Linux は無く、Pod のプログラムは JavaScript の関数である。元はタブ 1 つにコンテナ 1 つだが、この見本はタブに CPU の枠（スマホ 1000m、PC 2000m）を決めて、何個かの Pod を入れる。起動の時間（スマホ 0.7〜1.4 秒、PC 0.3〜0.7 秒）と、タイル 1 枚を返すまでの待ち（スマホ 0.28〜0.42 秒、PC 0.11〜0.19 秒）は、動きを目で追えるように決めた値である。計算そのものは、1 点を 2 × 2 に分けて平均しても、手元の Chrome で 1 枚 3〜16 ms ほどで終わる。スケジューラは空きの割合だけで選び、Pod を散らす決まりや優先度は無い。Deployment の更新は、古い Pod を消して作り直すだけで、少しずつ入れ替える動きは無い。',
+  p: '中心は、毎回「あるべき姿」と「今の姿」を比べて差を埋める制御ループで、主の側で 0.1 秒ごとに次の順に回す。(1) ノードの見張り: lease が最後に届いてからの時間で Ready かどうかを決め、長く途切れたノードの Pod を消す。(2) ReplicaSet: 消えていない Pod を数え、足りなければ Pending の Pod を作り、多すぎれば「ノードが決まっていない → 動いていない → ノードが NotReady → 新しい」の順に消す（本物の ReplicaSet の消す順を小さくしたもの）。(3) スケジューラ: Pending の Pod ごとに、NotReady・nodeSelector が合わない・CPU が足りないノードを外し、残りから「置いた後の空きの割合」がいちばん大きいノードを選ぶ。置けない時は「0/3 台に置けない（CPU の空きが足りない 2 台…）」のように、本物と同じく外した理由を台数で数える。どの処理も表を読んで表を書くだけで、ほかの処理の終わりを待たないので、タブが閉じても止まっても、次の回で表が直る。'
+    + 'Worker は Blob の URL から作り、中身は mandelTile 関数の toString と、タブの役をする関数をつないだもの。Worker は 0.25 秒ごとに lease を送り、「止める」の間は届いた知らせと出す答えを貯めておき、「再開する」で順に出す。タイルの答えは画素の ArrayBuffer を transfer で渡すので、写しを作らない。問い合わせには番号を付け、時間切れで送り直した後に古い答えが届いても捨てる。',
+  refs: [
+    { title: 'tabernetes: a Kubernetes cluster whose nodes are browser tabs', url: 'https://tabernet.es/' },
+    { title: 'Your phone is a Kubernetes node（Farid Zakaria、2026-11-27）', url: 'https://fzakaria.com/2026/11/27/your-phone-is-a-kubernetes-node' },
+    { title: 'fzakaria/tabernetes（GitHub）', url: 'https://github.com/fzakaria/tabernetes' },
+    { title: 'Hacker News: Tabernetes: A Kubernetes cluster whose nodes are browser tabs', url: 'https://news.ycombinator.com/item?id=50672521' },
+    { title: 'Kubernetes: Node Status（Lease と node-monitor-grace-period）', url: 'https://kubernetes.io/docs/reference/node/node-status/' },
+    { title: 'Kubernetes: Nodes（ノードの見張りと追い出し）', url: 'https://kubernetes.io/docs/concepts/architecture/nodes/' },
+  ],
+  html: `<div class="wrap">
+  <div class="stage">
+    <canvas id="topo" role="img" aria-label="クラスタの図。真ん中がコントロールプレーン、周りの四角がタブのノード。四角の中の小さな四角が Pod で、緑が mandel、橙が counter"></canvas>
+    <div class="pic">
+      <canvas id="pic" width="256" height="256" role="img" aria-label="ノードが分けて描いたマンデルブロ集合の絵。タイルの左上の小さな三角の色が、描いたノードの色"></canvas>
+      <label class="pl"><span id="picT">絵: まだ描いていない</span><progress id="prog" value="0" max="64"></progress></label>
+      <p id="who" class="note">タイルを指すと、どのノードが描いたかが出る</p>
+    </div>
+  </div>
+  <p id="stats" class="stats"></p>
+  <p id="say" role="status"></p>
+  <div class="ctl">
+    <button id="addPhone" type="button">スマホのタブを開く</button>
+    <button id="addPc" type="button">PC のタブを開く</button>
+    <button id="draw" type="button">絵を描く</button>
+    <button id="visit" type="button">訪問を送る</button>
+  </div>
+  <div class="ctl">
+    <label class="rg"><span>mandel の Pod の数</span><input type="range" id="rep" min="1" max="10" value="4"><output id="repO" for="rep">4</output></label>
+    <label><input type="checkbox" id="sel"> counter を Android のノードだけに置く（nodeSelector）</label>
+    <label><input type="checkbox" id="tint"> 描いたノードの色を絵に重ねる</label>
+  </div>
+  <p id="visitT"></p>
+  <h3>ノード（kubectl get nodes）</h3>
+  <div class="tw"><table id="nodesT"><thead><tr><th>名前</th><th>種類</th><th>状態</th><th>CPU</th><th>最後の lease</th><th>操作</th></tr></thead><tbody></tbody></table></div>
+  <h3>Pod（kubectl get pods -o wide）</h3>
+  <div class="tw"><table id="podsT"><thead><tr><th>名前</th><th>状態</th><th>ノード</th><th>メモ</th></tr></thead><tbody></tbody></table></div>
+  <h3>起きたこと（新しい順）</h3>
+  <ol id="ev" class="ev"></ol>
+  <p class="note">「閉じる」はタブを閉じた時と同じで、つながりが切れるのでノードはすぐ消える。「止める」はスマホの画面を消した時のように、タブが何も返さなくなる。コントロールプレーンは lease（0.25 秒ごとの「生きている」の知らせ）が 1.5 秒届かないと NotReady にし、さらに 1 秒たつと、そのノードの Pod を追い出して別のノードに作り直す。CPU の枠はスマホ 1000m、PC 2000m で、mandel の Pod は 500m、counter の Pod は 250m を使う。</p>
+</div>`,
+  css: `:root { color-scheme: dark; --ac: #8fd18b; }
+body { margin: 0; background: #1d2027; color: #e9e6de; font: 14px/1.6 system-ui, sans-serif; accent-color: var(--ac); }
+.wrap { display: grid; gap: 10px; padding: 14px; max-width: 940px; margin: 0 auto; }
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 256px); gap: 14px; align-items: start; }
+#topo { display: block; width: 100%; height: 320px; border-radius: 10px; background: #15171c; }
+.pic { display: grid; gap: 6px; min-width: 0; }
+#pic { display: block; width: 100%; height: auto; aspect-ratio: 1; border-radius: 6px; background: #0c0e12; touch-action: manipulation; }
+.pl { display: grid; gap: 2px; font-size: 13px; }
+.pl progress { inline-size: 100%; }
+.stats { margin: 0; font: 12.5px/1.6 ui-monospace, monospace; color: #cfc9bd; }
+#say { margin: 0; min-height: 1.6em; color: #f6d58e; }
+button { padding: 7px 12px; border: 1px solid #4a4f5c; border-radius: 8px; background: #2f333d; color: #e9e6de; font: inherit; cursor: pointer; touch-action: manipulation; }
+button:hover:not(:disabled) { background: #3a3f4b; }
+button:active:not(:disabled) { scale: 0.97; }
+button:disabled { opacity: 0.5; cursor: default; }
+@media (prefers-reduced-motion: no-preference) { button { transition: scale 120ms ease-out, background-color 120ms ease-out; } }
+:focus-visible { outline: 2px solid #f6d58e; outline-offset: 3px; }
+.ctl { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
+.rg { display: inline-grid; grid-template-columns: auto minmax(0, 10em) 2.5em; gap: 8px; align-items: center; }
+.rg input { width: 100%; margin: 0; }
+output { font: 13px ui-monospace, monospace; }
+#visitT { margin: 0; min-height: 1.6em; color: #cfc9bd; }
+h3 { margin: 6px 0 0; font-size: 14px; color: #cfc9bd; }
+.tw { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 3px 8px; border-bottom: 1px solid #343843; text-align: left; white-space: nowrap; }
+th { color: #b8b2a6; font-weight: 600; }
+td.mono { font-family: ui-monospace, monospace; }
+td .sw { display: inline-block; width: 0.8em; height: 0.8em; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+td button { padding: 2px 8px; font-size: 12px; margin-right: 4px; }
+td.memo { white-space: normal; min-width: 16em; color: #b8b2a6; }
+.ok { color: #9fdc9a; }
+.bad { color: #f08a8a; }
+.wait { color: #f2d16b; }
+tr.gone { opacity: 0.45; }
+.ev { margin: 0; padding-left: 1.4em; font-size: 13px; }
+.ev time { font-family: ui-monospace, monospace; color: #9a958b; margin-right: 6px; }
+.note { margin: 0; color: #b8b2a6; font-size: 13px; }
+@media (max-width: 600px) { .stage { grid-template-columns: minmax(0, 1fr); } .pic { width: 100%; max-width: 256px; margin: 0 auto; } #topo { height: 280px; } }
+.thumb { overflow: hidden; }
+.thumb .wrap { padding: 6px; max-width: none; }
+.thumb .wrap > :not(.stage) { display: none; }
+.thumb .stage { grid-template-columns: minmax(0, 1fr) 150px; gap: 6px; }
+.thumb #topo { height: calc(100vh - 12px); }
+.thumb #who { display: none; }
+.thumb .pl { font-size: 10px; }`,
+  core() {
+    // Kubernetes の名前の末尾に使う 27 文字（読み違えやすい母音と 0・1・3 を除いたもの）
+    const K_ABC = 'bcdfghjklmnpqrstvwxz2456789';
+    // 番号 n から、決まった名前の末尾（len 文字）を作る。
+    // 27^len 通りの中で n を「掛けて足して割った余り」に並べ替えるので、27^len より小さい n どうしは必ず違う名前になる
+    function kSuffix(n, len) {
+      let m = 1;
+      for (let i = 0; i < len; i++) m *= 27;
+      let x = ((n % m) * (7368787 % m) + 4111) % m;
+      let s = '';
+      for (let i = 0; i < len; i++) { s += K_ABC[x % 27]; x = Math.floor(x / 27); }
+      return s;
+    }
+
+    // ノードの見張り: lease が grace より長く途切れたら NotReady、さらに evictAfter 続いたら Pod を追い出す時
+    function nodeHealth(now, lastLease, grace, evictAfter) {
+      const gap = now - lastLease;
+      return { ready: gap <= grace, evict: gap > grace + evictAfter, gap };
+    }
+
+    // 1 つの Pod を置くノードを選ぶ（kube-scheduler の考え方を小さくしたもの）
+    // pod: { cpu, selector }、nodes: [{ name, ready, cap, used, pods, labels }]
+    // 1. 置けないノードを外す（NotReady、nodeSelector が合わない、CPU の空きが足りない）
+    // 2. 残りから、置いた後の空きの割合がいちばん大きいノード（同じなら Pod の少ない方、名前の順）を選ぶ
+    function scheduleOne(pod, nodes) {
+      if (!nodes.length) return { node: null, reason: 'ノードが 1 台も無い' };
+      let nr = 0, ns = 0, nc = 0, best = null, bestScore = -1;
+      for (const n of nodes) {
+        if (!n.ready) { nr++; continue; }
+        if (pod.selector && !Object.keys(pod.selector).every((k) => n.labels[k] === pod.selector[k])) { ns++; continue; }
+        const free = n.cap - n.used;
+        if (free < pod.cpu) { nc++; continue; }
+        const score = (free - pod.cpu) / n.cap;
+        const same = Math.abs(score - bestScore) <= 1e-12;
+        if ((!same && score > bestScore) || (same && best && (n.pods < best.pods || (n.pods === best.pods && n.name < best.name)))) { best = n; bestScore = score; }
+      }
+      if (best) return { node: best.name, reason: null };
+      const parts = [];
+      if (nr) parts.push(`NotReady ${nr} 台`);
+      if (ns) parts.push(`nodeSelector が合わない ${ns} 台`);
+      if (nc) parts.push(`CPU の空きが足りない ${nc} 台`);
+      return { node: null, reason: `0/${nodes.length} 台に置けない（${parts.join('、')}）` };
+    }
+
+    // ReplicaSet の数合わせ。足りなければ作る数、多すぎれば消す Pod の名前を返す
+    // 消す順: ノードが決まっていない → 動き始めていない → ノードが NotReady → 新しい（本物の ReplicaSet の順を小さくしたもの）
+    function reconcileReplicas(want, pods) {
+      if (pods.length <= want) return { create: want - pods.length, remove: [] };
+      const rank = (p) => [p.node ? 1 : 0, p.phase === 'Running' ? 1 : 0, p.nodeReady ? 1 : 0, 0 - p.created];
+      const sorted = pods.slice().sort((a, b) => {
+        const x = rank(a), y = rank(b);
+        for (let i = 0; i < 4; i++) if (x[i] !== y[i]) return x[i] - y[i];
+        return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+      });
+      return { create: 0, remove: sorted.slice(0, pods.length - want).map((p) => p.name) };
+    }
+
+    // Service の窓口を順番に回り、手の空いている Pod（busy が limit 未満）を選ぶ。全部が手いっぱいなら null
+    function pickEndpoint(eps, start, busy, limit) {
+      for (let k = 0; k < eps.length; k++) {
+        const i = (start + k) % eps.length;
+        if ((busy[eps[i]] || 0) < limit) return { i, next: i + 1 };
+      }
+      return null;
+    }
+
+    // 中央値（空なら NaN）
+    function medianOf(xs) {
+      if (!xs.length) return NaN;
+      const s = xs.slice().sort((a, b) => a - b), h = s.length >> 1;
+      return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2;
+    }
+
+    // マンデルブロ集合の 1 枚のタイル（size × size 点）を RGBA の並びで返す。全体は grid × grid 枚で、view は中心・幅・色の帯の始まり（sh）
+    // Worker の中でも同じ関数を使う（toString で Worker のコードに入れる）ので、外の名前を使わない
+    function mandelTile(view, tx, ty, grid, size, maxIter) {
+      // 色の帯: 濃い青 → 水色 → 白 → 橙 → 黒 → 濃い青。外へ逃げる速さの対数で、この帯の上を進む
+      const ST = [[0, 0, 7, 100], [0.16, 32, 107, 203], [0.42, 237, 255, 255], [0.6425, 255, 170, 0], [0.8575, 0, 2, 0], [1, 0, 7, 100]];
+      const shift = view.sh == null ? 0.85 : view.sh, logN = Math.log(1 + maxIter);
+      const W = grid * size, out = new Uint8ClampedArray(size * size * 4), step = view.span / W;
+      const OFF = [-0.25, 0.25];
+      for (let py = 0; py < size; py++) {
+        for (let px = 0; px < size; px++) {
+          let r = 0, g = 0, b = 0;
+          // 1 点を 2 × 2 に分けて計算し、平均する（細かい所のざらつきを減らす）。整数にしてから足すので、足す順で結果が変わらない
+          for (const oy of OFF) for (const ox of OFF) {
+            const cr = view.cx + (tx * size + px + 0.5 + ox - W / 2) * step;
+            const ci = view.cy + (W / 2 - (ty * size + py + 0.5 + oy)) * step;
+            let zr = 0, zi = 0, i = 0, r2 = 0;
+            while (i < maxIter) {
+              const t = zr * zr - zi * zi + cr;
+              zi = 2 * zr * zi + ci;
+              zr = t;
+              i++;
+              r2 = zr * zr + zi * zi;
+              if (r2 > 256) break;
+            }
+            if (r2 <= 256) { r += 10; g += 12; b += 18; continue; }
+            // 外へ逃げた速さをなめらかにした値（整数の回数のままだと色が段になる）
+            const mu = i + 1 - Math.log(Math.log(r2) / 2) / Math.LN2;
+            const t = ((Math.log(1 + Math.max(0, mu)) / logN) * 2.2 + shift) % 1;
+            let k = 0;
+            while (k < ST.length - 2 && t > ST[k + 1][0]) k++;
+            const a = ST[k], c = ST[k + 1], u = (t - a[0]) / (c[0] - a[0]);
+            r += Math.round(a[1] + (c[1] - a[1]) * u);
+            g += Math.round(a[2] + (c[2] - a[2]) * u);
+            b += Math.round(a[3] + (c[3] - a[3]) * u);
+          }
+          const o = (py * size + px) * 4;
+          out[o] = r / 4;
+          out[o + 1] = g / 4;
+          out[o + 2] = b / 4;
+          out[o + 3] = 255;
+        }
+      }
+      return out;
+    }
+  },
+  js() {
+    const $ = (id) => document.getElementById(id);
+    const GRACE = 1500, EVICT = 1000, TIMEOUT = 1200, GRID = 8, TILE = 32, MAX_NODES = 8;
+    const PLATFORM = 'tabernetes.dev/platform';
+    const KIND = {
+      phone: { label: 'スマホ', platform: 'Android', cap: 1000, boot: [700, 1400], tile: [280, 420] },
+      pc: { label: 'PC', platform: 'Linux', cap: 2000, boot: [300, 700], tile: [110, 190] },
+    };
+    const APPS = { mandel: { cpu: 500 }, counter: { cpu: 250 } };
+    const NODE_COLORS = ['#7cc4f0', '#e58fd0', '#f2d16b', '#8fd8c8', '#c9a3f5', '#f08a8a', '#b8c8e0', '#d9b77c'];
+    const POD_COLORS = { mandel: '#8fd18b', counter: '#f0a35e' };
+    const VIEWS = [
+      { cx: -0.6, cy: 0, span: 3.0, iter: 200, sh: 0.58, label: '全体' },
+      { cx: -0.7453, cy: 0.1127, span: 0.012, iter: 700, label: '-0.7453 + 0.1127i の近く' },
+      { cx: -1.7549, cy: 0, span: 0.045, iter: 500, label: '実軸の上の小さな写し' },
+      { cx: -0.1011, cy: 0.9563, span: 0.05, iter: 500, label: '-0.1011 + 0.9563i の近く' },
+    ];
+    const T0 = performance.now();
+    const now = () => performance.now();
+    const rnd = (a, b) => a + Math.random() * (b - a);
+
+    const nodes = new Map();    // 名前 → ノード（API サーバーの表）
+    const pods = new Map();     // 名前 → Pod（API サーバーの表）
+    const inflight = new Map(); // 問い合わせの番号 → 送った先と時刻
+    const busy = Object.create(null);
+    const boots = [];
+    const events = [];
+    const dots = [];
+    const store = { count: 0 }; // サーバーの側に置く訪問の数（Pod が移っても残る）
+    const visitQ = { n: 0, busy: false };
+    let nodeSeq = 0, podSeq = 0, reqSeq = 0, colorSeq = 0, rrTile = 0, rrVisit = 0, moved = 0, want = 4;
+    let render = null, viewIdx = 0, renderSeq = 0, evDirty = true;
+
+    // ---- タブ（Worker）の中で動くもの。ここだけは Worker の中で動くので、外の変数を使わない ----
+    function tabMain() {
+      const pods = new Map();
+      let frozen = false;
+      const outbox = [], inbox = [];
+      const send = (m, tr) => { if (frozen) outbox.push([m, tr]); else postMessage(m, tr || []); };
+      setInterval(() => { if (!frozen) postMessage({ t: 'lease' }); }, 250);
+      postMessage({ t: 'lease' });
+      function handle(m) {
+        if (m.t === 'start') {
+          // 起動の時間（元はページの読み込み・カーネルの起動・イメージの用意）の代わりに待つ
+          setTimeout(() => { pods.set(m.pod, { app: m.app, local: 0 }); send({ t: 'started', pod: m.pod }); }, m.boot);
+        } else if (m.t === 'stop') {
+          pods.delete(m.pod);
+        } else if (m.t === 'tile') {
+          if (!pods.has(m.pod)) { send({ t: 'nopod', id: m.id }); return; }
+          const t0 = performance.now();
+          const px = mandelTile(m.view, m.tx, m.ty, m.grid, m.size, m.maxIter);
+          const ms = performance.now() - t0;
+          setTimeout(() => send({ t: 'tile', id: m.id, pod: m.pod, px, ms }, [px.buffer]), m.wait);
+        } else if (m.t === 'visit') {
+          const p = pods.get(m.pod);
+          if (!p) { send({ t: 'nopod', id: m.id }); return; }
+          p.local += 1;
+          send({ t: 'visit', id: m.id, pod: m.pod, stored: m.stored + 1, local: p.local });
+        }
+      }
+      onmessage = (e) => {
+        const m = e.data;
+        if (m.t === 'pause') { frozen = true; return; }
+        if (m.t === 'resume') {
+          frozen = false;
+          postMessage({ t: 'lease' });
+          for (const [x, tr] of outbox.splice(0)) postMessage(x, tr || []);
+          for (const x of inbox.splice(0)) handle(x);
+          return;
+        }
+        if (frozen) inbox.push(m); else handle(m);
+      };
+    }
+    let blobUrl = null;
+    try { blobUrl = URL.createObjectURL(new Blob([`${mandelTile}\n(${tabMain})();`], { type: 'text/javascript' })); } catch (err) { blobUrl = null; }
+
+    function say(msg) { $('say').textContent = msg; }
+    function log(msg) {
+      events.unshift({ t: (now() - T0) / 1000, msg });
+      if (events.length > 16) events.length = 16;
+      evDirty = true;
+    }
+
+    // ---- タブを開く・閉じる・止める（元では人がタブを開くと、エージェントがノードを登録する） ----
+    function openTab(kind) {
+      if (nodes.size >= MAX_NODES) return;
+      if (!blobUrl) { say('この画面では Worker を作れないので、ノードを足せない'); return; }
+      const k = KIND[kind];
+      // ノードの番号は 1000 から数える（Pod と同じ番号から始めると、名前の末尾の頭が同じになって紛らわしい）
+      const nm = `${kind}-${kSuffix(1000 + nodeSeq++, 4)}`;
+      let w;
+      try { w = new Worker(blobUrl); } catch (err) { say('Worker を作れなかった: ' + err.message); return; }
+      const nd = { name: nm, kind, k, labels: { [PLATFORM]: k.platform }, cap: k.cap, color: NODE_COLORS[colorSeq++ % NODE_COLORS.length], worker: w, lastLease: now(), flash: 0, ready: true, frozen: false, evicted: false };
+      w.onmessage = (e) => fromTab(nd, e.data);
+      w.onerror = (e) => log(`タブ ${nm} の中でエラー: ${e.message || '理由は分からない'}`);
+      nodes.set(nm, nd);
+      log(`タブ ${nm} が参加した。ノードとして登録（${k.label}、CPU ${k.cap}m、platform=${k.platform}）`);
+    }
+    function closeTab(nd) {
+      if (!nodes.has(nd.name)) return;
+      nd.worker.terminate();
+      nodes.delete(nd.name);
+      const list = [...pods.values()].filter((p) => p.node === nd.name && !p.deleting);
+      for (const p of list) deletePod(p, '閉じたタブにあった');
+      moved += list.length;
+      log(`タブ ${nd.name} が閉じた。つながりが切れたのでノードを消し、そこにあった Pod ${list.length} 個も消した`);
+      tick();
+    }
+    function toggleFreeze(nd) {
+      nd.frozen = !nd.frozen;
+      nd.worker.postMessage({ t: nd.frozen ? 'pause' : 'resume' });
+      log(nd.frozen ? `タブ ${nd.name} を止めた。lease も答えも返らなくなる` : `タブ ${nd.name} を再開した。貯めていた知らせを順に出す`);
+      ui();
+    }
+
+    // ---- タブからの知らせ（元では WebSocket で届く） ----
+    function fromTab(nd, m) {
+      if (!nodes.has(nd.name)) return;
+      const t = now();
+      if (m.t === 'lease') { nd.lastLease = t; nd.flash = t; return; }
+      if (m.t === 'started') {
+        const p = pods.get(m.pod);
+        if (!p || p.node !== nd.name || p.deleting) return;
+        p.phase = 'Running';
+        p.boot = Math.round(t - p.bound);
+        boots.push(p.boot);
+        if (boots.length > 40) boots.shift();
+        log(`Pod ${p.name} が ${nd.name} で動き始めた（割り当てから ${p.boot} ms）`);
+        pump();
+        return;
+      }
+      const q = inflight.get(m.id);
+      if (!q) return; // 時間切れで送り直した後に届いた古い答え
+      if (m.t === 'nopod') { fail(m.id, 'その Pod はもうタブに無い'); pump(); return; }
+      finish(m.id);
+      if (m.t === 'tile') tileDone(q, m, nd);
+      else if (m.t === 'visit') visitDone(q, m, nd);
+      pump();
+    }
+    function finish(id) {
+      const q = inflight.get(id);
+      if (!q) return null;
+      inflight.delete(id);
+      busy[q.pod] = Math.max(0, (busy[q.pod] || 0) - 1);
+      return q;
+    }
+    function fail(id, why) {
+      const q = finish(id);
+      if (!q) return;
+      if (q.kind === 'tile' && render && q.rid === render.id && !render.owner[q.tile]) {
+        render.queue.unshift(q.tile);
+        render.retries++;
+        log(`タイル ${q.tile + 1} は ${q.pod} から答えが無い（${why}）ので、別の Pod に送り直す`);
+      } else if (q.kind === 'visit') {
+        visitQ.busy = false;
+        visitQ.n++;
+        $('visitT').textContent = `訪問の答えが無い（${why}）ので、送り直す`;
+      }
+    }
+
+    // ---- API サーバーの表を書き換える小さな処理 ----
+    function newPod(app, selector) {
+      const p = { name: `${app}-${kSuffix(podSeq++, 5)}`, app, cpu: APPS[app].cpu, selector, node: null, phase: 'Pending', created: now(), bound: 0, boot: 0, reason: '', deleting: 0, why: '' };
+      pods.set(p.name, p);
+      return p;
+    }
+    function bind(p, nn) {
+      const nd = nodes.get(nn);
+      p.node = nn;
+      p.phase = 'ContainerCreating';
+      p.bound = now();
+      p.reason = '';
+      nd.worker.postMessage({ t: 'start', pod: p.name, app: p.app, boot: Math.round(rnd(nd.k.boot[0], nd.k.boot[1])) });
+    }
+    function deletePod(p, why) {
+      if (!p || p.deleting) return;
+      p.deleting = now();
+      p.phase = 'Terminating';
+      p.why = why;
+      const nd = nodes.get(p.node);
+      if (nd) nd.worker.postMessage({ t: 'stop', pod: p.name });
+      for (const [id, q] of inflight) if (q.pod === p.name) fail(id, 'Pod が消された');
+    }
+    function counterSelector() { return $('sel').checked ? { [PLATFORM]: 'Android' } : null; }
+    function endpointsOf(app) {
+      return [...pods.values()].filter((p) => p.app === app && p.phase === 'Running' && !p.deleting && nodes.get(p.node)?.ready).map((p) => p.name).sort();
+    }
+    function nodeView() {
+      const used = Object.create(null), cnt = Object.create(null);
+      for (const p of pods.values()) if (p.node && !p.deleting) { used[p.node] = (used[p.node] || 0) + p.cpu; cnt[p.node] = (cnt[p.node] || 0) + 1; }
+      return [...nodes.values()].map((n) => ({ name: n.name, ready: n.ready, cap: n.cap, used: used[n.name] || 0, pods: cnt[n.name] || 0, labels: n.labels }));
+    }
+    function reconcile(app, n, selector) {
+      const list = [...pods.values()].filter((p) => p.app === app && !p.deleting);
+      const r = reconcileReplicas(n, list.map((p) => ({ name: p.name, node: p.node, phase: p.phase, nodeReady: !!(p.node && nodes.get(p.node)?.ready), created: p.created })));
+      if (r.create) {
+        const made = [];
+        for (let i = 0; i < r.create; i++) made.push(newPod(app, selector).name);
+        log(`Pod ${made.join('・')} を作った（${app} を ${n} 個に保つため）`);
+      }
+      if (r.remove.length) {
+        for (const nm of r.remove) deletePod(pods.get(nm), '数を減らした');
+        log(`Pod ${r.remove.join('・')} を消した（${app} を ${n} 個に減らすため）`);
+      }
+    }
+
+    // ---- 制御ループ（0.1 秒ごと） ----
+    function tick() {
+      const t = now();
+      // (1) ノードの見張り
+      for (const nd of nodes.values()) {
+        const h = nodeHealth(t, nd.lastLease, GRACE, EVICT);
+        if (nd.ready && !h.ready) { nd.ready = false; log(`ノード ${nd.name} の lease が ${GRACE / 1000} 秒届かない → NotReady。Service の窓口から外す`); }
+        else if (!nd.ready && h.ready) { nd.ready = true; nd.evicted = false; log(`ノード ${nd.name} の lease がまた届いた → Ready`); }
+        if (h.evict && !nd.evicted) {
+          nd.evicted = true;
+          const list = [...pods.values()].filter((p) => p.node === nd.name && !p.deleting);
+          for (const p of list) deletePod(p, 'ノードが NotReady のまま');
+          moved += list.length;
+          if (list.length) log(`NotReady が ${EVICT / 1000} 秒続いたので、${nd.name} の Pod ${list.length} 個を追い出した`);
+        }
+      }
+      // (2) ReplicaSet
+      reconcile('mandel', want, null);
+      reconcile('counter', 1, counterSelector());
+      // (3) スケジューラ
+      const view = nodeView();
+      const binds = [], stuck = new Map();
+      for (const p of [...pods.values()].filter((x) => !x.node && !x.deleting).sort((a, b) => a.created - b.created)) {
+        const r = scheduleOne(p, view);
+        if (r.node) {
+          bind(p, r.node);
+          const v = view.find((x) => x.name === r.node);
+          v.used += p.cpu;
+          v.pods++;
+          binds.push(`${p.name} → ${r.node}`);
+        } else if (p.reason !== r.reason) {
+          p.reason = r.reason;
+          if (!stuck.has(r.reason)) stuck.set(r.reason, []);
+          stuck.get(r.reason).push(p.name);
+        }
+      }
+      if (binds.length) log(`割り当てた: ${binds.join('、')}`);
+      for (const [why, names] of stuck) log(`Pod ${names.join('・')} を置けない: ${why}`);
+      // (4) 答えの来ない問い合わせ
+      for (const [id, q] of inflight) if (t - q.sent > TIMEOUT) fail(id, `${TIMEOUT / 1000} 秒たっても答えが無い`);
+      // (5) 消した Pod を表から外す
+      for (const p of [...pods.values()]) if (p.deleting && t - p.deleting > 900) pods.delete(p.name);
+      pump();
+      ui();
+    }
+
+    // ---- Service（動いている Pod へ順番に送る） ----
+    function shoot(nd, color, out) { dots.push({ node: nd.name, color, out, t0: now() }); }
+    function pump() {
+      if (render && render.queue.length) {
+        const eps = endpointsOf('mandel');
+        while (render.queue.length) {
+          const pk = pickEndpoint(eps, rrTile, busy, 1);
+          if (!pk) break;
+          rrTile = pk.next;
+          const pod = pods.get(eps[pk.i]), nd = nodes.get(pod.node), tile = render.queue.shift(), id = ++reqSeq;
+          inflight.set(id, { kind: 'tile', rid: render.id, tile, pod: pod.name, node: nd.name, sent: now() });
+          busy[pod.name] = (busy[pod.name] || 0) + 1;
+          nd.worker.postMessage({ t: 'tile', id, pod: pod.name, view: render.view, tx: tile % GRID, ty: Math.floor(tile / GRID), grid: GRID, size: TILE, maxIter: render.view.iter, wait: Math.round(rnd(nd.k.tile[0], nd.k.tile[1])) });
+          shoot(nd, POD_COLORS.mandel, true);
+        }
+      }
+      if (visitQ.n > 0 && !visitQ.busy) {
+        const eps = endpointsOf('counter');
+        const pk = pickEndpoint(eps, rrVisit, busy, 1);
+        if (pk) {
+          rrVisit = pk.next;
+          const pod = pods.get(eps[pk.i]), nd = nodes.get(pod.node), id = ++reqSeq;
+          visitQ.n--;
+          visitQ.busy = true;
+          inflight.set(id, { kind: 'visit', pod: pod.name, node: nd.name, sent: now() });
+          busy[pod.name] = (busy[pod.name] || 0) + 1;
+          nd.worker.postMessage({ t: 'visit', id, pod: pod.name, stored: store.count });
+          shoot(nd, POD_COLORS.counter, true);
+        }
+      }
+    }
+
+    // ---- 絵 ----
+    const pic = $('pic'), pctx = pic.getContext('2d');
+    pctx.fillStyle = '#0c0e12';
+    pctx.fillRect(0, 0, 256, 256);
+    function startRender() {
+      const v = VIEWS[viewIdx++ % VIEWS.length];
+      render = { id: ++renderSeq, view: v, queue: Array.from({ length: GRID * GRID }, (_, i) => i), owner: new Array(GRID * GRID).fill(null), done: 0, retries: 0, t0: now(), finished: false };
+      pctx.fillStyle = '#0c0e12';
+      pctx.fillRect(0, 0, 256, 256);
+      say(`絵（${v.label}）を描き始めた。64 枚のタイルを mandel の Pod に分けて送る`);
+      log(`絵（${v.label}）を描き始めた`);
+      pump();
+      ui();
+    }
+    function tileDone(q, m, nd) {
+      if (!render || q.rid !== render.id || render.owner[q.tile]) return;
+      render.owner[q.tile] = { node: nd.name, color: nd.color, pod: q.pod, ms: m.ms, rt: now() - q.sent, px: m.px };
+      paintTile(q.tile);
+      render.done++;
+      shoot(nd, POD_COLORS.mandel, false);
+      if (render.done === GRID * GRID) {
+        render.finished = true;
+        const used = new Set(render.owner.map((o) => o.node));
+        const msg = `描き終えた: 64 枚を ${used.size} 台のノードが描いた（送り直し ${render.retries} 枚、${((now() - render.t0) / 1000).toFixed(1)} 秒）`;
+        say(msg);
+        log(msg);
+      }
+    }
+    function paintTile(i) {
+      const o = render.owner[i], x = (i % GRID) * TILE, y = Math.floor(i / GRID) * TILE;
+      if (!o) { pctx.fillStyle = '#0c0e12'; pctx.fillRect(x, y, TILE, TILE); return; }
+      pctx.putImageData(new ImageData(o.px, TILE, TILE), x, y);
+      pctx.fillStyle = o.color;
+      if ($('tint').checked) {
+        pctx.globalAlpha = 0.45;
+        pctx.fillRect(x, y, TILE, TILE);
+        pctx.globalAlpha = 1;
+      }
+      // 左上の角の小さな三角が、描いたノードの色
+      pctx.beginPath();
+      pctx.moveTo(x, y);
+      pctx.lineTo(x + 7, y);
+      pctx.lineTo(x, y + 7);
+      pctx.closePath();
+      pctx.fill();
+    }
+    $('tint').addEventListener('change', () => { if (render) for (let i = 0; i < GRID * GRID; i++) paintTile(i); });
+    function showWho(e) {
+      const r = pic.getBoundingClientRect();
+      if (!render || r.width <= 0 || r.height <= 0) return;
+      const tx = Math.min(GRID - 1, Math.max(0, Math.floor(((e.clientX - r.left) / r.width) * GRID)));
+      const ty = Math.min(GRID - 1, Math.max(0, Math.floor(((e.clientY - r.top) / r.height) * GRID)));
+      const o = render.owner[ty * GRID + tx];
+      $('who').textContent = o ? `タイル（${tx + 1}, ${ty + 1}）は ${o.node} の ${o.pod} が描いた（計算 ${o.ms.toFixed(1)} ms、往復 ${Math.round(o.rt)} ms）` : `タイル（${tx + 1}, ${ty + 1}）はまだ描いていない`;
+    }
+    pic.addEventListener('pointermove', showWho);
+    pic.addEventListener('pointerdown', showWho);
+
+    // ---- 訪問 ----
+    function visitDone(q, m, nd) {
+      visitQ.busy = false;
+      store.count = m.stored;
+      $('visitT').textContent = `訪問の数: サーバーの側に置いた数 ${m.stored} ／ Pod の中に置いた数 ${m.local}（${q.pod} が ${nd.name} で答えた）`;
+      shoot(nd, POD_COLORS.counter, false);
+    }
+
+    // ---- 表と文字 ----
+    const nodeRows = new Map();
+    let podSig = '';
+    function cell(tr, cls) { const td = document.createElement('td'); if (cls) td.className = cls; tr.append(td); return td; }
+    function ui() {
+      const t = now();
+      // ノードの表（ボタンを押せるように、行は作り直さずに中身だけ書き換える）
+      const body = $('nodesT').tBodies[0];
+      for (const [nm, row] of nodeRows) if (!nodes.has(nm)) { row.tr.remove(); nodeRows.delete(nm); }
+      const view = nodeView();
+      for (const nd of nodes.values()) {
+        let row = nodeRows.get(nd.name);
+        if (!row) {
+          const tr = document.createElement('tr');
+          const c0 = cell(tr, 'mono');
+          const sw = document.createElement('span');
+          sw.className = 'sw';
+          sw.style.background = nd.color;
+          c0.append(sw, nd.name);
+          cell(tr).textContent = `${nd.k.label}（${nd.k.platform}）`;
+          const st = cell(tr), cpu = cell(tr, 'mono'), lease = cell(tr, 'mono'), ops = cell(tr);
+          const bp = document.createElement('button'), bc = document.createElement('button');
+          bp.type = 'button';
+          bc.type = 'button';
+          bc.textContent = '閉じる';
+          bp.addEventListener('click', () => toggleFreeze(nd));
+          bc.addEventListener('click', () => closeTab(nd));
+          ops.append(bp, bc);
+          row = { tr, st, cpu, lease, bp };
+          nodeRows.set(nd.name, row);
+          body.append(tr);
+        }
+        const v = view.find((x) => x.name === nd.name);
+        row.st.textContent = nd.ready ? (nd.frozen ? 'Ready（止まっている）' : 'Ready') : 'NotReady';
+        row.st.className = nd.ready ? (nd.frozen ? 'wait' : 'ok') : 'bad';
+        row.cpu.textContent = `${v.used}m / ${nd.cap}m`;
+        row.lease.textContent = `${((t - nd.lastLease) / 1000).toFixed(1)} 秒前`;
+        row.bp.textContent = nd.frozen ? '再開する' : '止める';
+      }
+      // Pod の表（ボタンが無いので、変わった時だけ作り直す）
+      const plist = [...pods.values()].sort((a, b) => (a.app === b.app ? a.created - b.created : a.app < b.app ? -1 : 1));
+      const sig = plist.map((p) => [p.name, p.phase, p.node, p.reason, p.why, nodes.get(p.node)?.ready].join('|')).join(';');
+      if (sig !== podSig) {
+        podSig = sig;
+        const pb = $('podsT').tBodies[0];
+        pb.replaceChildren();
+        for (const p of plist) {
+          const tr = document.createElement('tr');
+          if (p.deleting) tr.className = 'gone';
+          const c0 = cell(tr, 'mono');
+          const sw = document.createElement('span');
+          sw.className = 'sw';
+          sw.style.background = POD_COLORS[p.app];
+          c0.append(sw, p.name);
+          const nd = nodes.get(p.node);
+          const st = cell(tr);
+          st.textContent = p.phase === 'Running' && nd && !nd.ready ? 'Running（ノードが NotReady）' : p.phase;
+          st.className = p.phase === 'Running' ? (nd && nd.ready ? 'ok' : 'bad') : p.phase === 'Terminating' ? 'bad' : 'wait';
+          cell(tr, 'mono').textContent = p.node || '（まだ無い）';
+          cell(tr, 'memo').textContent = p.deleting ? p.why : p.phase === 'Pending' ? p.reason : p.phase === 'Running' ? `起動 ${p.boot} ms` : '起動を待っている';
+          pb.append(tr);
+        }
+      }
+      // 起きたこと
+      if (evDirty) {
+        evDirty = false;
+        const ol = $('ev');
+        ol.replaceChildren(...events.map((e) => {
+          const li = document.createElement('li');
+          const tm = document.createElement('time');
+          tm.textContent = `${e.t.toFixed(1)} 秒`;
+          li.append(tm, e.msg);
+          return li;
+        }));
+      }
+      // 数
+      let ready = 0, run = 0, pend = 0, alive = 0;
+      for (const nd of nodes.values()) if (nd.ready) ready++;
+      for (const p of pods.values()) { if (p.deleting) continue; alive++; if (p.phase === 'Running') run++; if (p.phase === 'Pending') pend++; }
+      const med = medianOf(boots);
+      $('stats').textContent = `ノード ${nodes.size} 台（Ready ${ready}）・Pod ${alive} 個（Running ${run}、Pending ${pend}）・閉じたか止まったタブから移した Pod ${moved} 個・起動の中央値 ${Number.isFinite(med) ? Math.round(med) + ' ms' : '—'}`;
+      if (render) {
+        $('prog').value = render.done;
+        $('picT').textContent = `絵（${render.view.label}）: ${render.done} / 64 枚（送り直し ${render.retries} 枚）`;
+      }
+      $('addPhone').disabled = $('addPc').disabled = nodes.size >= MAX_NODES;
+      $('visit').textContent = visitQ.n > 0 ? `訪問を送る（${visitQ.n} 件待ち）` : '訪問を送る';
+    }
+
+    // ---- クラスタの図 ----
+    const topo = $('topo'), tctx = topo.getContext('2d');
+    function roundBox(x, y, w, h, r) { tctx.beginPath(); tctx.roundRect(x, y, w, h, r); }
+    function drawTopo() {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const W = Math.max(1, topo.clientWidth), H = Math.max(1, topo.clientHeight);
+      const bw = Math.max(1, Math.round(W * dpr)), bh = Math.max(1, Math.round(H * dpr));
+      if (topo.width !== bw || topo.height !== bh) { topo.width = bw; topo.height = bh; }
+      tctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      tctx.clearRect(0, 0, W, H);
+      const t = now(), cx = W / 2, cy = H / 2;
+      const small = W < 320;
+      const list = [...nodes.values()];
+      const nw = Math.max(60, Math.min(112, W * 0.2)), nh = 54;
+      const cw = Math.min(124, W * 0.36), ch = small ? 38 : 44;
+      const rx = Math.max(0, W / 2 - nw / 2 - 6), ry = Math.max(0, H / 2 - nh / 2 - 6);
+      const pos = new Map();
+      list.forEach((nd, i) => {
+        const a = -Math.PI / 2 + (i / Math.max(1, list.length)) * Math.PI * 2;
+        pos.set(nd.name, [cx + rx * Math.cos(a), cy + ry * Math.sin(a)]);
+      });
+      // 線（lease が届くたびに少し明るくなる）
+      for (const nd of list) {
+        const [x, y] = pos.get(nd.name);
+        const f = Math.max(0, 1 - (t - nd.flash) / 300);
+        tctx.strokeStyle = nd.ready ? `rgba(160, 205, 175, ${0.14 + 0.5 * f})` : 'rgba(240, 138, 138, 0.45)';
+        tctx.setLineDash(nd.ready ? [] : [4, 4]);
+        tctx.lineWidth = 1 + f;
+        tctx.beginPath();
+        tctx.moveTo(cx, cy);
+        tctx.lineTo(x, y);
+        tctx.stroke();
+      }
+      tctx.setLineDash([]);
+      // コントロールプレーン
+      roundBox(cx - cw / 2, cy - ch / 2, cw, ch, 8);
+      tctx.fillStyle = '#262a33';
+      tctx.fill();
+      tctx.strokeStyle = '#8a90a0';
+      tctx.lineWidth = 1;
+      tctx.stroke();
+      tctx.fillStyle = '#e9e6de';
+      tctx.textAlign = 'center';
+      tctx.textBaseline = 'middle';
+      tctx.font = `${small ? 9 : 11}px system-ui, sans-serif`;
+      tctx.fillText('コントロール', cx, cy - (small ? 7 : 8));
+      tctx.fillText('プレーン', cx, cy + (small ? 6 : 8));
+      // まだ置けない Pod（コントロールプレーンの下に並べる）
+      const pend = [...pods.values()].filter((p) => !p.node && !p.deleting);
+      pend.forEach((p, i) => {
+        const x = cx - (pend.length * 11) / 2 + i * 11 + 1, y = cy + ch / 2 + 6;
+        tctx.strokeStyle = POD_COLORS[p.app];
+        tctx.setLineDash([2, 2]);
+        tctx.strokeRect(x + 0.5, y + 0.5, 8, 8);
+        tctx.setLineDash([]);
+      });
+      if (pend.length && !small) {
+        tctx.fillStyle = '#f2d16b';
+        tctx.font = '10px system-ui, sans-serif';
+        tctx.fillText(`Pending ${pend.length}`, cx, cy + ch / 2 + 24);
+      }
+      // ノード
+      for (const nd of list) {
+        const [x, y] = pos.get(nd.name);
+        const x0 = x - nw / 2, y0 = y - nh / 2;
+        tctx.globalAlpha = nd.frozen ? 0.6 : 1;
+        roundBox(x0, y0, nw, nh, 7);
+        tctx.fillStyle = '#1f232b';
+        tctx.fill();
+        tctx.strokeStyle = nd.color;
+        tctx.lineWidth = nd.ready ? 1.5 : 1;
+        tctx.setLineDash(nd.ready ? [] : [4, 3]);
+        tctx.stroke();
+        tctx.setLineDash([]);
+        tctx.textAlign = 'left';
+        tctx.fillStyle = '#e9e6de';
+        tctx.font = `${small ? 9 : 10.5}px ui-monospace, monospace`;
+        tctx.fillText(nd.name, x0 + 6, y0 + 11, nw - 10);
+        tctx.font = `${small ? 8.5 : 10}px system-ui, sans-serif`;
+        tctx.fillStyle = nd.ready ? (nd.frozen ? '#f2d16b' : '#9fdc9a') : '#f08a8a';
+        tctx.fillText(nd.ready ? (nd.frozen ? '止まっている' : `Ready・${nd.k.label}`) : 'NotReady', x0 + 6, y0 + 24, nw - 10);
+        let i = 0;
+        const perRow = Math.max(1, Math.floor((nw - 10) / 11));
+        for (const p of pods.values()) {
+          if (p.node !== nd.name) continue;
+          const px = x0 + 6 + (i % perRow) * 11, py = y0 + 32 + Math.floor(i / perRow) * 11;
+          i++;
+          tctx.globalAlpha = (nd.frozen ? 0.6 : 1) * (p.deleting ? 0.3 : 1);
+          if (p.phase === 'Running') { tctx.fillStyle = POD_COLORS[p.app]; tctx.fillRect(px, py, 8, 8); }
+          else { tctx.strokeStyle = POD_COLORS[p.app]; tctx.lineWidth = 1; tctx.strokeRect(px + 0.5, py + 0.5, 7, 7); }
+        }
+        tctx.globalAlpha = 1;
+      }
+      // 問い合わせと答えの点
+      for (let k = dots.length - 1; k >= 0; k--) {
+        const d = dots[k], p = pos.get(d.node), u = (t - d.t0) / 320;
+        if (!p || u >= 1) { dots.splice(k, 1); continue; }
+        const a = d.out ? u : 1 - u;
+        tctx.fillStyle = d.color;
+        tctx.beginPath();
+        tctx.arc(cx + (p[0] - cx) * a, cy + (p[1] - cy) * a, d.out ? 3 : 2.2, 0, Math.PI * 2);
+        tctx.fill();
+      }
+      requestAnimationFrame(drawTopo);
+    }
+
+    // ---- ボタン ----
+    $('addPhone').addEventListener('click', () => { openTab('phone'); tick(); });
+    $('addPc').addEventListener('click', () => { openTab('pc'); tick(); });
+    $('draw').addEventListener('click', startRender);
+    $('visit').addEventListener('click', () => {
+      visitQ.n++;
+      if (!endpointsOf('counter').length) $('visitT').textContent = 'counter の Pod がまだ動いていないので、動き始めたら送る';
+      pump();
+      ui();
+    });
+    $('rep').addEventListener('input', () => {
+      want = Number($('rep').value);
+      $('repO').textContent = String(want);
+      log(`mandel の数（Deployment の replicas）を ${want} にした`);
+      tick();
+    });
+    $('sel').addEventListener('change', () => {
+      const sel = counterSelector();
+      const list = [...pods.values()].filter((p) => p.app === 'counter' && !p.deleting);
+      for (const p of list) deletePod(p, '決まりが変わったので作り直す');
+      log(sel ? 'counter に nodeSelector（platform=Android）を付けた。今の Pod を消して作り直す' : 'counter の nodeSelector を外した。今の Pod を消して作り直す');
+      tick();
+    });
+
+    // ---- 始める ----
+    if (window.THUMB) document.body.classList.add('thumb');
+    openTab('phone');
+    openTab('pc');
+    openTab('phone');
+    tick();
+    setInterval(tick, 100);
+    requestAnimationFrame(drawTopo);
+    // 最初の絵は、mandel の Pod が 2 個以上動き始めてから描く
+    const firstDraw = setInterval(() => { if (endpointsOf('mandel').length >= 2) { clearInterval(firstDraw); startRender(); } }, 150);
+    if (window.THUMB) {
+      // 小窓では、描いている途中でタブを 1 つ閉じ、少し後に別のタブを開く、を繰り返す
+      let closed = false, waitNext = 0;
+      setInterval(() => {
+        if (!render) return;
+        if (!render.finished && !closed && render.done >= 18) {
+          const victim = [...nodes.values()].find((n) => n.kind === 'phone');
+          if (victim) { closed = true; closeTab(victim); setTimeout(() => { openTab('phone'); tick(); }, 1800); }
+        }
+        if (render.finished) {
+          if (!waitNext) waitNext = now();
+          else if (now() - waitNext > 1200) { waitNext = 0; closed = false; startRender(); }
+        }
+      }, 200);
+      setInterval(() => { visitQ.n = Math.min(visitQ.n + 1, 2); pump(); }, 1400);
+    }
+  },
+});

@@ -3630,3 +3630,126 @@ test('地図: 水際の線の番号と位置は互いに逆の関係で、外ほ
     gap = d - prev; prev = d;
   }
 });
+
+const TABS = 'tr-20261128-tab-cluster';
+
+test('タブのクラスタ: 名前の末尾は決まった 27 文字だけで、番号が違えば必ず違う', () => {
+  const { kSuffix } = trendCore(TABS, ['kSuffix']);
+  const abc = 'bcdfghjklmnpqrstvwxz2456789';
+  const seen = new Set();
+  for (let n = 0; n < 3000; n++) {
+    const s = kSuffix(n, 5);
+    assert.equal(s.length, 5);
+    for (const ch of s) assert.ok(abc.includes(ch), s);
+    seen.add(s);
+  }
+  assert.equal(seen.size, 3000);
+  assert.equal(kSuffix(7, 4), kSuffix(7, 4));
+  // 4 文字なら 27^4 = 531441 通りを 1 回ずつ使う
+  const all = new Set();
+  for (let n = 0; n < 531441; n++) all.add(kSuffix(n, 4));
+  assert.equal(all.size, 531441);
+});
+
+test('タブのクラスタ: lease が grace より長く途切れると NotReady、さらに evictAfter たつと追い出す', () => {
+  const { nodeHealth } = trendCore(TABS, ['nodeHealth']);
+  const h = (gap) => { const r = nodeHealth(10000, 10000 - gap, 1500, 1000); return [r.ready, r.evict]; };
+  assert.deepEqual(h(0), [true, false]);
+  assert.deepEqual(h(1500), [true, false]);
+  assert.deepEqual(h(1501), [false, false]);
+  assert.deepEqual(h(2500), [false, false]);
+  assert.deepEqual(h(2501), [false, true]);
+});
+
+const tabNode = (name, cap, used, pods, platform = 'Android', ready = true) => ({ name, cap, used, pods, ready, labels: { 'tabernetes.dev/platform': platform } });
+
+test('タブのクラスタ: スケジューラは置いた後の空きの割合が大きいノードを選び、同じなら Pod の少ない方、次に名前の順', () => {
+  const { scheduleOne } = trendCore(TABS, ['scheduleOne']);
+  const N = tabNode;
+  // pc は置いた後 1500/2000 = 0.75、phone は 500/1000 = 0.5
+  assert.equal(scheduleOne({ cpu: 500, selector: null }, [N('phone-a', 1000, 0, 0), N('pc-b', 2000, 0, 0, 'Linux')]).node, 'pc-b');
+  // どちらも 0.5 なら Pod の少ない方
+  assert.equal(scheduleOne({ cpu: 500, selector: null }, [N('pc-b', 2000, 500, 1, 'Linux'), N('phone-a', 1000, 0, 0)]).node, 'phone-a');
+  // 割合も Pod の数も同じなら名前の順
+  assert.equal(scheduleOne({ cpu: 500, selector: null }, [N('phone-z', 1000, 0, 0), N('phone-a', 1000, 0, 0)]).node, 'phone-a');
+  // nodeSelector が合わないノードは、空きが大きくても選ばない
+  assert.equal(scheduleOne({ cpu: 250, selector: { 'tabernetes.dev/platform': 'Android' } }, [N('pc-b', 2000, 0, 0, 'Linux'), N('phone-a', 1000, 500, 1)]).node, 'phone-a');
+  // 空きがちょうど要る分だけなら置ける
+  assert.equal(scheduleOne({ cpu: 500, selector: null }, [N('c', 1000, 500, 1)]).node, 'c');
+});
+
+test('タブのクラスタ: 置けない時は、外した理由をノードの台数で数える', () => {
+  const { scheduleOne } = trendCore(TABS, ['scheduleOne']);
+  const N = tabNode;
+  const r = scheduleOne({ cpu: 500, selector: { 'tabernetes.dev/platform': 'Android' } }, [N('a', 1000, 0, 0, 'Android', false), N('b', 2000, 0, 0, 'Linux'), N('c', 1000, 750, 1), N('d', 1000, 600, 1)]);
+  assert.equal(r.node, null);
+  assert.equal(r.reason, '0/4 台に置けない（NotReady 1 台、nodeSelector が合わない 1 台、CPU の空きが足りない 2 台）');
+  assert.equal(scheduleOne({ cpu: 500, selector: null }, []).reason, 'ノードが 1 台も無い');
+  assert.equal(scheduleOne({ cpu: 500, selector: null }, [N('a', 1000, 0, 0, 'Android', false)]).reason, '0/1 台に置けない（NotReady 1 台）');
+});
+
+test('タブのクラスタ: ReplicaSet は足りない数を作り、多すぎれば「ノードなし → 動いていない → NotReady → 新しい」の順に消す', () => {
+  const { reconcileReplicas } = trendCore(TABS, ['reconcileReplicas']);
+  const P = (name, node, phase, nodeReady, created) => ({ name, node, phase, nodeReady, created });
+  const r1 = reconcileReplicas(4, [P('a', 'n1', 'Running', true, 1)]);
+  assert.deepEqual([r1.create, r1.remove.length], [3, 0]);
+  const pods = [P('old', 'n1', 'Running', true, 1), P('new', 'n1', 'Running', true, 9), P('sick', 'n2', 'Running', false, 2), P('boot', 'n1', 'ContainerCreating', true, 3), P('wait', null, 'Pending', false, 4)];
+  const order = [4, 3, 2, 1].map((k) => [...reconcileReplicas(k, pods).remove].join(','));
+  assert.deepEqual(order, ['wait', 'wait,boot', 'wait,boot,sick', 'wait,boot,sick,new']);
+  const r5 = reconcileReplicas(5, pods);
+  assert.deepEqual([r5.create, r5.remove.length], [0, 0]);
+  // 同じ順位なら名前の順に消す
+  assert.deepEqual([...reconcileReplicas(1, [P('y', null, 'Pending', false, 5), P('x', null, 'Pending', false, 5)]).remove], ['x']);
+});
+
+test('タブのクラスタ: Service は窓口を順番に回り、手いっぱいの Pod を飛ばす', () => {
+  const { pickEndpoint } = trendCore(TABS, ['pickEndpoint']);
+  const pk = (...a) => { const r = pickEndpoint(...a); return r ? [r.i, r.next] : null; };
+  const eps = ['a', 'b', 'c'];
+  assert.deepEqual(pk(eps, 0, {}, 1), [0, 1]);
+  assert.deepEqual(pk(eps, 4, {}, 1), [1, 2]);
+  assert.deepEqual(pk(eps, 0, { a: 1, b: 1 }, 1), [2, 3]);
+  assert.deepEqual(pk(eps, 2, { c: 1 }, 1), [0, 1]);
+  assert.deepEqual(pk(eps, 0, { a: 1 }, 2), [0, 1]);
+  assert.equal(pk(eps, 0, { a: 1, b: 1, c: 1 }, 1), null);
+  assert.equal(pk([], 0, {}, 1), null);
+});
+
+test('タブのクラスタ: 起動の時間の中央値', () => {
+  const { medianOf } = trendCore(TABS, ['medianOf']);
+  assert.ok(Number.isNaN(medianOf([])));
+  assert.equal(medianOf([3, 1, 2]), 2);
+  assert.equal(medianOf([4, 1, 3, 2]), 2.5);
+  assert.equal(medianOf([7]), 7);
+});
+
+test('タブのクラスタ: マンデルブロのタイルは、集合の中を暗い色にし、外を色付きにする', () => {
+  const { mandelTile } = trendCore(TABS, ['mandelTile']);
+  // 全体 8 × 8 点（2 × 2 枚、1 枚 4 × 4 点）、1 点の幅は 4 / 8 = 0.5
+  const t = mandelTile({ cx: 0, cy: 0, span: 4 }, 0, 0, 2, 4, 100);
+  assert.equal(t.length, 4 * 4 * 4);
+  const px = (a, x, y, size) => Array.from(a.slice((y * size + x) * 4, (y * size + x) * 4 + 4));
+  // 右下の点は c = -0.25 + 0.25i で、主な心臓形の中
+  assert.deepEqual(px(t, 3, 3, 4), [10, 12, 18, 255]);
+  // 左上の点は c = -1.75 + 1.75i で、|c| > 2 なのですぐ外へ逃げる
+  const out = px(t, 0, 0, 4);
+  assert.equal(out[3], 255);
+  assert.notDeepEqual(out, [10, 12, 18, 255]);
+});
+
+test('タブのクラスタ: タイルをつなぐと 1 枚で描いた絵と同じになり、実軸の上下は鏡写し', () => {
+  const { mandelTile } = trendCore(TABS, ['mandelTile']);
+  const view = { cx: -0.6, cy: 0, span: 3 };
+  const full = mandelTile(view, 0, 0, 1, 16, 200);
+  for (let ty = 0; ty < 4; ty++) for (let tx = 0; tx < 4; tx++) {
+    const tile = mandelTile(view, tx, ty, 4, 4, 200);
+    for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
+      const a = (y * 4 + x) * 4, b = ((ty * 4 + y) * 16 + tx * 4 + x) * 4;
+      for (let k = 0; k < 4; k++) assert.equal(tile[a + k], full[b + k], `tile ${tx},${ty} の点 ${x},${y}`);
+    }
+  }
+  // 中心が実軸の上なら、上から y 行目と下から y 行目は同じ（共役の c は同じ速さで逃げる）
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 16; x++) for (let k = 0; k < 4; k++) {
+    assert.equal(full[(y * 16 + x) * 4 + k], full[((15 - y) * 16 + x) * 4 + k]);
+  }
+});
