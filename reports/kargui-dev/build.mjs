@@ -153,6 +153,8 @@ const CHAPTERS = [
   { href: "18-contrast.html", no: "第 18 章", title: "ハイコントラスト", text: "OS のハイコントラストに従う範囲を、作者が寝ている間に決めた理由。配色の写し方、強制した見本の写真で見つけた 3 つの不具合、検証機のポータル、作者の手の確かめが 1 回目に動かなかった理由。", thumb: "contrast/black" },
   { href: "19-icon.html", no: "第 19 章", title: "既定のアイコン", text: "アイコンを渡さないアプリに出す kargui のアイコン。3 つの案を計算で描いて比べ、16 画素でも読める 1 つを選んだ。画像のファイルを読まずに大きさごとに描く理由と、その時間。", thumb: "icon/sheet" },
   { href: "20-locale.html", no: "第 20 章", title: "多言語（kargui が出す文字）", text: "題の帯のボタンやドッキングのメニューなど、kargui が自分で出す 18 語を、OS の言語で英語か日本語にした。OS ごとの言語の読み方、試験を PC の言語に左右させない工夫、読み上げの木に出ない名前の確かめ方。", thumb: "locale/dock-ja" },
+  { href: "21-x11.html", no: "第 21 章", title: "本物の X サーバーと切り分け", text: "Hyprland を通らない X サーバーを 2 つ用意し、X11 にだけある所を試した。開いたまま倍率を追う仕組み、日本語入力の答えを待つ間に消えた Ctrl、最小化した窓の描き直しと中身の処理、開くたびにずれた窓。", thumb: "x11real/dpi96" },
+  { href: "22-long-text.html", no: "第 22 章", title: "長い文字の入力欄", text: "2 MB の文字を貼った入力欄が重かった原因 5 つ。見えない字を描く、行の位置を数え直す、古い版を残す、キャレットの位置を毎回足す、全文を並べ直す。メモ帳のキー 1 つが約 68 秒から 10〜15 ミリ秒になった。", thumb: "bigtext/notepad" },
 ];
 
 function chapters() {
@@ -568,6 +570,49 @@ ${figure("apps/expenses", "家計簿の見本", "家計簿（<code>examples/expe
         "locale/linux",
         "検証機の部品の見本の窓を上下に 2 つ並べた絵。上は日付を選ぶ・時刻を選ぶ、下は Pick a date・Pick a time",
         "検証機（Hyprland、<code>LANG=ja_JP.UTF-8</code>）の同じページ。上は OS の言語のまま、下は <code>--locale en</code>。見本の窓だけを切り出した。",
+        { flat: true },
+      ),
+  },
+  "21-x11.html": {
+    dpi: () => `<div class="pair">
+  ${figure("x11real/dpi96", "openbox の枠の付いた部品の見本の窓。小さく、左に部品の一覧、右にボタンのページ", "<code>Xft.dpi</code> が 96（倍率 1）。最小の 600 × 400 まで縮めた窓（本物の Xorg）。", { flat: true })}
+  ${figure("x11real/dpi192", "同じ窓を 2 倍の画素で描いた絵。文字とボタンが大きく、並び方は左の絵と同じ", "そのまま 192（倍率 2）に変えた。論理の大きさは同じで、画素は 1200 × 800。", { flat: true })}
+</div>`,
+    drop: () =>
+      figure(
+        "x11real/drop",
+        "メモ帳の窓。本文に「落としたファイルの中身」「X11 の XDND」の 2 行があり、下の欄に「落とした メモ.txt 開きました」と出ている",
+        "XDND の知らせを送る道具で、日本語と空白を含む名前のファイルをメモ帳に落とした（Xvfb）。",
+        { flat: true },
+      ),
+    background: () =>
+      bars("c-bg-work", "別のスレッドの計算の量（1 秒あたり）", "見えている 5 秒と最小化の 5 秒を 3 回。切り替えた直後の 1 秒を外した平均。Windows と X11 は別の PC なので、OS の間では比べない", [
+        { name: "Win 見える", v: "old", value: 6057, label: "6,057" },
+        { name: "Win 最小化", v: "new", value: 6082, label: "6,082" },
+        { name: "X11 見える", v: "old", value: 4822, label: "4,822" },
+        { name: "X11 最小化", v: "new", value: 4837, label: "4,837" },
+      ]),
+    dock: () =>
+      figure(
+        "x11real/dock",
+        "部品の見本のドッキングのページの上に、「メモ」という題の小さな窓が重なっている",
+        "「新しいウィンドウへ移動」で、メモのパネルを別の窓に出した（Xvfb と openbox）。",
+        { flat: true },
+      ),
+  },
+  "22-long-text.html": {
+    memory: () =>
+      bars("c-bigtext-mem", "記憶（キーを 3 つ打った後、MB）", "検証機の X11。2 MB の文字を貼ってからキーを 3 つ打った時のプロセスの記憶", [
+        { name: "家計簿 前", v: "old", value: 704, label: "704 MB" },
+        { name: "家計簿 後", v: "new", value: 158, label: "158 MB" },
+        { name: "メモ帳 前", v: "old", value: 739, label: "739 MB" },
+        { name: "メモ帳 後", v: "new", value: 165, label: "165 MB" },
+      ]),
+    notepad: () =>
+      figure(
+        "bigtext/notepad",
+        "メモ帳の窓。abcdefghij を繰り返す行が並び、最後の行に bbb とキャレット。下の欄に 39217 行・2000019 文字",
+        "直した後のメモ帳（検証機の Xvfb）。2 MB を貼ってから b を 3 つ打った。",
         { flat: true },
       ),
   },

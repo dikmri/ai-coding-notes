@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>第 22 章 長い文字の入力欄 ― kargui 開発レポート ― AI コーディングノート</title>
+<meta name="description" content="2 MB の文字を貼った入力欄が重かった原因 5 つと直し方。見えない字を描かない、行の位置を数え直さない、古い版を忘れる、キャレットの位置を覚える、変わったかたまりだけ並べ直す。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c23b22'/%3E%3Ctext x='32' y='41' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3Ek%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../css/site.css">
+<link rel="stylesheet" href="dev.css">
+</head>
+<body>
+<a class="skip" href="#main">本文へ移動</a>
+
+<header class="masthead">
+  <a class="brand" href="../../" aria-label="AI コーディングノート 表紙へ">
+    <span class="brand-mark"><em>AI</em> コーディングノート</span>
+    <span class="brand-sub">AI に書かせて、動かして確かめる</span>
+  </a>
+  <span class="spacer"></span>
+  <nav class="mainnav" aria-label="主な画面">
+    <a href="../../">図鑑</a>
+    <a href="../" aria-current="true">実験レポート</a>
+    <a href="../../os/">Future OS</a>
+  </nav>
+</header>
+
+<main id="main" class="dev">
+<article>
+  <p class="kicker"><a href="./">kargui 開発レポート</a> ・ 第 22 章</p>
+  <h1>長い文字の入力欄</h1>
+  <p class="lede"><a href="21-x11.html">前の章</a>の確かめで、2 MB の文字を貼った入力欄が、何も変わらないフレームでも重いと分かりました。調べると、原因は 1 つではなく 5 つありました。この件は別のセッションが受け持ち、直した後は、メモ帳でキーを 1 つ打つ時間が約 68 秒から 10〜15 ミリ秒になりました。</p>
+
+  <section class="learn" aria-labelledby="h-learn">
+    <h2 id="h-learn">この章で分かること</h2>
+    <ul>
+      <li>見えている字だけを描く物に入れる方法</li>
+      <li>文字の数の 2 乗で遅くなる数え方</li>
+      <li>並べた結果を覚える表が、長い文字で記憶を食う理由</li>
+      <li>長い文字をかたまりに分けて、変わった所だけ並べ直す形</li>
+    </ul>
+  </section>
+
+  <h2 id="found">見つけた時の数</h2>
+  <p>検証機の X11（Xvfb、倍率 1.5）で、2 つの見本に 2 MB の文字を貼って測りました。家計簿の「メモ」は 1 行の入力欄で、200 万字を 1 行で入れます。メモ帳は複数行の入力欄で、2 MB を 39,216 行に分けて入れます。</p>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-before">
+    <table>
+      <caption id="t-before">直す前の数（検証機の X11）</caption>
+      <thead><tr><th scope="col">項目</th><th scope="col">家計簿（1 行）</th><th scope="col">メモ帳（複数行）</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">描く物の数（quads）</th><td data-label="家計簿（1 行）">2,000,194</td><td data-label="メモ帳（複数行）">1,960,837</td></tr>
+        <tr><th scope="row">何も変わらないフレーム</th><td data-label="家計簿（1 行）">153〜183 ms</td><td data-label="メモ帳（複数行）">57〜61 ms</td></tr>
+        <tr><th scope="row">キー 1 つ</th><td data-label="家計簿（1 行）">1,044〜1,075 ms</td><td data-label="メモ帳（複数行）">68,037〜68,343 ms</td></tr>
+        <tr><th scope="row">記憶（キー 3 つの後）</th><td data-label="家計簿（1 行）">704 MB</td><td data-label="メモ帳（複数行）">739 MB</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>1 行の欄に見えているのは 60 字ほどです。それなのに描く物が 200 万個ありました。メモ帳はキー 1 つに 1 分以上かかり、打つたびに記憶が 121〜133 MB ずつ増えていました。</p>
+
+  <h2 id="cull">原因 1: 見えない字まで描く物に入れていた</h2>
+  <p>入力欄を描く所（<code>ui/draw.rs</code>）は、並べた字を全部、描く物に入れていました。描く物の一覧も、切り抜きの範囲と比べていませんでした。CPU の道は変わった所を探すため、毎フレーム 200 万個をまとめ直していました。何も描き直さないフレームでも、描く処理に約 58 ms かかっていたのはこのためです。</p>
+  <p>直し方は、並べた字を 128 字ごとの範囲に分けて覚え、切り抜きの範囲と重なる範囲の字だけを入れることです。書式付きの文字も同じ関数を使います。家計簿の描く物は 243 個になりました。</p>
+
+  <h2 id="lines">原因 2: 行の位置を頭から数え直していた</h2>
+  <p>Linux と macOS の文字の道（portable）は、行の一覧を作る時に、行ごとにその行の位置（UTF-16 の数）を文字列の頭から数え直していました。時間は行の数と文字の数の掛け算で増えます。39,216 行・2 MB のメモ帳では、貼る時も打つ時も約 68 秒かかりました。文字の位置の表はすでに作ってあったので、そこから引く形に直しました。</p>
+
+  <h2 id="cache">原因 3: 古い版を覚えたまま残していた</h2>
+  <p>並べた結果は、文字列を鍵にして表に覚えています（上限 4,096 件）。打つたびに文字列が変わるので、前の版の結果が表に残ります。200 万字の欄では、キーを 3 つ打つと記憶が 704 MB まで増えました。16 KiB 以上の文字列の結果は、そのフレームで使わなければ忘れる形にしました。</p>
+
+  <h2 id="caret">原因 4: キャレットの位置を、毎フレーム頭から足していた</h2>
+  <p>原因 1〜3 を直した後も、家計簿の何も変わらないフレームに約 70 ms かかっていました。portable の道は、キャレット（入力の位置の縦線）の横の位置を、文字を並べる部品（parley）に聞いていました。parley は、行の頭から字の幅を足して答えます（<code>Cluster::visual_offset</code>）。200 万字の 1 行の終わりでは、1 回に約 80 ms かかりました。聞かれた位置ごとの答えを、並べた結果に覚えておく形にしました。200 回聞く試験の時間は、4.4 秒から 0.1 ms になりました。</p>
+
+  <h2 id="blocks">原因 5: 1 字変わると全文を並べ直していた</h2>
+  <p>ここまでで、何も変わらないフレームは数 ms になりました。それでも、キーを 1 つ打つのに約 0.9 秒かかりました。並べた結果を文字列全体を鍵にして覚えているので、1 字でも違うと全文を並べ直していたからです。</p>
+  <p>長い文字を、かたまりに分けて並べる形に作り替えました（<code>text/block.rs</code>）。打った時は、変わったかたまりだけを並べ直し、ほかのかたまりは前の結果を使います。</p>
+
+  <h2 id="after">直した後の数</h2>
+  <div class="table-wrap stack-table" tabindex="0" role="region" aria-labelledby="t-after">
+    <table>
+      <caption id="t-after">直す前と直した後（検証機の X11）</caption>
+      <thead><tr><th scope="col">項目</th><th scope="col">直す前</th><th scope="col">直した後</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">家計簿の描く物の数</th><td data-label="直す前">2,000,194</td><td data-label="直した後">243</td></tr>
+        <tr><th scope="row">家計簿の何も変わらないフレーム</th><td data-label="直す前">153〜183 ms</td><td data-label="直した後">多くは 5〜8 ms</td></tr>
+        <tr><th scope="row">家計簿のキー 1 つ</th><td data-label="直す前">1,044〜1,075 ms</td><td data-label="直した後">14〜24 ms</td></tr>
+        <tr><th scope="row">メモ帳の描く物の数</th><td data-label="直す前">1,960,837</td><td data-label="直した後">987</td></tr>
+        <tr><th scope="row">メモ帳に貼った時</th><td data-label="直す前">68,666 ms</td><td data-label="直した後">1,161 ms</td></tr>
+        <tr><th scope="row">メモ帳の何も変わらないフレーム</th><td data-label="直す前">57〜61 ms</td><td data-label="直した後">多くは 4〜7 ms</td></tr>
+        <tr><th scope="row">メモ帳のキー 1 つ</th><td data-label="直す前">68,037〜68,343 ms</td><td data-label="直した後">10〜15 ms</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <!-- gen:memory -->
+<figure class="bars" id="c-bigtext-mem">
+    <figcaption><span class="bars-title">記憶（キーを 3 つ打った後、MB）</span><span class="bars-hint">検証機の X11。2 MB の文字を貼ってからキーを 3 つ打った時のプロセスの記憶</span></figcaption>
+    <div class="bar-rows">
+      <div class="bar-row" data-v="old"><span class="bar-name">家計簿 前</span><span class="bar-track"><span class="bar" style="--w: 95.3%"></span><span class="bar-val">704 MB</span></span></div>
+      <div class="bar-row" data-v="new"><span class="bar-name">家計簿 後</span><span class="bar-track"><span class="bar" style="--w: 21.4%"></span><span class="bar-val">158 MB</span></span></div>
+      <div class="bar-row" data-v="old"><span class="bar-name">メモ帳 前</span><span class="bar-track"><span class="bar" style="--w: 100.0%"></span><span class="bar-val">739 MB</span></span></div>
+      <div class="bar-row" data-v="new"><span class="bar-name">メモ帳 後</span><span class="bar-track"><span class="bar" style="--w: 22.3%"></span><span class="bar-val">165 MB</span></span></div>
+    </div>
+  </figure>
+<!-- /gen:memory -->
+  <p>直した後も、画面が正しく描かれることを写真で確かめました。メモ帳の下の欄には「39217 行・2000019 文字」と出ています。上の端で一部だけ見える行も描かれています。</p>
+  <!-- gen:notepad -->
+<figure class="shot flat"><picture><img src="img/bigtext/notepad-light.webp" alt="メモ帳の窓。abcdefghij を繰り返す行が並び、最後の行に bbb とキャレット。下の欄に 39217 行・2000019 文字" width="962" height="749" loading="lazy" decoding="async"></picture><figcaption>直した後のメモ帳（検証機の Xvfb）。2 MB を貼ってから b を 3 つ打った。</figcaption></figure>
+<!-- /gen:notepad -->
+
+  <h2 id="left">残っていること</h2>
+  <ul>
+    <li>貼った直後の 1 回は、全文を初めて並べるので約 1.1 秒かかる。</li>
+    <li>Windows の文字の道（DirectWrite）で、とても長い 1 行の終わりの位置が少しずれる（10 万字で 53 画素）。座標が大きいと、小数の誤差が溜まるためとみられる。今回の変更の前からある。</li>
+    <li>何も変わらないフレームに残る数 ms は、2 MB の文字列の写しと、文字の位置を頭から数える処理。</li>
+  </ul>
+  <div class="pitfall">
+    <span class="box-title">やめた方がいい作り: 長さに比例する処理を、毎フレームや 1 行ごとに呼ぶ</span>
+    <p>どの原因も、1 回なら目立たない処理を、毎フレームか行ごとに繰り返していました。短い文字では速いので、ふつうの試験では見つかりません。文字や一覧を扱う部品は、2 MB や 4 万行の大きさでも測ってください。</p>
+  </div>
+
+  <h2 id="next">次の段階</h2>
+  <p>次は、Windows の版で、OS の明暗を開いたまま切り替えた時に追うようにします。そのあと、macOS の仕上げに進みます。</p>
+
+  <nav class="chapter-nav" aria-label="章の移動">
+    <a href="21-x11.html">← 第 21 章 本物の X サーバーと切り分け</a>
+    <a href="./">目次 →</a>
+  </nav>
+</article>
+</main>
+</body>
+</html>
